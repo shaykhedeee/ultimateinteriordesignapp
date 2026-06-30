@@ -243,6 +243,33 @@ db.exec(`
     FOREIGN KEY(project_id) REFERENCES projects(id)
   );
 
+  CREATE TABLE IF NOT EXISTS render_color_preferences (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    render_id TEXT,
+    component_type TEXT NOT NULL,
+    color TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS laminate_swap_history (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    render_id TEXT,
+    component_type TEXT NOT NULL,
+    new_material TEXT,
+    new_color TEXT,
+    laminate_code TEXT,
+    laminate_brand TEXT,
+    result_file_path TEXT,
+    source_type TEXT,
+    prompt TEXT,
+    approved INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
   CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     project_id TEXT,

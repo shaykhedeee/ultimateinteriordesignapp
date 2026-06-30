@@ -431,6 +431,54 @@ class ComponentColorService {
     if (r > 180 && g < 100 && b < 100) return 'bold';
     return 'neutral';
   }
+
+  /**
+   * Return a curated list of complementary color suggestions for a given component type.
+   * Used by the quick recolor feature to offer alternatives to the chosen color.
+   */
+  getColorSuggestionsForComponent(componentType, selectedColor) {
+    const laminateSuggestions = [
+      { name: 'Frosty White', hex: '#f3f4f6', finish: 'matte' },
+      { name: 'Warm Beige', hex: '#e5d9c6', finish: 'satin' },
+      { name: 'Warm Oak', hex: '#c29a6b', finish: 'wood-grain' },
+      { name: 'Charcoal Matte', hex: '#1e293b', finish: 'matte' },
+      { name: 'Walnut Dark', hex: '#5c3a1e', finish: 'wood-grain' },
+      { name: 'Natural Teak', hex: '#8b7a60', finish: 'wood-grain' },
+      { name: 'Smoke Grey', hex: '#6b7280', finish: 'matte' },
+      { name: 'Champagne Gold', hex: '#C9A84C', finish: 'metallic' },
+    ];
+
+    const fabricSuggestions = [
+      { name: 'Linen Beige', hex: '#d4c5b2', finish: 'fabric' },
+      { name: 'Charcoal Weave', hex: '#2d2d2d', finish: 'fabric' },
+      { name: 'Navy Blue', hex: '#1e4d6e', finish: 'fabric' },
+      { name: 'Sage Green', hex: '#a8b8a0', finish: 'fabric' },
+      { name: 'Terracotta', hex: '#c17e3a', finish: 'fabric' },
+      { name: 'Blush Pink', hex: '#e8c4b8', finish: 'fabric' },
+      { name: 'Midnight Blue', hex: '#1a2a4a', finish: 'velvet' },
+      { name: 'Mustard', hex: '#d4a017', finish: 'fabric' },
+    ];
+
+    const stoneSuggestions = [
+      { name: 'Statuario White Marble', hex: '#f5f5f0', finish: 'polished' },
+      { name: 'Nero Marquina Black', hex: '#1a1a1a', finish: 'polished' },
+      { name: 'Calacatta Gold', hex: '#f0e6c8', finish: 'polished' },
+      { name: 'Bottocino Beige', hex: '#d4b896', finish: 'honed' },
+      { name: 'Emerald Pearl Granite', hex: '#1a3a2a', finish: 'polished' },
+      { name: 'Kashmir White', hex: '#f0ece4', finish: 'polished' },
+    ];
+
+    const comp = (componentType || '').toLowerCase();
+    
+    if (comp.includes('sofa') || comp.includes('fabric') || comp.includes('headboard') || comp.includes('upholstery')) {
+      return fabricSuggestions.filter(s => s.hex !== selectedColor).slice(0, 5);
+    }
+    if (comp.includes('countertop') || comp.includes('stone') || comp.includes('marble') || comp.includes('backdrop')) {
+      return stoneSuggestions.filter(s => s.hex !== selectedColor).slice(0, 5);
+    }
+    // Default: laminate suggestions
+    return laminateSuggestions.filter(s => s.hex !== selectedColor).slice(0, 6);
+  }
 }
 
 export default new ComponentColorService();
