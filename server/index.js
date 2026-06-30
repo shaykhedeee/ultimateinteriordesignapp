@@ -1605,6 +1605,139 @@ app.delete('/api/material-catalog/:materialId', (req, res) => {
   res.json({ success: true });
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// LAMINATE SWAPPER — AI-Powered Component Detection & Material Swap
+// ═══════════════════════════════════════════════════════════════════
+
+// POST: Analyse a render image and detect all changeable interior components
+app.post('/api/projects/:id/renders/analyse-components',
+  upload.single('renderImage'),
+  async (req, res) => {
+    try {
+      const projectId = req.params.id;
+      const imageFile = req.file;
+      if (!imageFile) return res.status(400).json({ error: 'renderImage file is required' });
+
+      const roomType = req.body.room || 'living';
+      const imageBuffer = fs.readFileSync(imageFile.path);
+      const base64Image = `data:image/${imageFile.mimetype === 'image/png' ? 'png' : 'jpeg'};base64,${imageBuffer.toString('base64')}`;
+
+      // Component detection via GPT-4o Vision
+      const detectedComponents = await visualizerEngine.analyseRenderComponents(base64Image, roomType);
+
+      // Clean up temp upload
+      try { fs.unlinkSync(imageFile.path); } catch(e) {}
+
+      res.json({ success: true, projectId, room: roomType, components: detectedComponents });
+    } catch (err) {
+      console.error('[analyse-components] Error:', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST: Swap a laminate/material on a specific component in a render image
+app.post('/api/projects/:id/renders/laminate-swap',
+  upload.fields([
+    { name: 'renderImage', maxCount: 1 },
+    { name: 'laminateImage', maxCount: 1 }
+  ]),
+  async (req, res) => {
+    try {
+      const projectId = req.params.id;
+      const renderFile = req.files?.renderImage?.[0];
+      const laminateFile = req.files?.laminateImage?.[0];
+
+      if (!renderFile) return res.status(400).json({ error: 'renderImage is required' });
+
+      const params = {
+        componentType: req.body.componentType || 'Cabinet Shutters',
+        newMaterial: req.body.newMaterial || '',
+        newColor: req.body.newColor || '',
+        laminateCode: req.body.laminateCode || '',
+        laminateBrand: req.body.laminateBrand || '',
+        instruction: req.body.instruction || '',
+        room: req.body.room || 'living',
+        laminateCatalogId: req.body.laminateCatalogId || null
+      };
+
+      // If catalog ID given, enrich with catalog metadata
+      if (params.laminateCatalogId) {
+        const catItem = db.prepare("SELECT * FROM material_catalog WHERE id = ?").get(params.laminateCatalogId);
+        if (catItem) {
+          params.newMaterial = params.newMaterial || catItem.name;
+          params.newColor = params.newColor || catItem.color;
+          params.laminateCode = params.laminateCode || catItem.code;
+          params.laminateBrand = params.laminateBrand || catItem.brand;
+        }
+      }
+
+      const renderBuffer = fs.readFileSync(renderFile.path);
+      const renderBase64 = `data:image/${renderFile.mimetype === 'image/png' ? 'png' : 'jpeg'};base64,${renderBuffer.toString('base64')}`;
+
+      let laminateBase64 = null;
+      if (laminateFile) {
+        const laminateBuffer = fs.readFileSync(laminateFile.path);
+        laminateBase64 = `data:image/${laminateFile.mimetype === 'image/png' ? 'png' : 'jpeg'};base64,${laminateBuffer.toString('base64')}`;
+        try { fs.unlinkSync(laminateFile.path); } catch(e) {}
+      }
+
+      // Clean up render temp
+      try { fs.unlinkSync(renderFile.path); } catch(e) {}
+
+      // Run the laminate swap engine
+      const result = await visualizerEngine.performLaminateSwap(projectId, renderBase64, laminateBase64, params, db);
+
+      // Log timeline event
+      logTimelineEvent(projectId, 'render.laminate_swap', `Laminate Swap: ${params.componentType}`,
+        `Changed to ${params.newMaterial || params.newColor} (${params.laminateBrand} ${params.laminateCode})`);
+
+      res.json({ success: true, render: result });
+    } catch (err) {
+      console.error('[laminate-swap] Error:', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// POST: Quick recolor (color-swap without image upload — uses selected render from DB)
+app.post('/api/projects/:id/renders/change-color', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { renderId, componentType, newColor, roomType } = req.body;
+
+    if (!renderId || !componentType || !newColor) {
+      return res.status(400).json({ error: 'renderId, componentType, and newColor are required' });
+    }
+
+    // Fetch the base render asset
+    const asset = db.prepare("SELECT * FROM generated_assets WHERE id = ? AND project_id = ?").get(renderId, projectId);
+
+    // Build color suggestions based on component type
+    const suggestions = colorService.getColorSuggestionsForComponent(componentType, newColor);
+
+    // Log the color change preference for learning
+    db.prepare(`
+      INSERT OR IGNORE INTO render_color_preferences (id, project_id, render_id, component_type, color, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run('rcp_' + nanoid(6), projectId, renderId, componentType, newColor, new Date().toISOString());
+
+    logTimelineEvent(projectId, 'render.color_change', `Quick Recolor: ${componentType}`, `Changed to ${newColor}`);
+
+    res.json({
+      success: true,
+      message: `${componentType} recolored to ${newColor}`,
+      componentType,
+      newColor,
+      suggestions,
+      note: 'Upload the render + laminate image to /renders/laminate-swap for full AI-powered swap with image generation.'
+    });
+  } catch (err) {
+    console.error('[change-color] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET timeline events
 app.get('/api/projects/:id/timeline', (req, res) => {
   const rows = db.prepare("SELECT * FROM timeline_events WHERE project_id = ? ORDER BY created_at DESC").all(req.params.id);
