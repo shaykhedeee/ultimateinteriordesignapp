@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1150" viewBox="-4 -50.030 84.352 56.030">
+<rect x="-100" y="-100" width="300" height="300" fill="white"/>
+<style>text{font-family:Arial,Helvetica,sans-serif}.wall{fill:#111827;stroke:#111827;stroke-width:.03}.door{stroke:#b91c1c;stroke-width:.11;fill:none}.glaz{stroke:#0369a1;stroke-width:.12;fill:none}.label{font-size:.66px;font-weight:700;fill:#111827}.anno{font-size:.45px;fill:#7c2d12}.dim{stroke:#dc2626;stroke-width:.08;fill:none;stroke-dasharray:.35 .25}</style>
+<polygon class="wall" points="0.000,-44.290 20.422,-44.290 20.422,-43.770 0.000,-43.770"/>
+<polygon class="wall" points="24.170,-44.290 28.573,-44.290 28.573,-43.770 24.170,-43.770"/>
+<polygon class="wall" points="32.039,-44.290 44.686,-44.290 44.686,-43.770 32.039,-43.770"/>
+<polygon class="wall" points="48.714,-44.290 62.017,-44.290 62.017,-43.770 48.714,-43.770"/>
+<polygon class="wall" points="66.888,-44.290 73.352,-44.290 73.352,-43.770 66.888,-43.770"/>
+<polygon class="wall" points="73.612,-44.030 73.612,-0.000 73.092,-0.000 73.092,-44.030"/>
+<polygon class="wall" points="0.000,-0.260 27.636,-0.260 27.636,0.260 0.000,0.260"/>
+<polygon class="wall" points="31.570,-0.260 58.269,-0.260 58.269,0.260 31.570,0.260"/>
+<polygon class="wall" points="64.452,-0.260 73.352,-0.260 73.352,0.260 64.452,0.260"/>
+<polygon class="wall" points="0.260,-44.030 0.260,-20.422 -0.260,-20.422 -0.260,-44.030"/>
+<polygon class="wall" points="0.260,-20.422 0.260,-18.080 -0.260,-18.080 -0.260,-20.422"/>
+<polygon class="wall" points="0.260,-15.457 0.260,-0.000 -0.260,-0.000 -0.260,-15.457"/>
+<polygon class="wall" points="6.728,-44.030 6.728,-18.080 6.388,-18.080 6.388,-44.030"/>
+<polygon class="wall" points="0.000,-33.520 6.558,-33.520 6.558,-33.180 0.000,-33.180"/>
+<polygon class="wall" points="0.000,-18.250 6.558,-18.250 6.558,-17.910 0.000,-17.910"/>
+<polygon class="wall" points="0.000,-6.728 21.453,-6.728 21.453,-6.388 0.000,-6.388"/>
+<polygon class="wall" points="21.623,-14.333 21.623,-6.558 21.283,-6.558 21.283,-14.333"/>
+<polygon class="wall" points="0.000,-14.503 21.453,-14.503 21.453,-14.163 0.000,-14.163"/>
+<polygon class="wall" points="21.453,-14.503 28.198,-14.503 28.198,-14.163 21.453,-14.163"/>
+<polygon class="wall" points="28.368,-14.333 28.368,-6.558 28.028,-6.558 28.028,-14.333"/>
+<polygon class="wall" points="21.453,-6.728 28.198,-6.728 28.198,-6.388 21.453,-6.388"/>
+<polygon class="wall" points="62.842,-44.030 62.842,-33.538 62.502,-33.538 62.502,-44.030"/>
+<polygon class="wall" points="70.431,-44.030 70.431,-33.538 70.091,-33.538 70.091,-44.030"/>
+<polygon class="wall" points="62.672,-33.708 73.352,-33.708 73.352,-33.368 62.672,-33.368"/>
+<line class="glaz" x1="20.422" y1="-44.030" x2="24.170" y2="-44.030"/>
+<line class="glaz" x1="28.573" y1="-44.030" x2="32.039" y2="-44.030"/>
+<line class="glaz" x1="44.686" y1="-44.030" x2="48.714" y2="-44.030"/>
+<line class="glaz" x1="62.017" y1="-44.030" x2="66.888" y2="-44.030"/>
+<line class="glaz" x1="27.636" y1="-0.000" x2="31.570" y2="-0.000"/>
+<line class="glaz" x1="58.269" y1="-0.000" x2="64.452" y2="-0.000"/>
+<line class="glaz" x1="67.450" y1="-0.000" x2="72.509" y2="-0.000"/>
+<line class="glaz" x1="73.352" y1="-27.636" x2="73.352" y2="-22.296"/>
+<line class="glaz" x1="73.352" y1="-15.457" x2="73.352" y2="-9.181"/>
+<line class="door" x1="0.000" y1="-18.080" x2="0.000" y2="-14.480"/>
+<line class="door" x1="0.000" y1="-18.080" x2="3.600" y2="-18.080"/>
+<path class="door" d="M 0.000,-14.480 A 3.600,3.600 0 0 0 3.600,-18.080"/>
+<line class="door" x1="6.558" y1="-34.287" x2="6.558" y2="-37.287"/>
+<line class="door" x1="6.558" y1="-34.287" x2="3.558" y2="-34.287"/>
+<path class="door" d="M 6.558,-37.287 A 3.000,3.000 0 0 0 3.558,-34.287"/>
+<line class="door" x1="6.558" y1="-18.080" x2="6.558" y2="-21.280"/>
+<line class="door" x1="6.558" y1="-18.080" x2="3.358" y2="-18.080"/>
+<path class="door" d="M 6.558,-21.280 A 3.200,3.200 0 0 0 3.358,-18.080"/>
+<line class="door" x1="28.198" y1="-14.333" x2="28.198" y2="-17.833"/>
+<line class="door" x1="28.198" y1="-14.333" x2="24.698" y2="-14.333"/>
+<path class="door" d="M 28.198,-17.833 A 3.500,3.500 0 0 0 24.698,-14.333"/>
+<line class="door" x1="62.672" y1="-35.037" x2="62.672" y2="-32.337"/>
+<line class="door" x1="62.672" y1="-35.037" x2="65.372" y2="-35.037"/>
+<path class="door" d="M 62.672,-32.337 A 2.700,2.700 0 0 0 65.372,-35.037"/>
+<line class="door" x1="70.261" y1="-33.538" x2="72.961" y2="-33.538"/>
+<line class="door" x1="70.261" y1="-33.538" x2="70.261" y2="-36.238"/>
+<path class="door" d="M 72.961,-33.538 A 2.700,2.700 0 0 0 70.261,-36.238"/>
+<text class="label" x="2.810" y="-38.878" text-anchor="middle">PANTRY</text>
+<text class="label" x="3.279" y="-26.043" text-anchor="middle">BALCONY / SITTING</text>
+<text class="label" x="2.061" y="-17.144" text-anchor="middle">SIDE ENTRY</text>
+<text class="label" x="10.680" y="-10.305" text-anchor="middle">STAIR / SERVICE</text>
+<text class="label" x="24.732" y="-10.305" text-anchor="middle">ENTRANCE BAY</text>
+<text class="label" x="65.764" y="-39.627" text-anchor="middle">WASH M</text>
+<text class="label" x="71.666" y="-39.627" text-anchor="middle">WASH F</text>
+<line class="dim" x1="76.352" y1="-44.030" x2="76.352" y2="-0.000"/>
+<text class="anno" x="76.352" y="-22.265" text-anchor="middle">RIGHT EXTERIOR WALL = 44.03 ft / 13.420 m</text>
+<line class="dim" x1="0.000" y1="3.000" x2="73.352" y2="3.000"/>
+<text class="anno" x="36.676" y="2.750" text-anchor="middle">DERIVED OVERALL WIDTH = 73.35 ft</text>
+<text class="anno" x="0" y="4.2">Exterior shell trace only. Interior fit-out removed. Scale fixed from right exterior wall.</text>
+</svg>

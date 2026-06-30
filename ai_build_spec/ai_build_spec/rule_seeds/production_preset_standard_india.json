@@ -1,0 +1,33 @@
+{
+  "presetKey": "production_standard_india_v1",
+  "name": "Standard India Modular Production Preset",
+  "boardDefaults": {
+    "carcass_thickness_mm": 18,
+    "back_panel_thickness_mm": 6,
+    "drawer_panel_thickness_mm": 12,
+    "shelf_deduction_mm": 10
+  },
+  "sheetDefaults": {
+    "sheet_length_mm": 2440,
+    "sheet_width_mm": 1220,
+    "kerf_mm": 3,
+    "trim_mm": 10
+  },
+  "edgeBandDefaults": {
+    "visible_edge": "2mm PVC",
+    "internal_edge": "0.8mm PVC",
+    "hidden_edge": "none"
+  },
+  "namingConvention": {
+    "side_panel": "S/P",
+    "top_panel": "TOP",
+    "bottom_panel": "BTM",
+    "back_panel": "BACK",
+    "vertical_panel": "V/P",
+    "fixed_shelf": "F/S",
+    "door": "DOOR",
+    "fascia": "FACIA",
+    "filler": "FILLER",
+    "skirting": "SK"
+  }
+}

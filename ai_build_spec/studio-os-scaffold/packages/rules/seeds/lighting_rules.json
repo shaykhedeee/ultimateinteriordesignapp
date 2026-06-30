@@ -1,0 +1,28 @@
+{
+  "ruleSetKey": "lighting_and_rendering_standards_v1",
+  "scope": "global",
+  "rules": [
+    {
+      "code": "CAMERA_NO_FISHEYE",
+      "severity": "hard",
+      "description": "Final client-facing and drawing views must not use fisheye distortion"
+    },
+    {
+      "code": "CAMERA_ELEVATION_STRAIGHT_ON",
+      "severity": "hard",
+      "description": "Elevation views must be perpendicular to the wall and visually undistorted"
+    },
+    {
+      "code": "LIGHTING_AMBIENT_COVE_3000K",
+      "severity": "soft",
+      "measure": "ambient_cove_cct_k",
+      "target": 3000
+    },
+    {
+      "code": "LIGHTING_TASK_SPOT_4000K",
+      "severity": "soft",
+      "measure": "task_spot_cct_k",
+      "target": 4000
+    }
+  ]
+}
