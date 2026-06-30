@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SpaceTrace AI - 2D Sketch to Office Floorplan Designer</title>
+  <script>
+    window.__errorStack = [];
+    window.addEventListener('error', (e) => {
+      window.__errorStack.push({
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
+        stack: e.error ? e.error.stack : 'No stack'
+      });
+    });
+  </script>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#F0F9FF',
+              100: '#E0F2FE',
+              500: '#3182CE',
+              600: '#2B6CB0',
+              900: '#0F172A',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Google Font - Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="app.css">
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col h-screen overflow-hidden select-none">
+
+  <!-- ==================== HEADER ==================== -->
+  <header class="bg-slate-900 border-b border-slate-800 px-4 md:px-5 py-2.5 flex items-center justify-between shrink-0 z-20 shadow-md">
+    <!-- Brand Logo -->
+    <div class="flex items-center gap-2.5 md:gap-3">
+      <div class="bg-gradient-to-tr from-blue-600 to-indigo-600 p-2 rounded-lg text-white shadow-lg shadow-blue-500/20">
+        <i data-lucide="layout" class="w-5 h-5 md:w-6 md:h-6"></i>
+      </div>
+      <div>
+        <h1 class="text-sm md:text-lg font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-indigo-200 bg-clip-text text-transparent flex items-center gap-1.5">
+          SpaceTrace AI
+          <span class="text-[9px] md:text-[10px] font-semibold text-blue-400 bg-blue-900/40 border border-blue-800/60 px-1.5 py-0.5 rounded-full uppercase tracking-wider">CAD Pro</span>
+        </h1>
+        <p class="text-[9px] md:text-[10px] text-slate-400 font-medium">Professional 2D Sketch-to-Floorplan Engine</p>
+      </div>
+    </div>
+
+    <!-- Active Project Live Stats (Hidden on Small Screens) -->
+    <div class="hidden xl:flex items-center gap-6 bg-slate-950/60 border border-slate-800/80 rounded-xl px-5 py-1.5 text-xs text-slate-300">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span class="text-slate-400">Walls:</span>
+        <strong id="stat-walls" class="text-emerald-400 font-bold">0</strong>
+      </div>
+      <div class="w-px h-4 bg-slate-800"></div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        <span class="text-slate-400">Openings:</span>
+        <strong id="stat-openings" class="text-blue-400 font-bold">0</strong>
+      </div>
+      <div class="w-px h-4 bg-slate-800"></div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+        <span class="text-slate-400">Furniture:</span>
+        <strong id="stat-furniture" class="text-indigo-400 font-bold">0</strong>
+      </div>
+      <div class="w-px h-4 bg-slate-800"></div>
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+        <span class="text-slate-400">Total Desks/Seats:</span>
+        <strong id="stat-workstations" class="text-amber-400 font-bold">0</strong>
+      </div>
+    </div>
+
+    <!-- Top Core File & Print Actions -->
+    <div class="flex items-center gap-1.5 md:gap-2.5">
+      <!-- Undo/Redo Group (Hidden on phones) -->
+      <div class="hidden sm:flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5">
+        <button id="btn-undo" title="Undo (Ctrl+Z)" class="hover:bg-slate-700 hover:text-white p-1.5 rounded transition">
+          <i data-lucide="undo-2" class="w-4 h-4"></i>
+        </button>
+        <button id="btn-redo" title="Redo (Ctrl+Y)" class="hover:bg-slate-700 hover:text-white p-1.5 rounded transition">
+          <i data-lucide="redo-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Demo Trigger (Desktop/Tablet) -->
+      <button id="btn-demo-project" class="hidden md:flex bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs px-3.5 py-2 rounded-lg items-center gap-2 shadow-lg shadow-emerald-950/40 transition">
+        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+        Load Demo
+      </button>
+
+      <!-- Import/Export Desktop buttons -->
+      <div class="hidden sm:flex items-center gap-1.5">
+        <button id="btn-load-project" title="Import JSON layout file" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-medium text-xs px-3 py-2 rounded-lg flex items-center gap-2 transition">
+          <i data-lucide="file-json-2" class="w-3.5 h-3.5 text-blue-400"></i>
+          Import
+        </button>
+        <button id="btn-save-project" title="Export current project to JSON file" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-medium text-xs px-3 py-2 rounded-lg flex items-center gap-2 transition">
+          <i data-lucide="download" class="w-3.5 h-3.5 text-blue-400"></i>
+          Save
+        </button>
+      </div>
+
+      <!-- Mobile quick-menu/action trigger (only on phones) -->
+      <div class="flex items-center gap-1">
+        <button id="btn-export-svg" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-[11px] md:text-xs px-2.5 md:px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+          <i data-lucide="file-type-2" class="w-3 h-3 text-orange-400"></i>
+          SVG
+        </button>
+        <button id="btn-export-dxf" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-[11px] md:text-xs px-2.5 md:px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition" title="Export scaled layered CAD drawing (AutoCAD/Revit)">
+          <i data-lucide="file-box" class="w-3.5 h-3.5 text-amber-300"></i>
+          Export DXF
+        </button>
+        <button id="btn-export-scr" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-[11px] md:text-xs px-2.5 md:px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition" title="Download AutoCAD Underlay Aligner Script (.scr)">
+          <i data-lucide="terminal" class="w-3.5 h-3.5 text-emerald-400"></i>
+          AutoCAD Script
+        </button>
+        <button id="btn-export-pdf" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-[11px] md:text-xs px-2.5 md:px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-lg shadow-blue-500/10 transition">
+          <i data-lucide="printer" class="w-3 h-3"></i>
+          PDF Print
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <main class="flex flex-1 overflow-hidden relative">
+
+    <!-- ==================== LEFT CONTROLS SIDEBAR ==================== -->
+    <aside id="desktop-left-sidebar" class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-10 hidden lg:flex">
+      
+      <!-- Panel Tabs Selection -->
+      <div class="flex border-b border-slate-800 text-xs text-center shrink-0">
+        <button id="tab-canvas-tools" onclick="toggleSidebarTab('tools')" class="w-1/2 py-3 font-semibold border-b-2 border-blue-500 text-blue-400 bg-slate-900/60 transition focus:outline-none">
+          CAD Draw Tools
+        </button>
+        <button id="tab-sketch-adjustments" onclick="toggleSidebarTab('sketch')" class="w-1/2 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none flex items-center justify-center gap-1.5">
+          <i data-lucide="image" class="w-3.5 h-3.5"></i>
+          Sketch Process
+        </button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-5">
+        
+        <!-- Tab: CAD Drawing & Layout Tools -->
+        <div id="panel-tools" class="space-y-4">
+          <!-- Active Unit Indicator -->
+          <div class="flex items-center justify-between bg-slate-950/50 border border-slate-800/80 p-2.5 rounded-xl">
+            <span class="text-xs text-slate-400 font-medium">Workspace Units:</span>
+            <div class="flex rounded-md bg-slate-800 p-0.5 text-[11px] font-semibold">
+              <button id="btn-unit-metric" class="active-tool-btn px-2.5 py-1 rounded transition">Metric (m)</button>
+              <button id="btn-unit-imperial" class="px-2.5 py-1 rounded transition">Imperial (ft)</button>
+            </div>
+          </div>
+
+          <!-- Wall and Space Drawing Toolset -->
+          <div>
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Geometric Wall Enclosures</span>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <button data-tool="select" class="tool-btn active-tool-btn text-xs font-semibold py-3.5 px-3 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="mouse-pointer" class="w-5 h-5 text-blue-400"></i>
+                Select / Drag
+              </button>
+              <button data-tool="wall" class="tool-btn text-xs font-semibold py-3.5 px-3 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="drafting-compass" class="w-5 h-5 text-amber-400"></i>
+                Draw Wall
+              </button>
+              <button data-tool="room" class="tool-btn text-xs font-semibold py-3.5 px-3 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="combine" class="w-5 h-5 text-indigo-400"></i>
+                Define Room Area
+              </button>
+              <button id="btn-clear" class="text-xs font-semibold py-3.5 px-3 rounded-xl border border-red-900/40 bg-red-950/25 text-red-300 flex flex-col items-center gap-2 hover:bg-red-950/45 transition">
+                <i data-lucide="trash-2" class="w-5 h-5 text-red-400"></i>
+                Reset Canvas
+              </button>
+            </div>
+          </div>
+
+          <div class="h-px bg-slate-800 my-2"></div>
+
+          <!-- Wall Openings Placement -->
+          <div>
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Doors & Windows (Wall snap)</span>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <button data-tool="door_single" class="tool-btn text-xs font-semibold py-3 px-2 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="door-closed" class="w-5 h-5 text-sky-400"></i>
+                Swing Door
+              </button>
+              <button data-tool="door_double" class="tool-btn text-xs font-semibold py-3 px-2 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-sky-400"><path d="M3 21h18"/><path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"/><path d="M12 5v16"/></svg>
+                Double Doors
+              </button>
+              <button data-tool="door_sliding" class="tool-btn text-xs font-semibold py-3 px-2 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="columns-2" class="w-5 h-5 text-sky-400"></i>
+                Sliding Door
+              </button>
+              <button data-tool="window" class="tool-btn text-xs font-semibold py-3 px-2 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="square-dashed-bottom" class="w-5 h-5 text-teal-400"></i>
+                Window
+              </button>
+            </div>
+          </div>
+
+          <div class="h-px bg-slate-800 my-2"></div>
+
+          <!-- Utility Helpers -->
+          <div>
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Measurement & Calibration</span>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <button data-tool="measure" class="tool-btn text-xs font-semibold py-3 px-2 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="ruler" class="w-5 h-5 text-pink-400"></i>
+                Tape Measure
+              </button>
+              <button data-tool="calibrate" class="tool-btn text-xs font-semibold py-3 px-2 rounded-xl border border-slate-700/80 bg-slate-800 text-slate-200 flex flex-col items-center gap-2 hover:border-slate-500 transition">
+                <i data-lucide="scale" class="w-5 h-5 text-rose-400"></i>
+                Calibrate Scale
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Sketch adjustments (Auto-Wall Trace Panel) -->
+        <div id="panel-sketch" class="hidden space-y-4">
+          <!-- Sketch Image Import Box -->
+          <div class="space-y-2">
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Sketch Image Upload / Capture</span>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <label for="sketch-upload" class="flex flex-col items-center justify-center border border-slate-700 bg-slate-950/60 hover:bg-slate-900 cursor-pointer rounded-xl py-3 px-1 transition text-center group">
+                <i data-lucide="file-image" class="w-5 h-5 text-blue-400 mb-1"></i>
+                <span class="text-[11px] font-semibold text-slate-300">Choose File</span>
+              </label>
+              <label for="sketch-camera-upload" class="flex flex-col items-center justify-center border border-slate-700 bg-slate-950/60 hover:bg-slate-900 cursor-pointer rounded-xl py-3 px-1 transition text-center group">
+                <i data-lucide="camera" class="w-5 h-5 text-emerald-400 mb-1"></i>
+                <span class="text-[11px] font-semibold text-slate-300">Take Photo</span>
+              </label>
+              
+              <!-- Hidden Inputs -->
+              <input type="file" id="sketch-upload" class="hidden" accept="image/*, .jfif" />
+              <input type="file" id="sketch-camera-upload" class="hidden" accept="image/*, .jfif" capture="environment" />
+            </div>
+          </div>
+
+          <!-- Preloaded templates list -->
+          <div class="bg-slate-950/60 border border-slate-800 p-3 rounded-xl space-y-2">
+            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block flex items-center gap-1">
+              <i data-lucide="folder-open" class="w-3.5 h-3.5 text-blue-400"></i> No sketch? Try a template
+            </span>
+            <div class="grid grid-cols-2 gap-1.5 text-[10px] font-semibold text-center">
+              <button onclick="loadSampleSketchTemplate('studio')" class="bg-slate-800 hover:bg-blue-600 hover:text-white border border-slate-700 rounded-lg py-1.5 transition leading-tight">
+                Compact Hub
+              </button>
+              <button onclick="loadSampleSketchTemplate('l_shaped')" class="bg-slate-800 hover:bg-blue-600 hover:text-white border border-slate-700 rounded-lg py-1.5 transition leading-tight">
+                L-Suite
+              </button>
+              <button onclick="loadSampleSketchTemplate('clinic')" class="bg-slate-800 hover:bg-blue-600 hover:text-white border border-slate-700 rounded-lg py-1.5 transition leading-tight">
+                Clinic Corridor
+              </button>
+              <button onclick="loadSampleSketchTemplate('blueprint_mvp')" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-500/30 rounded-lg py-1.5 transition leading-tight flex items-center justify-center gap-1">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-300"></i>
+                Blueprint MVP
+              </button>
+            </div>
+          </div>
+
+          <!-- Binarization Adjustments -->
+          <div class="space-y-4 border-t border-slate-800 pt-4">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Image Filter adjustments</span>
+              <span class="text-[9px] text-blue-400 font-bold bg-blue-950 px-1.5 py-0.5 rounded border border-blue-900/60">Real-time CV</span>
+            </div>
+
+            <!-- Brightness -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs text-slate-400">
+                <label>Brightness</label>
+                <span class="text-[10px] font-mono text-slate-300">Offset</span>
+              </div>
+              <input type="range" id="slider-brightness" min="-100" max="100" value="0" class="w-full" />
+            </div>
+
+            <!-- Contrast -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs text-slate-400">
+                <label>Contrast</label>
+                <span class="text-[10px] font-mono text-slate-300">Scale</span>
+              </div>
+              <input type="range" id="slider-contrast" min="-100" max="100" value="0" class="w-full" />
+            </div>
+
+            <!-- Threshold -->
+            <div class="space-y-1">
+              <div class="flex justify-between text-xs text-slate-400">
+                <label>Line Isolation (Threshold)</label>
+                <span class="text-[10px] font-mono text-slate-300">Binarize</span>
+              </div>
+              <input type="range" id="slider-threshold" min="0" max="255" value="130" class="w-full" />
+            </div>
+
+            <div class="flex flex-col gap-2.5 bg-slate-950/60 border border-slate-800 p-3 rounded-xl text-xs">
+              <div class="flex items-center justify-between">
+                <label class="text-slate-300 cursor-pointer select-none" for="toggle-invert">Invert Colors (Dark Sketch)</label>
+                <input type="checkbox" id="toggle-invert" class="w-4 h-4 rounded" />
+              </div>
+              <div class="flex items-center justify-between">
+                <label class="text-slate-300 cursor-pointer select-none" for="toggle-processed-bg">Use Processed B&W Blueprint</label>
+                <input type="checkbox" id="toggle-processed-bg" class="w-4 h-4 rounded" />
+              </div>
+              
+              <div class="space-y-1 mt-1 border-t border-slate-800 pt-2">
+                <label class="text-[11px] text-slate-400">Blueprint Opacity</label>
+                <input type="range" id="slider-opacity" min="0" max="1" step="0.05" value="0.45" class="w-full" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Wall Vectorizer Options -->
+          <div class="space-y-3 border-t border-slate-800 pt-4">
+            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Automated Vectorizer Settings</span>
+            
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-slate-400">Min Wall Length:</span>
+                <input type="number" id="trace-min-length" value="40" class="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-center font-mono text-[11px]" />
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-slate-400">Thickness Tolerance:</span>
+                <input type="number" id="trace-line-thickness" value="15" class="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-center font-mono text-[11px]" />
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-slate-400">Sealed Corner Snap:</span>
+                <input type="number" id="trace-snap-tolerance" value="25" class="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-center font-mono text-[11px]" />
+              </div>
+            </div>
+
+            <button id="btn-auto-trace" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+              Auto-Detect Walls
+            </button>
+          </div>
+
+          <!-- Binarization Real-Time Thumbnail -->
+          <div class="border border-slate-800 rounded-xl p-2 bg-slate-950/60 space-y-1 flex flex-col items-center">
+            <span class="text-[10px] font-bold text-slate-500 self-start uppercase tracking-wider">CV Isolated Contour Preview</span>
+            <canvas id="sketch-binarized-preview" class="border border-slate-800 rounded bg-white w-full h-24 object-contain"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- ==================== CENTER DESIGN CANVAS ==================== -->
+    <section class="flex-1 flex flex-col relative h-full overflow-hidden bg-slate-900">
+      
+      <!-- Top Canvas Controls overlay bar (Adjusted positions on mobile) -->
+      <div class="absolute top-3 left-3 right-3 sm:right-auto z-10 flex flex-wrap items-center gap-2 bg-slate-900/95 border border-slate-800/90 rounded-xl px-2 sm:px-3.5 py-1.5 sm:py-2 shadow-xl backdrop-blur">
+        <!-- Blueprint Theme Switcher (EPIC ENHANCEMENT) -->
+        <div class="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 text-[10px] font-bold">
+          <button onclick="changeTheme('warm', this)" class="px-2 py-1 bg-slate-800 text-slate-200 rounded transition flex items-center gap-0.5 border border-amber-500/40">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Warm
+          </button>
+          <button onclick="changeTheme('blue', this)" class="px-2 py-1 text-slate-400 hover:text-slate-200 rounded transition flex items-center gap-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Blue
+          </button>
+          <button onclick="changeTheme('carbon', this)" class="px-2 py-1 text-slate-400 hover:text-slate-200 rounded transition flex items-center gap-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span> Dark
+          </button>
+        </div>
+
+        <div class="hidden md:block w-px h-5 bg-slate-800"></div>
+
+        <!-- Ortho Toggle -->
+        <button onclick="toggleOrthoMode(this)" title="Toggle Ortho constraint mode" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 sm:p-2 rounded-lg border border-slate-700 flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none">
+          <i data-lucide="corner-down-right" class="w-3.5 h-3.5 text-emerald-400"></i>
+          Ortho: <span class="text-slate-400" id="ortho-status">OFF</span>
+        </button>
+
+        <!-- Snap To Grid Toggle -->
+        <button onclick="toggleSnapGrid(this)" title="Snap elements to major grid" class="bg-blue-600 hover:bg-blue-500 text-white p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none">
+          <i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i>
+          Grid: <span id="snap-grid-status">ON</span>
+        </button>
+
+        <!-- Snap To Walls Toggle -->
+        <button onclick="toggleSnapWalls(this)" title="Snap endpoints to wall joints" class="bg-blue-600 hover:bg-blue-500 text-white p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none">
+          <i data-lucide="magnet" class="w-3.5 h-3.5"></i>
+          Snap Wall: <span id="snap-walls-status">ON</span>
+        </button>
+
+        <!-- Layout Sheet Toggle (EPIC ENHANCEMENT) -->
+        <button onclick="toggleLayoutSheet(this)" title="Toggle professional CAD sheet frame layout" class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 sm:p-2 rounded-lg border border-slate-700 flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none">
+          <i data-lucide="layout-template" class="w-3.5 h-3.5 text-blue-400"></i>
+          Sheet: <span class="text-slate-400" id="sheet-status">OFF</span>
+        </button>
+
+        <div class="hidden sm:block w-px h-5 bg-slate-800"></div>
+
+        <!-- Top-Level Zoom Controllers -->
+        <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5">
+          <button onclick="zoomCanvas(1.15)" title="Zoom In" class="hover:bg-slate-700 hover:text-white p-1.5 rounded transition focus:outline-none">
+            <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-slate-300"></i>
+          </button>
+          <button onclick="zoomCanvas(0.85)" title="Zoom Out" class="hover:bg-slate-700 hover:text-white p-1.5 rounded transition focus:outline-none">
+            <i data-lucide="zoom-out" class="w-3.5 h-3.5 text-slate-300"></i>
+          </button>
+          <button onclick="resetCamera()" title="Reset Zoom / Recenter View" class="hover:bg-slate-700 hover:text-white p-1.5 rounded transition focus:outline-none">
+            <i data-lucide="maximize" class="w-3.5 h-3.5 text-slate-300"></i>
+          </button>
+        </div>
+
+        <div class="hidden md:block w-px h-5 bg-slate-800"></div>
+
+        <!-- Sketch Image Visibility Controls (Dynamic) -->
+        <div id="sketch-controls-bar" class="hidden flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 text-[10px] font-bold">
+          <button onclick="toggleSketchVisibility(this)" title="Toggle background sketch image visibility" class="px-2.5 py-1 text-slate-400 hover:text-slate-200 rounded transition flex items-center gap-1 focus:outline-none">
+            <i data-lucide="eye" class="w-3.5 h-3.5 text-blue-400"></i> Sketch: <span id="sketch-vis-status" class="text-blue-400">SHOW</span>
+          </button>
+          <button onclick="clearSketchBackground()" title="Remove background sketch image completely" class="px-2 py-1 text-red-400 hover:bg-red-950/30 hover:text-red-300 rounded transition flex items-center gap-0.5 focus:outline-none">
+            <i data-lucide="image-minus" class="w-3.5 h-3.5"></i> Clear
+          </button>
+        </div>
+
+        <!-- Touch Pan-Only Button (Essential for mobile) -->
+        <button id="btn-pan-lock" onclick="toggleMobilePanOnly(this)" title="Force single-finger camera panning" class="sm:hidden bg-slate-800 border border-slate-700 text-slate-300 p-1.5 rounded-lg flex items-center gap-1 text-[10px] font-semibold transition focus:outline-none">
+          <i data-lucide="hand" class="w-3.5 h-3.5"></i>
+          Pan: <span id="pan-lock-status" class="text-slate-400">OFF</span>
+        </button>
+      </div>
+
+      <!-- Right Canvas Zoom/View Controller -->
+      <div class="absolute bottom-4 right-4 z-10 flex flex-col gap-1.5 bg-slate-900/95 border border-slate-800 rounded-xl p-1.5 shadow-2xl backdrop-blur shadow-black/80">
+        <button onclick="zoomCanvas(1.15)" title="Zoom In" class="hover:bg-slate-800 hover:text-white p-2 rounded-lg text-slate-300 transition">
+          <i data-lucide="zoom-in" class="w-4 h-4"></i>
+        </button>
+        <button onclick="zoomCanvas(0.85)" title="Zoom Out" class="hover:bg-slate-800 hover:text-white p-2 rounded-lg text-slate-300 transition">
+          <i data-lucide="zoom-out" class="w-4 h-4"></i>
+        </button>
+        <button onclick="resetCamera()" title="Recenter View" class="hover:bg-slate-800 hover:text-white p-2 rounded-lg text-slate-300 transition">
+          <i data-lucide="maximize" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Main Interactive SVG (Takes up full space) -->
+      <svg id="floorplan-svg" class="w-full h-full cursor-default select-none outline-none">
+        <!-- Inner groupings initialized inside editor.js -->
+      </svg>
+
+      <!-- Drag & Drop / Mobile Onboarding Zone Overlay -->
+      <div id="upload-overlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm border-4 border-dashed border-slate-800 m-4 sm:m-8 rounded-2xl flex flex-col items-center justify-center p-4 sm:p-8 transition pointer-events-none">
+        <div class="bg-slate-900 border border-slate-700/80 p-5 sm:p-6 rounded-3xl flex flex-col items-center max-w-sm sm:max-w-md text-center shadow-2xl pointer-events-auto relative">
+          
+          <!-- Dismiss/Close Button -->
+          <button onclick="document.getElementById('upload-overlay').classList.add('hidden')" class="absolute top-3 right-3 text-slate-500 hover:text-slate-300 transition focus:outline-none" title="Dismiss dashboard and start fresh">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+
+          <div class="bg-blue-900/40 p-3 sm:p-4 rounded-2xl text-blue-400 mb-3 sm:mb-4 animate-pulse">
+            <i data-lucide="image" class="w-8 h-8 sm:w-10 sm:h-10"></i>
+          </div>
+          
+          <h3 class="text-sm sm:text-lg font-bold text-slate-100">Draw, Trace & Design Office</h3>
+          <p class="text-[11px] sm:text-xs text-slate-400 mt-2 leading-relaxed">
+            Choose an action below to start designing. You can draw from a clean slate, upload a floorplan image to trace, or load our high-fidelity blueprint demo.
+          </p>
+          
+          <div class="mt-5 w-full grid grid-cols-2 gap-2.5 text-xs font-semibold">
+            <!-- Main Action: Upload Sketch Photo -->
+            <label for="overlay-sketch-upload" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl py-3 px-4 cursor-pointer flex items-center justify-center gap-2 transition shadow-lg shadow-blue-500/25 col-span-2 text-center select-none">
+              <i data-lucide="image-up" class="w-4.5 h-4.5 text-amber-300"></i>
+              Choose Sketch / Photo
+              <input type="file" id="overlay-sketch-upload" class="hidden" accept="image/*, .jfif" />
+            </label>
+            
+            <!-- Secondary Action: Blank Canvas -->
+            <button onclick="startBlankCanvas()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl py-2.5 transition flex items-center justify-center gap-1.5 focus:outline-none" title="Start with an empty workspace draft">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
+              Blank Canvas
+            </button>
+            
+            <!-- Secondary Action: Try Blueprint MVP -->
+            <button onclick="loadSampleSketchTemplate('blueprint_mvp')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl py-2.5 transition flex items-center justify-center gap-1.5 focus:outline-none" title="Load high-fidelity scaled office blueprint model">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-300 animate-pulse"></i>
+              Try Blueprint
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Dynamic Keyboard Input HUD (AutoCAD-Style) -->
+      <div id="dynamic-hud-input" class="absolute hidden z-20 bg-slate-950/95 border border-blue-500 rounded-lg shadow-2xl p-1.5 flex items-center gap-1.5 pointer-events-none transition-all duration-75">
+        <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider select-none">Length:</span>
+        <input type="text" id="hud-len-value" readonly class="w-16 bg-slate-900 border border-slate-800 text-[11px] font-bold text-white text-center rounded py-0.5 outline-none font-mono" placeholder="0.0" />
+        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider select-none" id="hud-unit-label">m</span>
+      </div>
+
+    </section>
+
+    <!-- ==================== RIGHT SIDEBAR ==================== -->
+    <aside id="desktop-right-sidebar" class="w-80 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 z-10 overflow-hidden hidden lg:flex">
+      
+      <!-- Library, Cost and Sheet Tab Switcher -->
+      <div class="flex border-b border-slate-800 text-xs text-center shrink-0">
+        <button id="tab-right-library" onclick="toggleRightSidebarTab('library')" class="w-1/3 py-3 font-semibold border-b-2 border-blue-500 text-blue-400 bg-slate-900/60 transition focus:outline-none">
+          Elements
+        </button>
+        <button id="tab-right-budget" onclick="toggleRightSidebarTab('budget')" class="w-1/3 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none flex items-center justify-center gap-1.5">
+          <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+          Costs
+        </button>
+        <button id="tab-right-sheet" onclick="toggleRightSidebarTab('sheet')" class="w-1/3 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none flex items-center justify-center gap-1.5">
+          <i data-lucide="layout-template" class="w-3.5 h-3.5"></i>
+          Sheet
+        </button>
+      </div>
+
+      <!-- Content Panel 1: Furniture Library -->
+      <div id="panel-right-library" class="flex-1 flex flex-col overflow-hidden">
+        <!-- Search -->
+        <div class="p-3.5 border-b border-slate-800 shrink-0">
+          <div class="relative">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5"></i>
+            <input type="text" id="library-search" placeholder="Search office furniture..." class="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-blue-500 text-xs text-slate-300 rounded-lg pl-8.5 pr-3 py-2 outline-none transition" />
+          </div>
+        </div>
+        <!-- Cards List -->
+        <div id="library-list" class="flex-1 overflow-y-auto p-3.5 grid grid-cols-2 gap-2.5 select-none align-content-start">
+          <!-- Dynamically populated in app.js -->
+        </div>
+      </div>
+
+      <!-- Content Panel 2: Advanced Cost & Materials Budget Panel (EPIC ENHANCEMENT) -->
+      <div id="panel-right-budget" class="flex-1 flex flex-col overflow-hidden hidden p-4 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2 shrink-0">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <i data-lucide="calculator" class="w-4 h-4 text-emerald-400"></i> Bill of Materials (BOM)
+          </span>
+          <button onclick="exportBudgetCSV()" title="Export budget as CSV file" class="bg-emerald-950/40 border border-emerald-900/60 hover:bg-emerald-900 text-emerald-300 text-[10px] font-bold px-2 py-1 rounded transition flex items-center gap-1">
+            <i data-lucide="download" class="w-3 h-3"></i> CSV
+          </button>
+        </div>
+
+        <!-- Interactive Budget Calculations list -->
+        <div class="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
+          <!-- Total project grand budget card -->
+          <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-emerald-900/40 rounded-xl p-3.5 shadow-lg flex justify-between items-center">
+            <div>
+              <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Estimated Total Project Cost</span>
+              <strong id="budget-grand-total" class="text-lg font-extrabold text-emerald-400 block mt-0.5">$0.00</strong>
+            </div>
+            <div class="bg-emerald-500/10 p-2.5 rounded-lg text-emerald-400 border border-emerald-500/10">
+              <i data-lucide="dollar-sign" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <!-- Dynamic Item budget breakdown -->
+          <div class="space-y-1.5">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Construction Partitions</span>
+            <div id="budget-list-walls" class="space-y-1 bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80">
+              <!-- Filled in app.js with Drywall, Concrete, Glass pricing breakdown based on lengths -->
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Furniture & Elements placed</span>
+            <div id="budget-list-furniture" class="space-y-1 bg-slate-950/40 p-2.5 rounded-xl border border-slate-800/80 max-h-48 overflow-y-auto">
+              <!-- Dynamically rendered quantities -->
+            </div>
+          </div>
+
+          <!-- Customizable price multipliers explanation -->
+          <div class="bg-slate-950/40 border border-slate-800/50 p-2.5 rounded-xl text-[10px] text-slate-400 leading-normal flex items-start gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+            <span>Unit prices are calibrated to industry averages. Calculations automatically sync with placed walls, doors, and furniture items in real-time.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Panel 3: Layout Sheet Title Block Details (EPIC ENHANCEMENT) -->
+      <div id="panel-right-sheet" class="flex-1 flex flex-col overflow-hidden hidden p-4 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2 shrink-0">
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <i data-lucide="file-text" class="w-4 h-4 text-blue-400"></i> Blueprint Sheet Details
+          </span>
+        </div>
+
+        <div class="flex-1 overflow-y-auto space-y-3.5 pr-1 text-xs">
+          <!-- Project Title Input -->
+          <div class="space-y-1.5">
+            <label class="text-slate-400 font-medium">Drawing Project Title</label>
+            <input type="text" id="sheet-project-title" value="Commercial Office Layout" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-medium" />
+          </div>
+
+          <!-- Client Input -->
+          <div class="space-y-1.5">
+            <label class="text-slate-400 font-medium">Designed For / Client Name</label>
+            <input type="text" id="sheet-client-name" value="Muskan Autocad Solutions" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-medium" />
+          </div>
+
+          <!-- Scale Ratio Configurator -->
+          <div class="space-y-1.5">
+            <label class="text-slate-400 font-medium">Sheet Scale Label</label>
+            <select id="sheet-scale-ratio" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-medium">
+              <option value="auto">Auto-Calibrated (Scale to Fit)</option>
+              <option value="1:50">1:50 Scale (Metric)</option>
+              <option value="1:100">1:100 Scale (Metric)</option>
+              <option value="1/4&quot; = 1'-0&quot;">1/4" = 1'-0" (Imperial)</option>
+              <option value="1/8&quot; = 1'-0&quot;">1/8" = 1'-0" (Imperial)</option>
+            </select>
+          </div>
+
+          <!-- Custom Sheet Date -->
+          <div class="space-y-1.5">
+            <label class="text-slate-400 font-medium">Drawing Release Date</label>
+            <input type="text" id="sheet-release-date" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-mono" />
+          </div>
+
+          <!-- Print Instruction block -->
+          <div class="bg-blue-950/20 border border-blue-900/40 p-3 rounded-xl text-[10px] text-slate-400 leading-relaxed flex items-start gap-2.5">
+            <i data-lucide="info" class="w-4.5 h-4.5 text-blue-400 shrink-0 mt-0.5 animate-pulse"></i>
+            <div>
+              <strong class="text-slate-200 block mb-0.5">Quick Print Tips</strong>
+              <span>Toggle the <strong>Sheet Frame</strong> to view the print border boundaries. Adjust panning and zooming to align your layout within the border margins before printing.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Properties Panel (Fades in when an item is selected) -->
+      <div id="properties-panel" class="hidden shrink-0 border-t border-slate-800 bg-slate-950/80 p-4 space-y-3.5 z-15">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <h4 class="text-xs font-extrabold text-slate-300 tracking-wider uppercase flex items-center gap-1.5">
+            <i data-lucide="sliders" class="w-3.5 h-3.5 text-blue-400"></i>
+            Properties: <span id="prop-title" class="text-white normal-case font-bold">Item</span>
+          </h4>
+          <button id="btn-delete-prop" title="Delete object" class="text-red-400 hover:bg-red-950/40 hover:text-red-300 p-1 rounded transition">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <!-- Name label -->
+          <div class="col-span-2 space-y-1">
+            <label class="text-slate-400">Object Label / Name</label>
+            <input type="text" id="prop-name" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500" />
+          </div>
+
+          <!-- Width -->
+          <div class="space-y-1">
+            <label class="text-slate-400">Width (meters)</label>
+            <input type="number" step="0.05" id="prop-width" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-mono" />
+          </div>
+
+          <!-- Height -->
+          <div class="space-y-1">
+            <label class="text-slate-400">Height (meters)</label>
+            <input type="number" step="0.05" id="prop-height" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-mono" />
+          </div>
+
+          <!-- Rotation (Hidden on walls) -->
+          <div id="prop-rotation-group" class="space-y-1">
+            <label class="text-slate-400">Rotation (deg)</label>
+            <input type="number" min="0" max="359" id="prop-rotation" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-mono" />
+          </div>
+
+          <!-- Color Customizer (Hidden on walls) -->
+          <div id="prop-color-group" class="space-y-1">
+            <label class="text-slate-400">Outline Color</label>
+            <input type="color" id="prop-color" class="w-full h-8 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 outline-none cursor-pointer" />
+          </div>
+
+          <!-- Wall Custom Materials Selector (EPIC ENHANCEMENT) -->
+          <div id="prop-material-group" class="col-span-2 space-y-1 hidden">
+            <label class="text-slate-400">Wall partition Material</label>
+            <select id="prop-wall-material" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500">
+              <option value="drywall">Drywall (Standard Interior)</option>
+              <option value="concrete">Concrete Hatch (Structural)</option>
+              <option value="glass">Glass Panel (Sleek Partition)</option>
+            </select>
+          </div>
+
+          <!-- Wall Thickness Selector (EPIC ENHANCEMENT) -->
+          <div id="prop-thickness-group" class="col-span-2 space-y-1 hidden">
+            <label class="text-slate-400">Wall thickness (cm)</label>
+            <input type="range" id="prop-wall-thickness" min="4" max="30" value="10" class="w-full" />
+            <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+              <span>Thin (4cm)</span>
+              <span id="prop-thickness-val">10 cm</span>
+              <span>Thick (30cm)</span>
+            </div>
+          </div>
+          <!-- Wall Length (Displayed only on walls) -->
+          <div id="prop-wall-length-group" class="col-span-2 space-y-1 hidden">
+            <label class="text-slate-400">Wall Length (<span id="prop-wall-len-unit">meters</span>)</label>
+            <input type="number" step="0.05" id="prop-wall-length" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 outline-none focus:border-blue-500 font-mono" />
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- ==================== MOBILE NAVIGATION BAR ==================== -->
+  <div class="lg:hidden bg-slate-900 border-t border-slate-800 h-16 shrink-0 flex items-center justify-around text-slate-400 z-30 font-medium">
+    <button onclick="openMobileTab('sketch')" id="m-nav-sketch" class="mobile-nav-btn flex flex-col items-center justify-center gap-1 text-[10px] h-full flex-1 hover:text-blue-400 transition">
+      <i data-lucide="image" class="w-5 h-5"></i>
+      Sketch
+    </button>
+    <button onclick="openMobileTab('draw')" id="m-nav-draw" class="mobile-nav-btn flex flex-col items-center justify-center gap-1 text-[10px] h-full flex-1 hover:text-blue-400 transition">
+      <i data-lucide="pencil" class="w-5 h-5"></i>
+      Draw
+    </button>
+    <button onclick="openMobileTab('library')" id="m-nav-library" class="mobile-nav-btn flex flex-col items-center justify-center gap-1 text-[10px] h-full flex-1 hover:text-blue-400 transition">
+      <i data-lucide="armchair" class="w-5 h-5"></i>
+      Furniture
+    </button>
+    <button onclick="openMobileTab('properties')" id="m-nav-properties" class="mobile-nav-btn flex flex-col items-center justify-center gap-1 text-[10px] h-full flex-1 hover:text-blue-400 transition">
+      <i data-lucide="sliders" class="w-5 h-5"></i>
+      Properties
+    </button>
+    <button onclick="openMobileTab('menu')" id="m-nav-menu" class="mobile-nav-btn flex flex-col items-center justify-center gap-1 text-[10px] h-full flex-1 hover:text-blue-400 transition">
+      <i data-lucide="menu" class="w-5 h-5"></i>
+      More
+    </button>
+  </div>
+
+  <!-- ==================== MOBILE SLIDE-UP BOTTOM SHEET DRAWER ==================== -->
+  <div id="mobile-drawer" class="lg:hidden fixed inset-x-0 bottom-16 bg-slate-900 border-t border-slate-800 rounded-t-2xl z-25 max-h-[50vh] flex flex-col transform translate-y-full transition-transform duration-300 ease-out shadow-2xl">
+    <!-- Drag/Close handle -->
+    <div onclick="closeMobileDrawer()" class="h-6 w-full flex items-center justify-center cursor-pointer hover:bg-slate-800/40 rounded-t-2xl shrink-0">
+      <div class="w-12 h-1.5 bg-slate-700 rounded-full"></div>
+    </div>
+    <!-- Drawer Header Title -->
+    <div class="px-4 pb-1 flex justify-between items-center border-b border-slate-800/60 shrink-0">
+      <span id="mobile-drawer-title" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Drawer Title</span>
+      <button onclick="closeMobileDrawer()" class="text-slate-500 hover:text-slate-300"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <!-- Dynamic Drawer Content Container -->
+    <div id="mobile-drawer-content" class="flex-1 overflow-y-auto p-4 pt-2">
+      <!-- Injected on tap in app.js -->
+    </div>
+  </div>
+
+  <!-- ==================== STATUS BAR ==================== -->
+  <footer class="bg-slate-900 border-t border-slate-800 px-4 py-1.5 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 shrink-0 select-none z-20">
+    <div class="flex items-center gap-4">
+      <span class="flex items-center gap-1"><i data-lucide="mouse-pointer" class="w-3.5 h-3.5"></i> Mode: <span id="current-mode-status">Select & Edit</span></span>
+    </div>
+    <div class="hidden sm:flex items-center gap-4 font-mono">
+      <span>Unit: m & sq m</span>
+      <span>Scale: 1 px = 0.025 m</span>
+    </div>
+  </footer>
+
+  <!-- ==================== WELCOME ONBOARD MODAL ==================== -->
+  <div id="welcome-modal" class="modal-overlay fixed inset-0 flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl max-w-xl w-full overflow-hidden flex flex-col animate-fade-in">
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 text-white flex items-center gap-3">
+        <i data-lucide="layout" class="w-8 h-8"></i>
+        <div>
+          <h2 class="text-sm sm:text-lg font-extrabold tracking-tight">SpaceTrace AI 2D</h2>
+          <p class="text-[10px] sm:text-xs text-blue-100 mt-0.5">Automated Commercial Office Floorplan Vectorizer</p>
+        </div>
+      </div>
+      
+      <div class="p-4 sm:p-6 space-y-3 sm:space-y-4 text-[11px] sm:text-xs leading-relaxed text-slate-300 max-h-[50vh] overflow-y-auto">
+        <p class="font-semibold text-slate-200">Convert your hand-drawn office sketches into professional, structured 2D designs:</p>
+        
+        <div class="grid grid-cols-3 gap-2.5 text-center mt-1">
+          <div class="bg-slate-950 p-2 sm:p-3 rounded-xl border border-slate-800">
+            <div class="bg-blue-900/30 text-blue-400 w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold mx-auto mb-1.5 text-xs sm:text-sm">1</div>
+            <strong class="text-slate-100 font-bold block mb-0.5">Upload</strong>
+            <span>Photo or upload sketch image.</span>
+          </div>
+          <div class="bg-slate-950 p-2 sm:p-3 rounded-xl border border-slate-800">
+            <div class="bg-blue-900/30 text-blue-400 w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold mx-auto mb-1.5 text-xs sm:text-sm">2</div>
+            <strong class="text-slate-100 font-bold block mb-0.5">Auto-Trace</strong>
+            <span>Filter lines & extract vector walls.</span>
+          </div>
+          <div class="bg-slate-950 p-2 sm:p-3 rounded-xl border border-slate-800">
+            <div class="bg-blue-900/30 text-blue-400 w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold mx-auto mb-1.5 text-xs sm:text-sm">3</div>
+            <strong class="text-slate-100 font-bold block mb-0.5">Furnish</strong>
+            <span>Add desks, conference tables, and rooms.</span>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 p-3 sm:p-4 rounded-xl flex items-start gap-3 mt-2">
+          <i data-lucide="info" class="w-5 h-5 text-blue-400 shrink-0 mt-0.5"></i>
+          <div>
+            <strong class="text-slate-200 block mb-0.5">No drawing? Try Templates!</strong>
+            <span>If you don't have an image ready, choose any built-in template draft inside the Sketch tab to experience the AI auto-trace instantly!</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-slate-950 px-5 py-3.5 border-t border-slate-800 flex items-center justify-end gap-2.5 shrink-0">
+        <button id="btn-welcome-blank" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] sm:text-xs font-semibold px-3.5 py-2 rounded-lg border border-slate-700 transition">
+          Blank Workspace
+        </button>
+        <button id="btn-welcome-demo" class="bg-blue-600 hover:bg-blue-500 text-white text-[11px] sm:text-xs font-semibold px-4.5 py-2.5 rounded-lg shadow-lg shadow-blue-500/20 flex items-center gap-1.5 transition">
+          <i data-lucide="sparkles" class="w-4 h-4 text-amber-300 animate-pulse"></i>
+          Load Demo Layout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SCALE CALIBRATOR MODAL ==================== -->
+  <div id="calibrate-modal" class="modal-overlay fixed inset-0 flex items-center justify-center z-50 p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl max-w-sm w-full p-5 space-y-4">
+      <div class="flex items-center gap-3 border-b border-slate-800 pb-2">
+        <div class="bg-rose-900/40 p-2 rounded-lg text-rose-400">
+          <i data-lucide="scale" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-slate-100">Calibrate Physical Scale</h3>
+          <p class="text-[10px] text-slate-400">Define real-world reference dimensions</p>
+        </div>
+      </div>
+      
+      <div class="space-y-1.5 text-xs">
+        <label id="calibrate-label" class="text-slate-400 block font-medium">How many meters is the reference line you drew?</label>
+        <input type="number" step="0.1" id="prop-dist-meters" value="1.0" class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 font-mono text-sm outline-none focus:border-blue-500" placeholder="e.g. 1.2" />
+        <p class="text-[10px] text-slate-500 leading-normal">Our editor will recompute the grid spacing and all measurements across the whole canvas based on this reference dimension!</p>
+      </div>
+
+      <div class="flex justify-end gap-2 text-xs pt-1">
+        <button onclick="document.getElementById('calibrate-modal').classList.add('hidden')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-3 py-2 rounded-lg transition border border-slate-700">
+          Cancel
+        </button>
+        <button id="calibrate-submit" class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2 rounded-lg shadow transition">
+          Apply Calibration
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== NOTIFICATION TOAST ==================== -->
+  <div id="notification-banner" class="fixed bottom-5 right-5 z-50 flex items-start gap-3 bg-slate-900 border-l-4 border-blue-500 text-white rounded-lg p-4 shadow-xl transition-all duration-300 transform translate-y-10 opacity-0 max-w-sm">
+    <div class="bg-slate-950 p-1 rounded-full text-blue-400">
+      <i data-lucide="info" class="w-4 h-4"></i>
+    </div>
+    <div class="flex-1 space-y-0.5">
+      <strong id="notif-title" class="text-xs font-extrabold text-slate-100 tracking-wide block">Action Successful</strong>
+      <p id="notif-msg" class="text-[10px] text-slate-400 font-medium leading-relaxed font-semibold">Operation completed.</p>
+    </div>
+    <button id="notif-close" class="text-slate-400 hover:text-white transition">
+      <i data-lucide="x" class="w-3.5 h-3.5"></i>
+    </button>
+  </div>
+
+  <!-- ==================== SCRIPTS LOAD ==================== -->
+  <script src="icons.js?v=7"></script>
+  <script src="cv-processor.js?v=7"></script>
+  <script src="dxf-exporter.js?v=7"></script>
+  <script src="editor.js?v=7"></script>
+  <script src="app.js?v=7"></script>
+
+  <!-- Interactive page inline handlers -->
+  <script>
+    // Tab controller (Desktop/Sidebar Left)
+    function toggleSidebarTab(tab) {
+      const tabTools = document.getElementById('tab-canvas-tools');
+      const tabSketch = document.getElementById('tab-sketch-adjustments');
+      const panelTools = document.getElementById('panel-tools');
+      const panelSketch = document.getElementById('panel-sketch');
+      
+      if (tab === 'tools') {
+        tabTools.className = "w-1/2 py-3 font-semibold border-b-2 border-blue-500 text-blue-400 bg-slate-900/60 transition focus:outline-none";
+        tabSketch.className = "w-1/2 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none flex items-center justify-center gap-1.5";
+        panelTools.classList.remove('hidden');
+        panelSketch.classList.add('hidden');
+      } else {
+        tabSketch.className = "w-1/2 py-3 font-semibold border-b-2 border-blue-500 text-blue-400 bg-slate-900/60 transition focus:outline-none flex items-center justify-center gap-1.5";
+        tabTools.className = "w-1/2 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none";
+        panelSketch.classList.remove('hidden');
+        panelTools.classList.add('hidden');
+      }
+    }
+
+    // Right Sidebar Tab Switcher (Library vs Budget BOM vs Sheet Layout)
+    function toggleRightSidebarTab(tab) {
+      const tabLib = document.getElementById('tab-right-library');
+      const tabBud = document.getElementById('tab-right-budget');
+      const tabSheet = document.getElementById('tab-right-sheet');
+      const panelLib = document.getElementById('panel-right-library');
+      const panelBud = document.getElementById('panel-right-budget');
+      const panelSheet = document.getElementById('panel-right-sheet');
+      
+      const activeClass = "w-1/3 py-3 font-semibold border-b-2 border-blue-500 text-blue-400 bg-slate-900/60 transition focus:outline-none flex items-center justify-center gap-1.5";
+      const inactiveClass = "w-1/3 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none flex items-center justify-center gap-1.5";
+      
+      if (tab === 'library') {
+        if (tabLib) tabLib.className = activeClass.replace(" flex items-center justify-center gap-1.5", "");
+        if (tabBud) tabBud.className = inactiveClass;
+        if (tabSheet) tabSheet.className = inactiveClass;
+        if (panelLib) panelLib.classList.remove('hidden');
+        if (panelBud) panelBud.classList.add('hidden');
+        if (panelSheet) panelSheet.classList.add('hidden');
+      } else if (tab === 'budget') {
+        if (tabLib) tabLib.className = inactiveClass.replace(" flex items-center justify-center gap-1.5", "");
+        if (tabBud) tabBud.className = activeClass;
+        if (tabSheet) tabSheet.className = inactiveClass;
+        if (panelLib) panelLib.classList.add('hidden');
+        if (panelBud) panelBud.classList.remove('hidden');
+        if (panelSheet) panelSheet.classList.add('hidden');
+        
+        // Refresh calculations instantly on click!
+        if (window.refreshBudgetCalculations) {
+          window.refreshBudgetCalculations();
+        }
+      } else if (tab === 'sheet') {
+        if (tabLib) tabLib.className = inactiveClass.replace(" flex items-center justify-center gap-1.5", "");
+        if (tabBud) tabBud.className = inactiveClass;
+        if (tabSheet) tabSheet.className = activeClass;
+        if (panelLib) panelLib.classList.add('hidden');
+        if (panelBud) panelBud.classList.add('hidden');
+        if (panelSheet) panelSheet.classList.remove('hidden');
+      }
+    }
+
+    // Toggle professional CAD layout sheet border/viewport frame
+    function toggleLayoutSheet(btn) {
+      const printFrame = document.getElementById('cad-print-frame');
+      const statusLabel = document.getElementById('sheet-status');
+      if (!printFrame || !statusLabel) return;
+      
+      printFrame.classList.toggle('hidden');
+      const isVisible = !printFrame.classList.contains('hidden');
+      
+      if (isVisible) {
+        statusLabel.innerText = "ON";
+        btn.className = "bg-blue-600 hover:bg-blue-500 text-white p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+      } else {
+        statusLabel.innerText = "OFF";
+        btn.className = "bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 sm:p-2 rounded-lg border border-slate-700 flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+      }
+    }
+
+    // CAD Theme Switcher
+    function changeTheme(themeName, btn) {
+      if (window.editorInstance) {
+        window.editorInstance.setTheme(themeName);
+        
+        // Update styling of theme selection buttons
+        btn.parentNode.querySelectorAll('button').forEach(b => {
+          b.className = "px-2 py-1 text-slate-400 hover:text-slate-200 rounded transition flex items-center gap-0.5";
+        });
+        
+        // Highlight active
+        let circleColor = 'bg-amber-400';
+        let borderGlow = 'border-amber-500/40';
+        if (themeName === 'blue') { circleColor = 'bg-blue-500'; borderGlow = 'border-blue-500/40'; }
+        else if (themeName === 'carbon') { circleColor = 'bg-zinc-500'; borderGlow = 'border-zinc-500/40'; }
+        
+        btn.className = `px-2 py-1 bg-slate-800 text-slate-200 rounded transition flex items-center gap-0.5 border ${borderGlow}`;
+      }
+    }
+
+    // Canvas actions routing to editor instance
+    function zoomCanvas(factor) {
+      if (window.editorInstance) {
+        if (factor > 1.0) {
+          window.editorInstance.zoomIn();
+        } else {
+          window.editorInstance.zoomOut();
+        }
+      }
+    }
+
+    function resetCamera() {
+      if (window.editorInstance) {
+        window.editorInstance.recenter();
+      }
+    }
+
+    function toggleOrthoMode(btn) {
+      if (window.editorInstance) {
+        window.editorInstance.orthoMode = !window.editorInstance.orthoMode;
+        const status = document.getElementById('ortho-status');
+        if (window.editorInstance.orthoMode) {
+          status.innerText = "ON";
+          btn.className = "bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+        } else {
+          status.innerText = "OFF";
+          btn.className = "bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 sm:p-2 rounded-lg border border-slate-700 flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+        }
+      }
+    }
+
+    function toggleSnapGrid(btn) {
+      if (window.editorInstance) {
+        window.editorInstance.snapToGrid = !window.editorInstance.snapToGrid;
+        const status = document.getElementById('snap-grid-status');
+        if (window.editorInstance.snapToGrid) {
+          status.innerText = "ON";
+          btn.className = "bg-blue-600 hover:bg-blue-500 text-white p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+        } else {
+          status.innerText = "OFF";
+          btn.className = "bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 sm:p-2 rounded-lg border border-slate-700 flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+        }
+      }
+    }
+
+    function toggleSnapWalls(btn) {
+      if (window.editorInstance) {
+        window.editorInstance.snapToElements = !window.editorInstance.snapToElements;
+        const status = document.getElementById('snap-walls-status');
+        if (window.editorInstance.snapToElements) {
+          status.innerText = "ON";
+          btn.className = "bg-blue-600 hover:bg-blue-500 text-white p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+        } else {
+          status.innerText = "OFF";
+          btn.className = "bg-slate-800 hover:bg-slate-700 text-slate-300 p-1.5 sm:p-2 rounded-lg border border-slate-700 flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-semibold transition focus:outline-none";
+        }
+      }
+    }
+
+    // Force Pan-Only Mode on touchscreen
+    function toggleMobilePanOnly(btn) {
+      if (window.editorInstance) {
+        const status = document.getElementById('pan-lock-status');
+        const modeLabel = document.getElementById('current-mode-status');
+        
+        if (window.editorInstance.activeTool !== 'select') {
+          window.editorInstance.activeTool = 'select';
+          document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-tool-btn'));
+          const selectBtn = document.querySelector('[data-tool="select"]');
+          if (selectBtn) selectBtn.classList.add('active-tool-btn');
+        }
+        
+        window.editorInstance.isTouchPanning = !window.editorInstance.isTouchPanning;
+        if (window.editorInstance.isTouchPanning) {
+          status.innerText = "ON";
+          modeLabel.innerText = "Navigate/Pan Only";
+          btn.className = "bg-emerald-600 border border-emerald-500 text-white p-1.5 rounded-lg flex items-center gap-1 text-[10px] font-semibold transition";
+        } else {
+          status.innerText = "OFF";
+          modeLabel.innerText = "Select & Edit";
+          btn.className = "bg-slate-800 border border-slate-700 text-slate-300 p-1.5 rounded-lg flex items-center gap-1 text-[10px] font-semibold transition";
+        }
+      }
+    }
+
+    function loadSampleSketchTemplate(type) {
+      if (window.generateTemplateSketchInApp) {
+        window.generateTemplateSketchInApp(type);
+      }
+    }
+
+    function exportBudgetCSV() {
+      if (window.exportBOMCSVData) {
+        window.exportBOMCSVData();
+      }
+    }
+
+    // --- MOBILE SHEET DRAWER CONTROLLER ---
+    function openMobileTab(tabName) {
+      const drawer = document.getElementById('mobile-drawer');
+      const title = document.getElementById('mobile-drawer-title');
+      const container = document.getElementById('mobile-drawer-content');
+      
+      document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('text-blue-400'));
+      const activeNavBtn = document.getElementById(`m-nav-${tabName}`);
+      if (activeNavBtn) activeNavBtn.classList.add('text-blue-400');
+      
+      let drawerContentHTML = '';
+      
+      if (tabName === 'sketch') {
+        title.innerText = "Sketch & Auto-Trace";
+        const srcContent = document.getElementById('panel-sketch');
+        if (srcContent) drawerContentHTML = srcContent.innerHTML;
+      } 
+      else if (tabName === 'draw') {
+        title.innerText = "CAD Enclosures & Tools";
+        const srcContent = document.getElementById('panel-tools');
+        if (srcContent) drawerContentHTML = srcContent.innerHTML;
+      } 
+      else if (tabName === 'library') {
+        title.innerText = "Furniture Library";
+        // Show BOTH library card and cost estimators in collapsible sheets!
+        const srcContent = document.getElementById('desktop-right-sidebar');
+        if (srcContent) drawerContentHTML = srcContent.innerHTML;
+      } 
+      else if (tabName === 'properties') {
+        title.innerText = "Selected Element Properties";
+        const srcContent = document.getElementById('properties-panel');
+        if (srcContent) {
+          drawerContentHTML = srcContent.innerHTML;
+          if (srcContent.classList.contains('hidden') && !window.editorInstance.selectedObjectId) {
+            drawerContentHTML = `
+              <div class="text-center text-slate-500 py-6 text-xs font-semibold">
+                <i data-lucide="info" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                Select any object on the layout canvas to edit its properties here.
+              </div>
+            `;
+          }
+        }
+      } 
+      else if (tabName === 'menu') {
+        title.innerText = "File & Settings Actions";
+        drawerContentHTML = `
+          <div class="space-y-3.5 text-xs">
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="triggerMobileAction('demo')" class="bg-gradient-to-tr from-emerald-600 to-teal-600 text-white font-bold py-3 px-2 rounded-xl flex items-center justify-center gap-1.5 shadow">
+                <i data-lucide="sparkles" class="w-4 h-4"></i> Load Demo Office
+              </button>
+              <button onclick="triggerMobileAction('clear')" class="bg-red-950/40 border border-red-900/30 text-red-300 font-bold py-3 px-2 rounded-xl flex items-center justify-center gap-1.5">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> Reset Workspace
+              </button>
+            </div>
+            
+            <div class="h-px bg-slate-800 my-1"></div>
+            
+            <div class="grid grid-cols-3 gap-2 text-center font-bold">
+              <button onclick="triggerMobileAction('save')" class="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 text-[10px]">
+                <i data-lucide="download" class="w-4 h-4 text-blue-400"></i> Save JSON
+              </button>
+              <button onclick="triggerMobileAction('load')" class="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 text-[10px]">
+                <i data-lucide="upload" class="w-4 h-4 text-blue-400"></i> Load JSON
+              </button>
+              <button onclick="triggerMobileAction('png')" class="bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl border border-slate-700 flex flex-col items-center gap-1 text-[10px]">
+                <i data-lucide="image" class="w-4 h-4 text-green-400"></i> Export PNG
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      
+      container.innerHTML = drawerContentHTML;
+      drawer.classList.remove('translate-y-full');
+      
+      lucide.createIcons({
+        attrs: { class: "w-4 h-4 shrink-0" },
+        nameAttr: "data-lucide"
+      });
+      
+      bindDrawerInputs(tabName);
+    }
+
+    function closeMobileDrawer() {
+      document.getElementById('mobile-drawer').classList.add('translate-y-full');
+      document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('text-blue-400'));
+    }
+
+    // Binds events on clone/injected controls inside mobile slide sheet
+    function bindDrawerInputs(tab) {
+      if (tab === 'sketch') {
+        const fileIn = document.getElementById('mobile-drawer').querySelector('#sketch-upload');
+        const camIn = document.getElementById('mobile-drawer').querySelector('#sketch-camera-upload');
+        const autoBtn = document.getElementById('mobile-drawer').querySelector('#btn-auto-trace');
+        
+        if (fileIn) {
+          fileIn.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              window.processSketchUploadExternally(file);
+              closeMobileDrawer();
+            }
+          });
+        }
+        if (camIn) {
+          camIn.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+              window.processSketchUploadExternally(file);
+              closeMobileDrawer();
+            }
+          });
+        }
+        if (autoBtn) {
+          autoBtn.addEventListener('click', () => {
+            document.getElementById('btn-auto-trace').click();
+            closeMobileDrawer();
+          });
+        }
+        
+        // Sync sliders
+        const brightness = document.getElementById('mobile-drawer').querySelector('#slider-brightness');
+        const contrast = document.getElementById('mobile-drawer').querySelector('#slider-contrast');
+        const threshold = document.getElementById('mobile-drawer').querySelector('#slider-threshold');
+        const invert = document.getElementById('mobile-drawer').querySelector('#toggle-invert');
+        const processedBg = document.getElementById('mobile-drawer').querySelector('#toggle-processed-bg');
+        const opacity = document.getElementById('mobile-drawer').querySelector('#slider-opacity');
+        
+        if (brightness) {
+          brightness.addEventListener('input', (e) => {
+            document.getElementById('slider-brightness').value = e.target.value;
+            triggerDesktopInput('slider-brightness');
+          });
+        }
+        if (contrast) {
+          contrast.addEventListener('input', (e) => {
+            document.getElementById('slider-contrast').value = e.target.value;
+            triggerDesktopInput('slider-contrast');
+          });
+        }
+        if (threshold) {
+          threshold.addEventListener('input', (e) => {
+            document.getElementById('slider-threshold').value = e.target.value;
+            triggerDesktopInput('slider-threshold');
+          });
+        }
+        if (invert) {
+          invert.addEventListener('change', (e) => {
+            document.getElementById('toggle-invert').checked = e.target.checked;
+            triggerDesktopInput('toggle-invert');
+          });
+        }
+        if (processedBg) {
+          processedBg.addEventListener('change', (e) => {
+            document.getElementById('toggle-processed-bg').checked = e.target.checked;
+            triggerDesktopInput('toggle-processed-bg');
+          });
+        }
+        if (opacity) {
+          opacity.addEventListener('input', (e) => {
+            document.getElementById('slider-opacity').value = e.target.value;
+            triggerDesktopInput('slider-opacity');
+          });
+        }
+      } 
+      else if (tab === 'draw') {
+        const btns = document.getElementById('mobile-drawer').querySelectorAll('.tool-btn');
+        btns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tool = btn.getAttribute('data-tool');
+            const destBtn = document.querySelector(`[data-tool="${tool}"]`);
+            if (destBtn) destBtn.click();
+            closeMobileDrawer();
+          });
+        });
+        
+        const clearBtn = document.getElementById('mobile-drawer').querySelector('#btn-clear');
+        if (clearBtn) {
+          clearBtn.addEventListener('click', () => {
+            document.getElementById('btn-clear').click();
+            closeMobileDrawer();
+          });
+        }
+        
+        const metricBtn = document.getElementById('mobile-drawer').querySelector('#btn-unit-metric');
+        const imperialBtn = document.getElementById('mobile-drawer').querySelector('#btn-unit-imperial');
+        if (metricBtn && imperialBtn) {
+          metricBtn.addEventListener('click', () => {
+            document.getElementById('btn-unit-metric').click();
+            closeMobileDrawer();
+          });
+          imperialBtn.addEventListener('click', () => {
+            document.getElementById('btn-unit-imperial').click();
+            closeMobileDrawer();
+          });
+        }
+      } 
+      else if (tab === 'library') {
+        // Wire Library and Budget tabs inside mobile sheet
+        const mTabLib = document.getElementById('mobile-drawer').querySelector('#tab-right-library');
+        const mTabBud = document.getElementById('mobile-drawer').querySelector('#tab-right-budget');
+        const mPanelLib = document.getElementById('mobile-drawer').querySelector('#panel-right-library');
+        const mPanelBud = document.getElementById('mobile-drawer').querySelector('#panel-right-budget');
+        
+        if (mTabLib && mTabBud && mPanelLib && mPanelBud) {
+          mTabLib.addEventListener('click', () => {
+            mTabLib.className = "w-1/2 py-3 font-semibold border-b-2 border-blue-500 text-blue-400 bg-slate-900/60 transition focus:outline-none";
+            mTabBud.className = "w-1/2 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none flex items-center justify-center gap-1.5";
+            mPanelLib.classList.remove('hidden');
+            mPanelBud.classList.add('hidden');
+          });
+          mTabBud.addEventListener('click', () => {
+            mTabBud.className = "w-1/2 py-3 font-semibold border-b-2 border-blue-500 text-blue-400 bg-slate-900/60 transition focus:outline-none flex items-center justify-center gap-1.5";
+            mTabLib.className = "w-1/2 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 bg-slate-950/20 transition focus:outline-none";
+            mPanelBud.classList.remove('hidden');
+            mPanelLib.classList.add('hidden');
+            if (window.refreshBudgetCalculations) {
+              window.refreshBudgetCalculations();
+            }
+          });
+        }
+
+        const search = document.getElementById('mobile-drawer').querySelector('#library-search');
+        if (search) {
+          search.addEventListener('input', (e) => {
+            document.getElementById('library-search').value = e.target.value;
+            const event = new Event('input', { bubbles: true });
+            document.getElementById('library-search').dispatchEvent(event);
+            
+            setTimeout(() => {
+              const libList = document.getElementById('mobile-drawer').querySelector('#library-list');
+              if (libList) {
+                libList.innerHTML = document.getElementById('library-list').innerHTML;
+                bindMobileLibraryCards();
+              }
+            }, 100);
+          });
+        }
+        bindMobileLibraryCards();
+      } 
+      else if (tab === 'properties') {
+        const name = document.getElementById('mobile-drawer').querySelector('#prop-name');
+        const w = document.getElementById('mobile-drawer').querySelector('#prop-width');
+        const h = document.getElementById('mobile-drawer').querySelector('#prop-height');
+        const r = document.getElementById('mobile-drawer').querySelector('#prop-rotation');
+        const c = document.getElementById('mobile-drawer').querySelector('#prop-color');
+        const mat = document.getElementById('mobile-drawer').querySelector('#prop-wall-material');
+        const thick = document.getElementById('mobile-drawer').querySelector('#prop-wall-thickness');
+        const del = document.getElementById('mobile-drawer').querySelector('#btn-delete-prop');
+        
+        if (name) {
+          name.addEventListener('input', (e) => {
+            document.getElementById('prop-name').value = e.target.value;
+            triggerDesktopInput('prop-name');
+          });
+        }
+        if (w) {
+          w.addEventListener('change', (e) => {
+            document.getElementById('prop-width').value = e.target.value;
+            const event = new Event('change', { bubbles: true });
+            document.getElementById('prop-width').dispatchEvent(event);
+          });
+        }
+        if (h) {
+          h.addEventListener('change', (e) => {
+            document.getElementById('prop-height').value = e.target.value;
+            const event = new Event('change', { bubbles: true });
+            document.getElementById('prop-height').dispatchEvent(event);
+          });
+        }
+        if (r) {
+          r.addEventListener('input', (e) => {
+            document.getElementById('prop-rotation').value = e.target.value;
+            triggerDesktopInput('prop-rotation');
+          });
+        }
+        if (c) {
+          c.addEventListener('input', (e) => {
+            document.getElementById('prop-color').value = e.target.value;
+            triggerDesktopInput('prop-color');
+          });
+        }
+        if (mat) {
+          mat.addEventListener('change', (e) => {
+            document.getElementById('prop-wall-material').value = e.target.value;
+            const event = new Event('change', { bubbles: true });
+            document.getElementById('prop-wall-material').dispatchEvent(event);
+          });
+        }
+        if (thick) {
+          thick.addEventListener('input', (e) => {
+            document.getElementById('prop-wall-thickness').value = e.target.value;
+            triggerDesktopInput('prop-wall-thickness');
+          });
+        }
+        if (del) {
+          del.addEventListener('click', () => {
+            document.getElementById('btn-delete-prop').click();
+            closeMobileDrawer();
+          });
+        }
+      }
+    }
+
+    function triggerDesktopInput(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        const event = new Event('input', { bubbles: true });
+        el.dispatchEvent(event);
+      }
+    }
+
+    function bindMobileLibraryCards() {
+      const cards = document.getElementById('mobile-drawer').querySelectorAll('.library-card');
+      cards.forEach(card => {
+        card.addEventListener('click', () => {
+          const key = card.getAttribute('data-lib-id');
+          if (window.editorInstance) {
+            window.editorInstance.addFurnitureFromLibrary(key);
+            closeMobileDrawer();
+          }
+        });
+      });
+    }
+
+    function triggerMobileAction(action) {
+      closeMobileDrawer();
+      if (action === 'demo') {
+        document.getElementById('btn-demo-project').click();
+      } else if (action === 'clear') {
+        document.getElementById('btn-clear').click();
+      } else if (action === 'save') {
+        document.getElementById('btn-save-project').click();
+      } else if (action === 'load') {
+        document.getElementById('btn-load-project').click();
+      } else if (action === 'png') {
+        document.getElementById('btn-export-png').click();
+      }
+    }
+  </script>
+</body>
+</html>

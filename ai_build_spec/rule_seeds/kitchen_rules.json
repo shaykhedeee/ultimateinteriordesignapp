@@ -1,0 +1,50 @@
+{
+  "ruleSetKey": "kitchen_standards_v1",
+  "scope": "room_type",
+  "roomType": "kitchen",
+  "rules": [
+    {
+      "code": "KITCHEN_BASE_DEPTH_RANGE",
+      "severity": "hard",
+      "measure": "base.depth_mm",
+      "min": 560,
+      "max": 600
+    },
+    {
+      "code": "KITCHEN_COUNTER_DEPTH_RANGE",
+      "severity": "soft",
+      "measure": "counter.depth_mm",
+      "min": 600,
+      "max": 620
+    },
+    {
+      "code": "KITCHEN_WALL_CAB_DEPTH_RANGE",
+      "severity": "hard",
+      "measure": "wall_cabinet.depth_mm",
+      "min": 300,
+      "max": 350
+    },
+    {
+      "code": "KITCHEN_LOFT_DEPTH_RANGE",
+      "severity": "soft",
+      "measure": "loft.depth_mm",
+      "min": 560,
+      "max": 600
+    },
+    {
+      "code": "KITCHEN_SINK_UNDER_WINDOW_PREFERRED",
+      "severity": "advisory",
+      "description": "Prefer sink under or near a window when geometry permits"
+    },
+    {
+      "code": "KITCHEN_HOB_REQUIRES_CHIMNEY_ALIGNMENT",
+      "severity": "soft",
+      "description": "Hob placement should support a chimney/hood alignment above"
+    },
+    {
+      "code": "KITCHEN_TIER_COLOR_SEPARATION",
+      "severity": "soft",
+      "description": "Top lofts and wall cabinets should remain visually separated when contrasting finishes are selected"
+    }
+  ]
+}
