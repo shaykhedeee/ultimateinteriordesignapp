@@ -412,6 +412,20 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [activeColor, setActiveColor] = useState(null);
   const [colorSuggestions, setColorSuggestions] = useState([]);
 
+  // AI Laminate Swapper States
+  const [isAnalyzingComponents, setIsAnalyzingComponents] = useState(false);
+  const [detectedComponents, setDetectedComponents] = useState([]);
+  const [selectedSwapComponent, setSelectedSwapComponent] = useState(null);
+  const [customLaminateFile, setCustomLaminateFile] = useState(null);
+  const [customLaminatePreview, setCustomLaminatePreview] = useState(null);
+  const [catalogMaterials, setCatalogMaterials] = useState([]);
+  const [selectedCatalogMaterial, setSelectedCatalogMaterial] = useState(null);
+  const [laminateSwapInstruction, setLaminateSwapInstruction] = useState('');
+  const [isSwappingLaminate, setIsSwappingLaminate] = useState(false);
+  const [swapperStepMessage, setSwapperStepMessage] = useState('');
+  const [beforeAfterMode, setBeforeAfterMode] = useState(false);
+  const [previousRenderForCompare, setPreviousRenderForCompare] = useState(null);
+
   const getComponentsForRoom = (roomType) => {
     const list = {
       kitchen: [
@@ -780,6 +794,142 @@ export default function Render3DStudio({ projectId, onComplete }) {
       console.error("Error saving correction:", err);
     }
   };
+
+  const fetchCatalogMaterials = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
+      if (res.ok) {
+        const data = await res.json();
+        setCatalogMaterials(data);
+      }
+    } catch (err) {
+      console.error("Error loading catalog materials:", err);
+    }
+  };
+
+  const handleAnalyseComponents = async () => {
+    if (!selectedRender) return;
+    setIsAnalyzingComponents(true);
+    try {
+      // Fetch render image from server and convert to blob
+      const imgUrl = selectedRender.image_url.startsWith('/storage') 
+        ? `http://127.0.0.1:5055${selectedRender.image_url}` 
+        : selectedRender.image_url;
+
+      const imgRes = await fetch(imgUrl);
+      const imgBlob = await imgRes.blob();
+
+      const formData = new FormData();
+      formData.append('renderImage', imgBlob, 'render.png');
+      formData.append('room', selectedRender.room || targetRoom);
+
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/analyse-components`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDetectedComponents(data.components || []);
+        if (data.components?.length > 0) {
+          setSelectedSwapComponent(data.components[0].component);
+        }
+      }
+    } catch (err) {
+      console.error("Analysis failed:", err);
+      // Fallback: load standard defaults based on room type
+      const defaults = {
+        kitchen: ['Cabinet Shutters', 'Carcass Box', 'Countertop Stone', 'Backsplash Tile'],
+        living: ['TV Backdrop Panel', 'TV Console Cabinet', 'Sofa Fabric', 'Wall Paint'],
+        bedroom: ['Wardrobe Shutters', 'Bed Headboard', 'Wall Paint', 'Flooring']
+      };
+      const roomKey = selectedRender.room || targetRoom;
+      const roomDefaults = (defaults[roomKey] || defaults.living).map(c => ({ component: c, confidence: 0.90, description: `Changeable ${c}` }));
+      setDetectedComponents(roomDefaults);
+      setSelectedSwapComponent(roomDefaults[0].component);
+    } finally {
+      setIsAnalyzingComponents(false);
+    }
+  };
+
+  const handleLaminateSwap = async () => {
+    if (!selectedRender || !selectedSwapComponent) return;
+    setIsSwappingLaminate(true);
+    setSwapperStepMessage('Preparing images and components...');
+
+    try {
+      // 1. Fetch render image blob
+      setSwapperStepMessage('Downloading active render image...');
+      const renderImgUrl = selectedRender.image_url.startsWith('/storage') 
+        ? `http://127.0.0.1:5055${selectedRender.image_url}` 
+        : selectedRender.image_url;
+      const renderImgRes = await fetch(renderImgUrl);
+      const renderImgBlob = await renderImgRes.blob();
+
+      const formData = new FormData();
+      formData.append('renderImage', renderImgBlob, 'render.png');
+      formData.append('componentType', selectedSwapComponent);
+      formData.append('room', selectedRender.room || targetRoom);
+
+      // 2. Add material metadata
+      if (selectedCatalogMaterial) {
+        formData.append('laminateCatalogId', selectedCatalogMaterial.id);
+        formData.append('newMaterial', selectedCatalogMaterial.name);
+        formData.append('newColor', selectedCatalogMaterial.color || '');
+        formData.append('laminateCode', selectedCatalogMaterial.code || '');
+        formData.append('laminateBrand', selectedCatalogMaterial.brand || '');
+      } else if (customLaminateFile) {
+        formData.append('newMaterial', 'Uploaded custom swatch');
+        formData.append('laminateImage', customLaminateFile);
+      } else {
+        alert('Please select a material from catalog or upload a custom swatch image.');
+        setIsSwappingLaminate(false);
+        return;
+      }
+
+      if (laminateSwapInstruction.trim()) {
+        formData.append('instruction', laminateSwapInstruction);
+      }
+
+      // 3. Post to laminate-swap API
+      setSwapperStepMessage('Running visual editor pipeline. Recolor, lighting & shadow matching in progress...');
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/laminate-swap`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success && data.render) {
+        setSwapperStepMessage('Success! Loading render output...');
+        
+        // Save current selected render as previous for compare view
+        setPreviousRenderForCompare(selectedRender);
+
+        await fetchRenders();
+        const found = data.render;
+        setSelectedRender(found);
+
+        // Turn on compare mode by default to show changes
+        setBeforeAfterMode(true);
+        setLaminateSwapInstruction('');
+        setCustomLaminateFile(null);
+        setCustomLaminatePreview(null);
+        setSelectedCatalogMaterial(null);
+      } else {
+        alert(`Error: ${data.error || 'Failed to complete material swap'}`);
+      }
+    } catch (err) {
+      console.error("Laminate swap failed:", err);
+      alert(`Error during material swap: ${err.message}`);
+    } finally {
+      setIsSwappingLaminate(false);
+      setSwapperStepMessage('');
+    }
+  };
+
+  useEffect(() => {
+    if (projectId) {
+      fetchCatalogMaterials();
+    }
+  }, [projectId]);
 
   const deleteCorrection = (id) => {
     setCorrectionsList(prev => prev.filter(c => c.id !== id));
@@ -1279,6 +1429,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 >
                   🌐 3D Walkthrough
                 </button>
+                <button
+                  onClick={() => setActiveTab3D('swapper')}
+                  className={`px-3 py-1 rounded transition ${activeTab3D === 'swapper' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  🎨 AI Laminate Swapper
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1303,6 +1459,225 @@ export default function Render3DStudio({ projectId, onComplete }) {
               selectedLaminates={selectedLaminates} 
               onLaminateChange={handleWalkthroughLaminateChange} 
             />
+          ) : activeTab3D === 'swapper' ? (
+            /* AI Laminate Swapper View */
+            <div className="flex-grow bg-slate-950 border border-slate-850 rounded-xl overflow-hidden relative flex flex-row min-h-0">
+              {/* Left Column: Image View (with Compare Toggle) */}
+              <div className="flex-grow flex flex-col relative min-w-0 h-full">
+                <div className="flex-grow flex items-center justify-center relative min-w-0 h-full overflow-hidden bg-slate-950">
+                  {selectedRender ? (
+                    beforeAfterMode && previousRenderForCompare ? (
+                      /* Side-by-side compare */
+                      <div className="grid grid-cols-2 gap-2 w-full h-full p-2">
+                        <div className="relative border border-slate-800 rounded-lg overflow-hidden flex flex-col">
+                          <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-slate-400">Before</span>
+                          <img 
+                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
+                            alt="Original Design"
+                            className="w-full h-full object-cover flex-1"
+                          />
+                        </div>
+                        <div className="relative border border-[#D4AF37]/50 rounded-lg overflow-hidden flex flex-col">
+                          <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-[#D4AF37]">After (Swapped)</span>
+                          <img 
+                            src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                            alt="Swapped Design"
+                            className="w-full h-full object-cover flex-1"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <img 
+                        src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                        alt="Design View"
+                        className="w-full h-full object-cover"
+                      />
+                    )
+                  ) : (
+                    <div className="text-xs text-slate-500 flex flex-col items-center gap-2.5">
+                      <ImageIcon className="w-12 h-12 opacity-25" />
+                      <span>Select a render to start swapping.</span>
+                    </div>
+                  )}
+
+                  {isSwappingLaminate && (
+                    <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center gap-4 z-20 p-6 text-center">
+                      <RefreshCw className="w-10 h-10 text-[#D4AF37] animate-spin" />
+                      <div className="space-y-1.5 max-w-sm">
+                        <span className="text-xs font-black text-[#D4AF37] uppercase tracking-widest block">AI Laminate Swapper Active</span>
+                        <p className="text-[10px] text-slate-300 leading-normal animate-pulse">{swapperStepMessage || 'Performing inpainting swap...'}</p>
+                      </div>
+                      <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#D4AF37]" style={{ width: '60%' }}></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Bar: Compare Toggles */}
+                {selectedRender && previousRenderForCompare && (
+                  <div className="bg-slate-900/60 border-t border-slate-850 px-4 py-2 flex justify-between items-center shrink-0">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">Material Swap Diff Engine</span>
+                    <button
+                      onClick={() => setBeforeAfterMode(!beforeAfterMode)}
+                      className={`text-[9px] font-extrabold uppercase px-3 py-1 rounded transition border ${
+                        beforeAfterMode 
+                          ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' 
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {beforeAfterMode ? '✕ Normal View' : '👁️ Compare Before/After'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Laminate Swapper Control Panel */}
+              <div className="w-72 border-l border-slate-850 p-4 space-y-4 bg-slate-900/90 flex flex-col h-full shrink-0 overflow-y-auto z-10">
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                    <Palette className="w-4 h-4 text-[#D4AF37]" />
+                    AI Material Swapper
+                  </h3>
+                  <p className="text-[10px] text-slate-400">Swap finishes, grain & textures with pixel-level precision</p>
+                </div>
+
+                {/* 1. Component Detection */}
+                <div className="space-y-2 border-t border-slate-850 pt-2.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Changeable Parts</label>
+                    {detectedComponents.length === 0 && selectedRender && (
+                      <button
+                        onClick={handleAnalyseComponents}
+                        disabled={isAnalyzingComponents}
+                        className="bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/20 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded transition"
+                      >
+                        {isAnalyzingComponents ? 'Analyzing...' : 'Scan Image'}
+                      </button>
+                    )}
+                  </div>
+
+                  {detectedComponents.length > 0 ? (
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {detectedComponents.map((c, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setSelectedSwapComponent(c.component)}
+                          className={`w-full text-left p-2 rounded-lg border text-[9px] transition flex justify-between items-center ${
+                            selectedSwapComponent === c.component
+                              ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37]'
+                              : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="font-semibold truncate max-w-[150px]">
+                            {c.component}
+                          </div>
+                          {c.confidence && (
+                            <span className="text-[8px] font-mono text-[#D4AF37]/80 bg-slate-900 px-1 rounded">
+                              {Math.round(c.confidence * 100)}%
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[9px] text-slate-500 bg-slate-950/60 p-2.5 rounded-lg border border-slate-850/60 italic text-center">
+                      {!selectedRender ? 'Select a render image first.' : 'Scan image to detect changeable parts automatically.'}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Choose Material */}
+                {selectedSwapComponent && (
+                  <div className="space-y-3 border-t border-slate-850 pt-2.5">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Choose Swatch / Finish</label>
+                    
+                    {/* Material catalog picker */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] text-slate-500 font-bold block uppercase">From Catalog:</span>
+                      <select
+                        onChange={(e) => {
+                          const mat = catalogMaterials.find(m => m.id === e.target.value);
+                          setSelectedCatalogMaterial(mat || null);
+                          setCustomLaminateFile(null);
+                          setCustomLaminatePreview(null);
+                        }}
+                        value={selectedCatalogMaterial?.id || ''}
+                        className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-[10px] text-slate-200 outline-none focus:border-[#D4AF37]"
+                      >
+                        <option value="">-- Choose Laminate / Stone / Fabric --</option>
+                        {catalogMaterials.map(m => (
+                          <option key={m.id} value={m.id}>
+                            [{m.brand}] {m.name} ({m.code || 'No Code'})
+                          </option>
+                        ))}
+                      </select>
+                      {selectedCatalogMaterial && (
+                        <div className="bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded p-2 text-[9px] text-slate-300 space-y-0.5">
+                          <strong className="text-[#D4AF37] block font-bold uppercase">{selectedCatalogMaterial.name}</strong>
+                          <div>Brand: {selectedCatalogMaterial.brand} | Code: {selectedCatalogMaterial.code}</div>
+                          <div>Color: {selectedCatalogMaterial.color || 'N/A'} | Finish: {selectedCatalogMaterial.finish || 'N/A'}</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Custom upload swatch option */}
+                    <div className="space-y-1.5 border-t border-slate-850/50 pt-2">
+                      <span className="text-[9px] text-slate-500 font-bold block uppercase">OR Upload Custom Swatch:</span>
+                      <div className="flex items-center gap-2">
+                        <label className="flex-1 bg-slate-950 border border-slate-800 rounded p-1.5 text-[9px] text-slate-400 text-center cursor-pointer hover:border-slate-700">
+                          {customLaminateFile ? customLaminateFile.name : 'Choose Swatch Image'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setCustomLaminateFile(file);
+                                setSelectedCatalogMaterial(null);
+                                const reader = new FileReader();
+                                reader.onload = () => setCustomLaminatePreview(reader.result);
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                        {customLaminatePreview && (
+                          <img 
+                            src={customLaminatePreview} 
+                            alt="Preview" 
+                            className="w-8 h-8 rounded border border-slate-700 object-cover shrink-0" 
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Instructions & Trigger */}
+                {selectedSwapComponent && (
+                  <div className="space-y-2 border-t border-slate-850 pt-2.5 mt-auto">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Designer Instructions</label>
+                    <textarea
+                      value={laminateSwapInstruction}
+                      onChange={(e) => setLaminateSwapInstruction(e.target.value)}
+                      rows="2.5"
+                      placeholder="Example: align grain vertically, match the gloss level of base cabinets..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-[9px] text-slate-200 outline-none resize-none"
+                    />
+
+                    <button
+                      onClick={handleLaminateSwap}
+                      disabled={isSwappingLaminate || (!selectedCatalogMaterial && !customLaminateFile)}
+                      className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-[10px] uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-40"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Swap Material
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             /* Active Image Render and Recolor Panel */
             <div className="flex-grow bg-slate-950 border border-slate-850 rounded-xl overflow-hidden relative flex flex-row min-h-0">

@@ -269,20 +269,47 @@ export function App() {
     }
   };
 
-  const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Command Center', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'crm', label: 'CRM & Call Board', icon: <Inbox className="w-4 h-4" /> },
-    { id: 'projects', label: 'Project Pipeline', icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'cad', label: '2D/3D Design Studio', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'drawings', label: 'Wall Elevations', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: !selectedProjectId },
+  const NAV_SECTIONS = [
+    {
+      title: "Workspace Hub",
+      items: [
+        { id: 'dashboard', label: 'Command Center', icon: <LayoutDashboard className="w-4 h-4" /> }
+      ]
+    },
+    {
+      title: "Client Acquisition",
+      items: [
+        { id: 'crm', label: 'CRM & Call Board', icon: <Inbox className="w-4 h-4" /> },
+        { id: 'projects', label: 'Project Pipeline', icon: <BarChart3 className="w-4 h-4" /> }
+      ]
+    },
+    {
+      title: "Design Studio",
+      items: [
+        { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'cad', label: '2D/3D Design Studio', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'drawings', label: 'Wall Elevations', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId }
+      ]
+    },
+    {
+      title: "AI Visualization",
+      items: [
+        { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: !selectedProjectId }
+      ]
+    },
+    {
+      title: "Production & Commerce",
+      items: [
+        { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId }
+      ]
+    }
   ];
+
+  const NAV_ITEMS = NAV_SECTIONS.flatMap(sec => sec.items);
 
   const TAB_TITLES = {
     dashboard: 'Command Center & Workspace Hub',
@@ -332,64 +359,73 @@ export function App() {
             ))}
           </div>
 
-          {/* Navigation */}
-          <nav className="space-y-0.5">
-            {NAV_ITEMS.map(tab => (
-              <button
-                key={tab.id}
-                disabled={tab.disabled}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full py-2.5 px-3 rounded-xl text-[11px] font-semibold flex items-center gap-2.5 transition text-left ${
-                  activeTab === tab.id
-                    ? 'active-nav-btn'
-                    : tab.disabled
-                      ? 'text-slate-700 cursor-not-allowed opacity-40'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                }`}
-              >
-                <span className={activeTab === tab.id ? 'text-[#D4AF37]' : 'text-slate-500'}>
-                  {tab.icon}
-                </span>
-                <span>{tab.label}</span>
-                
-                <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                  {tab.id === 'renders' && selectedProject?.stale_renders === 1 && (
-                    <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                  )}
-                  {tab.id === 'drawings' && selectedProject?.stale_drawings === 1 && (
-                    <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                  )}
-                  {tab.id === 'materials' && selectedProject?.stale_pricing === 1 && (
-                    <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                  )}
+          {/* Navigation Sections */}
+          <div className="space-y-4 flex-grow overflow-y-auto pr-1 scrollbar-thin">
+            {NAV_SECTIONS.map((sec, idx) => (
+              <div key={idx} className="space-y-1">
+                <h3 className="text-[8.5px] font-extrabold uppercase tracking-widest text-[#8A8899]/70 px-3 py-0.5">
+                  {sec.title}
+                </h3>
+                <nav className="space-y-0.5">
+                  {sec.items.map(tab => (
+                    <button
+                      key={tab.id}
+                      disabled={tab.disabled}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full py-2 px-3 rounded-xl text-[10.5px] font-semibold flex items-center gap-2.5 transition text-left ${
+                        activeTab === tab.id
+                          ? 'bg-[#1E1E24] text-[#F0EEE8] border border-[#C9A84C]/30 shadow-md shadow-[#C9A84C]/5'
+                          : tab.disabled
+                            ? 'text-slate-700 cursor-not-allowed opacity-35'
+                            : 'text-[#8A8899] hover:bg-[#1E1E24]/30 hover:text-slate-200'
+                      }`}
+                    >
+                      <span className={activeTab === tab.id ? 'text-[#C9A84C]' : 'text-slate-600'}>
+                        {tab.icon}
+                      </span>
+                      <span className="truncate">{tab.label}</span>
+                      
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        {tab.id === 'renders' && selectedProject?.stale_renders === 1 && (
+                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
+                        )}
+                        {tab.id === 'drawings' && selectedProject?.stale_drawings === 1 && (
+                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
+                        )}
+                        {tab.id === 'materials' && selectedProject?.stale_pricing === 1 && (
+                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
+                        )}
 
-                  {tab.id !== 'crm' && tab.id !== 'dashboard' && selectedProjectId && projectStepIndex >= NAV_ITEMS.findIndex(n => n.id === tab.id) && (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                  )}
-                </div>
-              </button>
+                        {tab.id !== 'crm' && tab.id !== 'dashboard' && selectedProjectId && projectStepIndex >= NAV_ITEMS.findIndex(n => n.id === tab.id) && (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </nav>
+              </div>
             ))}
-          </nav>
+          </div>
 
           {/* Project Workflow Progress (if project selected) */}
           {selectedProject && (
-            <div className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-3 space-y-2">
+            <div className="bg-[#1E1E24]/50 border border-slate-800/60 rounded-2xl p-3 space-y-2 shrink-0">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Project Progress</span>
-                <span className="text-[9px] font-bold text-[#D4AF37]">{Math.round(Math.min((projectStepIndex / 7) * 100, 100))}%</span>
+                <span className="text-[9px] font-bold text-[#8A8899] uppercase tracking-wider">Project Progress</span>
+                <span className="text-[9px] font-bold text-[#C9A84C]">{Math.round(Math.min((projectStepIndex / 7) * 100, 100))}%</span>
               </div>
               {/* Progress Bar */}
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-[#AA8C2C] transition-all duration-700"
+                  className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#E8C97A] transition-all duration-700"
                   style={{ width: `${Math.min((projectStepIndex / 7) * 100, 100)}%` }}
                 />
               </div>
-              <div className="text-[9px] text-slate-400 font-medium truncate">
+              <div className="text-[9px] text-[#F0EEE8]/80 font-medium truncate">
                 📁 {selectedProject.name}
               </div>
-              <div className="text-[9px] text-slate-500">
-                Status: <span className="text-[#D4AF37] font-bold capitalize">{selectedProject.status?.replace('_', ' ') || 'Onboarding'}</span>
+              <div className="text-[9px] text-[#8A8899]">
+                Status: <span className="text-[#C9A84C] font-bold capitalize">{selectedProject.status?.replace('_', ' ') || 'Onboarding'}</span>
               </div>
             </div>
           )}
