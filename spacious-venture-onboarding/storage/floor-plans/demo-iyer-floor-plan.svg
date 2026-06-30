@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780">
+  <rect width="1200" height="780" fill="#f6f1e8"/>
+  <rect x="55" y="55" width="1090" height="670" fill="#fffaf1" stroke="#3b3021" stroke-width="10"/>
+  <g fill="none" stroke="#5a4a35" stroke-width="6">
+    <rect x="95" y="100" width="450" height="270"/>
+    <rect x="645" y="100" width="360" height="210"/>
+    <rect x="95" y="450" width="360" height="235"/>
+    <rect x="505" y="450" width="290" height="235"/>
+    <rect x="850" y="410" width="195" height="185"/>
+    <path d="M545 250h100M455 565h50M795 520h55"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" fill="#392d1f">
+    <text x="120" y="135" font-size="28" font-weight="700">Living Room</text>
+    <text x="668" y="135" font-size="28" font-weight="700">Kitchen</text>
+    <text x="120" y="485" font-size="28" font-weight="700">Master Bedroom</text>
+    <text x="530" y="485" font-size="28" font-weight="700">Kids Bedroom</text>
+    <text x="875" y="448" font-size="28" font-weight="700">Pooja</text>
+    <text x="270" y="235" font-size="18">TV Wall</text>
+    <text x="780" y="210" font-size="18">L Kitchen Run</text>
+    <text x="220" y="590" font-size="18">Wardrobe</text>
+  </g>
+  <g fill="#bd934a">
+    <circle cx="160" cy="170" r="12"/>
+    <circle cx="395" cy="315" r="12"/>
+    <circle cx="705" cy="180" r="12"/>
+    <circle cx="165" cy="510" r="12"/>
+    <circle cx="945" cy="500" r="12"/>
+  </g>
+</svg>

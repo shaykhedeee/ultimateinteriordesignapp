@@ -1,0 +1,35 @@
+{
+  "policySetKey": "budget_material_policies_v1",
+  "bands": {
+    "economy": {
+      "boardTiers": ["tier_1_budget", "tier_2_standard"],
+      "shutterFinishTiers": ["laminate_budget", "laminate_standard"],
+      "hardwareTiers": ["standard"],
+      "notes": ["Prioritize essential storage", "Avoid excessive custom detailing"]
+    },
+    "standard": {
+      "boardTiers": ["tier_2_standard", "tier_3_premium"],
+      "shutterFinishTiers": ["laminate_standard", "acrylic_standard"],
+      "hardwareTiers": ["standard", "mid_premium"],
+      "notes": ["Balanced function and finish", "Selective premium highlights allowed"]
+    },
+    "premium": {
+      "boardTiers": ["tier_3_premium"],
+      "shutterFinishTiers": ["acrylic_standard", "veneer_premium", "pu_premium"],
+      "hardwareTiers": ["mid_premium", "premium"],
+      "notes": ["Custom feature units supported", "Enhanced lighting/detailing allowed"]
+    },
+    "luxury": {
+      "boardTiers": ["tier_3_premium", "tier_4_bespoke"],
+      "shutterFinishTiers": ["veneer_premium", "pu_premium", "glass_premium"],
+      "hardwareTiers": ["premium", "luxury"],
+      "notes": ["High customization", "Premium materials and detailing"]
+    },
+    "ultra_luxury_bespoke": {
+      "boardTiers": ["tier_4_bespoke"],
+      "shutterFinishTiers": ["veneer_premium", "pu_premium", "glass_premium"],
+      "hardwareTiers": ["luxury"],
+      "notes": ["Bespoke detailing", "Design freedom with explicit premium cost tracking"]
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "ruleSetKey": "wardrobe_standards_v1",
+  "scope": "module_type",
+  "moduleType": "wardrobe_swing_or_sliding",
+  "rules": [
+    {
+      "code": "WARDROBE_SWING_CLEARANCE_MIN",
+      "severity": "hard",
+      "measure": "swing_clearance_mm",
+      "min": 750
+    },
+    {
+      "code": "WARDROBE_SLIDING_DEPTH_MIN",
+      "severity": "hard",
+      "measure": "depth_mm",
+      "min": 650
+    },
+    {
+      "code": "WARDROBE_WALKIN_PASSAGE_MIN",
+      "severity": "hard",
+      "measure": "walkway_mm",
+      "min": 900
+    },
+    {
+      "code": "WARDROBE_SMOKED_GLASS_LED_RECOMMENDED",
+      "severity": "advisory",
+      "description": "Recommend vertical profile LEDs for smoked glass wardrobe configurations"
+    }
+  ]
+}

@@ -1,0 +1,277 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #D4AF37;
+  --gold-dark: #AA8C2C;
+  --gold-light: #F5ECE1;
+  --gold-glow: rgba(212, 175, 55, 0.25);
+  --bg-slate-950: #020617;
+  --bg-slate-900: #0F172A;
+  --bg-slate-800: #1E293B;
+  --scrollbar-bg: #020617;
+  --scrollbar-thumb: #1E293B;
+  --emerald: #10b981;
+  --blue: #3b82f6;
+  --red: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Outfit', sans-serif;
+  background-color: var(--bg-slate-950);
+  color: #F8FAFC;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Custom Scrollbars ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-bg); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.5); }
+
+/* ── Monospace Font ── */
+.font-mono, code, pre { font-family: 'JetBrains Mono', monospace; }
+
+/* ── Active Navigation Button ── */
+.active-nav-btn {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.05)) !important;
+  color: var(--gold) !important;
+  border-left: 3px solid var(--gold) !important;
+  box-shadow: inset 4px 0 12px rgba(212, 175, 55, 0.08);
+}
+
+/* ── Gold Glow Effects ── */
+.gold-glow {
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.25), 0 0 40px rgba(212, 175, 55, 0.08);
+}
+.gold-glow-sm {
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.2);
+}
+.gold-border { border-color: rgba(212, 175, 55, 0.35) !important; }
+
+/* ── Modal Overlay ── */
+.modal-overlay {
+  background-color: rgba(2, 6, 23, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Glassmorphism Cards ── */
+.glass-card {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Premium Panel Gradient ── */
+.panel-gradient {
+  background: linear-gradient(145deg, #0d1424 0%, #080c18 100%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ── Custom Animations ── */
+@keyframes pulse-gold {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.65; transform: scale(0.97); }
+}
+.pulse-gold-glow { animation: pulse-gold 2s infinite ease-in-out; }
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.slide-in-right { animation: slide-in-right 0.3s ease-out forwards; }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.slide-up { animation: slide-up 0.3s ease-out forwards; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in { animation: fade-in 0.25s ease-out forwards; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-bg {
+  background: linear-gradient(90deg, #1e293b 25%, #263548 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite linear;
+}
+
+@keyframes wave-bars {
+  0%, 100% { height: 8px; }
+  50% { height: 24px; }
+}
+.audio-wave-bar { animation: wave-bars 0.6s ease-in-out infinite; }
+.audio-wave-bar:nth-child(2) { animation-delay: 0.1s; }
+.audio-wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.audio-wave-bar:nth-child(4) { animation-delay: 0.15s; }
+.audio-wave-bar:nth-child(5) { animation-delay: 0.3s; }
+.audio-wave-bar:nth-child(6) { animation-delay: 0.08s; }
+
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 3s linear infinite; }
+
+/* ── Score Badge Colors ── */
+.score-high { color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); }
+.score-mid { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); }
+.score-low { color: #f87171; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+/* ── Status Pill Tags ── */
+.status-new { color: #94a3b8; background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.15); }
+.status-calling { color: #60a5fa; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.25); }
+.status-qualified { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.25); }
+.status-disqualified { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.25); }
+.status-closed { color: var(--gold); background: rgba(212, 175, 55, 0.1); border: 1px solid rgba(212, 175, 55, 0.25); }
+
+/* ── Input Styles ── */
+.form-input {
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  border-radius: 8px;
+  color: #f1f5f9;
+  padding: 8px 12px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-input:focus {
+  border-color: rgba(212, 175, 55, 0.5);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.08);
+}
+
+/* ── Button Styles ── */
+.btn-gold {
+  background: linear-gradient(135deg, #D4AF37, #AA8C2C);
+  color: #0d1117;
+  font-weight: 800;
+  border: none;
+  border-radius: 10px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.btn-gold:hover {
+  background: linear-gradient(135deg, #e8c94a, #c4a030);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.3);
+}
+.btn-gold:active { transform: translateY(0px); }
+
+.btn-outline-gold {
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 10px;
+  font-weight: 700;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.btn-outline-gold:hover {
+  background: rgba(212, 175, 55, 0.08);
+  border-color: rgba(212, 175, 55, 0.6);
+}
+
+/* ── CAD Editor Canvas ── */
+#floorplan-svg {
+  background-color: #0F172A;
+  user-select: none;
+  touch-action: none;
+}
+.wall-line:hover { stroke: var(--gold) !important; stroke-opacity: 0.5; }
+
+/* ── Material Swatch ── */
+.material-swatch {
+  transition: all 0.2s ease;
+}
+.material-swatch:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 20px rgba(212, 175, 55, 0.15);
+}
+.material-swatch.selected {
+  ring: 2px solid var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), 0 4px 20px rgba(212, 175, 55, 0.2);
+}
+
+/* ── Render Viewport ── */
+.render-viewport {
+  background: radial-gradient(ellipse at center, #0f1c2e 0%, #050810 100%);
+}
+
+/* ── Progress Ring ── */
+.progress-ring {
+  stroke-dashoffset: calc(200px - (200px * var(--progress)) / 100);
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+/* ── Vastu Compliance Badge ── */
+.vastu-badge-high { color: #34d399; }
+.vastu-badge-mid { color: #fbbf24; }
+.vastu-badge-low { color: #f87171; }
+
+/* ── Toast / Notification ── */
+.toast-notification {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  background: #0d1424;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* ── Nesting Map Panels ── */
+.nesting-panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 5.5px;
+  fill: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+}
+
+/* ── Lead Card Hover ── */
+.lead-card {
+  transition: all 0.18s ease;
+}
+.lead-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Timeline Step Connector ── */
+.timeline-connector {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 2px;
+  height: 24px;
+  background: linear-gradient(to bottom, rgba(212, 175, 55, 0.4), transparent);
+  transform: translateX(-50%);
+}
+
+/* ── Section Divider ── */
+.section-divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(212, 175, 55, 0.2), transparent);
+  margin: 16px 0;
+}
