@@ -68,8 +68,10 @@ export function App() {
   });
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [activeJobs, setActiveJobs] = useState([]);
+  const [toast, setToast] = useState(null);
   const [prevActiveJobsCount, setPrevActiveJobsCount] = useState(0);
+  // Jesture: use [window.__JESTURE_API_URL__] if present, otherwise default to http://127.0.0.1:5055
+  const JESTURE_API_URL = typeof window !== 'undefined' ? (window.__JESTURE_API_URL__ || 'http://127.0.0.1:5055') : 'http://127.0.0.1:5055';
   const [brainOnline, setBrainOnline] = useState(false);
 
   // Keyboard shortcuts for fast navigation
@@ -89,7 +91,7 @@ export function App() {
       else if (key === '5' && !mod) setActiveTab('cad');
       else if (key === '6' && !mod) setActiveTab('renders');
       else if (key === '7' && !mod) setActiveTab('cutlist');
-      if (key === '8' && !mod) setActiveTab('finance');
+      else if (key === '8' && !mod) setActiveTab('finance');
       else if (key === '9' && !mod) setActiveTab('layout');
       else if (key === 'd' && mod) { e.preventDefault(); setActiveTab('dashboard'); }
       else if (key === 'k' && mod) { e.preventDefault(); setIsAuraOpen(true); }
@@ -260,7 +262,8 @@ export function App() {
         setSelectedProject(prev => ({ ...prev, total_cost: updatedCost }));
       }
     }
-    alert(`AURA Action Executed: ${preview?.title || actionId}`);
+    setToast({ text: `AURA Action Executed: ${preview?.title || actionId}`, variant: 'success' });
+    setTimeout(() => setToast(null), 2200);
   };
 
   const handleProjectClosed = (projectId) => {
@@ -370,20 +373,21 @@ export function App() {
     <div className="h-screen w-screen bg-[#020617] text-slate-100 flex overflow-hidden font-sans">
       
       {/* ── Left Sidebar ── */}
-      <aside className="w-60 bg-[#080d18] border-r border-slate-800/60 flex flex-col justify-between shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }} aria-label="App navigation sidebar">
+      <aside className="w-60 bg-[#080d18] border-r border-slate-800/80 flex flex-col justify-between shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 80%, #020408 100%)' }} aria-label="App navigation sidebar">
         <div className="flex flex-col gap-4 p-4">
-          
 
-          {/* Logo Branding */}
-          <div className="flex items-center gap-2.5 px-1 py-1">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#AA8C2C] flex items-center justify-center shadow-lg shadow-[#D4AF37]/20">
-              <LayoutDashboard className="w-4 h-4 text-slate-900" />
-            </div>
-            <div>
-              <h1 className="text-xs font-black tracking-widest text-slate-100 uppercase">ULTIDA</h1>
-              <span className="text-[8px] font-bold text-[#D4AF37]/60 uppercase tracking-widest block">Ultimate Interior Design OS</span>
-            </div>
-          </div>
+{/* Logo */}
+<div className="flex items-center gap-2.5 px-1 py-1">
+  <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#D4AF37] to-[#AA8C2C] flex items-center justify-center shadow-lg shadow-[#D4AF37]/25 ring-1 ring-white/10">
+    <LayoutDashboard className="w-5 h-5 text-slate-950" />
+  </div>
+  <div>
+    <h1 className="text-[11px] font-black tracking-[0.35em] text-slate-100 uppercase">ULTIDA</h1>
+    <span className="text-[8px] font-bold text-[#D4AF37]/70 uppercase tracking-[0.25em] mt-[2px] block">Interior OS</span>
+  </div>
+</div>
+
+<div className="h-px bg-gradient-to-r from-transparent via-slate-800/80 to-transparent" />
 
           {/* Quick Metrics Panel */}
           <div className="bg-slate-900/60 border border-slate-800/60 p-3 rounded-2xl grid grid-cols-2 gap-2 text-xs" aria-label="Quick metrics">
@@ -599,6 +603,19 @@ export function App() {
             <span>{currentTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
             <span className="w-px h-4 bg-slate-800" />
             <span>Admin</span>
+            {toast && (
+              <div
+                role="status"
+                aria-live="polite"
+                className={`ml-2 inline-flex items-center gap-2 rounded-xl border px-3 py-1 text-[11px] font-semibold shadow-md transition ${
+                  toast.variant === 'success'
+                    ? 'border-emerald-700/60 bg-emerald-950/50 text-emerald-300'
+                    : 'border-red-700/60 bg-red-950/50 text-red-300'
+                }`}
+              >
+                {toast.text}
+              </div>
+            )}
           </div>
         </header>
 

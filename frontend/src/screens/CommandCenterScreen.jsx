@@ -12,6 +12,10 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
 
+  // UX states
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
   // AI Brain live state
   const [brainStatus, setBrainStatus] = useState(null);
   const [brainLoading, setBrainLoading] = useState(false);
