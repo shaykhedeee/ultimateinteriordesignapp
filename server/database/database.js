@@ -478,20 +478,9 @@ db.exec(`
     dimensions_json TEXT,
     thumbnail TEXT
   );
-
-  CREATE TABLE IF NOT EXISTS agent_feedback_log (
-    id TEXT PRIMARY KEY,
-    agent_type TEXT NOT NULL,
-    session_id TEXT NOT NULL,
-    prompt TEXT NOT NULL,
-    output_text TEXT NOT NULL,
-    feedback TEXT,
-    accepted INTEGER NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );
 `);
 
-// Self-healing migration for existing databases
+// Seed default furniture catalog if empty
 try {
   const count = db.prepare("SELECT COUNT(*) as cnt FROM furniture_catalog").get().cnt;
   if (count === 0) {
@@ -668,18 +657,6 @@ try {
 }
 
 console.log("Ultimate Interior Design SQLite Database initialized at:", dbPath);
-
-try { db.exec("ALTER TABLE furniture_catalog ADD COLUMN display_name TEXT;"); } catch (e) {}
-try { db.exec("ALTER TABLE furniture_catalog ADD COLUMN room_suitability TEXT DEFAULT '';"); } catch (e) {}
-
-try { db.exec("CREATE TABLE IF NOT EXISTS render_comparisons (id TEXT PRIMARY KEY, project_id TEXT, render_a_id TEXT, render_b_id TEXT, notes TEXT, image_url TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"); } catch (e) {}
-try { db.exec("ALTER TABLE render_comparisons ADD COLUMN metadata_json TEXT;"); } catch (e) {}
-
-try { db.exec("CREATE TABLE IF NOT EXISTS patch_proposals (id TEXT PRIMARY KEY, proposed_by TEXT, proposal_type TEXT, target_entity_type TEXT, target_entity_id TEXT, changes_json TEXT, rationale_json TEXT, impact_assessment_json TEXT, timestamp TEXT, version INTEGER DEFAULT 1, review_status TEXT DEFAULT 'pending', reviewed_by TEXT, reviewed_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);"); } catch (e) {}
-try { db.exec("ALTER TABLE patch_proposals ADD COLUMN project_id TEXT;"); } catch (e) {}
-
-try { db.exec("CREATE TABLE IF NOT EXISTS patch_changes (id TEXT PRIMARY KEY, proposal_id TEXT, operation TEXT, target_field TEXT, new_value TEXT, old_value TEXT, constraints_json TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);"); } catch (e) {}
-try { db.exec("CREATE TABLE IF NOT EXISTS agent_feedback_log (id TEXT PRIMARY KEY, proposal_id TEXT, proposed_by TEXT, proposal_type TEXT, project_id TEXT, decision TEXT, rejection_feedback TEXT, modification_notes TEXT, context_json TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);"); } catch (e) {}
 
 export default db;
 

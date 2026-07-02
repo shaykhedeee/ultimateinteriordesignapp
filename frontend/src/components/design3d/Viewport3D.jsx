@@ -12,8 +12,84 @@ const LAMINATE_COLORS = {
   lam_4: 0xe5e5e0  // Light Beige
 };
 
+// Procedural texture generators to match actual catalog materials in Three.js
+const createWoodgrainTexture = (colorHex) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Fill base color
+  ctx.fillStyle = colorHex;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Wavy wood lines
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 20; i++) {
+    ctx.beginPath();
+    const x = Math.random() * 256;
+    ctx.moveTo(x, 0);
+    ctx.bezierCurveTo(x + 15, 80, x - 15, 170, x, 256);
+    ctx.stroke();
+  }
+
+  // Fine accent lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < 12; i++) {
+    ctx.beginPath();
+    const x = Math.random() * 256;
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + (Math.random() - 0.5) * 8, 256);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1.5, 1.5);
+  return texture;
+};
+
+const createMarbleTexture = (colorHex) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = colorHex;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // White soft veins
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * 256, 0);
+    ctx.bezierCurveTo(Math.random() * 256, 90, Math.random() * 256, 160, Math.random() * 256, 256);
+    ctx.stroke();
+  }
+
+  // Dark veins
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, Math.random() * 256);
+    ctx.bezierCurveTo(80, Math.random() * 256, 170, Math.random() * 256, 256, Math.random() * 256);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+};
+
 export default function Viewport3D() {
   const mountRef = useRef(null);
+  const rebuildRef = useRef(null);
   const rooms = useEditorStore(selectRooms);
   const walls = useEditorStore(selectWalls);
   const openings = useEditorStore(selectOpenings);
@@ -24,12 +100,15 @@ export default function Viewport3D() {
   const activeRoomId = useEditorStore(state => state.activeRoomId);
   const materialsCatalog = useEditorStore(state => state.materialsCatalog) || [];
   
+  // Render modes: 'solid' (fast flat colors), 'textures' (procedural wood/marble, finish reflection properties)
+  const [renderMode, setRenderMode] = useState('textures');
+  
   // Store refs to keep rendering loop in sync with react state
-  const stateRef = useRef({ walls, openings, modules, selectedId, activeRoomId, materialsCatalog });
+  const stateRef = useRef({ walls, openings, modules, selectedId, activeRoomId, materialsCatalog, renderMode });
   
   useEffect(() => {
-    stateRef.current = { walls, openings, modules, selectedId, activeRoomId, materialsCatalog };
-  }, [walls, openings, modules, selectedId, activeRoomId, materialsCatalog]);
+    stateRef.current = { walls, openings, modules, selectedId, activeRoomId, materialsCatalog, renderMode };
+  }, [walls, openings, modules, selectedId, activeRoomId, materialsCatalog, renderMode]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -202,7 +281,7 @@ export default function Viewport3D() {
         const shutterMatId = mod.materialAssignments?.shutter || 'lam_1';
         
         // Resolve dynamic color from catalog if exists, otherwise fallback to static map
-        const { materialsCatalog: currentCatalog } = stateRef.current;
+        const { materialsCatalog: currentCatalog, renderMode: currentMode } = stateRef.current;
         const catalogMat = currentCatalog.find(item => item.id === shutterMatId || item.code === shutterMatId);
         let colorHex = LAMINATE_COLORS[shutterMatId] || 0xf3f4f6;
         if (catalogMat && catalogMat.color) {
@@ -213,10 +292,46 @@ export default function Viewport3D() {
           }
         }
 
+        let roughness = 0.5;
+        let metalness = 0.15;
+        let map = null;
+
+        if (currentMode === 'textures') {
+          if (catalogMat) {
+            const finishLower = (catalogMat.finish || '').toLowerCase();
+            const nameLower = (catalogMat.name || '').toLowerCase();
+            
+            if (finishLower.includes('gloss') || finishLower.includes('acrylic')) {
+              roughness = 0.1;
+              metalness = 0.25;
+            } else if (finishLower.includes('matte') || finishLower.includes('suede')) {
+              roughness = 0.85;
+              metalness = 0.05;
+            }
+
+            if (nameLower.includes('oak') || nameLower.includes('walnut') || nameLower.includes('wood') || nameLower.includes('ply') || nameLower.includes('wenge') || nameLower.includes('laminate')) {
+              map = createWoodgrainTexture(catalogMat.color || '#c29a6b');
+            } else if (nameLower.includes('marble') || nameLower.includes('stone') || nameLower.includes('granite') || nameLower.includes('quartz')) {
+              map = createMarbleTexture(catalogMat.color || '#e5e5e0');
+            }
+          } else {
+            // Static wood fallback for Warm Oak key
+            if (shutterMatId === 'lam_2') {
+              map = createWoodgrainTexture('#c29a6b');
+              roughness = 0.65;
+            } else if (shutterMatId === 'lam_3') {
+              // Charcoal matte
+              roughness = 0.9;
+              metalness = 0.05;
+            }
+          }
+        }
+
         const carcassMat = new THREE.MeshStandardMaterial({
-          color: colorHex,
-          roughness: 0.5,
-          metalness: 0.1
+          color: map ? 0xffffff : colorHex,
+          map: map,
+          roughness: roughness,
+          metalness: metalness
         });
         const carcassMesh = new THREE.Mesh(carcassGeo, carcassMat);
         carcassMesh.castShadow = true;
@@ -234,9 +349,10 @@ export default function Viewport3D() {
         // Add a thin offset panel on front face (Z offset)
         const frontPanelGeo = new THREE.BoxGeometry(widthMm - 8, heightMm - 8, 12);
         const frontPanelMat = new THREE.MeshStandardMaterial({
-          color: colorHex,
-          roughness: 0.45,
-          metalness: 0.15
+          color: map ? 0xffffff : colorHex,
+          map: map,
+          roughness: roughness,
+          metalness: metalness
         });
         const frontPanelMesh = new THREE.Mesh(frontPanelGeo, frontPanelMat);
         // Place on the front face of depth
@@ -254,6 +370,9 @@ export default function Viewport3D() {
         modulesGroup.add(modGroup);
       });
     };
+
+    // Store rebuild helper in ref to trigger it reactively on state updates
+    rebuildRef.current = rebuild3DScene;
 
     // Initialize 3D layout representation
     rebuild3DScene();
@@ -298,18 +417,72 @@ export default function Viewport3D() {
     };
   }, []);
 
+  // Re-run builder when rendering mode changes
+  useEffect(() => {
+    if (rebuildRef.current) {
+      rebuildRef.current();
+    }
+  }, [renderMode]);
+
+  const handleSendToRender = () => {
+    // Collect active scene module metrics to pre-fill parameters
+    const prefill = {
+      room: activeRoomId === 'room_1' ? 'kitchen' : 'living',
+      style: 'modern-luxury',
+      budgetTier: 'premium',
+      customInstruction: `Procedural Three.js Scene: Extruded partitions with dynamic catalog finishes (Total modules placed: ${modules.length}).`
+    };
+    localStorage.setItem('prefill_render_params', JSON.stringify(prefill));
+    
+    // Dispatch event to app layout to switch tab
+    const event = new CustomEvent('navigate-to-tab', { detail: 'renders' });
+    window.dispatchEvent(event);
+  };
+
   return (
     <div className="w-full h-full relative overflow-hidden bg-[#080c14] border border-slate-800 rounded-2xl">
       {/* 3D WebGL Canvas Target */}
       <div ref={mountRef} className="w-full h-full" />
       
       {/* Visualizer Legend Overlay */}
-      <div className="absolute top-3 right-3 z-10 bg-slate-900/90 border border-slate-800/80 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg text-[9px] font-bold text-slate-400 tracking-wider uppercase">
-        <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-        <span>3D Parametric Viewport</span>
+      <div className="absolute top-3 right-3 z-10 flex gap-2">
+        <button
+          onClick={handleSendToRender}
+          className="bg-gradient-to-r from-[#C9A84C] to-[#AA8C2C] hover:from-[#e5bd3d] hover:to-[#bfa032] text-slate-950 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition flex items-center gap-1.5 shadow-lg shadow-[#C9A84C]/10"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Send to Render Studio
+        </button>
+        <div className="bg-slate-900/90 border border-slate-800/80 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg text-[9px] font-bold text-slate-400 tracking-wider uppercase">
+          <span>3D Parametric Viewport</span>
+        </div>
       </div>
 
-      <div className="absolute bottom-3 left-3 z-10 bg-slate-900/80 border border-slate-850 px-2.5 py-1.5 rounded-lg text-[8px] text-slate-500 font-bold font-mono">
+      {/* Render Mode Toggle Overlay */}
+      <div className="absolute top-3 left-3 z-10 bg-slate-900/90 border border-slate-800/80 p-1 rounded-xl flex gap-1 shadow-lg">
+        <button
+          onClick={() => setRenderMode('solid')}
+          className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition ${
+            renderMode === 'solid' 
+              ? 'bg-[#C9A84C]/15 border border-[#C9A84C]/35 text-[#C9A84C]' 
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          🎨 Solid
+        </button>
+        <button
+          onClick={() => setRenderMode('textures')}
+          className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition ${
+            renderMode === 'textures' 
+              ? 'bg-[#C9A84C]/15 border border-[#C9A84C]/35 text-[#C9A84C]' 
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          🪵 Textured
+        </button>
+      </div>
+
+      <div className="absolute bottom-3 left-3 z-10 bg-slate-900/80 border border-slate-850 px-2.5 py-1.5 rounded-lg text-[8px] text-[#8A8899] font-bold font-mono">
         DRAG TO ROTATE · CTRL+DRAG TO PAN · SCROLL TO ZOOM
       </div>
     </div>

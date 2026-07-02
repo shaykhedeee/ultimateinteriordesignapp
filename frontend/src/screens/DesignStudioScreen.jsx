@@ -25,9 +25,6 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
 
   // Layout View Modes: 'split' | '2d' | '3d'
   const [layoutMode, setLayoutMode] = useState('split');
-
-  // Merge success chip
-  const [mergeStatus, setMergeStatus] = useState('');
   
   const branchName = useEditorStore(state => state.branchName);
   const [branches, setBranches] = useState(['main']);
@@ -123,7 +120,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             
             <button
               onClick={() => setShowBranchModal(true)}
-              className="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[#D4AF37]/35 text-[#D4AF37] px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition flex items-center gap-1"
+              className="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-[#C9A84C]/35 text-[#C9A84C] px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition flex items-center gap-1"
             >
               <span>Variant: {branchName}</span>
               <ChevronDown className="w-3 h-3 text-slate-500" />
@@ -142,7 +139,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             ) : (
               <>
                 <Unlock className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="font-semibold text-slate-300 hover:text-[#D4AF37]">Click to Lock</span>
+                <span className="font-semibold text-slate-300 hover:text-[#C9A84C]">Click to Lock</span>
               </>
             )}
           </button>
@@ -154,7 +151,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             onClick={() => setLayoutMode('2d')}
             className={`py-1 px-3 rounded-lg flex items-center gap-1.5 transition ${
               layoutMode === '2d'
-                ? 'bg-slate-900 text-[#D4AF37] border border-slate-800'
+                ? 'bg-slate-900 text-[#C9A84C] border border-slate-800'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -164,7 +161,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             onClick={() => setLayoutMode('split')}
             className={`py-1 px-3 rounded-lg flex items-center gap-1.5 transition ${
               layoutMode === 'split'
-                ? 'bg-slate-900 text-[#D4AF37] border border-slate-800'
+                ? 'bg-slate-900 text-[#C9A84C] border border-slate-800'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -174,7 +171,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             onClick={() => setLayoutMode('3d')}
             className={`py-1 px-3 rounded-lg flex items-center gap-1.5 transition ${
               layoutMode === '3d'
-                ? 'bg-slate-900 text-[#D4AF37] border border-slate-800'
+                ? 'bg-slate-900 text-[#C9A84C] border border-slate-800'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -219,7 +216,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             className={`py-1.5 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
               isSaving || isLocked
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                : 'bg-[#D4AF37]/15 hover:bg-[#D4AF37]/25 text-[#D4AF37] border border-[#D4AF37]/35 shadow-md shadow-[#D4AF37]/5'
+                : 'bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 text-[#C9A84C] border border-[#C9A84C]/35 shadow-md shadow-[#C9A84C]/5'
             }`}
           >
             {isSaving ? (
@@ -232,7 +229,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
 
           <button
             onClick={() => onComplete && onComplete()}
-            className="bg-gradient-to-r from-[#D4AF37] to-[#AA8C2C] hover:from-[#e5bd3d] hover:to-[#bfa032] text-slate-950 py-1.5 px-4 rounded-xl text-xs font-black transition shadow-lg shadow-[#D4AF37]/10"
+            className="bg-gradient-to-r from-[#C9A84C] to-[#AA8C2C] hover:from-[#E8C97A] hover:to-[#bfa032] text-slate-950 py-1.5 px-4 rounded-xl text-xs font-black transition shadow-lg shadow-[#C9A84C]/10"
           >
             Next: Elevate →
           </button>
@@ -287,7 +284,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/40">
               <div className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-[#D4AF37]" />
+                <Layers className="w-5 h-5 text-[#C9A84C]" />
                 <div>
                   <h3 className="text-sm font-extrabold uppercase tracking-wide">Design Variant Branch Manager</h3>
                   <p className="text-[10px] text-slate-500">Fork, switch, and compare design layouts side-by-side</p>
@@ -308,7 +305,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Available Design Branches</span>
                 <button
                   onClick={() => { handleCreateBranch(); }}
-                  className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition"
+                  className="bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/30 text-[#C9A84C] px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition"
                 >
                   + Fork New Variant
                 </button>
@@ -332,7 +329,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                       key={b}
                       className={`p-4 rounded-xl border flex items-center justify-between transition ${
                         isCurrentBranch
-                          ? 'bg-[#D4AF37]/5 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5'
+                          ? 'bg-[#C9A84C]/5 border-[#C9A84C]/50 shadow-md shadow-[#C9A84C]/5'
                           : 'bg-slate-950/40 border-slate-850 hover:border-slate-800'
                       }`}
                     >
@@ -367,7 +364,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                               loadScene(projectId, b);
                               setShowBranchModal(false);
                             }}
-                            className="bg-slate-950 hover:bg-slate-850 text-slate-300 border border-slate-800 hover:border-[#D4AF37]/35 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition"
+                            className="bg-slate-950 hover:bg-slate-850 text-slate-300 border border-slate-800 hover:border-[#C9A84C]/35 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition"
                           >
                             Switch to Variant
                           </button>
@@ -379,21 +376,15 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                           <button
                             onClick={async () => {
                               if (window.confirm(`Are you sure you want to align and merge variant "${b}" into main?`)) {
-                                setMergeStatus('Variant branch merged and aligned successfully! Main branch updated to variant carcass parameters.');
-                                setTimeout(() => setMergeStatus(''), 2500);
+                                alert("Variant branch merged and aligned successfully! Main branch updated to variant carcass parameters.");
                                 loadScene(projectId, 'main');
                                 setShowBranchModal(false);
                               }
                             }}
-                            className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/25 text-[#D4AF37] px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition"
+                            className="bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/25 text-[#C9A84C] px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition"
                           >
                             Merge to Main
                           </button>
-                        )}
-                        {mergeStatus && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-3 py-1.5 rounded-xl">
-                            {mergeStatus}
-                          </span>
                         )}
                       </div>
                     </div>

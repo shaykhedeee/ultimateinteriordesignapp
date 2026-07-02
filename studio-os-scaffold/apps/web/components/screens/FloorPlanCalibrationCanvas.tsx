@@ -11,7 +11,6 @@ type Marker = {
   label: string;
   color: string;
   linkedEntityId?: string;
-  note?: string;
 };
 
 type OverlayPayload = {
@@ -439,17 +438,10 @@ export function FloorPlanCalibrationCanvas({
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>Note</label>
-              <input
-                value={selectedMarker.note ?? ''}
-                onChange={(e) => updateSelectedMarker({ note: e.target.value })}
-                style={{ width: '100%', padding: '6px 10px', background: '#0d1110', border: '1px solid #2f3e39', color: '#f4f0e8', borderRadius: 4 }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>Linked Entity Ref</label>
+              <label style={{ display: 'block', fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>Link to Entity Ref</label>
               <input
                 value={selectedMarker.linkedEntityId ?? ''}
+                placeholder="e.g. room_living_1, wall_l1"
                 onChange={(e) => updateSelectedMarker({ linkedEntityId: e.target.value })}
                 style={{ width: '100%', padding: '6px 10px', background: '#0d1110', border: '1px solid #2f3e39', color: '#f4f0e8', borderRadius: 4 }}
               />

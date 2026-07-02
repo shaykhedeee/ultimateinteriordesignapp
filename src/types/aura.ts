@@ -1,4 +1,4 @@
-export type ViewMode = 'viewport-3d' | 'floorplan-2d' | 'ai-generator' | 'parametric' | 'render-studio' | 'commerce-boq' | 'brain-arch' | 'mood-board' | 'project-timeline' | 'dashboard';
+export type ViewMode = 'viewport-3d' | 'floorplan-2d' | 'ai-generator' | 'parametric' | 'render-studio' | 'commerce-boq' | 'brain-arch' | 'mood-board' | 'project-timeline';
 
 export type RenderTier = 'tier1-webgpu' | 'tier2-ai-enhance' | 'tier3-pathtrace' | 'tier4-cinematic' | 'tier5-immersive';
 

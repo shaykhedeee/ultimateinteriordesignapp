@@ -39,8 +39,6 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const [estimatorSqft, setEstimatorSqft] = useState(120);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [pricingStatus, setPricingStatus] = useState('');
 
   // CRUD Form States
   const [showAddLaminateForm, setShowAddLaminateForm] = useState(false);
@@ -140,9 +138,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
         })
       });
 
-      setSaveSuccess(true);
-      setSaveError('');
-      setTimeout(() => setSaveSuccess(false), 2200);
+      alert("BOQ estimate and quotation saved successfully!");
     } catch (err) {
       console.error("Error saving quotation:", err);
     }
@@ -342,8 +338,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
         body: JSON.stringify({ jobType: 'pricing_generation' })
       });
       setStalePricing(false);
-      setPricingStatus('Pricing regeneration job spawned. Check Background Jobs.');
-      setTimeout(() => setPricingStatus(''), 2500);
+      alert("Pricing regeneration job spawned successfully! Check Background Jobs tab.");
     } catch (err) {
       console.error(err);
     }
