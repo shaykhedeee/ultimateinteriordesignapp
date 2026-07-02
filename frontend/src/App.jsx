@@ -23,6 +23,8 @@ import CommandCenterScreen from './screens/CommandCenterScreen.jsx';
 import AuraBrainChat from './components/layout/AuraBrainChat.jsx';
 import CeilingStudio from './screens/CeilingStudio.jsx';
 import TvUnitGenerator from './screens/TvUnitGenerator.jsx';
+import VendorIntelligence from './screens/VendorIntelligence.jsx';
+import PinterestLearning from './screens/PinterestLearning.jsx';
 
 const WORKFLOW_STEPS = [
   { id: 'crm', label: 'Lead CRM', icon: <Inbox className="w-3.5 h-3.5" />, statusField: null },
@@ -421,6 +423,10 @@ export function App() {
         return <CeilingStudio projectId={selectedProjectId} />;
       case 'tvunit':
         return <TvUnitGenerator projectId={selectedProjectId} />;
+      case 'vendor':
+        return <VendorIntelligence projectId={selectedProjectId} />;
+      case 'pinterest':
+        return <PinterestLearning projectId={selectedProjectId} />;
       case 'finance':
         return <FinanceScreen projectId={selectedProjectId} />;
       case 'timeline':
@@ -469,6 +475,8 @@ export function App() {
         { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
         { id: 'ceiling', label: 'False Ceiling Generator', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
         { id: 'tvunit', label: 'TV Unit Generator', icon: <Monitor className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'vendor', label: 'Vendor Intelligence', icon: <Store className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'pinterest', label: 'Pinterest Learning', icon: <Sparkles className="w-4 h-4" />, disabled: !selectedProjectId },
         { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
         { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId }
       ]
