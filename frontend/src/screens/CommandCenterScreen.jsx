@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
   BarChart3, CheckCircle2, ChevronRight, Activity, Zap, Info, Plus, 
-  Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee
+  Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee, Clock
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
 export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
