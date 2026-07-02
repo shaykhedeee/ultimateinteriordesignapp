@@ -15,12 +15,23 @@ export default function AuraBrainChat({
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [showBrainTelemetry, setShowBrainTelemetry] = useState(false);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const [pendingMessageId, setPendingMessageId] = useState(null);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
-    onSendMessage(inputText);
+    const text = inputText.trim();
     setInputText('');
+    const sentId = `msg-${Date.now()}`;
+    setPendingMessageId(sentId);
+    setIsAiTyping(true);
+    try {
+      await onSendMessage(text);
+    } finally {
+      setIsAiTyping(false);
+      setPendingMessageId(prev => prev === sentId ? null : prev);
+    }
   };
 
   const simulateVoice = () => {

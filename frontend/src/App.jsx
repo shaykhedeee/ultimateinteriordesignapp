@@ -3,7 +3,7 @@ import {
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
   BarChart3, Users, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, TrendingUp, Zap,
-  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee
+  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee, Monitor
 } from 'lucide-react';
 
 // Import Screens
@@ -21,6 +21,8 @@ import TimelineScreen from './screens/TimelineScreen.jsx';
 import JobsScreen from './screens/JobsScreen.jsx';
 import CommandCenterScreen from './screens/CommandCenterScreen.jsx';
 import AuraBrainChat from './components/layout/AuraBrainChat.jsx';
+import CeilingStudio from './screens/CeilingStudio.jsx';
+import TvUnitGenerator from './screens/TvUnitGenerator.jsx';
 
 const WORKFLOW_STEPS = [
   { id: 'crm', label: 'Lead CRM', icon: <Inbox className="w-3.5 h-3.5" />, statusField: null },
@@ -57,6 +59,8 @@ export function App() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeJobs, setActiveJobs] = useState([]);
   const [prevActiveJobsCount, setPrevActiveJobsCount] = useState(0);
+  const [orchestrationChips, setOrchestrationChips] = useState([]);
+  const [lastUserText, setLastUserText] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -156,81 +160,223 @@ export function App() {
     }
   };
 
-  const handleSendMessage = (text) => {
+  const [auraStatus, setAuraStatus] = useState(''); 
+  const [orchestratorMode, setOrchestratorMode] = useState(false); 
+
+  // AURA Command Surface inside CommandCenter brain panel (reuse mode inside CommandCenterScreen)
+  const auraCommands = [
+    { id: 'aura:render-living', label: 'Generate Living Render', tab: 'renders', status: null, jobType: 'render_generation' },
+    { id: 'aura:apply-palette', label: 'Apply Warm Japandi Palette', tab: 'materials', status: 'materials_selected', jobType: null },
+    { id: 'aura:optimize-budget', label: 'Optimize Hardwares & Budget', tab: 'finance', status: null, jobType: null },
+    { id: 'aura:align-layout', label: 'Align Sofa + Walkways', tab: 'studio', status: null, jobType: null },
+    { id: 'aura:export-drawings', label: 'Export Elevation DXF', tab: 'drawings', status: null, jobType: null },
+  ];
+
+  const handleAuraCommand = async (cmd) => {
+    const projectId = await ensureProject();
+    if (!projectId) {
+      setOrchestrationChips(prev => [...prev, { id: `chip-${Date.now()}`, type: 'error', text: 'No project selected. Open a project first.' }]);
+      return;
+    }
+
+    if (cmd.tab) navigateTab(cmd.tab);
+
+    try {
+      if (cmd.status && projectId) {
+        await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: cmd.status, currentStep: cmd.status })
+        });
+      }
+
+      if (cmd.jobType && projectId) {
+        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobType: cmd.jobType, sourceEntityType: 'aura_orchestrator', sourceEntityId: projectId })
+        });
+        if (!res.ok) throw new Error('Job dispatch failed');
+      }
+    } catch (e) {
+      setOrchestrationChips(prev => [...prev, { id: `chip-${Date.now()}`, type: 'error', text: `Job start failed: ${e.message}` }]);
+      return;
+    }
+
+    setOrchestrationChips(prev => [...prev, { id: `chip-${Date.now()}`, type: 'success', text: `AURA executed: ${cmd.label}` }]);
+    setAuraStatus(`Executed: ${cmd.label}`);
+    setOrchestratorMode(true);
+    fetchStatsAndProjects();
+  };
+
+  // Listen for render job updates and surface status chips
+  useEffect(() => {
+    const handler = () => {
+      if (selectedProjectId) {
+        fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/jobs`)
+          .then(r => r.json())
+          .then(rows => {
+            const active = rows.filter(j => j.status === 'running' || j.status === 'queued').length;
+            if (active !== prevActiveJobsCount) {
+              setPrevActiveJobsCount(active);
+              if (active > 0) {
+                setAuraStatus(`AURA: ${active} active job(s) running`);
+                setOrchestratorMode(true);
+              } else if (active === 0 && orchestratorMode) {
+                setAuraStatus('AURA: job queue clear');
+                setTimeout(() => {
+                  setOrchestratorMode(false);
+                }, 2500);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    const interval = setInterval(handler, 3000);
+    return () => clearInterval(interval);
+  }, [selectedProjectId, prevActiveJobsCount, orchestratorMode]);
+
+  const handleSendMessage = async (text) => {
+    setLastUserText(text);
     const userMsg = {
       id: `msg-${Date.now()}`,
       sender: 'user',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text
+      text,
+      status: 'sending'
     };
     setChatMessages(prev => [...prev, userMsg]);
 
-    setTimeout(() => {
-      const lower = text.toLowerCase();
-      let auraMsg;
-
-      if (lower.includes('color') || lower.includes('palette') || lower.includes('paint') || lower.includes('floor') || lower.includes('wood') || lower.includes('chevron')) {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: 'I suggest a warm Japandi scheme for this bedroom: Chevron Herringbone Oak flooring combined with Warm Alabaster walls and Brushed Antique Brass hardware accents.',
-          actionPreview: {
-            title: 'Apply Warm Chevron Flooring',
-            changes: ['Flooring → Chevron Herringbone Oak (+₹16/sqft)', 'Walls → Warm Wabi Alabaster paint', 'Style Cohesion score: 98/100'],
-            costImpact: 6500,
-            visualQualityImpact: 5.0
-          },
-          actions: [{ label: 'Apply Finishes Globally', actionId: 'act-palette-apply', variant: 'primary' }]
-        };
-      } else if (lower.includes('budget') || lower.includes('cost') || lower.includes('optimize') || lower.includes('cheap') || lower.includes('save')) {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: 'Optimizing carcass and hardware specs. Swapping high gloss acrylic to premium textured matte laminates and Blum Aventos lift systems to soft-close hinges, saving ₹42,000.',
-          actionPreview: {
-            title: 'Optimize Wardrobe & Cabinet Budget',
-            changes: ['Acrylic shutters → Suede Matte Laminate (-₹18,000)', 'Aventos horizontal lift-up → Clip-Top standard hinges (-₹24,000)'],
-            costImpact: -42000,
-            visualQualityImpact: 4.8
-          },
-          actions: [{ label: 'Apply Optimization', actionId: 'act-budget-cut', variant: 'primary' }]
-        };
-      } else if (lower.includes('layout') || lower.includes('sofa') || lower.includes('rotate')) {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: 'Repositioning sofa block to clear 38" walkways and aligning it 45 degrees towards the main morning lighting vector.',
-          actionPreview: {
-            title: 'Align Sofa to Morning Vector',
-            changes: ['Sofa rotated 45°', 'Spatial planning GNN clearance: 97%'],
-            costImpact: 0,
-            visualQualityImpact: 4.9
-          },
-          actions: [{ label: 'Execute Move', actionId: 'act-restyle', variant: 'primary' }]
-        };
-      } else {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `Understood: "${text}". I have mapped this prompt to the active design agent. Let me know if you would like me to generate renders or optimize the budget.`,
-        };
-      }
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId || 'demo'}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, projectId: selectedProjectId })
+      });
+      const data = await res.json();
+      const auraMsg = {
+        id: `msg-${Date.now() + 1}`,
+        sender: 'aura',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: data.reply || data.message || 'AURA is re-evaluating that request.',
+        provider: data.provider || 'llm',
+        actionPreview: data.actionPreview,
+        actions: data.actions
+      };
+      setChatMessages(prev => prev.map(m => m.id === userMsg.id ? { ...m, status: 'sent' } : m));
       setChatMessages(prev => [...prev, auraMsg]);
-    }, 1200);
+    } catch (err) {
+      const auraMsg = {
+        id: `msg-${Date.now() + 1}`,
+        sender: 'aura',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Understood: "${text}". I have mapped this prompt to the active design agent. Let me know if you would like me to generate renders or optimize the budget.`,
+        provider: 'fallback-deterministic'
+      };
+      setChatMessages(prev => prev.map(m => m.id === userMsg.id ? { ...m, status: 'sent' } : m));
+      setChatMessages(prev => [...prev, auraMsg]);
+    }
   };
 
-  const handleExecuteAction = (actionId, preview) => {
+  const navigateTab = (tab) => {
+    setActiveTab(tab);
+    window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: tab }));
+  };
+
+  const ensureProject = async () => {
+    if (!selectedProjectId && projectsList.length > 0) {
+      setSelectedProjectId(projectsList[0].id);
+      return projectsList[0].id;
+    }
+    return selectedProjectId;
+  };
+
+  const handleExecuteAction = async (actionId, preview) => {
+    // Update local cost estimation if applicable
     if (preview && preview.costImpact) {
-      if (selectedProject) {
-        const updatedCost = Math.max(0, (selectedProject.total_cost || 0) + preview.costImpact);
-        setSelectedProject(prev => ({ ...prev, total_cost: updatedCost }));
+      setSelectedProject(prev => {
+        if (!prev) return prev;
+        const updatedCost = Math.max(0, (prev.total_cost || 0) + preview.costImpact);
+        return { ...prev, total_cost: updatedCost };
+      });
+    }
+
+    const projectId = await ensureProject();
+    if (!projectId) {
+      setOrchestrationChips(prev => [...prev, {
+        id: `chip-${Date.now()}`, type: 'error', text: 'No project selected. Open a project first.'
+      }]);
+      return;
+    }
+
+    let tab = null;
+    let jobType = null;
+    let status = null;
+
+    if (actionId === 'act-palette-apply') {
+      tab = 'materials';
+      status = 'materials_selected';
+    } else if (actionId === 'act-budget-cut') {
+      tab = 'finance';
+      status = null;
+    } else if (actionId === 'act-restyle') {
+      tab = 'studio';
+      status = null;
+    } else if (actionId === 'act-render') {
+      tab = 'renders';
+      status = null;
+      jobType = 'render_generation';
+    } else if (actionId?.startsWith('aura:')) {
+      const cmd = auraCommands.find(c => c.id === actionId);
+      if (cmd) {
+        tab = cmd.tab || null;
+        status = cmd.status || null;
+        jobType = cmd.jobType || null;
+      }
+    } else {
+      tab = 'dashboard';
+    }
+
+    if (tab) navigateTab(tab);
+
+    // Attempt to update project status
+    if (status && projectId) {
+      try {
+        await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, currentStep: status })
+        });
+      } catch (e) {
+        console.warn('Status update failed:', e);
       }
     }
-    alert(`AURA Action Executed: ${preview?.title || actionId}`);
+
+    // Spawn a render job if requested
+    if (jobType && projectId) {
+      try {
+        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobType, sourceEntityType: 'aura_orchestrator', sourceEntityId: projectId })
+        });
+        if (!res.ok) throw new Error('Job dispatch failed');
+      } catch (e) {
+        setOrchestrationChips(prev => [...prev, {
+          id: `chip-${Date.now()}`, type: 'error', text: `Job start failed: ${e.message}`
+        }]);
+      }
+    }
+
+    setOrchestrationChips(prev => [...prev, {
+      id: `chip-${Date.now()}`,
+      type: 'success',
+      text: `Executed: ${preview?.title || actionId}. ${tab ? `Navigated to ${tab}.` : ''}${jobType ? 'Render job queued.' : ''}`
+    }]);
+
+    fetchStatsAndProjects();
   };
 
   const handleProjectClosed = (projectId) => {
@@ -271,6 +417,10 @@ export function App() {
         return <Render3DStudio projectId={selectedProjectId} onComplete={() => setActiveTab('cutlist')} />;
       case 'cutlist':
         return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => setActiveTab('crm')} />;
+      case 'ceiling':
+        return <CeilingStudio projectId={selectedProjectId} />;
+      case 'tvunit':
+        return <TvUnitGenerator projectId={selectedProjectId} />;
       case 'finance':
         return <FinanceScreen projectId={selectedProjectId} />;
       case 'timeline':
@@ -317,6 +467,8 @@ export function App() {
       items: [
         { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
         { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'ceiling', label: 'False Ceiling Generator', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'tvunit', label: 'TV Unit Generator', icon: <Monitor className="w-4 h-4" />, disabled: !selectedProjectId },
         { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
         { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId }
       ]
@@ -336,6 +488,8 @@ export function App() {
     materials: 'Finishes, Swatches & Hardware Catalog',
     renders: '3D AI Render Extrusion Engine',
     cutlist: 'Precision Slicing Cutlist Nesting',
+    ceiling: 'False Ceiling Generator',
+    tvunit: 'TV Unit Generator',
     finance: 'Commerce, Estimates & Quotations',
     timeline: 'Project Activity & Event Log',
     jobs: 'Background Jobs & Rendering Pipeline Monitor'
@@ -470,6 +624,39 @@ export function App() {
                         style={{ width: `${job.progress}%` }}
                       />
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AURA Orchestration Status Chips */}
+          {orchestrationChips.length > 0 && (
+            <div aria-live="polite" aria-atomic="true" className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Activity className="w-3 h-3 text-[#D4AF37]" />
+                  Orchestration Status
+                </span>
+                <button
+                  onClick={() => setOrchestrationChips([])}
+                  className="text-[8px] font-bold uppercase tracking-wider bg-slate-950 border border-slate-850 px-2 py-0.5 rounded-md text-slate-400 hover:text-slate-200"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                {orchestrationChips.map(chip => (
+                  <div
+                    key={chip.id}
+                    className={`flex items-center gap-1.5 text-[9px] font-mono border rounded-lg px-2.5 py-1.5 ${
+                      chip.type === 'success'
+                        ? 'border-emerald-800/60 bg-emerald-950/40 text-emerald-300'
+                        : 'border-red-900/60 bg-red-950/40 text-red-300'
+                    }`}
+                  >
+                    <span className="shrink-0">{chip.type === 'success' ? '●' : '✖'}</span>
+                    <span className="truncate">{chip.text}</span>
                   </div>
                 ))}
               </div>
