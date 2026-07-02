@@ -1,68 +1,38 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
   BarChart3, Users, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, TrendingUp, Zap,
-  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee,
-  Layout, Type, ShieldCheck
+  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee
 } from 'lucide-react';
 
-// Import Light Screens
+// Import Screens
 import CRMLeadDashboard from './screens/CRMLeadDashboard.jsx';
 import ClientBriefStudio from './screens/ClientBriefStudio.jsx';
+import InteractiveCADScreen from './screens/InteractiveCADScreen.jsx';
 import DrawingsElevationsStudio from './screens/DrawingsElevationsStudio.jsx';
 import MaterialCatalogScreen from './screens/MaterialCatalogScreen.jsx';
-import FurnitureCatalogScreen from './screens/FurnitureCatalogScreen.jsx';
+import Render3DStudio from './screens/Render3DStudio.jsx';
 import CutlistNestingScreen from './screens/CutlistNestingScreen.jsx';
-import RenderComparison from './screens/RenderComparison.jsx';
-import AuraBrainChat from './components/layout/AuraBrainChat.jsx';
+import ProjectManagementScreen from './screens/ProjectManagementScreen.jsx';
+import DesignStudioScreen from './screens/DesignStudioScreen.jsx';
+import FinanceScreen from './screens/FinanceScreen.jsx';
 import TimelineScreen from './screens/TimelineScreen.jsx';
 import JobsScreen from './screens/JobsScreen.jsx';
-
-// Lazy-load heavy screens to chunk the main bundle
-const InteractiveCADScreen = lazy(() => import('./screens/InteractiveCADScreen.jsx'));
-const ProjectManagementScreen = lazy(() => import('./screens/ProjectManagementScreen.jsx'));
-const Render3DStudio = lazy(() => import('./screens/Render3DStudio.jsx'));
-const SmartKanbanBoard = lazy(() => import('./components/SmartKanbanBoard.jsx'));
-const BudgetAndBomScreen = lazy(() => import('./screens/BudgetAndBomScreen.jsx'));
-const FinanceScreen = lazy(() => import('./screens/FinanceScreen.jsx'));
-const CommandCenterScreen = lazy(() => import('./screens/CommandCenterScreen.jsx'));
-const QuickLayoutScreen = lazy(() => import('./screens/QuickLayoutScreen.jsx'));
-const AgentProposalReview = lazy(() => import('./screens/AgentProposalReview.jsx'));
-
-const ScreenFallback = () => (
-  <div className="h-full w-full flex items-center justify-center text-[10px] text-slate-500">
-    Loading workspace...
-  </div>
-);
+import CommandCenterScreen from './screens/CommandCenterScreen.jsx';
+import AuraBrainChat from './components/layout/AuraBrainChat.jsx';
 
 const WORKFLOW_STEPS = [
   { id: 'crm', label: 'Lead CRM', icon: <Inbox className="w-3.5 h-3.5" />, statusField: null },
   { id: 'brief', label: 'Client Brief', icon: <FileText className="w-3.5 h-3.5" />, statusField: 'brief' },
   { id: 'cad', label: '2D CAD', icon: <Compass className="w-3.5 h-3.5" />, statusField: 'cad_approved' },
+  { id: 'studio', label: '3D Studio', icon: <Layers className="w-3.5 h-3.5" />, statusField: 'cad_approved' },
   { id: 'materials', label: 'Materials', icon: <Palette className="w-3.5 h-3.5" />, statusField: 'materials_selected' },
   { id: 'renders', label: '3D Renders', icon: <Sparkles className="w-3.5 h-3.5" />, statusField: 'renders_approved' },
   { id: 'cutlist', label: 'Cutlist', icon: <Scissors className="w-3.5 h-3.5" />, statusField: 'production' },
 ];
 
 const STATUS_ORDER = ['brief', 'cad_approved', 'materials_selected', 'renders_approved', 'production', 'billing'];
-
-export class ErrorBoundary extends React.Component {
-  state = { error: null, info: null };
-  componentDidCatch(error, info) { this.setState({ error, info }); }
-  render() {
-    if (this.state.error) {
-      return (
-        <pre style={{ color: 'red', background: 'black', padding: 12, height: '100vh', overflow: 'auto' }}>
-          {this.state.error?.toString()}
-          {'\n'}
-          {this.state.info?.componentStack}
-        </pre>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 export function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -86,37 +56,9 @@ export function App() {
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [toast, setToast] = useState(null);
+  const [auraStatus, setAuraStatus] = useState('Idle');
+  const [orchestratorMode, setOrchestratorMode] = useState(false);
   const [prevActiveJobsCount, setPrevActiveJobsCount] = useState(0);
-  // Jesture: use [window.__JESTURE_API_URL__] if present, otherwise default to http://127.0.0.1:5055
-  const JESTURE_API_URL = typeof window !== 'undefined' ? (window.__JESTURE_API_URL__ || 'http://127.0.0.1:5055') : 'http://127.0.0.1:5055';
-  const [brainOnline, setBrainOnline] = useState(false);
-  const [activeJobs, setActiveJobs] = useState([]);
-
-  // Keyboard shortcuts for fast navigation
-  useEffect(() => {
-    const handler = (e) => {
-      const tag = (e.target?.tagName || '').toLowerCase();
-      const isInput = ['input', 'textarea', 'select'].includes(tag);
-      const key = (e.key || '').toLowerCase();
-      const mod = e.ctrlKey || e.metaKey;
-
-      if (isInput && key !== 'escape') return;
-
-      if (key === '1' && !mod) setActiveTab('dashboard');
-      else if (key === '2' && !mod) setActiveTab('crm');
-      else if (key === '3' && !mod) setActiveTab('projects');
-      else if (key === '4' && !mod) setActiveTab('brief');
-      else if (key === '5' && !mod) setActiveTab('cad');
-      else if (key === '6' && !mod) setActiveTab('renders');
-      else if (key === '7' && !mod) setActiveTab('cutlist');
-      else if (key === '8' && !mod) setActiveTab('finance');
-      else if (key === '9' && !mod) setActiveTab('layout');
-      else if (key === 'd' && mod) { e.preventDefault(); setActiveTab('dashboard'); }
-      else if (key === 'k' && mod) { e.preventDefault(); setIsAuraOpen(true); }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -138,6 +80,16 @@ export function App() {
   useEffect(() => {
     fetchStatsAndProjects();
   }, [activeTab, selectedProjectId]);
+
+  useEffect(() => {
+    const handleNav = (e) => {
+      if (e.detail) {
+        setActiveTab(e.detail);
+      }
+    };
+    window.addEventListener('navigate-to-tab', handleNav);
+    return () => window.removeEventListener('navigate-to-tab', handleNav);
+  }, []);
 
   useEffect(() => {
     if (selectedProjectId && projectsList.length > 0) {
@@ -280,8 +232,7 @@ export function App() {
         setSelectedProject(prev => ({ ...prev, total_cost: updatedCost }));
       }
     }
-    setToast({ text: `AURA Action Executed: ${preview?.title || actionId}`, variant: 'success' });
-    setTimeout(() => setToast(null), 2200);
+    alert(`AURA Action Executed: ${preview?.title || actionId}`);
   };
 
   const handleProjectClosed = (projectId) => {
@@ -304,26 +255,18 @@ export function App() {
     switch (activeTab) {
       case 'dashboard':
         return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => setActiveTab(tab)} />;
-      case 'projects':
-        return <ProjectManagementScreen onNavigateToProject={(projId) => { setSelectedProjectId(projId); setActiveTab('brief'); }} />;
-      case 'kanban':
-        return <SmartKanbanBoard projects={projectsList} onOpenProject={(projId) => { setSelectedProjectId(projId); setActiveTab('brief'); }} />;
-      case 'layout':
-        return <QuickLayoutScreen projectId={selectedProjectId} onComplete={(next) => setActiveTab(next || 'cad')} />;
-      case 'compare':
-        return <RenderComparison projectId={selectedProjectId} onNavigateToTab={(tab) => setActiveTab(tab)} />;
-      case 'agents':
-        return <AgentProposalReview projectId={selectedProjectId} onBack={() => setActiveTab('dashboard')} />;
       case 'crm':
         return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
+      case 'projects':
+        return <ProjectManagementScreen onNavigateToProject={(projId) => { setSelectedProjectId(projId); setActiveTab('brief'); }} />;
       case 'brief':
         return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
       case 'cad':
-        return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
+        return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
+      case 'studio':
+        return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
       case 'drawings':
         return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
-      case 'catalog':
-        return <FurnitureCatalogScreen projectId={selectedProjectId} />;
       case 'materials':
         return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => setActiveTab('renders')} />;
       case 'renders':
@@ -332,83 +275,94 @@ export function App() {
         return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => setActiveTab('crm')} />;
       case 'finance':
         return <FinanceScreen projectId={selectedProjectId} />;
-      case 'budget':
-        return <BudgetAndBomScreen projectId={selectedProjectId} />;
       case 'timeline':
         return <TimelineScreen projectId={selectedProjectId} />;
       case 'jobs':
         return <JobsScreen projectId={selectedProjectId} />;
       default:
-        return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => setActiveTab(tab)} />;
+        return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
     }
   };
 
-  const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Command Center', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'crm', label: 'CRM & Call Board', icon: <Inbox className="w-4 h-4" /> },
-    { id: 'projects', label: 'Project Pipeline', icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'kanban', label: 'Smart Kanban', icon: <Kanban className="w-4 h-4" /> },
-    { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'cad', label: '2D/3D Design Studio', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'drawings', label: 'Wall Elevations', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'catalog', label: 'Furniture Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'layout', label: 'Quick Layout', icon: <Layout className="w-4 h-4" />, disabled: !selectedProjectId },
-    { id: 'agents', label: 'Agent Proposals', icon: <ShieldCheck className="w-4 h-4" />, disabled: !selectedProjectId },
+  const NAV_SECTIONS = [
+    {
+      title: "Workspace Hub",
+      items: [
+        { id: 'dashboard', label: 'Command Center', icon: <LayoutDashboard className="w-4 h-4" /> }
+      ]
+    },
+    {
+      title: "Client Acquisition",
+      items: [
+        { id: 'crm', label: 'CRM & Call Board', icon: <Inbox className="w-4 h-4" /> },
+        { id: 'projects', label: 'Project Pipeline', icon: <BarChart3 className="w-4 h-4" /> }
+      ]
+    },
+    {
+      title: "Design Studio",
+      items: [
+        { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'cad', label: '2D Blueprint Drafting', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'studio', label: '3D Furnishing Studio', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'drawings', label: 'Wall Elevations', icon: <CheckSquare className="w-4 h-4" />, disabled: !selectedProjectId }
+      ]
+    },
+    {
+      title: "AI Visualization",
+      items: [
+        { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: !selectedProjectId }
+      ]
+    },
+    {
+      title: "Production & Commerce",
+      items: [
+        { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId }
+      ]
+    }
   ];
+
+  const NAV_ITEMS = NAV_SECTIONS.flatMap(sec => sec.items);
 
   const TAB_TITLES = {
     dashboard: 'Command Center & Workspace Hub',
     crm: 'CRM & Outbound Calling System',
     projects: 'Project Pipeline & Kanban Board',
     brief: 'Client Onboarding Brief Studio',
-    cad: '2D/3D Linked Design Studio',
+    cad: '2D Blueprint Drafting Workspace',
+    studio: '3D Linked Furnishing Studio',
     drawings: 'Wall Elevations & Architectural Drafting',
     materials: 'Finishes, Swatches & Hardware Catalog',
     renders: '3D AI Render Extrusion Engine',
     cutlist: 'Precision Slicing Cutlist Nesting',
     finance: 'Commerce, Estimates & Quotations',
     timeline: 'Project Activity & Event Log',
-    jobs: 'Background Jobs & Rendering Pipeline Monitor',
-    layout: 'Quick Layout Sketch & Layout Promotion',
-    agents: 'Agent Proposals & Approval Gate'
+    jobs: 'Background Jobs & Rendering Pipeline Monitor'
   };
-
-  const [screenFade, setScreenFade] = useState('opacity-100');
-
-  useEffect(() => {
-    setScreenFade('opacity-0 transition-opacity duration-150');
-    const t = setTimeout(() => setScreenFade('opacity-100 transition-opacity duration-200 ease-out'), 160);
-    return () => clearTimeout(t);
-  }, [activeTab]);
 
   return (
     <div className="h-screen w-screen bg-[#020617] text-slate-100 flex overflow-hidden font-sans">
       
       {/* ── Left Sidebar ── */}
-      <aside className="w-60 bg-[#080d18] border-r border-slate-800/80 flex flex-col justify-between shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 80%, #020408 100%)' }} aria-label="App navigation sidebar">
+      <aside className="w-60 bg-[#080d18] border-r border-slate-800/60 flex flex-col justify-between shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }}>
         <div className="flex flex-col gap-4 p-4">
-
-{/* Logo */}
-<div className="flex items-center gap-2.5 px-1 py-1">
-  <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#D4AF37] to-[#AA8C2C] flex items-center justify-center shadow-lg shadow-[#D4AF37]/25 ring-1 ring-white/10">
-    <LayoutDashboard className="w-5 h-5 text-slate-950" />
-  </div>
-  <div>
-    <h1 className="text-[11px] font-black tracking-[0.35em] text-slate-100 uppercase">ULTIDA</h1>
-    <span className="text-[8px] font-bold text-[#D4AF37]/70 uppercase tracking-[0.25em] mt-[2px] block">Interior OS</span>
-  </div>
-</div>
-
-<div className="h-px bg-gradient-to-r from-transparent via-slate-800/80 to-transparent" />
+          
+          {/* Logo Branding */}
+          <div className="flex items-center gap-2.5 px-1 py-1">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#AA8C2C] flex items-center justify-center shadow-lg shadow-[#D4AF37]/20">
+              <LayoutDashboard className="w-4 h-4 text-slate-900" />
+            </div>
+            <div>
+              <h1 className="text-xs font-black tracking-widest text-slate-100 uppercase">ULTIDA</h1>
+              <span className="text-[8px] font-bold text-[#D4AF37]/60 uppercase tracking-widest block">Ultimate Interior Design OS</span>
+            </div>
+          </div>
 
           {/* Quick Metrics Panel */}
-          <div className="bg-slate-900/60 border border-slate-800/60 p-3 rounded-2xl grid grid-cols-2 gap-2 text-xs" aria-label="Quick metrics">
+          <div className="bg-slate-900/60 border border-slate-800/60 p-3 rounded-2xl grid grid-cols-2 gap-2 text-xs">
             {[
               { label: 'Leads', value: stats.totalLeads, color: 'text-slate-300' },
               { label: 'Projects', value: stats.activeProjects, color: 'text-[#D4AF37]' },
@@ -422,67 +376,73 @@ export function App() {
             ))}
           </div>
 
-          {/* Navigation */}
-          <nav className="space-y-0.5" aria-label="Primary navigation">
-            {NAV_ITEMS.map(tab => (
-              <button
-                key={tab.id}
-                disabled={tab.disabled}
-                onClick={() => setActiveTab(tab.id)}
-                aria-current={activeTab === tab.id ? 'page' : undefined}
-                className={`w-full py-2.5 px-3 rounded-xl text-[11px] font-semibold flex items-center gap-2.5 transition text-left group ${
-                  activeTab === tab.id
-                    ? 'active-nav-btn'
-                    : tab.disabled
-                      ? 'text-slate-700 cursor-not-allowed opacity-40'
-                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                }`}
-              >
-                <span className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${activeTab === tab.id ? 'text-[#D4AF37]' : 'text-slate-500'}`} aria-hidden="true">
-                  {tab.icon}
-                </span>
-                <span className="flex-1">{tab.label}</span>
-                {activeTab === tab.id && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.45)] shrink-0" aria-hidden="true" />
-                )}
-                <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                  {tab.id === 'renders' && selectedProject?.stale_renders === 1 && (
-                    <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                  )}
-                  {tab.id === 'drawings' && selectedProject?.stale_drawings === 1 && (
-                    <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                  )}
-                  {tab.id === 'materials' && selectedProject?.stale_pricing === 1 && (
-                    <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                  )}
+          {/* Navigation Sections */}
+          <div className="space-y-4 flex-grow overflow-y-auto pr-1 scrollbar-thin">
+            {NAV_SECTIONS.map((sec, idx) => (
+              <div key={idx} className="space-y-1">
+                <h3 className="text-[8.5px] font-extrabold uppercase tracking-widest text-[#8A8899]/70 px-3 py-0.5">
+                  {sec.title}
+                </h3>
+                <nav className="space-y-0.5">
+                  {sec.items.map(tab => (
+                    <button
+                      key={tab.id}
+                      disabled={tab.disabled}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full py-2 px-3 rounded-xl text-[10.5px] font-semibold flex items-center gap-2.5 transition text-left ${
+                        activeTab === tab.id
+                          ? 'bg-[#1E1E24] text-[#F0EEE8] border border-[#C9A84C]/30 shadow-md shadow-[#C9A84C]/5'
+                          : tab.disabled
+                            ? 'text-slate-700 cursor-not-allowed opacity-35'
+                            : 'text-[#8A8899] hover:bg-[#1E1E24]/30 hover:text-slate-200'
+                      }`}
+                    >
+                      <span className={activeTab === tab.id ? 'text-[#C9A84C]' : 'text-slate-600'}>
+                        {tab.icon}
+                      </span>
+                      <span className="truncate">{tab.label}</span>
+                      
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        {tab.id === 'renders' && selectedProject?.stale_renders === 1 && (
+                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
+                        )}
+                        {tab.id === 'drawings' && selectedProject?.stale_drawings === 1 && (
+                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
+                        )}
+                        {tab.id === 'materials' && selectedProject?.stale_pricing === 1 && (
+                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
+                        )}
 
-                  {tab.id !== 'crm' && tab.id !== 'dashboard' && selectedProjectId && projectStepIndex >= NAV_ITEMS.findIndex(n => n.id === tab.id) && (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" aria-hidden="true" />
-                  )}
-                </div>
-              </button>
+                        {tab.id !== 'crm' && tab.id !== 'dashboard' && selectedProjectId && projectStepIndex >= NAV_ITEMS.findIndex(n => n.id === tab.id) && (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </nav>
+              </div>
             ))}
-          </nav>
+          </div>
 
           {/* Project Workflow Progress (if project selected) */}
           {selectedProject && (
-            <div className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-3 space-y-2">
+            <div className="bg-[#1E1E24]/50 border border-slate-800/60 rounded-2xl p-3 space-y-2 shrink-0">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Project Progress</span>
-                <span className="text-[9px] font-bold text-[#D4AF37]">{Math.round(Math.min((projectStepIndex / 7) * 100, 100))}%</span>
+                <span className="text-[9px] font-bold text-[#8A8899] uppercase tracking-wider">Project Progress</span>
+                <span className="text-[9px] font-bold text-[#C9A84C]">{Math.round(Math.min((projectStepIndex / 7) * 100, 100))}%</span>
               </div>
               {/* Progress Bar */}
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-[#AA8C2C] transition-all duration-700"
+                  className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#E8C97A] transition-all duration-700"
                   style={{ width: `${Math.min((projectStepIndex / 7) * 100, 100)}%` }}
                 />
               </div>
-              <div className="text-[9px] text-slate-400 font-medium truncate">
+              <div className="text-[9px] text-[#F0EEE8]/80 font-medium truncate">
                 📁 {selectedProject.name}
               </div>
-              <div className="text-[9px] text-slate-500">
-                Status: <span className="text-[#D4AF37] font-bold capitalize">{selectedProject.status?.replace('_', ' ') || 'Onboarding'}</span>
+              <div className="text-[9px] text-[#8A8899]">
+                Status: <span className="text-[#C9A84C] font-bold capitalize">{selectedProject.status?.replace('_', ' ') || 'Onboarding'}</span>
               </div>
             </div>
           )}
@@ -532,7 +492,7 @@ export function App() {
       </aside>
 
       {/* ── Main Content Area ── */}
-      <main className="flex-grow flex flex-col overflow-hidden" aria-label="Main workspace">
+      <main className="flex-grow flex flex-col overflow-hidden">
         
         {/* Top Header */}
         <header className="bg-[#080d18] border-b border-slate-800/60 px-6 py-3.5 flex justify-between items-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #070c17, #06090f)' }}>
@@ -552,52 +512,41 @@ export function App() {
             </div>
             
             {/* Active Project Selector */}
-            <div className="relative">
-              <button
-                onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-                aria-haspopup="listbox"
-                aria-expanded={showProjectDropdown}
-                title={selectedProject?.name || 'Select a project to enable project screens'}
-                className="flex items-center gap-2 bg-slate-900/70 border border-slate-800 hover:border-[#D4AF37]/30 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 transition"
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-[#D4AF37]" />
-                <span className="max-w-[140px] truncate">
-                  {selectedProject?.name || 'No project selected'}
-                </span>
-                <span className="text-[9px] font-mono text-slate-500">
-                  {selectedProject ? `#${String(selectedProject.id).slice(0, 4).toUpperCase()}` : ''}
-                </span>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showProjectDropdown ? 'rotate-180' : ''}`} />
-              </button>
-              {showProjectDropdown && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl min-w-[220px] overflow-hidden" role="listbox" aria-label="Projects">
-                  {projectsList.length === 0 && (
-                    <div className="px-3 py-2 text-[10px] text-slate-500">
-                      No projects available.
-                    </div>
-                  )}
-                  {projectsList.map(proj => (
-                    <button
-                      key={proj.id}
-                      role="option"
-                      aria-selected={proj.id === selectedProjectId}
-                      onClick={() => { setSelectedProjectId(proj.id); setShowProjectDropdown(false); }}
-                      className={`w-full text-left px-3 py-2.5 text-xs font-semibold transition flex items-center gap-2 ${
-                        proj.id === selectedProjectId
-                          ? 'bg-[#D4AF37]/10 text-[#D4AF37]'
-                          : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <FolderOpen className="w-3 h-3 shrink-0 opacity-50" />
-                      <div className="min-w-0">
-                        <div className="truncate">{proj.name}</div>
-                        <div className="text-[9px] text-slate-500 font-normal">{proj.id}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {projectsList.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+                  className="flex items-center gap-2 bg-slate-900/70 border border-slate-800 hover:border-[#D4AF37]/30 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 transition"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span className="max-w-[140px] truncate">
+                    {selectedProject?.name || 'Select Project'}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showProjectDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {showProjectDropdown && (
+                  <div className="absolute top-full left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl min-w-[220px] overflow-hidden">
+                    {projectsList.map(proj => (
+                      <button
+                        key={proj.id}
+                        onClick={() => { setSelectedProjectId(proj.id); setShowProjectDropdown(false); }}
+                        className={`w-full text-left px-3 py-2.5 text-xs font-semibold transition flex items-center gap-2 ${
+                          proj.id === selectedProjectId
+                            ? 'bg-[#D4AF37]/10 text-[#D4AF37]'
+                            : 'text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <FolderOpen className="w-3 h-3 shrink-0 opacity-50" />
+                        <div className="min-w-0">
+                          <div className="truncate">{proj.name}</div>
+                          <div className="text-[9px] text-slate-500 font-normal">{proj.id}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500">
@@ -621,25 +570,12 @@ export function App() {
             <span>{currentTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
             <span className="w-px h-4 bg-slate-800" />
             <span>Admin</span>
-            {toast && (
-              <div
-                role="status"
-                aria-live="polite"
-                className={`ml-2 inline-flex items-center gap-2 rounded-xl border px-3 py-1 text-[11px] font-semibold shadow-md transition ${
-                  toast.variant === 'success'
-                    ? 'border-emerald-700/60 bg-emerald-950/50 text-emerald-300'
-                    : 'border-red-700/60 bg-red-950/50 text-red-300'
-                }`}
-              >
-                {toast.text}
-              </div>
-            )}
           </div>
         </header>
 
         {/* Screen Area & Collapsible AURA Chat Panel */}
         <div className="flex-grow flex overflow-hidden bg-[#020617]" onClick={() => showProjectDropdown && setShowProjectDropdown(false)}>
-          <div className={`flex-grow overflow-hidden relative ${screenFade}`}>
+          <div className="flex-grow overflow-hidden relative">
             {renderActiveScreen()}
           </div>
           <AuraBrainChat
