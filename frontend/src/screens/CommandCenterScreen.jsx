@@ -5,13 +5,17 @@ import {
   Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
-
 export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [projects, setProjects] = useState([]);
   const [leads, setLeads] = useState([]);
-  const [activeWorkflowTab, setActiveWorkflowTab] = useState('smart'); // 'smart', 'generate', 'photo', 'layout', 'product'
+  const [activeWorkflowTab, setActiveWorkflowTab] = useState('smart');
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
+
+  // AI Brain live state
+  const [brainStatus, setBrainStatus] = useState(null);
+  const [brainLoading, setBrainLoading] = useState(false);
+  const [brainError, setBrainError] = useState(null);
 
   // ==========================================
   // 1. DATA LOADING
@@ -38,6 +42,37 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       .catch(console.error);
   }, [projectId]);
 
+  useEffect(() => {
+    let alive = true;
+    setBrainLoading(true);
+    setBrainError(null);
+    fetch('http://127.0.0.1:5055/api/v1/ai-brain/status')
+      .then(res => res.ok ? res.json() : Promise.reject('bad-status'))
+      .then(data => {
+        if (!alive) return;
+        setBrainStatus(data || null);
+      })
+      .catch(err => {
+        if (!alive) return;
+        setBrainError(err?.message || String(err));
+        setBrainStatus(null);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setBrainLoading(false);
+      });
+    const id = setInterval(() => {
+      fetch('http://127.0.0.1:5055/api/v1/ai-brain/status')
+        .then(res => res.ok ? res.json() : Promise.reject('bad-status'))
+        .then(data => setBrainStatus(data || null))
+        .catch(() => {});
+    }, 3000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [projectId]);
+
   const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
 
   // Pipeline calculations
@@ -53,25 +88,30 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       {/* ── KPI Metrics Ribbon ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: 'Leads In Queue', val: totalLeads, sub: 'Intake and brief', border: 'border-slate-800' },
-          { label: 'Active Projects', val: activeProjectsCount, sub: 'In design pipeline', border: 'border-slate-850' },
-          { label: 'Pending Approvals', val: pendingApprovalsCount, sub: 'Awaiting client signoff', border: 'border-slate-850' },
-          { label: 'Production Ready', val: productionCount, sub: 'BOM & drawings frozen', border: 'border-slate-850' },
-          { label: 'Pipeline Valuation', val: `₹${pipelineValue}L`, sub: 'Estimated yield basis', border: 'border-[#D4AF37]/30', glow: true },
-        ].map((kpi, idx) => (
-          <div 
-            key={idx} 
-            className={`glass-card p-4 rounded-2xl relative overflow-hidden flex flex-col justify-between ${kpi.border} ${
-              kpi.glow ? 'gold-border gold-glow-sm' : ''
-            }`}
-          >
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">{kpi.label}</span>
-              <strong className={`text-2xl font-black ${kpi.glow ? 'text-[#D4AF37]' : 'text-slate-100'}`}>{kpi.val}</strong>
+          { label: 'Leads In Queue', val: totalLeads, sub: 'Intake and brief', accent: 'from-slate-500/20 to-slate-500/5', icon: Inbox },
+          { label: 'Active Projects', val: activeProjectsCount, sub: 'In design pipeline', accent: 'from-[#D4AF37]/15 to-[#D4AF37]/5', icon: FolderOpen },
+          { label: 'Pending Approvals', val: pendingApprovalsCount, sub: 'Awaiting client signoff', accent: 'from-amber-400/15 to-amber-400/5', icon: Clock },
+          { label: 'Production Ready', val: productionCount, sub: 'BOM & drawings frozen', accent: 'from-emerald-400/15 to-emerald-400/5', icon: CheckCircle2 },
+          { label: 'Pipeline Valuation', val: `₹${pipelineValue}L`, sub: 'Estimated yield basis', accent: 'from-[#D4AF37]/20 to-[#AA8C2C]/10', icon: IndianRupee, glow: true },
+        ].map((kpi, idx) => {
+          const Icon = kpi.icon;
+          return (
+            <div
+              key={idx}
+              className={`glass-card p-4 rounded-2xl relative overflow-hidden border border-slate-800/80 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/50 ${kpi.glow ? 'gold-border gold-glow-sm' : ''}`}
+            >
+              <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${kpi.accent} pointer-events-none`} />
+              <div className="relative flex items-start justify-between gap-2">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">{kpi.label}</span>
+                  <strong className={`text-2xl font-black ${kpi.glow ? 'text-[#D4AF37]' : 'text-slate-100'}`}>{kpi.val}</strong>
+                </div>
+                {Icon && <Icon className={`w-5 h-5 shrink-0 mt-1 ${kpi.glow ? 'text-[#D4AF37]' : 'text-slate-500/80'}`} />}
+              </div>
+              <span className="relative text-[9px] text-slate-500 font-bold uppercase tracking-wider block mt-2">{kpi.sub}</span>
             </div>
-            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mt-2">{kpi.sub}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ── Main Layout: Tabs + Left column & Sidebar right column ── */}
@@ -187,6 +227,41 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
             </div>
           </div>
 
+          {/* AI Brain Live Panel */}
+          <div className="glass-card border border-indigo-500/30 rounded-3xl p-5 space-y-3" aria-label="Tiny LLM brain status">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase text-indigo-300 tracking-wider flex items-center gap-1.5">
+                <Activity className="w-4 h-4 text-indigo-400" />
+                Tiny LLM Brain
+              </h3>
+              <BrainPulse />
+            </div>
+            <div className="text-[11px] text-slate-400 space-y-1">
+              <div>Status: <span className="text-slate-200">{brainLoading ? 'loading' : brainStatus?.status || brainError ? 'offline' : 'idle'}</span></div>
+              <div>Trainer: <span className="text-slate-200">{brainStatus?.trainers?.tiny_llm_trainer?.running ? 'running' : 'standby'}</span></div>
+              <div>Events: <span className="text-slate-200">{brainStatus?.events?.length ?? 0}</span></div>
+              {brainError && <div className="text-red-400">Unreachable: {brainError}</div>}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  await fetch('http://127.0.0.1:5055/api/v1/ai-brain/train/tiny-llm/start', { method: 'POST' });
+                }}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider"
+              >
+                Start Trainer
+              </button>
+              <button
+                onClick={async () => {
+                  await fetch('http://127.0.0.1:5055/api/v1/ai-brain/train/tiny-llm/stop', { method: 'POST' });
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider"
+              >
+                Pause
+              </button>
+            </div>
+          </div>
+
           {/* Active Projects List */}
           <div className="glass-card border border-slate-850 rounded-3xl p-5 space-y-4">
             <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider flex items-center gap-1.5">
@@ -295,28 +370,26 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
   const handleRunNextAction = (actionKey) => {
     setSelectedAction(actionKey);
     setActionProgress(true);
-    
+
+    const routeMap = {
+      RCP: 'drawings',
+      Elevation: 'drawings',
+      BOM: 'budget',
+      ['Layout Plan']: 'cad',
+      Video: 'renders',
+      ['Region Edit']: 'renders',
+      ['Camera Angles']: 'renders',
+      Upscale: 'renders',
+      Download: 'renders',
+      Lineage: 'jobs',
+    };
+
+    const target = routeMap[actionKey] || 'dashboard';
+
     setTimeout(() => {
       setActionProgress(false);
-      if (actionKey === 'RCP') {
-        alert("RCP Planner Tool activated! Redirecting to specialist suite.");
-        onNavigateToTab('drawings');
-      } else if (actionKey === 'Elevation') {
-        alert("2D Elevation CAD Drafter initialized.");
-        onNavigateToTab('drawings');
-      } else if (actionKey === 'BOM') {
-        alert("BOM takeoff schedule compiled successfully.");
-        onNavigateToTab('finance');
-      } else if (actionKey === 'Layout Plan') {
-        alert("Redirecting to Interactive CAD viewport.");
-        onNavigateToTab('cad');
-      } else if (actionKey === 'Video') {
-        alert("Walkthrough path nodes serialized. Animation ready.");
-        onNavigateToTab('renders');
-      } else {
-        alert(`Action "${actionKey}" executed simulation successfully!`);
-      }
-    }, 1200);
+      onNavigateToTab(target);
+    }, 600);
   };
 
   return (
@@ -596,10 +669,15 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     key={mode.id}
                     onClick={() => {
                       setAssignMode(mode.id);
-                      alert(`Product Assignments completed via ${mode.label}!`);
+                      const targets = {
+                        catalog: 'catalog',
+                        board: 'cad',
+                        style: 'renders',
+                      };
+                      onNavigateToTab(targets[mode.id] || 'cad');
                     }}
                     className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                      assignMode === mode.id 
+                      assignMode === mode.id
                         ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
                         : 'bg-slate-950 border border-slate-850 text-slate-350 hover:text-slate-200'
                     }`}
@@ -1053,10 +1131,8 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
       }]);
     }
   };
-
   const handleLockAndPromote = () => {
-    alert("Quick Layout Promoted! Scene node initialized inside projects.");
-    onNavigateToTab('cad');
+    onNavigateToTab('layout');
   };
 
   return (
@@ -1089,24 +1165,20 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
           <h4 className="text-[11px] font-black text-slate-450 uppercase tracking-wider border-b border-slate-800 pb-1.5">Sketcher Tools</h4>
           
           <div className="flex flex-col gap-2">
-            {[
-              { id: 'select', label: 'Select Entity', desc: 'Move/Rotate layout blocks' },
-              { id: 'wall', label: 'Draw Wall Node', desc: 'Point-to-point rectangle walls' },
-              { id: 'furniture', label: 'Place Furniture', desc: 'Place low-detail mock cabinet boxes' }
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setSelectedTool(t.id)}
-                className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${
-                  selectedTool === t.id
-                    ? 'bg-[#D4AF37]/10 border-[#D4AF37]/50 text-[#D4AF37]'
-                    : 'bg-slate-950/20 border-slate-850 hover:border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span className="text-[11px] font-bold uppercase tracking-wider">{t.label}</span>
-                <span className="text-[9px] font-medium opacity-60">{t.desc}</span>
-              </button>
-            ))}
+            <button
+              onClick={() => onNavigateToTab('layout')}
+              className="p-3 rounded-xl border text-left flex flex-col gap-1 transition bg-[#D4AF37]/10 border-[#D4AF37]/50 text-[#D4AF37]"
+            >
+              <span className="text-[11px] font-bold uppercase tracking-wider">Open Full Quick Layout</span>
+              <span className="text-[9px] font-medium opacity-60">Use the dedicated sketcher with tools and promote-to-scene.</span>
+            </button>
+            <button
+              onClick={() => onNavigateToTab('cad')}
+              className="p-3 rounded-xl border text-left flex flex-col gap-1 transition bg-slate-950/20 border-slate-850 hover:border-slate-800 text-slate-400 hover:text-slate-200"
+            >
+              <span className="text-[11px] font-bold uppercase tracking-wider">Open Design Studio</span>
+              <span className="text-[9px] font-medium opacity-60">Continue in full 2D/3D linked editor.</span>
+            </button>
           </div>
         </div>
 

@@ -1,26 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { 
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
   BarChart3, Users, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, TrendingUp, Zap,
-  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee
+  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee,
+  Layout, Type, ShieldCheck
 } from 'lucide-react';
 
-// Import Screens
+// Import Light Screens
 import CRMLeadDashboard from './screens/CRMLeadDashboard.jsx';
 import ClientBriefStudio from './screens/ClientBriefStudio.jsx';
-import InteractiveCADScreen from './screens/InteractiveCADScreen.jsx';
 import DrawingsElevationsStudio from './screens/DrawingsElevationsStudio.jsx';
 import MaterialCatalogScreen from './screens/MaterialCatalogScreen.jsx';
-import Render3DStudio from './screens/Render3DStudio.jsx';
+import FurnitureCatalogScreen from './screens/FurnitureCatalogScreen.jsx';
 import CutlistNestingScreen from './screens/CutlistNestingScreen.jsx';
-import ProjectManagementScreen from './screens/ProjectManagementScreen.jsx';
-import DesignStudioScreen from './screens/DesignStudioScreen.jsx';
-import FinanceScreen from './screens/FinanceScreen.jsx';
+import RenderComparison from './screens/RenderComparison.jsx';
+import AuraBrainChat from './components/layout/AuraBrainChat.jsx';
 import TimelineScreen from './screens/TimelineScreen.jsx';
 import JobsScreen from './screens/JobsScreen.jsx';
-import CommandCenterScreen from './screens/CommandCenterScreen.jsx';
-import AuraBrainChat from './components/layout/AuraBrainChat.jsx';
+
+// Lazy-load heavy screens to chunk the main bundle
+const InteractiveCADScreen = lazy(() => import('./screens/InteractiveCADScreen.jsx'));
+const ProjectManagementScreen = lazy(() => import('./screens/ProjectManagementScreen.jsx'));
+const Render3DStudio = lazy(() => import('./screens/Render3DStudio.jsx'));
+const SmartKanbanBoard = lazy(() => import('./components/SmartKanbanBoard.jsx'));
+const BudgetAndBomScreen = lazy(() => import('./screens/BudgetAndBomScreen.jsx'));
+const FinanceScreen = lazy(() => import('./screens/FinanceScreen.jsx'));
+const CommandCenterScreen = lazy(() => import('./screens/CommandCenterScreen.jsx'));
+const QuickLayoutScreen = lazy(() => import('./screens/QuickLayoutScreen.jsx'));
+const AgentProposalReview = lazy(() => import('./screens/AgentProposalReview.jsx'));
+
+const ScreenFallback = () => (
+  <div className="h-full w-full flex items-center justify-center text-[10px] text-slate-500">
+    Loading workspace...
+  </div>
+);
 
 const WORKFLOW_STEPS = [
   { id: 'crm', label: 'Lead CRM', icon: <Inbox className="w-3.5 h-3.5" />, statusField: null },
@@ -56,6 +70,33 @@ export function App() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeJobs, setActiveJobs] = useState([]);
   const [prevActiveJobsCount, setPrevActiveJobsCount] = useState(0);
+  const [brainOnline, setBrainOnline] = useState(false);
+
+  // Keyboard shortcuts for fast navigation
+  useEffect(() => {
+    const handler = (e) => {
+      const tag = (e.target?.tagName || '').toLowerCase();
+      const isInput = ['input', 'textarea', 'select'].includes(tag);
+      const key = (e.key || '').toLowerCase();
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (isInput && key !== 'escape') return;
+
+      if (key === '1' && !mod) setActiveTab('dashboard');
+      else if (key === '2' && !mod) setActiveTab('crm');
+      else if (key === '3' && !mod) setActiveTab('projects');
+      else if (key === '4' && !mod) setActiveTab('brief');
+      else if (key === '5' && !mod) setActiveTab('cad');
+      else if (key === '6' && !mod) setActiveTab('renders');
+      else if (key === '7' && !mod) setActiveTab('cutlist');
+      if (key === '8' && !mod) setActiveTab('finance');
+      else if (key === '9' && !mod) setActiveTab('layout');
+      else if (key === 'd' && mod) { e.preventDefault(); setActiveTab('dashboard'); }
+      else if (key === 'k' && mod) { e.preventDefault(); setIsAuraOpen(true); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -242,16 +283,26 @@ export function App() {
     switch (activeTab) {
       case 'dashboard':
         return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => setActiveTab(tab)} />;
-      case 'crm':
-        return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
       case 'projects':
         return <ProjectManagementScreen onNavigateToProject={(projId) => { setSelectedProjectId(projId); setActiveTab('brief'); }} />;
+      case 'kanban':
+        return <SmartKanbanBoard projects={projectsList} onOpenProject={(projId) => { setSelectedProjectId(projId); setActiveTab('brief'); }} />;
+      case 'layout':
+        return <QuickLayoutScreen projectId={selectedProjectId} onComplete={(next) => setActiveTab(next || 'cad')} />;
+      case 'compare':
+        return <RenderComparison projectId={selectedProjectId} onNavigateToTab={(tab) => setActiveTab(tab)} />;
+      case 'agents':
+        return <AgentProposalReview projectId={selectedProjectId} onBack={() => setActiveTab('dashboard')} />;
+      case 'crm':
+        return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
       case 'brief':
         return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
       case 'cad':
         return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
       case 'drawings':
         return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
+      case 'catalog':
+        return <FurnitureCatalogScreen projectId={selectedProjectId} />;
       case 'materials':
         return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => setActiveTab('renders')} />;
       case 'renders':
@@ -260,12 +311,14 @@ export function App() {
         return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => setActiveTab('crm')} />;
       case 'finance':
         return <FinanceScreen projectId={selectedProjectId} />;
+      case 'budget':
+        return <BudgetAndBomScreen projectId={selectedProjectId} />;
       case 'timeline':
         return <TimelineScreen projectId={selectedProjectId} />;
       case 'jobs':
         return <JobsScreen projectId={selectedProjectId} />;
       default:
-        return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
+        return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => setActiveTab(tab)} />;
     }
   };
 
@@ -273,15 +326,19 @@ export function App() {
     { id: 'dashboard', label: 'Command Center', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'crm', label: 'CRM & Call Board', icon: <Inbox className="w-4 h-4" /> },
     { id: 'projects', label: 'Project Pipeline', icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'kanban', label: 'Smart Kanban', icon: <Kanban className="w-4 h-4" /> },
     { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'cad', label: '2D/3D Design Studio', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'drawings', label: 'Wall Elevations', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
+    { id: 'catalog', label: 'Furniture Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId },
     { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: !selectedProjectId },
+    { id: 'layout', label: 'Quick Layout', icon: <Layout className="w-4 h-4" />, disabled: !selectedProjectId },
+    { id: 'agents', label: 'Agent Proposals', icon: <ShieldCheck className="w-4 h-4" />, disabled: !selectedProjectId },
   ];
 
   const TAB_TITLES = {
@@ -296,16 +353,27 @@ export function App() {
     cutlist: 'Precision Slicing Cutlist Nesting',
     finance: 'Commerce, Estimates & Quotations',
     timeline: 'Project Activity & Event Log',
-    jobs: 'Background Jobs & Rendering Pipeline Monitor'
+    jobs: 'Background Jobs & Rendering Pipeline Monitor',
+    layout: 'Quick Layout Sketch & Layout Promotion',
+    agents: 'Agent Proposals & Approval Gate'
   };
+
+  const [screenFade, setScreenFade] = useState('opacity-100');
+
+  useEffect(() => {
+    setScreenFade('opacity-0 transition-opacity duration-150');
+    const t = setTimeout(() => setScreenFade('opacity-100 transition-opacity duration-200 ease-out'), 160);
+    return () => clearTimeout(t);
+  }, [activeTab]);
 
   return (
     <div className="h-screen w-screen bg-[#020617] text-slate-100 flex overflow-hidden font-sans">
       
       {/* ── Left Sidebar ── */}
-      <aside className="w-60 bg-[#080d18] border-r border-slate-800/60 flex flex-col justify-between shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }}>
+      <aside className="w-60 bg-[#080d18] border-r border-slate-800/60 flex flex-col justify-between shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }} aria-label="App navigation sidebar">
         <div className="flex flex-col gap-4 p-4">
           
+
           {/* Logo Branding */}
           <div className="flex items-center gap-2.5 px-1 py-1">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#AA8C2C] flex items-center justify-center shadow-lg shadow-[#D4AF37]/20">
@@ -318,7 +386,7 @@ export function App() {
           </div>
 
           {/* Quick Metrics Panel */}
-          <div className="bg-slate-900/60 border border-slate-800/60 p-3 rounded-2xl grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-slate-900/60 border border-slate-800/60 p-3 rounded-2xl grid grid-cols-2 gap-2 text-xs" aria-label="Quick metrics">
             {[
               { label: 'Leads', value: stats.totalLeads, color: 'text-slate-300' },
               { label: 'Projects', value: stats.activeProjects, color: 'text-[#D4AF37]' },
@@ -333,13 +401,14 @@ export function App() {
           </div>
 
           {/* Navigation */}
-          <nav className="space-y-0.5">
+          <nav className="space-y-0.5" aria-label="Primary navigation">
             {NAV_ITEMS.map(tab => (
               <button
                 key={tab.id}
                 disabled={tab.disabled}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full py-2.5 px-3 rounded-xl text-[11px] font-semibold flex items-center gap-2.5 transition text-left ${
+                aria-current={activeTab === tab.id ? 'page' : undefined}
+                className={`w-full py-2.5 px-3 rounded-xl text-[11px] font-semibold flex items-center gap-2.5 transition text-left group ${
                   activeTab === tab.id
                     ? 'active-nav-btn'
                     : tab.disabled
@@ -347,11 +416,13 @@ export function App() {
                       : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
                 }`}
               >
-                <span className={activeTab === tab.id ? 'text-[#D4AF37]' : 'text-slate-500'}>
+                <span className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${activeTab === tab.id ? 'text-[#D4AF37]' : 'text-slate-500'}`} aria-hidden="true">
                   {tab.icon}
                 </span>
-                <span>{tab.label}</span>
-                
+                <span className="flex-1">{tab.label}</span>
+                {activeTab === tab.id && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] shadow-[0_0_8px_rgba(212,175,55,0.45)] shrink-0" aria-hidden="true" />
+                )}
                 <div className="ml-auto flex items-center gap-1.5 shrink-0">
                   {tab.id === 'renders' && selectedProject?.stale_renders === 1 && (
                     <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
@@ -364,7 +435,7 @@ export function App() {
                   )}
 
                   {tab.id !== 'crm' && tab.id !== 'dashboard' && selectedProjectId && projectStepIndex >= NAV_ITEMS.findIndex(n => n.id === tab.id) && (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" aria-hidden="true" />
                   )}
                 </div>
               </button>
@@ -439,7 +510,7 @@ export function App() {
       </aside>
 
       {/* ── Main Content Area ── */}
-      <main className="flex-grow flex flex-col overflow-hidden">
+      <main className="flex-grow flex flex-col overflow-hidden" aria-label="Main workspace">
         
         {/* Top Header */}
         <header className="bg-[#080d18] border-b border-slate-800/60 px-6 py-3.5 flex justify-between items-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #070c17, #06090f)' }}>
@@ -463,6 +534,8 @@ export function App() {
               <div className="relative">
                 <button
                   onClick={() => setShowProjectDropdown(!showProjectDropdown)}
+                  aria-haspopup="listbox"
+                  aria-expanded={showProjectDropdown}
                   className="flex items-center gap-2 bg-slate-900/70 border border-slate-800 hover:border-[#D4AF37]/30 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 transition"
                 >
                   <FolderOpen className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -472,10 +545,12 @@ export function App() {
                   <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showProjectDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 {showProjectDropdown && (
-                  <div className="absolute top-full left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl min-w-[220px] overflow-hidden">
+                  <div className="absolute top-full left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl min-w-[220px] overflow-hidden" role="listbox" aria-label="Projects">
                     {projectsList.map(proj => (
                       <button
                         key={proj.id}
+                        role="option"
+                        aria-selected={proj.id === selectedProjectId}
                         onClick={() => { setSelectedProjectId(proj.id); setShowProjectDropdown(false); }}
                         className={`w-full text-left px-3 py-2.5 text-xs font-semibold transition flex items-center gap-2 ${
                           proj.id === selectedProjectId
@@ -522,7 +597,7 @@ export function App() {
 
         {/* Screen Area & Collapsible AURA Chat Panel */}
         <div className="flex-grow flex overflow-hidden bg-[#020617]" onClick={() => showProjectDropdown && setShowProjectDropdown(false)}>
-          <div className="flex-grow overflow-hidden relative">
+          <div className={`flex-grow overflow-hidden relative ${screenFade}`}>
             {renderActiveScreen()}
           </div>
           <AuraBrainChat

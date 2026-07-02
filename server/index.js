@@ -104,6 +104,51 @@ app.get('/api/diagnostics/api-keys', (req, res) => {
   });
 });
 
+// ==========================================
+// ACTIVE-LEARNING FEEDBACK API
+// ==========================================
+
+const feedbackInsert = db.prepare(`
+  INSERT INTO agent_feedback_log (id, agent_type, session_id, prompt, output_text, feedback, accepted)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+`);
+
+app.post('/api/ai/feedback', (req, res) => {
+  try {
+    const { agent_type, session_id, prompt, output_text, feedback, accepted } = req.body || {};
+    if (!agent_type || !session_id || !prompt || !output_text || accepted == null) {
+      return res.status(400).json({ error: 'agent_type, session_id, prompt, output_text, and accepted are required' });
+    }
+    const id = 'fb_' + nanoid(10);
+    feedbackInsert.run(id, agent_type, session_id, prompt, output_text, feedback || null, accepted ? 1 : 0);
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ai/feedback/summary', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        agent_type,
+        COUNT(*) AS total,
+        SUM(accepted) AS accepted_count,
+        ROUND(1.0 * SUM(accepted) / COUNT(*), 4) AS acceptance_rate
+      FROM agent_feedback_log
+      GROUP BY agent_type
+    `).all();
+    res.json(rows.map(r => ({
+      agentType: r.agent_type,
+      total: r.total,
+      acceptedCount: r.accepted_count,
+      acceptanceRate: Number(r.acceptance_rate)
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const visualizerFields = upload.fields([
   { name: 'sitePhoto', maxCount: 1 },
   { name: 'stylePhoto', maxCount: 1 },
@@ -818,6 +863,279 @@ app.get('/api/projects/:id/materials', (req, res) => {
 app.get('/api/projects/:id/quotation', (req, res) => {
   const row = db.prepare("SELECT quotation_json FROM projects WHERE id = ?").get(req.params.id);
   res.json(row || { quotation_json: null });
+});
+
+app.get('/api/projects/:id/bom', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const latestSpm = db.prepare(
+      "SELECT model_json, summary_json FROM spatial_model_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1"
+    ).get(projectId);
+
+    let geometryItems = [];
+    if (latestSpm && latestSpm.model_json) {
+      try {
+        const spatialModel = JSON.parse(latestSpm.model_json);
+        const level = spatialModel?.levels?.[0] || {};
+        const furniture = level.furniture || [];
+        geometryItems = furniture.map(f => ({
+          catalogKey: f.libraryId || null,
+          qty: 1,
+          name: f.name || null
+        }));
+      } catch (e) {}
+    }
+
+    if (!geometryItems.length) {
+      const drawing = db.prepare("SELECT furniture_json FROM cad_drawings WHERE project_id = ?").get(projectId);
+      if (drawing && drawing.furniture_json) {
+        try {
+          const furnitureList = JSON.parse(drawing.furniture_json || '[]');
+          const counts = new Map();
+          for (const f of furnitureList) {
+            const key = f.type || f.name || null;
+            if (!key) continue;
+            counts.set(key, (counts.get(key) || 0) + 1);
+          }
+          geometryItems = Array.from(counts.entries()).map(([catalogKey, qty]) => ({ catalogKey, qty, name: catalogKey }));
+        } catch (e) {}
+      }
+    }
+
+    const distinctKeys = geometryItems.map(it => it.catalogKey).filter(Boolean);
+    const catalogRows = distinctKeys.length
+      ? db.prepare(`SELECT key, label, price FROM furniture_catalog WHERE key IN (${distinctKeys.map(() => '?').join(',')})`).all(...distinctKeys)
+      : [];
+    const catalogMap = new Map(catalogRows.map(r => [r.key, r]));
+
+    const materialPriceByKey = distinctKeys.length
+      ? db.prepare(`SELECT code, price_per_sqft FROM material_catalog WHERE is_active = 1 AND code IN (${distinctKeys.map(() => '?').join(',')})`).all(...distinctKeys)
+      : [];
+    const materialPriceMap = new Map(materialPriceByKey.map(r => [r.code, r.price_per_sqft]));
+
+    const bom = geometryItems.map(it => {
+      const catalog = catalogMap.get(it.catalogKey);
+      const unitPrice = catalog ? (catalog.price || 0) : Number(materialPriceMap.get(it.catalogKey) || 0);
+      const displayName = catalog ? (catalog.label || it.catalogKey) : (it.name || it.catalogKey);
+      return {
+        catalogKey: it.catalogKey,
+        displayName,
+        qty: it.qty,
+        unitPrice,
+        totalPrice: unitPrice * it.qty,
+        currency: 'INR'
+      };
+    });
+
+    res.json({ success: true, bom: bom || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message, bom: [] });
+  }
+});
+
+app.get('/api/projects/:id/budget/summary', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const latestSpm = db.prepare(
+      "SELECT model_json FROM spatial_model_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1"
+    ).get(projectId);
+
+    let geometryItems = [];
+    if (latestSpm && latestSpm.model_json) {
+      try {
+        const spatialModel = JSON.parse(latestSpm.model_json);
+        const level = spatialModel?.levels?.[0] || {};
+        const furniture = level.furniture || [];
+        geometryItems = furniture.map(f => ({ libraryId: f.libraryId || null }));
+      } catch (e) {}
+    }
+
+    if (!geometryItems.length) {
+      const drawing = db.prepare("SELECT furniture_json FROM cad_drawings WHERE project_id = ?").get(projectId);
+      if (drawing && drawing.furniture_json) {
+        try {
+          const furnitureList = JSON.parse(drawing.furniture_json || '[]');
+          geometryItems = furnitureList.map(f => ({ libraryId: f.type || f.name || null }));
+        } catch (e) {}
+      }
+    }
+
+    const distinctKeys = geometryItems.map(it => it.libraryId).filter(Boolean);
+    const catalogRows = distinctKeys.length
+      ? db.prepare(`SELECT key, price FROM furniture_catalog WHERE key IN (${distinctKeys.map(() => '?').join(',')})`).all(...distinctKeys)
+      : [];
+    const catalogMap = new Map(catalogRows.map(r => [r.key, r]));
+    let totalEstimatedCost = 0;
+    let itemCount = 0;
+    for (const it of geometryItems) {
+      if (!it.libraryId) continue;
+      const catalog = catalogMap.get(it.libraryId);
+      const unitPrice = catalog ? (catalog.price || 0) : 0;
+      totalEstimatedCost += unitPrice;
+      itemCount += 1;
+    }
+
+    res.json({ success: true, totalEstimatedCost, itemCount, currency: 'INR' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Compare project estimate vs peer benchmark baselines
+app.get('/api/projects/:id/benchmark', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const rationaleRatios = {};
+    const overrides = {};
+    try {
+      const [rateCardRaw, priceOverridesRaw] = await Promise.all([
+        new Promise((resolve) => {
+          try {
+            const fs = require('fs');
+            const p = 'X:/OFFLINEGANG/ULTIMATE INTERIOR DESIGN APP/ultimateinteriordesignapp/library/rate-card.json';
+            resolve(fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null);
+          } catch { resolve(null); }
+        }),
+        new Promise((resolve) => {
+          try {
+            const fs = require('fs');
+            const p = 'X:/OFFLINEGANG/ULTIMATE INTERIOR DESIGN APP/ultimateinteriordesignapp/library/price-overrides.json';
+            resolve(fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null);
+          } catch { resolve(null); }
+        })
+      ]);
+      if (rateCardRaw && rateCardRaw.items) {
+        for (const item of rateCardRaw.items) {
+          const key = item.code || item.key || ((item.unit || '') + '_' + (item.name || ''));
+          if (!key) continue;
+          rationaleRatios[key] = Number(item.rationaleRatio || item.materialTakeoffRatio || 1.2);
+        }
+      }
+      if (priceOverridesRaw && typeof priceOverridesRaw === 'object') Object.assign(overrides, priceOverridesRaw);
+    } catch {}
+
+
+    const bomData = await new Promise((resolve) => {
+      db.all("SELECT catalogKey, qty, unitPrice, totalPrice FROM bom_items WHERE projectId = ?", projectId, (err, rows) => {
+        if (err) return resolve({ rows: [] });
+        resolve({ rows: (rows || []).map(r => ({ catalogKey: r.catalogKey, qty: r.qty, unitPrice: r.unitPrice || 0, totalPrice: r.totalPrice || 0 })) });
+      });
+    });
+
+    let actualTotal = 0;
+    const lines = [];
+    for (const row of bomData.rows || []) {
+      const key = String(row.catalogKey || '').trim();
+      const qty = Number(row.qty || 0);
+      const tableUnit = Number(row.unitPrice || 0);
+      actualTotal += Number(row.totalPrice || qty * tableUnit || 0);
+
+      const overrideUnit = overrides[key];
+      const overrideUsed = typeof overrideUnit === 'number';
+      const rationale = rationaleRatios[key];
+      const benchmarkUnit = overrideUsed ? overrideUnit : (Number.isFinite(rationale) && rationale > 0 ? Number((tableUnit * rationale).toFixed(2)) : tableUnit);
+      const status = benchmarkUnit > 0 && tableUnit > 0 ? (tableUnit <= benchmarkUnit ? 'on-budget' : 'over-budget') : 'no-benchmark';
+
+      lines.push({
+        line: key || 'Unknown',
+        qty,
+        actualUnit: tableUnit,
+        benchmarkUnit,
+        benchmarkVariance: benchmarkUnit - tableUnit,
+        status,
+        source: overrideUsed ? 'override' : (Number.isFinite(rationale) && rationale > 0 ? 'rationale' : 'draft'),
+        currency: 'INR',
+      });
+    }
+
+    const benchmarkValues = lines.map(l => Number.isFinite(l.benchmarkUnit) ? l.benchmarkUnit : null).filter(Number.isFinite);
+    const benchmarkTotal = benchmarkValues.reduce((s, v) => s + v, 0);
+    const varianceTotal = Number((benchmarkTotal - actualTotal).toFixed(2));
+
+    res.json({
+      success: true,
+      projectId,
+      currency: 'INR',
+      benchmark: {
+        actualTotal,
+        benchmarkTotal,
+        varianceTotal,
+        status: varianceTotal >= 0 ? 'under-budget' : 'over-budget',
+      },
+      lines,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+app.post('/api/projects/:id/layout/promote', (req, res) => {
+  try {
+    const { topViewSvg, widthMm, depthMm, roomType } = req.body || {};
+    const projectId = req.params.id;
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const spatialModelId = 'spm_' + nanoid(6);
+    const last = db.prepare("SELECT MAX(version_number) as max_v FROM spatial_model_versions WHERE project_id = ?").get(projectId);
+    const nextVer = (last && last.max_v ? last.max_v : 0) + 1;
+
+    const roomPolygon = [
+      { x: 0, y: 0 },
+      { x: Number(widthMm || 0), y: 0 },
+      { x: Number(widthMm || 0), y: Number(depthMm || 0) },
+      { x: 0, y: Number(depthMm || 0) },
+    ];
+
+    const model = {
+      units: 'mm',
+      levels: [
+        {
+          levelId: 'level_0',
+          name: 'Promoted Quick Layout',
+          elevationMm: 0,
+          rooms: [
+            {
+              id: 'room_promoted',
+              name: String(roomType || 'room'),
+              type: String(roomType || 'room'),
+              polygon: roomPolygon,
+              metadata: { source: 'quick_layout_promotion' },
+            },
+          ],
+          walls: [],
+          openings: [],
+          furniture: [],
+        },
+      ],
+      adjacency: [],
+    };
+
+    const summary = {
+      widthMm: Number(widthMm || 0),
+      depthMm: Number(depthMm || 0),
+      roomType: String(roomType || ''),
+      topViewSvg: String(topViewSvg || ''),
+    };
+
+    db.prepare(
+      `INSERT INTO spatial_model_versions (id, studio_id, project_id, floor_plan_version_id, version_number, is_current, model_json, summary_json) VALUES (?, 'studio_default', ?, NULL, ?, 1, ?, ?)`
+    ).run(spatialModelId, projectId, nextVer, JSON.stringify(model), JSON.stringify(summary));
+
+    db.prepare("UPDATE spatial_model_versions SET is_current = 0 WHERE project_id = ? AND id != ?").run(projectId, spatialModelId);
+
+    res.json({ success: true, versionId: spatialModelId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/projects/:id/quotation', (req, res) => {
@@ -2133,6 +2451,289 @@ app.get('/api/furniture-catalog/:key', (req, res) => {
       dimensions: JSON.parse(row.dimensions_json || '{}'),
       thumbnail: row.thumbnail
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// CATALOG / MATERIAL / BRAND / RENDER COMPARE
+// ==========================================
+
+app.get('/api/catalog/furniture-families', (req, res) => {
+  const { category, room } = req.query;
+  let sql = "SELECT * FROM furniture_catalog WHERE 1=1";
+  const params = [];
+  if (category && category !== 'all') {
+    sql += " AND category = ?";
+    params.push(category);
+  }
+  if (room && room !== 'all') {
+    sql += " AND room_suitability LIKE ?";
+    params.push(`%${room}%`);
+  }
+  try {
+    const rows = db.prepare(sql).all(params);
+    res.json(rows.map((r) => {
+      const meta = {};
+      try { meta.roomSuitability = r.room_suitability ? r.room_suitability.split(',') : []; } catch (e) { meta.roomSuitability = []; }
+      try { meta.dimensions = JSON.parse(r.dimensions_json || '{}'); } catch (e) { meta.dimensions = {}; }
+      meta.priceBand = r.price_band || 'standard';
+      meta.placementType = r.placement_type || 'freestanding';
+      try { meta.materialZones = (r.material_zones || '').split(',').filter(Boolean).map((name) => ({ name, gltfPathFragment: '', defaultMaterialId: '' })); } catch (e) { meta.materialZones = []; }
+      return {
+        id: r.key,
+        category: r.category,
+        displayName: r.display_name || r.label,
+        gltfAssetPath: r.gltf_asset_path,
+        snapOrigin: r.snap_origin,
+        metadata: meta,
+      };
+    }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/catalog/furniture-families/:id', (req, res) => {
+  try {
+    const row = db.prepare("SELECT * FROM furniture_catalog WHERE key = ?").get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Item not found in catalog' });
+    const meta = {};
+    try { meta.roomSuitability = row.room_suitability ? row.room_suitability.split(',') : []; } catch (e) { meta.roomSuitability = []; }
+    try { meta.dimensions = JSON.parse(row.dimensions_json || '{}'); } catch (e) { meta.dimensions = {}; }
+    meta.priceBand = row.price_band || 'standard';
+    meta.placementType = row.placement_type || 'freestanding';
+    try { meta.materialZones = (row.material_zones || '').split(',').filter(Boolean).map((name) => ({ name, gltfPathFragment: '', defaultMaterialId: '' })); } catch (e) { meta.materialZones = []; }
+    res.json({
+      id: row.key,
+      category: row.category,
+      displayName: row.display_name || row.label,
+      gltfAssetPath: row.gltf_asset_path,
+      snapOrigin: row.snap_origin,
+      metadata: meta,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/catalog/materials', (req, res) => {
+  const { category } = req.query;
+  let sql = "SELECT * FROM material_catalog WHERE is_active = 1";
+  const params = [];
+  if (category && category !== 'all') {
+    sql += " AND category = ?";
+    params.push(category);
+  }
+  try {
+    const rows = db.prepare(sql).all(params);
+    res.json(rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      categoryId: r.category,
+      vendorId: r.brand,
+      pricePerSquareFoot: r.price_per_sqft,
+      swatchUrl: '',
+      gltfMaterialId: r.code,
+      tags: [r.category, r.subcategory, r.finish, r.brand].filter(Boolean),
+      createdAt: '',
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/brands/:id/materials', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM material_catalog WHERE is_active = 1 AND brand = ?").all(req.params.id);
+    res.json(rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      categoryId: r.category,
+      vendorId: r.brand,
+      pricePerSquareFoot: r.price_per_sqft,
+      swatchUrl: '',
+      gltfMaterialId: r.code,
+      tags: [r.category, r.subcategory, r.finish, r.brand].filter(Boolean),
+      createdAt: '',
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/render-comparison/upload', (req, res) => {
+  try {
+    const { renderAId, renderBId, notes, imageUrl } = req.body || {};
+    if (!renderAId || !renderBId) {
+      return res.status(400).json({ error: 'renderAId and renderBId are required' });
+    }
+    const id = nanoid.nanoid();
+    db.prepare(
+      `INSERT INTO render_comparisons (id, project_id, render_a_id, render_b_id, notes, image_url) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, req.params.id, String(renderAId), String(renderBId), String(notes || ''), String(imageUrl || ''));
+    res.status(200).json({ success: true, comparisonId: id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// AGENT ORCHESTRATION - PHASE 2N
+// ==========================================
+
+app.post('/api/agents/proposals', (req, res) => {
+  try {
+    const proposal = req.body || {};
+    if (!proposal.proposedBy || !proposal.proposalType || !proposal.targetEntity) {
+      return res.status(400).json({ error: 'proposedBy, proposalType, and targetEntity are required' });
+    }
+    const id = nanoid.nanoid();
+    const projectId = String(proposal.targetEntity.id || req.body.projectId || '');
+    db.prepare(
+      `INSERT INTO patch_proposals (id, project_id, proposed_by, proposal_type, target_entity_type, target_entity_id, changes_json, rationale_json, impact_assessment_json, timestamp, review_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      projectId || null,
+      String(proposal.proposedBy),
+      String(proposal.proposalType),
+      String(proposal.targetEntity.type || ''),
+      String(proposal.targetEntity.id || ''),
+      JSON.stringify(proposal.changes || []),
+      JSON.stringify(proposal.rationale || {}),
+      JSON.stringify(proposal.impactAssessment || {}),
+      String(proposal.timestamp || new Date().toISOString()),
+      'pending'
+    );
+    const changes = Array.isArray(proposal.changes) ? proposal.changes : [];
+    const insertChange = db.prepare(
+      `INSERT INTO patch_changes (id, proposal_id, operation, target_field, new_value, old_value, constraints_json) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const ch of changes.slice(0, 100)) {
+      const cid = nanoid.nanoid();
+      insertChange.run(cid, id, String(ch.operation || 'update'), String(ch.targetField || ''), JSON.stringify(ch.newValue ?? null), JSON.stringify(ch.oldValue ?? null), JSON.stringify(ch.constraints || []));
+    }
+    res.status(200).json({ success: true, proposalId: id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/agents/proposals/:projectId', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM patch_proposals WHERE project_id = ? AND review_status = 'pending' ORDER BY created_at DESC LIMIT 100").all(req.params.projectId);
+    const out = [];
+    for (const p of rows) {
+      let changes = [];
+      try { changes = JSON.parse(p.changes_json || '[]'); } catch (e) { changes = []; }
+      out.push({
+        id: p.id,
+        proposedBy: p.proposed_by,
+        proposalType: p.proposal_type,
+        targetEntity: { type: p.target_entity_type, id: p.target_entity_id },
+        changes,
+        rationale: (() => { try { return JSON.parse(p.rationale_json || '{}'); } catch (e) { return {}; } })(),
+        impactAssessment: (() => { try { return JSON.parse(p.impact_assessment_json || '{}'); } catch (e) { return {}; } })(),
+        reviewStatus: p.review_status,
+        timestamp: p.timestamp,
+        version: p.version,
+      });
+    }
+    res.json({ success: true, proposals: out });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/agents/proposals/:projectId/feedback', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM agent_feedback_log WHERE project_id = ? ORDER BY created_at DESC LIMIT 200").all(req.params.projectId);
+    const out = rows.map(r => ({
+      id: r.id,
+      proposalId: r.proposal_id,
+      proposedBy: r.proposed_by,
+      proposalType: r.proposal_type,
+      decision: r.decision,
+      rejectionFeedback: r.rejection_feedback || null,
+      modificationNotes: r.modification_notes ? (() => { try { return JSON.parse(r.modification_notes); } catch(e) { return []; } })() : [],
+      context: (() => { try { return JSON.parse(r.context_json || '{}'); } catch(e) { return {}; } })(),
+      createdAt: r.created_at,
+    }));
+    res.json({ success: true, feedback: out });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/agents/proposals/:id/review', (req, res) => {
+  try {
+    const { decision, userId, rejectionFeedback, modificationNotes } = req.body || {};
+    if (!decision || !['approve', 'reject', 'modify'].includes(decision)) {
+      return res.status(400).json({ error: "decision must be 'approve', 'reject', or 'modify'" });
+    }
+    if (decision === 'reject' && !rejectionFeedback) {
+      return res.status(400).json({ error: 'rejectionFeedback is required when rejecting' });
+    }
+    const existing = db.prepare("SELECT * FROM patch_proposals WHERE id = ?").get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Proposal not found' });
+    const reviewedAt = new Date().toISOString();
+    db.prepare("UPDATE patch_proposals SET review_status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?")
+      .run(decision, String(userId || ''), reviewedAt, req.params.id);
+    try {
+      const fbId = nanoid.nanoid();
+      db.prepare(`INSERT INTO agent_feedback_log (id, proposal_id, proposed_by, proposal_type, project_id, decision, rejection_feedback, modification_notes, context_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        fbId,
+        req.params.id,
+        existing.proposed_by,
+        existing.proposal_type,
+        existing.project_id,
+        decision,
+        String(rejectionFeedback || ''),
+        modificationNotes ? JSON.stringify(modificationNotes) : null,
+        JSON.stringify({ reviewedAt, userId })
+      );
+    } catch (feedErr) {
+      console.error('agent_feedback_log insert failed:', feedErr);
+    }
+    res.json({ success: true, proposalId: req.params.id, reviewStatus: decision, reviewedAt });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Seed a demo proposal for a project when none exist
+app.post('/api/agents/proposals/demo-seed', (req, res) => {
+  try {
+    const { projectId } = req.body || {};
+    if (!projectId) return res.status(400).json({ error: 'projectId is required' });
+    const existing = db.prepare("SELECT COUNT(*) as count FROM patch_proposals WHERE project_id = ? AND review_status = 'pending'").get(projectId);
+    if (existing && existing.count > 0) {
+      return res.json({ success: true, seeded: false, count: existing.count });
+    }
+    const id = nanoid.nanoid();
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO patch_proposals (id, project_id, proposed_by, proposal_type, target_entity_type, target_entity_id, changes_json, rationale_json, impact_assessment_json, timestamp, review_status, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      String(projectId),
+      'agent_layout_assist',
+      'geometry',
+      'RoomBoundary',
+      'room_living_1',
+      JSON.stringify([{ operation: 'update', targetField: 'polygonPoints', newValue: [[0,0],[4000,0],[4000,3500],[0,3500]], oldValue: [[0,0],[3800,0],[3800,3200],[0,3200]], constraints: [{ type: 'validation', ruleName: 'POLYGON_MUST_BE_CLOSED', enforcedBy: 'orchestrator' }] }]),
+      JSON.stringify({ primaryReason: 'Enlarge living room to match as-built survey.', confidenceScore: 0.82, supportingEvidence: ['survey_2025_07_02.pdf', 'user_edited_overlay'] }),
+      JSON.stringify({ relatedEntities: ['bom_row_12', 'bom_row_13'], riskLevel: 'medium', estimatedImpact: '+0.8 sqm room area; BOM cost +₹12,000' }),
+      now,
+      'pending',
+      1
+    );
+    const cid1 = nanoid.nanoid();
+    const cid2 = nanoid.nanoid();
+    db.prepare(`INSERT INTO patch_changes (id, proposal_id, operation, target_field, new_value, old_value, constraints_json) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(cid1, id, 'update', 'polygonPoints', JSON.stringify([[0,0],[4000,0],[4000,3500],[0,3500]]), JSON.stringify([[0,0],[3800,0],[3800,3200],[0,3200]]), JSON.stringify([{ type: 'validation', ruleName: 'POLYGON_MUST_BE_CLOSED', enforcedBy: 'orchestrator' }]));
+    db.prepare(`INSERT INTO patch_changes (id, proposal_id, operation, target_field, new_value, old_value, constraints_json) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(cid2, id, 'update', 'name', JSON.stringify('Living/Dining Expanded'), JSON.stringify('Living/Dining'), JSON.stringify([]));
+    res.json({ success: true, seeded: true, proposalId: id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

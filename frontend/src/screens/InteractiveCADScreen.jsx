@@ -54,6 +54,9 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   // --- AI Layout State ---
   const [isDetectingLayout, setIsDetectingLayout] = useState(false);
+  const [cadStatus, setCadStatus] = useState('');
+  const [cadError, setCadError] = useState('');
+  const [uploadWarning, setUploadWarning] = useState('');
 
   // --- Undo/Redo Stacks ---
   const [history, setHistory] = useState([]);
@@ -169,6 +172,8 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   const triggerAiDetect = async () => {
     setIsDetectingLayout(true);
+    setCadStatus('AI Floorplan analysis running...');
+    setCadError('');
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/ai-detect`, {
         method: 'POST',
@@ -176,14 +181,15 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("AI Floorplan analysis complete: partition walls traced, room zones marked, and cabinet modules placed!");
+        setCadStatus('AI Floorplan analysis complete: partition walls traced, room zones marked, and cabinet modules placed.');
         loadCADData();
       } else {
-        alert(data.error || "AI floorplan analysis failed.");
+        setCadStatus('');
+        setCadError(data.error || 'AI floorplan analysis failed.');
       }
     } catch (err) {
-      console.error(err);
-      alert("Error contacting AI layout engine.");
+      setCadStatus('');
+      setCadError(err instanceof Error ? err.message : 'Error contacting AI layout engine.');
     } finally {
       setIsDetectingLayout(false);
     }
@@ -235,26 +241,32 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   // Save CAD vector back to server
   const saveCADToServer = async () => {
+    setError('');
     try {
+      const payload = {
+        walls,
+        openings,
+        furniture,
+        rooms,
+        measures,
+        pixelsPerMeter,
+      };
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walls,
-          openings,
-          furniture,
-          rooms,
-          measures,
-          pixelsPerMeter
-        })
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (data.success) {
-        alert("Floorplan drawing saved successfully!");
-        if (onComplete) onComplete();
+      const text = await res.text();
+      let result = {};
+      try { result = JSON.parse(text || '{}'); } catch {}
+      if (!res.ok) {
+        throw new Error(result?.error || `CAD save failed with status ${res.status}`);
       }
-    } catch (err) {
-      console.error("Error saving CAD:", err);
+      setSuccess('Floorplan drawing saved.');
+      if (onComplete) onComplete();
+    } catch (e) {
+      console.error('Error saving CAD:', e);
+      setError(e instanceof Error ? e.message : 'Failed to save CAD.');
     }
   };
 
@@ -295,10 +307,9 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         setVideoWarnings(data.warnings);
       }
       if (data.calibrationSuggestion) {
-        // Automatically place suggested measurements or alert
-        alert(`SLAM analysis detected dimension deviations. Suggested scale recalibration: ${data.calibrationSuggestion.suggestedLengthMeters}m`);
+        setCadStatus(`AI scale recalibration suggested: ${String(data.calibrationSuggestion.suggestedLengthMeters)}m`);
       }
-      
+
       setTimeout(() => {
         setIsUploadingVideo(false);
       }, 500);
@@ -1164,11 +1175,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   const data = await res.json();
                   if (data.success) {
                     setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
-                    alert("Floorplan underlay permanently attached to project brief!");
+                    setCadStatus('Floorplan underlay attached to project brief.');
                   }
                 } catch (err) {
                   console.error("Error uploading floorplan from CAD screen:", err);
-                  alert("Failed to save floorplan to server.");
+                  setCadError(err instanceof Error ? err.message : 'Failed to save floorplan to server.');
                 }
               }
             }}

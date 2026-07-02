@@ -4,20 +4,47 @@ import {
   CheckCircle2, BrainCircuit, Wand2, FileCode2 
 } from 'lucide-react';
 
-export default function AuraBrainChat({ 
-  messages, 
-  onSendMessage, 
-  onExecuteAction, 
+export default function AuraBrainChat({
+  messages,
+  onSendMessage,
+  onExecuteAction,
   project,
   isOpen,
-  onClose
+  onClose,
+  ariaId = 'aura-brain-chat'
 }) {
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [showBrainTelemetry, setShowBrainTelemetry] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const headerId = `${ariaId}-header`;
+  const messageListId = `${ariaId}-messages`;
+  const inputId = `${ariaId}-input`;
+
+  const ensureFocus = () => {
+    if (!hasInteracted) setHasInteracted(true);
+  };
+
+  useEffect(() => {
+    if (!isOpen || !hasInteracted) return;
+    const el = document.getElementById(inputId);
+    if (el) el.focus({ preventScroll: true });
+  }, [isOpen, hasInteracted, inputId, showBrainTelemetry]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   const handleSend = (e) => {
     if (e) e.preventDefault();
+    ensureFocus();
     if (!inputText.trim()) return;
     onSendMessage(inputText);
     setInputText('');
@@ -25,6 +52,7 @@ export default function AuraBrainChat({
 
   const simulateVoice = () => {
     setIsListening(true);
+    ensureFocus();
     setTimeout(() => {
       setIsListening(false);
       onSendMessage("Add a warm Chevron Herringbone oak floor material to this bedroom.");
@@ -43,15 +71,22 @@ export default function AuraBrainChat({
   if (!isOpen) return null;
 
   return (
-    <div className="w-80 xl:w-96 border-l border-slate-800/80 flex flex-col h-full bg-[#080d18] shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }}>
+    <aside
+      id={ariaId}
+      role="complementary"
+      aria-label="AURA AI Assistant chat panel"
+      aria-labelledby={headerId}
+      className="w-80 xl:w-96 border-l border-slate-800/80 flex flex-col h-full bg-[#080d18] shrink-0"
+      style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }}
+    >
       {/* Sidebar Header */}
       <div className="p-3.5 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/40">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-md shadow-indigo-500/10">
-            <BrainCircuit className="w-4 h-4 animate-pulse" />
+            <BrainCircuit className="w-4 h-4 animate-pulse" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="font-bold text-xs text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
+            <h3 id={headerId} className="font-bold text-xs text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
               AURA BRAIN <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">ONLINE</span>
             </h3>
             <p className="text-[9px] text-slate-500">LLaMA 3.1 70B Orchestrator</p>
@@ -59,17 +94,21 @@ export default function AuraBrainChat({
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => setShowBrainTelemetry(!showBrainTelemetry)}
+            aria-pressed={showBrainTelemetry}
             className={`p-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1 ${
               showBrainTelemetry ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
             }`}
-            title="Toggle Sub-Agent Telemetry Logs"
+            aria-label="Toggle sub-agent telemetry logs"
           >
-            <FileCode2 className="w-3.5 h-3.5" />
+            <FileCode2 className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-100 text-xs font-semibold px-2 transition"
+            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-100 text-xs font-semibold px-2 transition"
+            aria-label="Close AURA assistant panel"
           >
             Hide
           </button>
@@ -78,7 +117,11 @@ export default function AuraBrainChat({
 
       {/* Telemetry drawer if open */}
       {showBrainTelemetry && (
-        <div className="bg-slate-900/90 border-b border-slate-800 p-3 font-mono text-[9px] text-slate-350 space-y-1.5 animate-in slide-in-from-top-2">
+        <div
+          className="bg-slate-900/90 border-b border-slate-800 p-3 font-mono text-[9px] text-slate-350 space-y-1.5 animate-in slide-in-from-top-2"
+          aria-live="polite"
+          aria-label="Sub-agent telemetry"
+        >
           <div className="flex items-center justify-between text-[8px] text-indigo-400 font-semibold border-b border-slate-800 pb-1">
             <span>ACTIVE SUB-AGENTS</span>
             <span>LATENCY: 42ms</span>
@@ -103,7 +146,14 @@ export default function AuraBrainChat({
       )}
 
       {/* Chat Messages Area */}
-      <div className="flex-grow overflow-y-auto p-4 space-y-4 font-sans">
+      <div
+        id={messageListId}
+        className="flex-grow overflow-y-auto p-4 space-y-4 font-sans"
+        role="log"
+        aria-live="polite"
+        aria-label="AURA conversation"
+        tabIndex={0}
+      >
         {messages.map((m) => {
           if (m.sender === 'system') {
             return (
@@ -118,13 +168,13 @@ export default function AuraBrainChat({
             <div key={m.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}>
               <div className="flex items-center gap-1.5 text-[9px] text-slate-500 px-1">
                 <span>{isUser ? (project?.clientName || 'Designer') : 'AURA AI Agent'}</span>
-                <span>•</span>
+                <span aria-hidden="true">•</span>
                 <span>{m.timestamp}</span>
               </div>
-              
+
               <div className={`p-3 rounded-2xl max-w-[90%] text-xs leading-relaxed ${
-                isUser 
-                  ? 'bg-gradient-to-r from-indigo-650 to-indigo-755 text-white rounded-br-none shadow-md' 
+                isUser
+                  ? 'bg-gradient-to-r from-indigo-650 to-indigo-755 text-white rounded-br-none shadow-md'
                   : 'bg-slate-900 border border-slate-800 text-slate-250 rounded-bl-none shadow-lg'
               }`}>
                 <p>{m.text}</p>
@@ -134,7 +184,7 @@ export default function AuraBrainChat({
                   <div className="mt-3 p-3 rounded-xl bg-slate-950/85 border border-indigo-500/30 text-slate-200 space-y-2">
                     <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
                       <span className="font-bold text-[10px] text-indigo-300 flex items-center gap-1">
-                        <Wand2 className="w-3.5 h-3.5 text-indigo-400" />
+                        <Wand2 className="w-3.5 h-3.5 text-indigo-400" aria-hidden="true" />
                         {m.actionPreview.title}
                       </span>
                       {m.actionPreview.costImpact !== 0 && (
@@ -144,10 +194,10 @@ export default function AuraBrainChat({
                       )}
                     </div>
 
-                    <ul className="space-y-1 py-1 text-[10px]">
+                    <ul className="space-y-1 py-1 text-[10px]" aria-label="Proposed changes">
                       {m.actionPreview.changes.map((change, idx) => (
                         <li key={idx} className="flex items-start gap-1.5 text-slate-350 font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
                           <span>{change}</span>
                         </li>
                       ))}
@@ -155,7 +205,7 @@ export default function AuraBrainChat({
 
                     <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 border-t border-slate-800/80">
                       <span>Visual Impact:</span>
-                      <span className="text-amber-400 font-bold">
+                      <span className="text-amber-400 font-bold" aria-label={`${Math.round(m.actionPreview.visualQualityImpact)} out of 5 impact`}>
                         {'★'.repeat(Math.round(m.actionPreview.visualQualityImpact))}
                         <span className="text-slate-700">{'★'.repeat(5 - Math.round(m.actionPreview.visualQualityImpact))}</span>
                       </span>
@@ -169,14 +219,16 @@ export default function AuraBrainChat({
                     {m.actions.map((act) => (
                       <button
                         key={act.actionId}
+                        type="button"
                         onClick={() => onExecuteAction(act.actionId, m.actionPreview)}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition ${
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
                           act.variant === 'primary'
                             ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-md shadow-indigo-500/20'
                             : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
                         }`}
+                        aria-label={`${act.label} for ${m.actionPreview?.title || act.actionId}`}
                       >
-                        <Sparkles className="w-3 h-3" />
+                        <Sparkles className="w-3 h-3" aria-hidden="true" />
                         {act.label}
                       </button>
                     ))}
@@ -189,8 +241,8 @@ export default function AuraBrainChat({
 
         {isListening && (
           <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/40 text-indigo-300 text-[11px] animate-pulse">
-            <Mic className="w-4 h-4 text-indigo-400 animate-ping" />
-            <span>Listening to voice command... "Add wood floors..."</span>
+            <Mic className="w-4 h-4 text-indigo-400 animate-ping" aria-hidden="true" />
+            <span>Listening to voice command...</span>
           </div>
         )}
       </div>
@@ -202,8 +254,9 @@ export default function AuraBrainChat({
           {proactiveSuggestions.map((sug, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => {
-                const text = sug.replace(/^💡\s*|^🎨\s*|^📊\s*|^🪴\s*/, '');
+                const text = sug.replace(/^[\u{1F4A1}\u{1F3A8}\u{1F4CA}\u{1FAB4}]\s*/, '');
                 setInputText(text);
               }}
               className="w-full text-left p-1.5 bg-slate-950/40 border border-slate-850/60 rounded-lg hover:border-indigo-500/40 hover:text-indigo-200 transition text-ellipsis truncate block"
@@ -219,35 +272,39 @@ export default function AuraBrainChat({
         <button
           type="button"
           onClick={simulateVoice}
-          className={`p-2 rounded-xl border transition ${
-            isListening 
-              ? 'bg-indigo-600 border-indigo-500 text-white animate-pulse animate-duration-500' 
+          aria-label="Start voice input"
+          className={`p-2 rounded-xl border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
+            isListening
+              ? 'bg-indigo-600 border-indigo-500 text-white animate-pulse animate-duration-500'
               : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
           }`}
-          title="Click to dictate design instructions"
         >
-          <Mic className="w-4 h-4" />
+          <Mic className="w-4 h-4" aria-hidden="true" />
         </button>
-        
+
+        <label htmlFor={inputId} className="sr-only">Ask AURA a design question</label>
         <input
+          id={inputId}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Ask AURA to paint, place, or configure..."
           className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-250 placeholder-slate-550 outline-none focus:border-[#D4AF37]"
+          autoComplete="off"
         />
 
         <button
           type="submit"
           disabled={!inputText.trim()}
-          className={`p-2 rounded-xl transition ${
+          className={`p-2 rounded-xl transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 ${
             inputText.trim()
               ? 'bg-[#D4AF37] text-slate-950 hover:bg-[#e6c045]'
               : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
           }`}
+          aria-label="Send message to AURA"
         >
-          <Send className="w-4 h-4" />
+          <Send className="w-4 h-4" aria-hidden="true" />
         </button>
       </form>
-    </div>
+    </aside>
   );
 }

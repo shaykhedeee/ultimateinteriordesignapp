@@ -635,19 +635,6 @@ export default function Render3DStudio({ projectId, onComplete }) {
     }
   };
 
-  const fetchRenders = async () => {
-    try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`);
-      const data = await res.json();
-      setRendersList(data);
-      if (data.length > 0) {
-        setSelectedRender(prev => data.find(r => r.id === prev?.id) || data[0]);
-      }
-    } catch (err) {
-      console.error("Error loading renders list:", err);
-    }
-  };
-
   const loadCorrections = async () => {
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
@@ -658,7 +645,33 @@ export default function Render3DStudio({ projectId, onComplete }) {
     }
   };
 
+  const fetchRenders = async () => {
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`);
+      const data = await res.json();
+      setRendersList(data);
+      if (Array.isArray(data) && data.length > 0) {
+        setSelectedRender(prev => data.find(r => r.id === prev?.id) || data[0]);
+      }
+    } catch (err) {
+      console.error("Error loading renders list:", err);
+    }
+  };
+
+  const aiWorkflowStart = async () => {
+    try {
+      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/ai-workflow/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trigger: 'render-stale', room: targetRoom })
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const generateAIRender = async () => {
+    if (isGenerating) return;
     setIsGenerating(true);
     try {
       const formData = new FormData();
@@ -668,7 +681,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('modelTier', modelTier);
       formData.append('spendMode', spendMode);
       formData.append('cameraAngle', cameraAngle);
-      formData.append('variantCount', variantCount);
+      formData.append('variantCount', String(variantCount));
       formData.append('removePeople', String(removePeople));
       formData.append('furnitureRequirement', furnitureRequirement);
       formData.append('customInstruction', customInstruction);
@@ -1040,7 +1053,15 @@ export default function Render3DStudio({ projectId, onComplete }) {
             Renders Out-of-Date: The underlying 2D/3D design layout or materials have changed. Visualizations may not match the active design.
           </span>
           <button 
-            onClick={handleRegenerateRenders}
+            onClick={async () => { 
+              try {
+                await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/stale-render/flag`, { method: 'POST' }); 
+                setSelectedRender(prev => prev); 
+                alert('Render regeneration queued.'); 
+              } catch (err) { 
+                console.error(err); 
+              } 
+            }}
             className="bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
           >
             Regenerate Renders
@@ -1247,11 +1268,15 @@ export default function Render3DStudio({ projectId, onComplete }) {
           <button
             onClick={generateAIRender}
             disabled={isGenerating}
+            aria-busy={isGenerating}
             className="w-full py-3 bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-lg transition"
           >
-            <Sparkles className="w-4 h-4" />
-            Generate Renders
+            <Sparkles className="w-4 h-4" aria-hidden="true" focusable="false" />
+            {isGenerating ? 'Generating…' : 'Generate Renders'}
           </button>
+          {isGenerating && (
+            <p className="text-[10px] text-slate-400 font-medium" aria-live="polite">Rendering in progress. This may take a moment.</p>
+          )}
         </div>
       </div>
 
@@ -1271,13 +1296,19 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   onClick={() => setActiveTab3D('renders')}
                   className={`px-3 py-1 rounded transition ${activeTab3D === 'renders' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  🖼️ AI Renders
+                  Renders
                 </button>
                 <button
                   onClick={() => setActiveTab3D('walkthrough')}
                   className={`px-3 py-1 rounded transition ${activeTab3D === 'walkthrough' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  🌐 3D Walkthrough
+                  3D View
+                </button>
+                <button
+                  onClick={() => setActiveTab3D('compare')}
+                  className={`px-3 py-1 rounded transition ${activeTab3D === 'compare' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  Compare
                 </button>
               </div>
             </div>
@@ -1303,6 +1334,18 @@ export default function Render3DStudio({ projectId, onComplete }) {
               selectedLaminates={selectedLaminates} 
               onLaminateChange={handleWalkthroughLaminateChange} 
             />
+          ) : activeTab3D === 'compare' ? (
+            <div className="flex-grow bg-slate-950 border border-slate-850 rounded-xl overflow-hidden relative flex flex-col min-h-0">
+              <div className="p-4 text-xs text-slate-400">
+                Compare mode is available in the dedicated Render Comparison screen.
+                <button
+                  onClick={() => onNavigateToTab?.('compare')}
+                  className="ml-3 px-3 py-1.5 bg-[#D4AF37] text-slate-950 rounded-lg text-[10px] font-black uppercase"
+                >
+                  Open Comparison
+                </button>
+              </div>
+            </div>
           ) : (
             /* Active Image Render and Recolor Panel */
             <div className="flex-grow bg-slate-950 border border-slate-850 rounded-xl overflow-hidden relative flex flex-row min-h-0">
