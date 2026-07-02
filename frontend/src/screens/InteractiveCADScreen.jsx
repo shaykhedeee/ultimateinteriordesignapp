@@ -36,6 +36,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [orthoMode, setOrthoMode] = useState(false);
   const [gridSize, setGridSize] = useState(20);
+  const [wallThicknessMm, setWallThicknessMm] = useState(150); // Default standard wall thickness
   
   // --- Drawing / Interaction Temp State ---
   const [tempPoints, setTempPoints] = useState([]);
@@ -466,7 +467,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             y1: startPt.y,
             x2: snapped.x,
             y2: snapped.y,
-            thickness: 15,
+            thickness: (wallThicknessMm / 1000) * pixelsPerMeter,
             material: 'drywall'
           };
           const updatedWalls = [...walls, newWall];
@@ -784,9 +785,22 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               className="accent-brand-500 rounded"
             />
           </div>
+          <div className="flex items-center justify-between gap-2">
+            <span>Wall Thickness preset:</span>
+            <select
+              value={wallThicknessMm}
+              onChange={(e) => setWallThicknessMm(parseInt(e.target.value))}
+              className="bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] text-slate-300 outline-none focus:border-brand-500"
+            >
+              <option value="100">100mm (Internal Partition)</option>
+              <option value="150">150mm (Standard Wall)</option>
+              <option value="230">230mm (Brick Main Wall)</option>
+              <option value="300">300mm (Thick Structural)</option>
+            </select>
+          </div>
           <div className="flex items-center justify-between">
             <span>Calibration Scale</span>
-            <span className="font-mono text-brand-500">{pixelsPerMeter.toFixed(1)} px/m</span>
+            <span className="font-mono text-[#C9A84C]">{pixelsPerMeter.toFixed(1)} px/m</span>
           </div>
         </div>
 
@@ -811,13 +825,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
         {/* AI Layout Engine */}
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block flex items-center gap-1.5">
+          <label className="text-[10px] font-bold text-[#C9A84C] uppercase tracking-widest block flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 animate-pulse" /> AI Layout Assistant
           </label>
           <button
             onClick={triggerAiDetect}
             disabled={isDetectingLayout}
-            className="w-full py-2.5 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/45 text-[#D4AF37] text-xs font-bold rounded-lg uppercase tracking-wider transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/45 text-[#C9A84C] text-xs font-bold rounded-lg uppercase tracking-wider transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isDetectingLayout ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             AI Auto-Detect Layout
@@ -835,9 +849,36 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             </div>
             
             {selectedObj.type === 'wall' && (
-              <div className="text-xs space-y-2 text-slate-400">
+              <div className="text-xs space-y-2.5 text-slate-400">
                 <div><b>Wall ID:</b> {selectedObj.id}</div>
                 <div><b>Length:</b> {walls.find(w => w.id === selectedObj.id) ? getWallLength(walls.find(w => w.id === selectedObj.id)) : ''}</div>
+                <div className="space-y-1">
+                  <span className="block text-[10px] text-slate-500 font-bold uppercase">Change Wall Thickness:</span>
+                  <select
+                    value={walls.find(w => w.id === selectedObj.id) ? Math.round((walls.find(w => w.id === selectedObj.id).thickness / pixelsPerMeter) * 1000) : 150}
+                    onChange={(e) => {
+                      const mm = parseInt(e.target.value);
+                      const updated = walls.map(w => w.id === selectedObj.id ? { ...w, thickness: (mm / 1000) * pixelsPerMeter } : w);
+                      setWalls(updated);
+                      saveToHistory(updated, openings, furniture, rooms, measures);
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-xs text-slate-200 outline-none"
+                  >
+                    <option value="100">100mm (Internal Partition)</option>
+                    <option value="150">150mm (Standard Wall)</option>
+                    <option value="230">230mm (Brick Main Wall)</option>
+                    <option value="300">300mm (Thick Structural)</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => {
+                    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedObj.id}/dxf`);
+                  }}
+                  className="w-full mt-2 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[#C9A84C] font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#C9A84C]" />
+                  Download Elevation DXF
+                </button>
               </div>
             )}
 
