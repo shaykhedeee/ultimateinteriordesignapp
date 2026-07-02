@@ -26,6 +26,7 @@ const WORKFLOW_STEPS = [
   { id: 'crm', label: 'Lead CRM', icon: <Inbox className="w-3.5 h-3.5" />, statusField: null },
   { id: 'brief', label: 'Client Brief', icon: <FileText className="w-3.5 h-3.5" />, statusField: 'brief' },
   { id: 'cad', label: '2D CAD', icon: <Compass className="w-3.5 h-3.5" />, statusField: 'cad_approved' },
+  { id: 'studio', label: '3D Studio', icon: <Layers className="w-3.5 h-3.5" />, statusField: 'cad_approved' },
   { id: 'materials', label: 'Materials', icon: <Palette className="w-3.5 h-3.5" />, statusField: 'materials_selected' },
   { id: 'renders', label: '3D Renders', icon: <Sparkles className="w-3.5 h-3.5" />, statusField: 'renders_approved' },
   { id: 'cutlist', label: 'Cutlist', icon: <Scissors className="w-3.5 h-3.5" />, statusField: 'production' },
@@ -77,6 +78,16 @@ export function App() {
   useEffect(() => {
     fetchStatsAndProjects();
   }, [activeTab, selectedProjectId]);
+
+  useEffect(() => {
+    const handleNav = (e) => {
+      if (e.detail) {
+        setActiveTab(e.detail);
+      }
+    };
+    window.addEventListener('navigate-to-tab', handleNav);
+    return () => window.removeEventListener('navigate-to-tab', handleNav);
+  }, []);
 
   useEffect(() => {
     if (selectedProjectId && projectsList.length > 0) {
@@ -249,7 +260,9 @@ export function App() {
       case 'brief':
         return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
       case 'cad':
-        return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
+        return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
+      case 'studio':
+        return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
       case 'drawings':
         return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
       case 'materials':
@@ -287,8 +300,9 @@ export function App() {
       title: "Design Studio",
       items: [
         { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'cad', label: '2D/3D Design Studio', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'drawings', label: 'Wall Elevations', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId }
+        { id: 'cad', label: '2D Blueprint Drafting', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'studio', label: '3D Furnishing Studio', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
+        { id: 'drawings', label: 'Wall Elevations', icon: <CheckSquare className="w-4 h-4" />, disabled: !selectedProjectId }
       ]
     },
     {
@@ -316,7 +330,8 @@ export function App() {
     crm: 'CRM & Outbound Calling System',
     projects: 'Project Pipeline & Kanban Board',
     brief: 'Client Onboarding Brief Studio',
-    cad: '2D/3D Linked Design Studio',
+    cad: '2D Blueprint Drafting Workspace',
+    studio: '3D Linked Furnishing Studio',
     drawings: 'Wall Elevations & Architectural Drafting',
     materials: 'Finishes, Swatches & Hardware Catalog',
     renders: '3D AI Render Extrusion Engine',
