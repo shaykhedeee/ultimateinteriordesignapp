@@ -1,20 +1,39 @@
 'use client';
 
-import { type MouseEvent, useEffect, useMemo, useState } from 'react';
+import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 type Point = { x: number; y: number };
 type Marker = {
   id: string;
-  markerType: 'room' | 'module' | 'reference';
+  markerType: 'room' | 'module' | 'reference' | 'opening' | 'wall';
   x: number;
   y: number;
   label: string;
   color: string;
+  note?: string;
+  linkedEntityRef?: string;
 };
 
 type OverlayPayload = {
   calibrationPoints: Point[];
   markers: Marker[];
+};
+
+const MARKER_FILTER_OPTIONS: Array<{ value: Marker['markerType'] | 'all'; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'room', label: 'Rooms' },
+  { value: 'module', label: 'Modules' },
+  { value: 'reference', label: 'References' },
+  { value: 'opening', label: 'Openings' },
+  { value: 'wall', label: 'Walls' },
+];
+
+const MARKER_TYPE_CONFIG: Record<Marker['markerType'], { label: string; color: string }> = {
+  room: { label: 'Room', color: '#e1bf72' },
+  module: { label: 'Module', color: '#7dbb74' },
+  reference: { label: 'Ref', color: '#6fa8ff' },
+  opening: { label: 'Opening', color: '#f4c2a1' },
+  wall: { label: 'Wall', color: '#d2a9f9' },
 };
 
 export function FloorPlanCalibrationCanvas({
@@ -36,7 +55,10 @@ export function FloorPlanCalibrationCanvas({
 }) {
   const [points, setPoints] = useState<Point[]>(initialPoints);
   const [markers, setMarkers] = useState<Marker[]>(initialMarkers);
-  const [annotationMode, setAnnotationMode] = useState<'measure' | 'room' | 'module' | 'reference'>('measure');
+  const [annotationMode, setAnnotationMode] = useState<'measure' | 'room' | 'module' | 'reference' | 'opening' | 'wall'>('measure');
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<Marker['markerType'] | 'all'>('all');
+  const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
 
   useEffect(() => {
     setPoints(initialPoints);
@@ -56,9 +78,17 @@ export function FloorPlanCalibrationCanvas({
     return Math.round(Math.sqrt(dx * dx + dy * dy));
   }, [points]);
 
-  function emitOverlay(nextPoints: Point[], nextMarkers: Marker[]) {
-    onOverlayChange?.({ calibrationPoints: nextPoints, markers: nextMarkers });
-  }
+  const visibleMarkers = useMemo(() => {
+    if (filterType === 'all') return markers;
+    return markers.filter((m) => m.markerType === filterType);
+  }, [markers, filterType]);
+
+  const emitOverlay = useCallback(
+    (nextPoints: Point[], nextMarkers: Marker[]) => {
+      onOverlayChange?.({ calibrationPoints: nextPoints, markers: nextMarkers });
+    },
+    [onOverlayChange]
+  );
 
   function toCanvasPoint(event: MouseEvent<SVGSVGElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -84,12 +114,7 @@ export function FloorPlanCalibrationCanvas({
       return;
     }
 
-    const config = {
-      room: { label: 'Room', color: '#e1bf72' },
-      module: { label: 'Module', color: '#7dbb74' },
-      reference: { label: 'Ref', color: '#6fa8ff' },
-    }[annotationMode];
-
+    const config = MARKER_TYPE_CONFIG[annotationMode];
     const nextMarkers = [
       ...markers,
       {
@@ -97,56 +122,141 @@ export function FloorPlanCalibrationCanvas({
         markerType: annotationMode,
         x,
         y,
-        label: config.label,
+        label: `${config.label} ${markers.filter((m) => m.markerType === annotationMode).length + 1}`,
         color: config.color,
+        note: '',
+        linkedEntityRef: '',
       },
     ];
     setMarkers(nextMarkers);
     emitOverlay(points, nextMarkers);
   }
 
+  function handleMarkerDragStart(event: MouseEvent<SVGGElement>, markerId: string) {
+    event.stopPropagation();
+    if (annotationMode !== 'measure') return;
+    setSelectedMarkerId(markerId);
+  }
+
+  useEffect(() => {
+    if (!selectedMarkerId) return;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let markerStartX = 0;
+    let markerStartY = 0;
+
+    function onMouseMove(ev: globalThis.MouseEvent) {
+      const svg = document.getElementById('overlay-svg-canvas');
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const x = ((ev.clientX - rect.left) / rect.width) * viewWidth;
+      const y = ((ev.clientY - rect.top) / rect.height) * viewHeight;
+      if (!moved) {
+        const current = markers.find((m) => m.id === selectedMarkerId);
+        if (!current) return;
+        moved = true;
+        startX = x;
+        startY = y;
+        markerStartX = current.x;
+        markerStartY = current.y;
+      }
+      const dx = x - startX;
+      const dy = y - startY;
+      setMarkers((prev) => {
+        const next = prev.map((m) => (m.id === selectedMarkerId ? { ...m, x: markerStartX + dx, y: markerStartY + dy } : m));
+        emitOverlay(points, next);
+        return next;
+      });
+    }
+
+    function onMouseUp() {
+      setSelectedMarkerId(null);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    }
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [selectedMarkerId, markers, points, viewWidth, viewHeight, emitOverlay]);
+
+  function deleteSelectedMarker() {
+    if (!selectedMarkerId) return;
+    const next = markers.filter((m) => m.id !== selectedMarkerId);
+    setMarkers(next);
+    emitOverlay(points, next);
+    setSelectedMarkerId(null);
+  }
+
   function clearOverlay() {
     setPoints([]);
     setMarkers([]);
     emitOverlay([], []);
+    setSelectedMarkerId(null);
   }
+
+  function updateSelectedMarker(note: string, linkedEntityRef: string) {
+    if (!selectedMarkerId) return;
+    const next = markers.map((m) =>
+      m.id === selectedMarkerId ? { ...m, note, linkedEntityRef } : m
+    );
+    setMarkers(next);
+    emitOverlay(points, next);
+  }
+
+  const selectedMarker = markers.find((m) => m.id === selectedMarkerId) ?? null;
 
   return (
     <div className="panel">
       <h3>Uploaded Floor Plan Overlay Editor</h3>
       <div className="listMock" style={{ marginBottom: 12 }}>
-        <div className="rowMock">Step 1: upload a floor plan image and use Measure mode to click any one known dimension.</div>
-        <div className="rowMock">Step 2: switch to Room / Module / Ref mode to place human+AI review markers over the real plan.</div>
-        <div className="rowMock">Overlay entities are now persisted in the floor-plan version so the designer can reopen and continue review later.</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="rowMock">
+          Step 1: upload a floor plan image and use Measure mode to click any one known dimension.
+        </div>
+        <div className="rowMock">
+          Step 2: switch to Room / Module / Opening / Wall / Ref mode to place review markers over the real plan.
+        </div>
+        <div className="rowMock">Overlay entities are persisted in the floor-plan version for later review continuation.</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button onClick={() => setAnnotationMode('measure')}>Measure</button>
           <button onClick={() => setAnnotationMode('room')}>Mark Room</button>
           <button onClick={() => setAnnotationMode('module')}>Mark Module</button>
+          <button onClick={() => setAnnotationMode('opening')}>Mark Opening</button>
+          <button onClick={() => setAnnotationMode('wall')}>Mark Wall</button>
           <button onClick={() => setAnnotationMode('reference')}>Mark Reference</button>
           <button onClick={clearOverlay}>Clear Overlay</button>
+          <button onClick={deleteSelectedMarker} disabled={!selectedMarkerId}>Delete Selected</button>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as Marker['markerType'] | 'all')}
+            aria-label="Filter overlay markers"
+          >
+            {MARKER_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <span className="muted">Mode: {annotationMode} · Selected: {selectedMarkerId ? 'yes' : 'no'}</span>
         </div>
       </div>
+
       <svg
+        id="overlay-svg-canvas"
         viewBox={`0 0 ${viewWidth} ${viewHeight}`}
         className="canvasMock"
-        style={{ width: '100%', minHeight: 320, background: '#0d1110' }}
+        style={{ width: '100%', minHeight: 360, background: '#0d1110', cursor: annotationMode === 'measure' ? 'crosshair' : 'pointer' }}
         onClick={handleClick}
+        role="img"
+        aria-label="Floor plan overlay canvas"
       >
         {backgroundImageUrl ? (
-          <image href={backgroundImageUrl} x="0" y="0" width={viewWidth} height={viewHeight} preserveAspectRatio="xMidYMid meet" opacity={0.9} />
+          <image href={backgroundImageUrl} x="0" y="0" width={viewWidth} height={viewHeight} preserveAspectRatio="xMidYMid meet" opacity={0.92} />
         ) : (
-          <>
-            <rect x="40" y="40" width={viewWidth - 80} height={viewHeight - 80} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" />
-            <rect x="80" y="80" width={viewWidth * 0.38} height={viewHeight * 0.35} fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" />
-            <rect x={viewWidth * 0.52} y="80" width={viewWidth * 0.32} height={viewHeight * 0.35} fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" />
-            <rect x="80" y={viewHeight * 0.58} width={viewWidth * 0.78} height={viewHeight * 0.22} fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" />
-            <text x={viewWidth / 2} y={viewHeight / 2} textAnchor="middle" fill="#8c8c8c" fontSize={18}>
-              Upload a real floor plan to calibrate and annotate over it.
-            </text>
-          </>
+          <rect x="40" y="40" width={viewWidth - 80} height={viewHeight - 80} fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.12)" />
         )}
-
-        <rect x="0" y="0" width={viewWidth} height={viewHeight} fill="rgba(0,0,0,0.02)" />
 
         {points.length === 2 ? (
           <>
@@ -154,7 +264,7 @@ export function FloorPlanCalibrationCanvas({
             <rect
               x={Math.min(points[0].x, points[1].x)}
               y={Math.min(points[0].y, points[1].y) - 28}
-              width={140}
+              width={160}
               height={22}
               rx={6}
               fill="rgba(0,0,0,0.72)"
@@ -168,18 +278,72 @@ export function FloorPlanCalibrationCanvas({
         {points.map((point, index) => (
           <circle key={`point-${index}`} cx={point.x} cy={point.y} r={8} fill="#e1bf72" />
         ))}
-        {markers.map((marker) => (
-          <g key={marker.id}>
-            <circle cx={marker.x} cy={marker.y} r={10} fill={marker.color} />
-            <text x={marker.x + 12} y={marker.y - 12} fill={marker.color} fontSize={18}>{marker.label}</text>
-          </g>
-        ))}
+
+        {visibleMarkers.map((marker) => {
+          const isSelected = marker.id === selectedMarkerId;
+          const isHovered = marker.id === hoveredMarkerId;
+          return (
+            <g
+              key={marker.id}
+              onMouseDown={(e) => handleMarkerDragStart(e, marker.id)}
+              onMouseEnter={() => setHoveredMarkerId(marker.id)}
+              onMouseLeave={() => setHoveredMarkerId(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedMarkerId(marker.id);
+              }}
+              style={{ cursor: annotationMode === 'measure' ? 'grab' : 'pointer' }}
+              role="button"
+              aria-label={`${MARKER_TYPE_CONFIG[marker.markerType].label} marker ${marker.label}`}
+            >
+              <circle
+                cx={marker.x}
+                cy={marker.y}
+                r={isSelected ? 14 : isHovered ? 12 : 10}
+                fill={marker.color}
+                stroke={isSelected ? '#ffffff' : 'transparent'}
+                strokeWidth={isSelected ? 3 : 0}
+              />
+              <text x={marker.x + 14} y={marker.y - 14} fill={marker.color} fontSize={18} fontWeight={isSelected ? 700 : 400}>
+                {marker.label}
+              </text>
+              {marker.note ? (
+                <text x={marker.x + 14} y={marker.y + 6} fill="#cbd5e1" fontSize={12}>
+                  {marker.note}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
       </svg>
+
       <div className="rowMock" style={{ marginTop: 12 }}>
         Overlay mode: <strong style={{ marginLeft: 4 }}>{annotationMode}</strong>
-        <span className="muted" style={{ marginLeft: 10 }}>Current pixel distance: {distance || 'click two points'}</span>
-        <span className="muted" style={{ marginLeft: 10 }}>Persisted markers: {markers.length}</span>
+        <span className="muted" style={{ marginLeft: 10 }}>Px distance: {distance || 'click two points'}</span>
+        <span className="muted" style={{ marginLeft: 10 }}>Markers: {markers.length} · Showing: {visibleMarkers.length}</span>
       </div>
+
+      {selectedMarker ? (
+        <div className="panel" style={{ marginTop: 12, padding: 12 }}>
+          <div className="rowMock"><strong>Edit marker: {selectedMarker.label}</strong></div>
+          <label>
+            Note
+            <input
+              value={selectedMarker.note ?? ''}
+              onChange={(e) => updateSelectedMarker(e.target.value, selectedMarker.linkedEntityRef ?? '')}
+              placeholder="Optional note"
+            />
+          </label>
+          <label>
+            Linked entity ref
+            <input
+              value={selectedMarker.linkedEntityRef ?? ''}
+              onChange={(e) => updateSelectedMarker(selectedMarker.note ?? '', e.target.value)}
+              placeholder="e.g. room_living_1, wall_l1"
+            />
+          </label>
+        </div>
+      ) : null}
     </div>
   );
 }

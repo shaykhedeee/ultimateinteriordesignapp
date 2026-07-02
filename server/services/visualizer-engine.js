@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nanoid } from 'nanoid';
@@ -11,6 +12,41 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const getDb = () => db;
 const storageDir = path.resolve(__dirname, '../../storage');
+const ASSET_CACHE_DIR = path.join(storageDir, 'assets', 'render-cache');
+const ASSET_HASH_INDEX = path.join(ASSET_CACHE_DIR, 'hash-index.json');
+
+function ensureCacheDirs() {
+  if (!fs.existsSync(ASSET_CACHE_DIR)) fs.mkdirSync(ASSET_CACHE_DIR, { recursive: true });
+  if (!fs.existsSync(ASSET_HASH_INDEX)) fs.writeFileSync(ASSET_HASH_INDEX, JSON.stringify({}), 'utf8');
+}
+
+function buildAssetCacheKey(params) {
+  const shape = {
+    room: params.room || 'living',
+    style: params.style || 'modern-luxury',
+    budgetTier: params.budgetTier || 'premium',
+    cameraAngle: params.cameraAngle || 'diagonal',
+    spendMode: params.spendMode || 'smart-cost',
+    laminateHash: params.laminateHash || '',
+    siteHash: params.siteHash || '',
+    correctionsHash: params.correctionsHash || ''
+  };
+  return crypto.createHash('sha1').update(JSON.stringify(shape)).digest('hex');
+}
+
+function readHashIndex() {
+  ensureCacheDirs();
+  try {
+    return JSON.parse(fs.readFileSync(ASSET_HASH_INDEX, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeHashIndex(index) {
+  ensureCacheDirs();
+  fs.writeFileSync(ASSET_HASH_INDEX, JSON.stringify(index, null, 2), 'utf8');
+}
 
 // RAG: Dynamic Knowledge Base Loader
 // Scans the Obsidian-style folder and dynamically filters global and room-specific guidelines
@@ -268,6 +304,50 @@ export async function generateStudioRender(projectId, params) {
   const room = params.room || 'kitchen';
   const style = params.style || project.primaryStyle || 'indian-contemporary';
   const budgetTier = params.budgetTier || project.budgetTier || 'premium';
+  const spendMode = params.spendMode || 'smart-cost';
+  const assetCacheKey = buildAssetCacheKey({ ...params, spendMode });
+
+  // -----------------------------
+  // Cheap path: cache reuse in smart-cost / external-off / non-live modes
+  // -----------------------------
+  const isCheapPath = spendMode === 'smart-cost' || process.env.LIVE_IMAGE_GEN !== 'true';
+  if (isCheapPath) {
+    const index = readHashIndex();
+    const cached = index[assetCacheKey];
+    if (cached && fs.existsSync(path.join(ASSET_CACHE_DIR, cached.file))) {
+      const cachedRel = `/storage/assets/render-cache/${cached.file}`;
+      db.prepare(`INSERT OR IGNORE INTO generated_assets (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        id,
+        projectId,
+        room,
+        style,
+        budgetTier,
+        `3D Render visualizer: ${roomLabels(room) || room} (cached)`,
+        cached.prompt || '',
+        'No watermarks, no distorted objects, no unaligned boundaries.',
+        cachedRel,
+        JSON.stringify(['3d-studio-render', room, style, budgetTier, 'studio-visualizer', 'cached', 'reused']),
+        'cached-render',
+        90,
+        new Date().toISOString()
+      );
+      await recordGenerationCost({ projectId, assetId: id, sourceType: 'cached-render' });
+      return {
+        id,
+        projectId,
+        room,
+        style,
+        budgetTier,
+        title: `3D Render visualizer: ${roomLabels(room) || room} (reused)`,
+        prompt: cached.prompt || '',
+        filePath: cachedRel,
+        tags: ['3d-studio-render', room, style, budgetTier, 'studio-visualizer', 'cached'],
+        sourceType: 'cached-render',
+        reusableScore: 90,
+        createdAt: new Date().toISOString()
+      };
+    }
+  }
 
   // 1. RAG Search: Query Design Standards and Mistakes Log
   const designStandardsText = queryKnowledgeBase(room);
@@ -569,6 +649,36 @@ export async function generateStudioRender(projectId, params) {
         break;
       }
     }
+  }
+  if (!validationResult.critique) validationResult.critique = 'Pass';
+
+  if (!sourceType) sourceType = 'visualizer-generated';
+
+  // -----------------------------
+  // persist successful outcome into cheap-reuse cache for smart-cost path
+  // -----------------------------
+  const savedRelativePath = currentRelativePath || relativePath;
+  try {
+    ensureCacheDirs();
+    const sourceFile = savedRelativePath.replace(/^\/storage\//, '');
+    const srcAbs = path.join(storageDir, sourceFile);
+    if (fs.existsSync(srcAbs)) {
+      const ext = path.extname(srcAbs) || path.extname(filePath) || '.png';
+      const cachedName = `${assetCacheKey}${ext}`;
+      const dstAbs = path.join(ASSET_CACHE_DIR, cachedName);
+      fs.copyFileSync(srcAbs, dstAbs);
+      const idx = readHashIndex();
+      idx[assetCacheKey] = {
+        file: cachedName,
+        prompt: promptWithLogs,
+        sourceType,
+        reusableScore,
+        createdAt: new Date().toISOString()
+      };
+      writeHashIndex(idx);
+    }
+  } catch (err) {
+    console.warn('Render cache write skipped:', err.message);
   }
 
   // 6. Insert visualizer asset into database
