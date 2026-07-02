@@ -144,20 +144,30 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
           { label: 'CRM Leads', value: leads.length, color: 'text-purple-400' },
           { label: 'Qualified Leads', value: leads.filter(l => l.voice_status === 'qualified' || l.voice_status === 'human_closed').length, color: 'text-rose-400' },
         ].map((stat, i) => (
-          <div key={i} className="flex-1 bg-slate-900/70 border border-slate-800 rounded-xl px-4 py-3">
+          <div key={i} className="flex-1 bg-slate-900/70 border border-slate-800 rounded-2xl px-4 py-4">
             <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{stat.label}</div>
             <div className={`text-xl font-extrabold mt-1 ${stat.color}`}>{stat.value}</div>
           </div>
         ))}
-        <button
-          onClick={fetchData}
-          className="bg-slate-900/70 border border-slate-800 px-3 py-3 rounded-xl text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 transition"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchData}
+            className="bg-slate-900/70 border border-slate-800 px-3 py-3 rounded-2xl text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition cursor-pointer"
+            aria-label="Refresh project data"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onNavigateToProject && onNavigateToProject('create')}
+            className="bg-[#D4AF37] hover:bg-[#bfa030] text-slate-950 px-3 py-3 rounded-2xl text-xs font-bold transition cursor-pointer"
+            aria-label="Create project"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* ── Stage Pipeline Bar ── */}
+      {/* Stage Pipeline Bar */}
       <div className="flex-shrink-0 px-6 py-3 border-b border-slate-800/50">
         <div className="flex gap-2">
           {stageBreakdown.map((stage, i) => (
@@ -169,7 +179,10 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
               <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${projects.length > 0 ? (stage.count / projects.length * 100) : 0}%`, backgroundColor: stage.color }}
+                  style={{
+                    width: `${projects.length > 0 ? Math.round((stage.count / projects.length) * 100) : 0}%`,
+                    backgroundColor: stage.color
+                  }}
                 />
               </div>
             </div>
@@ -177,31 +190,39 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
         </div>
       </div>
 
-      {/* ── View Switcher ── */}
+      {/* View Switcher + Context */}
       <div className="flex-shrink-0 px-6 py-2 flex items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">View:</span>
           <button
             onClick={() => setShowKanban(false)}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition ${!showKanban ? 'bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer ${!showKanban ? 'bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Project List
           </button>
           <button
             onClick={() => setShowKanban(true)}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition ${showKanban ? 'bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition cursor-pointer ${showKanban ? 'bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Kanban Pipeline
           </button>
         </div>
-        {selectedProject && (
-          <button 
-            onClick={() => setSelectedProject(null)}
-            className="text-[10px] font-bold text-red-400 bg-red-950/20 border border-red-900/40 hover:bg-red-950/40 px-2.5 py-1 rounded-lg transition"
-          >
-            Clear Selected Project
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {!selectedProject && projects.length > 0 && (
+            <span className="text-[10px] text-slate-500 font-mono">Select a project card to inspect</span>
+          )}
+          {selectedProject && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-300 font-semibold truncate max-w-[160px]">{selectedProject.name}</span>
+              <button
+                onClick={() => setSelectedProject(null)}
+                className="text-[10px] font-bold text-red-400 bg-red-950/20 border border-red-900/40 hover:bg-red-950/40 px-2.5 py-1 rounded-lg transition cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Main Content Area split ── */}
@@ -215,10 +236,10 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
             </div>
           ) : projects.length === 0 ? (
             <div className="flex items-center justify-center h-full text-center">
-              <div>
-                <FolderOpen className="w-16 h-16 mx-auto mb-4 text-slate-700" />
-                <h3 className="text-lg font-bold text-slate-400">No Projects Yet</h3>
-                <p className="text-sm text-slate-600 mt-2">Close a deal in CRM to create your first project workspace</p>
+              <div className="max-w-sm">
+                <FolderOpen className="w-14 h-14 mx-auto mb-3 text-slate-700" />
+                <h3 className="text-base font-bold text-slate-400">No Projects Yet</h3>
+                <p className="text-xs text-slate-600 mt-2">Close a deal in CRM to create your first project workspace</p>
               </div>
             </div>
           ) : !showKanban ? (
