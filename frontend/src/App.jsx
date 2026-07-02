@@ -47,6 +47,7 @@ export function App() {
   });
   const [projectsList, setProjectsList] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [isAuraFloatingOpen, setIsAuraFloatingOpen] = useState(false);
   const [isAuraOpen, setIsAuraOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([
     { id: '1', sender: 'aura', text: "Hello! I am AURA. I have loaded your workspace and stand ready to assist. You can ask me to Restyle rooms, suggest lighting configurations, or optimize your modular cabinet budget.", timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
@@ -807,7 +808,7 @@ export function App() {
         </header>
 
         {/* Screen Area & Collapsible AURA Chat Panel */}
-        <div className="flex-grow flex overflow-hidden bg-[#020617]" onClick={() => showProjectDropdown && setShowProjectDropdown(false)}>
+        <div className="flex-grow flex overflow-hidden bg-[#020617]">
           <div className="flex-grow overflow-hidden relative">
             {renderActiveScreen()}
           </div>
