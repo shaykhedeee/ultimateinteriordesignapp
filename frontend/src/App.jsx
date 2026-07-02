@@ -55,9 +55,7 @@ export function App() {
   });
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [toast, setToast] = useState(null);
-  const [auraStatus, setAuraStatus] = useState('Idle');
-  const [orchestratorMode, setOrchestratorMode] = useState(false);
+  const [activeJobs, setActiveJobs] = useState([]);
   const [prevActiveJobsCount, setPrevActiveJobsCount] = useState(0);
 
   useEffect(() => {
