@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Send, Mic, Sparkles, Lightbulb, ArrowUpRight, 
   CheckCircle2, BrainCircuit, Wand2, FileCode2 
