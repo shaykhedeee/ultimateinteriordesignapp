@@ -12,10 +12,6 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
 
-  // UX states
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-
   // AI Brain live state
   const [brainStatus, setBrainStatus] = useState(null);
   const [brainLoading, setBrainLoading] = useState(false);
@@ -88,6 +84,18 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 
   return (
     <div className="h-full w-full overflow-y-auto p-6 space-y-6 bg-slate-950 text-slate-100 font-sans">
+      {projects.length === 0 && (
+        <div className="glass-card border border-slate-800/80 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-200">No projects yet</h2>
+            <p className="text-xs text-slate-500 mt-1 max-w-xl">Start by importing leads in CRM or create your first project workspace from the Projects screen.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onNavigateToTab('crm')} className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white hover:border-slate-700 transition cursor-pointer">Open CRM</button>
+            <button onClick={() => onNavigateToTab('projects')} className="px-3 py-1.5 rounded-xl bg-[#D4AF37] text-slate-950 text-xs font-bold hover:bg-[#bfa030] transition cursor-pointer">Create Project</button>
+          </div>
+        </div>
+      )}
       
       {/* ── KPI Metrics Ribbon ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
