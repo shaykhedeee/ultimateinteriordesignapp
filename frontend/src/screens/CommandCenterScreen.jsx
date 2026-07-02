@@ -278,15 +278,15 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                     onClick={() => setSelectedProjectId(p.id)}
                     className={`p-3 rounded-xl border transition cursor-pointer text-left ${
                       isActive 
-                        ? 'bg-[#D4AF37]/10 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5' 
+                        ? 'bg-[#D4AF37]/10 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5'
                         : 'bg-slate-900/30 border-slate-850 hover:border-slate-800'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-200 truncate max-w-[140px]">{p.name}</span>
                       <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                        p.status === 'production' 
-                          ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/40' 
+                        p.status === 'production'
+                          ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/40'
                           : 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/25'
                       }`}>
                         {p.status?.replace('_', ' ') || 'onboarding'}
@@ -299,6 +299,11 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                   </div>
                 );
               })}
+              {projects.length === 0 && (
+                <div className="text-[10px] text-slate-500 bg-slate-950/40 border border-slate-800 rounded-xl p-3">
+                  No projects yet. Create one from the CRM or Client Brief screens.
+                </div>
+              )}
             </div>
           </div>
 
