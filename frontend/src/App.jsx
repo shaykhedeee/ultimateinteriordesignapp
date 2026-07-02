@@ -47,6 +47,23 @@ const WORKFLOW_STEPS = [
 
 const STATUS_ORDER = ['brief', 'cad_approved', 'materials_selected', 'renders_approved', 'production', 'billing'];
 
+export class ErrorBoundary extends React.Component {
+  state = { error: null, info: null };
+  componentDidCatch(error, info) { this.setState({ error, info }); }
+  render() {
+    if (this.state.error) {
+      return (
+        <pre style={{ color: 'red', background: 'black', padding: 12, height: '100vh', overflow: 'auto' }}>
+          {this.state.error?.toString()}
+          {'\n'}
+          {this.state.info?.componentStack}
+        </pre>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('spacetrace_active_tab') || 'dashboard';
