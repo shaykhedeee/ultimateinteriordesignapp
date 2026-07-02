@@ -27,6 +27,8 @@ export default function Canvas2D() {
   const panStartRef = useRef({ x: 0, y: 0 });
   const svgRef = useRef(null);
 
+  const [snapToGrid, setSnapToGrid] = useState(true);
+
   // --- Drag Module State ---
   const [draggedModuleId, setDraggedModuleId] = useState(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
@@ -115,10 +117,12 @@ export default function Canvas2D() {
       let targetX = coords.x - dragOffsetRef.current.x;
       let targetY = coords.y - dragOffsetRef.current.y;
 
-      // Apply Snaps: Snap to 50mm grid increments
-      const snapGrid = 50; 
-      targetX = Math.round(targetX / snapGrid) * snapGrid;
-      targetY = Math.round(targetY / snapGrid) * snapGrid;
+      // Apply Snaps: Snap to 50mm grid increments if enabled
+      if (snapToGrid) {
+        const snapGrid = 50; 
+        targetX = Math.round(targetX / snapGrid) * snapGrid;
+        targetY = Math.round(targetY / snapGrid) * snapGrid;
+      }
 
       // Realtime patch update in store. ThreeJS will update in sync.
       applyPatch({
@@ -177,9 +181,20 @@ export default function Canvas2D() {
         <button
           onClick={() => { setPanX(120); setPanY(120); setZoom(0.85); }}
           title="Reset View"
-          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-[#D4AF37] transition text-xs font-semibold"
+          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-[#C9A84C] transition text-xs font-semibold"
         >
           FIT
+        </button>
+        <button
+          onClick={() => setSnapToGrid(!snapToGrid)}
+          title={snapToGrid ? "Disable Grid Snap" : "Enable Grid Snap"}
+          className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase transition border ${
+            snapToGrid 
+              ? 'bg-[#C9A84C]/15 border-[#C9A84C]/35 text-[#C9A84C]' 
+              : 'bg-slate-950/80 border-slate-800 text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          {snapToGrid ? "🧲 Snap" : "🔓 Free"}
         </button>
       </div>
 
@@ -476,8 +491,8 @@ export default function Canvas2D() {
       </svg>
 
       {/* Grid snaps indicator bar */}
-      <div className="p-2 bg-slate-950/80 border-t border-slate-850/80 text-[9px] font-bold text-slate-500 font-mono flex justify-between items-center shrink-0">
-        <span>GRID SNAPS: 50mm</span>
+      <div className="p-2 bg-slate-950/80 border-t border-slate-850/80 text-[9px] font-bold text-[#8A8899] font-mono flex justify-between items-center shrink-0">
+        <span>GRID SNAPS: {snapToGrid ? "50mm (ACTIVE)" : "OFF"}</span>
         <span>DRAG TO ROTATE/MOVE MODULES</span>
       </div>
     </div>
