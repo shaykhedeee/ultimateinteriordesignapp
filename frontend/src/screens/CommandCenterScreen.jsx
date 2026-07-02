@@ -237,9 +237,9 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
               <BrainPulse />
             </div>
             <div className="text-[11px] text-slate-400 space-y-1">
-              <div>Status: <span className="text-slate-200">{brainLoading ? 'loading' : brainStatus?.status || brainError ? 'offline' : 'idle'}</span></div>
-              <div>Trainer: <span className="text-slate-200">{brainStatus?.trainers?.tiny_llm_trainer?.running ? 'running' : 'standby'}</span></div>
-              <div>Events: <span className="text-slate-200">{brainStatus?.events?.length ?? 0}</span></div>
+              <div>Status: <span className="text-slate-200">{brainLoading ? 'loading' : (brainStatus?.status) || (brainError ? 'offline' : 'idle')}</span></div>
+              <div>Trainer: <span className="text-slate-200">{(brainStatus?.trainers?.tiny_llm_trainer?.running) ? 'running' : 'standby'}</span></div>
+              <div>Events: <span className="text-slate-200">{(brainStatus?.events?.length) ?? 0}</span></div>
               {brainError && <div className="text-red-400">Unreachable: {brainError}</div>}
             </div>
             <div className="flex gap-2">
