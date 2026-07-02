@@ -16,6 +16,7 @@ const stylePresets = [
 export default function ClientBriefStudio({ projectId, onBriefSaved }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
+  const [briefStatus, setBriefStatus] = useState('');
   
   // Structured Brief State
   const [brief, setBrief] = useState({
@@ -117,7 +118,8 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("Onboarding brief specifications compiled successfully!");
+        setBriefStatus('Onboarding brief specifications compiled successfully!');
+        setTimeout(() => setBriefStatus(''), 2500);
         if (onBriefSaved) onBriefSaved();
       }
     } catch (err) {
