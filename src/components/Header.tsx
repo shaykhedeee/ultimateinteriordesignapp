@@ -1,25 +1,26 @@
 import React, { useState } from 'react';
 import { ViewMode, Project } from '../types/aura';
-import { 
-  Box, 
-  Layers, 
-  Sparkles, 
-  Sliders, 
-  Camera, 
-  ShoppingCart, 
-  Cpu, 
-  Undo2, 
-  Redo2, 
-  Save, 
-  Share2, 
-  ChevronDown, 
-  Users, 
+import {
+  Box,
+  Layers,
+  Sparkles,
+  Sliders,
+  Camera,
+  ShoppingCart,
+  Cpu,
+  Undo2,
+  Redo2,
+  Save,
+  Share2,
+  ChevronDown,
+  Users,
   Play,
   Upload,
   Scan,
   Plus,
   Palette,
-  Calendar
+  Calendar,
+  LayoutDashboard,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -64,6 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'project-timeline', label: 'Timeline', icon: <Calendar className="w-4 h-4 text-amber-400" /> },
     { id: 'commerce-boq', label: 'BOQ', icon: <ShoppingCart className="w-4 h-4" /> },
     { id: 'brain-arch', label: 'Brain', icon: <Cpu className="w-4 h-4 text-cyan-400" /> },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4 text-emerald-400" />, badge: 'Live' },
   ];
 
   return (

@@ -14,6 +14,7 @@ import { CommerceBOQ } from './components/modules/CommerceBOQ';
 import { BrainArchitecture } from './components/modules/BrainArchitecture';
 import { MoodBoard } from './components/modules/MoodBoard';
 import { ProjectTimeline } from './components/modules/ProjectTimeline';
+import { DashboardScreen } from './screens/DashboardScreen';
 import { VRHeadsetModal } from './components/modals/VRHeadsetModal';
 import { QuickActions } from './components/QuickActions';
 import { CommandPalette } from './components/CommandPalette';
@@ -340,9 +341,10 @@ function AppInner() {
             <AiDesignEngine onSelectOption={handleSelectOption} activeOptionId={project.activeOptionId} />
           )}
           {currentView === 'parametric' && <ParametricStudio />}
-          {currentView === 'render-studio' && <RenderStudio onTriggerVR={() => setIsVRModalOpen(true)} />}
+          {currentView === 'render-studio' && <RenderStudio project={{id: project.id, name: project.name}} onTriggerVR={() => setIsVRModalOpen(true)} />}
           {currentView === 'commerce-boq' && <CommerceBOQ project={project} />}
           {currentView === 'brain-arch' && <BrainArchitecture />}
+          {currentView === 'dashboard' && <DashboardScreen />}
           {currentView === 'mood-board' && <MoodBoard />}
           {currentView === 'project-timeline' && <ProjectTimeline />}
 
