@@ -12,6 +12,39 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [activeWorkflowTab, setActiveWorkflowTab] = useState('smart'); // 'smart', 'generate', 'photo', 'layout', 'product'
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
+  const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'brand' | 'realestate'
+
+  const allWorkflowTabs = [
+    { id: 'smart', label: '🚀 Smart Project', desc: 'Plan to Scene', roles: ['designer', 'realestate'] },
+    { id: 'generate', label: '🎨 Quick Generate', desc: 'Style to Concept', roles: ['realestate'] },
+    { id: 'photo', label: '📸 Photo Edit', desc: 'Reference Swapping', roles: ['brand', 'realestate'] },
+    { id: 'layout', label: '📐 Quick Layout', desc: 'Fast 2D Sketcher', roles: ['designer'] },
+    { id: 'product', label: '⚙️ Design Product', desc: 'Modular Config', roles: ['designer', 'brand'] },
+    { id: 'tools', label: '⚡ AI Tool Hub', desc: 'Specialist Suite', roles: ['designer', 'brand', 'realestate'] }
+  ];
+
+  const workflowTabs = allWorkflowTabs.filter(tab => tab.roles.includes(workspaceMode));
+
+  const allSpecialistTools = [
+    { title: 'Upload Blueprint', desc: 'Parse CAD PDF/Image', tab: 'brief', roles: ['designer', 'realestate'] },
+    { title: 'Align Calibration', desc: 'Setup scale overlay', tab: 'cad', roles: ['designer'] },
+    { title: 'Zonation Editor', desc: 'Tag rooms & Vastu zones', tab: 'cad', roles: ['designer'] },
+    { title: 'Laminate Swapper', desc: 'Assign PBR sheet codes', tab: 'materials', roles: ['designer', 'brand'] },
+    { title: 'Camera Planner', desc: 'Setup key viewpoints', tab: 'renders', roles: ['designer', 'realestate'] },
+    { title: 'Walkthrough Config', desc: 'Reorder walkthrough path', tab: 'renders', roles: ['realestate'] },
+    { title: 'SVG Elevation Builder', desc: 'Auto-dimension drawings', tab: 'drawings', roles: ['designer'] },
+    { title: 'BOM Cost Calculator', desc: 'SQFT board yield schedule', tab: 'finance', roles: ['designer', 'brand'] },
+    { title: 'Invoice Ledger', desc: 'Milestone & billing logs', tab: 'finance', roles: ['brand'] }
+  ];
+
+  const specialistTools = allSpecialistTools.filter(tool => tool.roles.includes(workspaceMode));
+
+  useEffect(() => {
+    const activeExists = workflowTabs.some(t => t.id === activeWorkflowTab);
+    if (!activeExists && workflowTabs.length > 0) {
+      setActiveWorkflowTab(workflowTabs[0].id);
+    }
+  }, [workspaceMode]);
 
   // ==========================================
   // 1. DATA LOADING
@@ -50,6 +83,35 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   return (
     <div className="h-full w-full overflow-y-auto p-6 space-y-6 bg-slate-950 text-slate-100 font-sans">
       
+      {/* ── Workspace Mode / Role Switcher Header ── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#1E1E24] border border-slate-800 p-4 rounded-2xl shadow-lg shrink-0">
+        <div>
+          <h2 className="text-sm font-extrabold uppercase tracking-widest text-[#C9A84C] flex items-center gap-1.5">
+            <Sliders className="w-4 h-4 text-[#C9A84C]" /> Workspace Operating Mode
+          </h2>
+          <p className="text-[10px] text-[#8A8899] mt-0.5">Adapt visualizer pipelines and tool suites to your professional role context.</p>
+        </div>
+        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 gap-1.5 text-[10px] font-black uppercase">
+          {[
+            { id: 'designer', label: '🛠️ Designer Mode' },
+            { id: 'brand', label: '🏬 Brand Mode' },
+            { id: 'realestate', label: '🏡 Real Estate' }
+          ].map(mode => (
+            <button
+              key={mode.id}
+              onClick={() => setWorkspaceMode(mode.id)}
+              className={`px-3 py-1.5 rounded-lg transition-all border ${
+                workspaceMode === mode.id
+                  ? 'bg-slate-900 border-slate-800 text-[#C9A84C] shadow-sm shadow-[#C9A84C]/5'
+                  : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── KPI Metrics Ribbon ── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
@@ -82,20 +144,13 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
           
           {/* Tab Navigation */}
           <div className="bg-slate-900/60 border border-slate-850 p-1.5 rounded-2xl flex gap-1 text-xs font-bold overflow-x-auto">
-            {[
-              { id: 'smart', label: '🚀 Smart Project', desc: 'Plan to Scene' },
-              { id: 'generate', label: '🎨 Quick Generate', desc: 'Style to Concept' },
-              { id: 'photo', label: '📸 Photo Edit', desc: 'Reference Swapping' },
-              { id: 'layout', label: '📐 Quick Layout', desc: 'Fast 2D Sketcher' },
-              { id: 'product', label: '⚙️ Design Product', desc: 'Modular Config' },
-              { id: 'tools', label: '⚡ AI Tool Hub', desc: 'Specialist Suite' }
-            ].map(tab => (
+            {workflowTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveWorkflowTab(tab.id)}
                 className={`flex-1 py-2 px-3 rounded-xl flex flex-col items-center justify-center transition min-w-[120px] ${
                   activeWorkflowTab === tab.id
-                    ? 'bg-slate-950 text-[#D4AF37] border border-slate-850 shadow-md shadow-[#D4AF37]/5'
+                    ? 'bg-slate-950 text-[#C9A84C] border border-slate-850 shadow-md shadow-[#C9A84C]/5'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -157,28 +212,18 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
           <div className="glass-card border border-slate-850 rounded-3xl p-5 space-y-4">
             <div>
               <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-[#D4AF37]" />
+                <Sliders className="w-4 h-4 text-[#C9A84C]" />
                 AI Specialist Tools Hub
               </h3>
               <p className="text-[10px] text-slate-500 mt-1">Expose specialist tools directly into operational stages</p>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {[
-                { title: 'Upload Blueprint', desc: 'Parse CAD PDF/Image', tab: 'brief' },
-                { title: 'Align Calibration', desc: 'Setup scale overlay', tab: 'cad' },
-                { title: 'Zonation Editor', desc: 'Tag rooms & Vastu zones', tab: 'cad' },
-                { title: 'Laminate Swapper', desc: 'Assign PBR sheet codes', tab: 'materials' },
-                { title: 'Camera Planner', desc: 'Setup key viewpoints', tab: 'renders' },
-                { title: 'Walkthrough Config', desc: 'Reorder walkthrough path', tab: 'renders' },
-                { title: 'SVG Elevation Builder', desc: 'Auto-dimension drawings', tab: 'drawings' },
-                { title: 'BOM Cost Calculator', desc: 'SQFT board yield schedule', tab: 'finance' },
-                { title: 'Invoice Ledger', desc: 'Milestone & billing logs', tab: 'finance' }
-              ].map((tool, idx) => (
+              {specialistTools.map((tool, idx) => (
                 <button
                   key={idx}
                   onClick={() => onNavigateToTab(tool.tab)}
-                  className="bg-slate-900/40 border border-slate-850 rounded-xl p-3 text-left hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition flex flex-col gap-1 cursor-pointer"
+                  className="bg-slate-900/40 border border-slate-850 rounded-xl p-3 text-left hover:border-[#C9A84C]/50 hover:bg-[#C9A84C]/5 transition flex flex-col gap-1 cursor-pointer"
                 >
                   <span className="text-[11px] font-bold text-slate-200">{tool.title}</span>
                   <span className="text-[9px] text-slate-500">{tool.desc}</span>
@@ -190,7 +235,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
           {/* Active Projects List */}
           <div className="glass-card border border-slate-850 rounded-3xl p-5 space-y-4">
             <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider flex items-center gap-1.5">
-              <FolderOpen className="w-4 h-4 text-[#D4AF37]" />
+              <FolderOpen className="w-4 h-4 text-[#C9A84C]" />
               Active Project Pipeline
             </h3>
             
