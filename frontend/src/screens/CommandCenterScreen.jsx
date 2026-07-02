@@ -246,7 +246,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                 <Activity className="w-4 h-4 text-indigo-400" />
                 Tiny LLM Brain
               </h3>
-              <BrainPulse />
+              <Activity className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="text-[11px] text-slate-400 space-y-1">
               <div>Status: <span className="text-slate-200">{brainLoading ? 'loading' : (brainStatus?.status) || (brainError ? 'offline' : 'idle')}</span></div>
