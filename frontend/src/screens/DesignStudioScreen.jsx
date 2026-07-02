@@ -25,6 +25,9 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
 
   // Layout View Modes: 'split' | '2d' | '3d'
   const [layoutMode, setLayoutMode] = useState('split');
+
+  // Merge success chip
+  const [mergeStatus, setMergeStatus] = useState('');
   
   const branchName = useEditorStore(state => state.branchName);
   const [branches, setBranches] = useState(['main']);
@@ -376,7 +379,8 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                           <button
                             onClick={async () => {
                               if (window.confirm(`Are you sure you want to align and merge variant "${b}" into main?`)) {
-                                alert("Variant branch merged and aligned successfully! Main branch updated to variant carcass parameters.");
+                                setMergeStatus('Variant branch merged and aligned successfully! Main branch updated to variant carcass parameters.');
+                                setTimeout(() => setMergeStatus(''), 2500);
                                 loadScene(projectId, 'main');
                                 setShowBranchModal(false);
                               }
