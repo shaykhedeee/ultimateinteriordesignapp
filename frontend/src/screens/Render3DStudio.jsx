@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { 
   Compass, Code, Clipboard, Download, CheckCircle2, 
@@ -160,17 +160,30 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
     scene.add(furnitureGroup);
 
     const activeLaminate = selectedLaminates.find(l => l.type === 'shutter_facade')?.color || '#a1a1aa';
+    const carcassLaminate = selectedLaminates.find(l => l.type === 'carcass')?.color || '#7c6f5b';
+    const countertopLaminate = selectedLaminates.find(l => l.type === 'countertop')?.color || '#e5e5e5';
+    const backsplashLaminate = selectedLaminates.find(l => l.type === 'backsplash')?.color || '#d6d6d6';
+    const wallLaminate = selectedLaminates.find(l => l.type === 'wall')?.color || '#f3f4f6';
+
+    const getMaterialForType = (furnitureType, finishType) => {
+      if (finishType === 'carcass') return { color: carcassLaminate, roughness: 0.7, metalness: 0.05 };
+      if (finishType === 'countertop') return { color: countertopLaminate, roughness: 0.2, metalness: 0.3 };
+      if (finishType === 'backsplash') return { color: backsplashLaminate, roughness: 0.3, metalness: 0.1 };
+      if (finishType === 'wall') return { color: wallLaminate, roughness: 0.9, metalness: 0.0 };
+      return { color: activeLaminate, roughness: 0.5, metalness: 0.1 };
+    };
 
     furniture.forEach(f => {
       const widthM = f.width / ppm;
       const depthM = f.height / ppm;
       const heightM = f.type === 'wardrobe' ? 2.2 : f.type === 'bed' ? 0.6 : f.type === 'counter' ? 0.85 : 0.75;
       
+      const baseMaterial = getMaterialForType(f.type, 'shutter_facade');
       const geo = new THREE.BoxGeometry(widthM, heightM, depthM);
       const mat = new THREE.MeshStandardMaterial({ 
-        color: activeLaminate, 
-        roughness: 0.5, 
-        metalness: 0.1 
+        color: new THREE.Color(baseMaterial.color),
+        roughness: baseMaterial.roughness, 
+        metalness: baseMaterial.metalness 
       });
       const mesh = new THREE.Mesh(geo, mat);
 
@@ -180,7 +193,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
       mesh.rotation.y = -(f.rotation || 0) * Math.PI / 180;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.userData = { id: f.id, name: f.name, type: f.type };
+      mesh.userData = { id: f.id, name: f.name, type: f.type, finishTarget: 'shutter_facade' };
 
       furnitureGroup.add(mesh);
     });
@@ -320,7 +333,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
         </div>
 
         {selectedCabinet && (
-          <div className="absolute top-3 right-3 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl w-60 z-20 space-y-3">
+          <div className="absolute top-3 right-3 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl w-64 z-20 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">Customize Finish</span>
               <button onClick={() => setSelectedCabinet(null)} className="text-slate-500 hover:text-slate-300 text-xs">✕</button>
@@ -331,15 +344,27 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
             </div>
             
             <div className="border-t border-slate-800 pt-2.5 space-y-2">
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Select Shutter Laminate</span>
-              <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto p-0.5">
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Select Finish For</span>
+              <select 
+                value={selectedCabinet.finishTarget || 'shutter_facade'} 
+                onChange={(e) => setSelectedCabinet({ ...selectedCabinet, finishTarget: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-200 outline-none focus:border-[#D4AF37]"
+              >
+                <option value="shutter_facade">Shutter / Facade</option>
+                <option value="carcass">Carcass / Box</option>
+                <option value="countertop">Countertop</option>
+                <option value="backsplash">Backsplash</option>
+                <option value="wall">Wall Paint</option>
+              </select>
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Select Finish</span>
+              <div className="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto p-0.5">
                 {catalogLaminates.map(lam => (
                   <button
                     key={lam.id}
                     onClick={() => {
-                      onLaminateChange(lam.name, lam.code, lam.color);
+                      onLaminateChange(lam.name, lam.code, lam.color, selectedCabinet.finishTarget || 'shutter_facade');
                     }}
-                    className="w-10 h-10 rounded border border-slate-800 relative group flex items-center justify-center hover:border-slate-500 transition"
+                    className="w-9 h-9 rounded border border-slate-800 relative group flex items-center justify-center hover:border-slate-500 transition"
                     style={{ backgroundColor: lam.color }}
                     title={`${lam.brand} ${lam.name}`}
                   >
@@ -366,12 +391,10 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [selectedLaminates, setSelectedLaminates] = useState([]);
   const [activeTab3D, setActiveTab3D] = useState('renders'); // 'renders' or 'walkthrough'
 
-  const handleWalkthroughLaminateChange = async (name, code, color) => {
+  const handleWalkthroughLaminateChange = async (name, code, color, componentType = 'shutter_facade') => {
     try {
-      const updatedLaminates = [
-        ...selectedLaminates.filter(l => l.type !== 'shutter_facade'),
-        { type: 'shutter_facade', name, code, color }
-      ];
+      const updatedLaminates = selectedLaminates.filter(l => l.type !== componentType);
+      updatedLaminates.push({ type: componentType, name, code, color, updatedAt: new Date().toISOString() });
 
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
         method: 'POST',
@@ -386,9 +409,11 @@ export default function Render3DStudio({ projectId, onComplete }) {
         setSelectedLaminates(updatedLaminates);
         loadCADAndMaterials();
         loadProjectData();
+        setStatus(`Laminate updated: ${name} on ${componentType.replace(/_/g, ' ')}.`, 'success');
       }
     } catch (err) {
       console.error("Error saving walkthrough materials:", err);
+      setStatus('Failed to save laminate change.', 'error');
     }
   };
   
@@ -425,6 +450,68 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [swapperStepMessage, setSwapperStepMessage] = useState('');
   const [beforeAfterMode, setBeforeAfterMode] = useState(false);
   const [previousRenderForCompare, setPreviousRenderForCompare] = useState(null);
+  const [laminateHistory, setLaminateHistory] = useState([]);
+  const [savedLaminateSnapshots, setSavedLaminateSnapshots] = useState([]);
+  const [statusMessage, setStatusMessage] = useState(null);
+  const [statusType, setStatusType] = useState('success');
+  const [swapperStepIndex, setSwapperStepIndex] = useState(0);
+
+  const setStatus = useCallback((message, type = 'success') => {
+    setStatusMessage(message);
+    setStatusType(type);
+    setTimeout(() => { setStatusMessage(null); setStatusType(null); }, 4000);
+  }, []);
+
+  const renderPresets = [
+    {
+      id: 'preset-3bhk-living',
+      label: '3BHK Living',
+      room: 'living',
+      style: 'indian-contemporary',
+      cameraAngle: 'wide',
+      prompt: 'Spacious 3BHK living area with sheesham wood TV unit, marble flooring, warm jacquard sofa set, and ambient mood lighting.'
+    },
+    {
+      id: 'preset-modular-kitchen',
+      label: 'Modular Kitchen',
+      room: 'kitchen',
+      style: 'modern-luxury',
+      cameraAngle: 'diagonal',
+      prompt: 'Straight modular kitchen with quartz countertop, chimney, hob, soft-close shutters, textured backsplash and pendant lights.'
+    },
+    {
+      id: 'preset-master-bedroom',
+      label: 'Master Bedroom',
+      room: 'masterBed',
+      style: 'scandinavian-minimal',
+      cameraAngle: 'diagonal',
+      prompt: 'Serene master bedroom with king-size upholstered bed, walnut wardrobe, bedside tables, layered rugs and warm reading lights.'
+    },
+    {
+      id: 'preset-pooja-room',
+      label: 'Pooja Room',
+      room: 'pooja',
+      style: 'indian-contemporary',
+      cameraAngle: 'elevation',
+      prompt: 'Sacred Pooja room with marble backdrop, wooden jali doors, brass accents, acoustic panels, LED wall niches and calm lighting.'
+    },
+    {
+      id: 'preset-foyer',
+      label: 'Foyer',
+      room: 'foyer',
+      style: 'bohemian-chic',
+      cameraAngle: 'diagonal',
+      prompt: 'Welcoming foyer with shoe rack, statement feature wall, console table with artefacts, ambient cove lighting and vitrified tile flooring.'
+    }
+  ];
+
+  const applyPreset = (preset) => {
+    setTargetRoom(preset.room);
+    setStyle(preset.style);
+    setCameraAngle(preset.cameraAngle);
+    setFurnitureRequirement(preset.prompt);
+    setStatus(`Preset applied: ${preset.label}.`, 'success');
+  };
 
   const getComponentsForRoom = (roomType) => {
     const list = {
@@ -502,10 +589,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert(`Instant Recolor: ${componentType} changed to ${colorName}. SAM component mask recolored in 3.5 seconds!`);
+        setStatus(`Instant Recolor: ${componentType} → ${colorName}.`);
         if (data.suggestions) {
           setColorSuggestions(data.suggestions);
         }
+      } else {
+        setStatus('Recolor failed. Please try again.', 'error');
       }
     } catch (err) {
       console.error("Recolor failed:", err);
@@ -627,7 +716,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         body: JSON.stringify({ jobType: 'render_generation' })
       });
       setProject(prev => prev ? { ...prev, stale_renders: 0 } : null);
-      alert("Render regeneration job spawned successfully! Check Background Jobs tab.");
+      setStatus('Render regeneration job spawned. Check Background Jobs tab.');
     } catch (err) {
       console.error(err);
     }
@@ -763,7 +852,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
       if (data.success) {
         setReviewNote('');
         await fetchRenders();
-        alert(`Render marked as ${status}!`);
+        setStatus(`Render marked as ${status}.`);
+      } else {
+        setStatus('Review update failed.', 'error');
       }
     } catch (err) {
       console.error("Error submitting review:", err);
@@ -788,7 +879,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
         setMistakeCorrection('');
         setIsMistakeModalOpen(false);
         await loadCorrections();
-        alert("Layout correction logged. SpaceTrace visualizer adjusted for future generations.");
+        setStatus('Correction logged. SpaceTrace memory updated for future generations.');
+      } else {
+        setStatus(data.error || 'Failed to save correction.', 'error');
       }
     } catch (err) {
       console.error("Error saving correction:", err);
@@ -857,32 +950,36 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setSwapperStepMessage('Preparing images and components...');
 
     try {
-      // 1. Fetch render image blob
       setSwapperStepMessage('Downloading active render image...');
-      const renderImgUrl = selectedRender.image_url.startsWith('/storage') 
-        ? `http://127.0.0.1:5055${selectedRender.image_url}` 
+      setSwapperStepIndex(0);
+      const imageUrl = selectedRender.image_url.startsWith('/storage')
+        ? `http://127.0.0.1:5055${selectedRender.image_url}`
         : selectedRender.image_url;
-      const renderImgRes = await fetch(renderImgUrl);
-      const renderImgBlob = await renderImgRes.blob();
+      const imageRes = await fetch(imageUrl);
+      const imageBlob = await imageRes.blob();
 
       const formData = new FormData();
-      formData.append('renderImage', renderImgBlob, 'render.png');
+      formData.append('renderImage', imageBlob, 'render.png');
       formData.append('componentType', selectedSwapComponent);
       formData.append('room', selectedRender.room || targetRoom);
+      setSwapperStepIndex(1);
 
-      // 2. Add material metadata
       if (selectedCatalogMaterial) {
+        setSwapperStepMessage('Attaching catalog material metadata...');
         formData.append('laminateCatalogId', selectedCatalogMaterial.id);
         formData.append('newMaterial', selectedCatalogMaterial.name);
         formData.append('newColor', selectedCatalogMaterial.color || '');
         formData.append('laminateCode', selectedCatalogMaterial.code || '');
         formData.append('laminateBrand', selectedCatalogMaterial.brand || '');
       } else if (customLaminateFile) {
+        setSwapperStepMessage('Attaching custom swatch image...');
+        setSwapperStepIndex(2);
         formData.append('newMaterial', 'Uploaded custom swatch');
         formData.append('laminateImage', customLaminateFile);
       } else {
-        alert('Please select a material from catalog or upload a custom swatch image.');
+        setStatus('Select a catalog material or upload a custom swatch first.', 'error');
         setIsSwappingLaminate(false);
+        setSwapperStepIndex(0);
         return;
       }
 
@@ -890,38 +987,36 @@ export default function Render3DStudio({ projectId, onComplete }) {
         formData.append('instruction', laminateSwapInstruction);
       }
 
-      // 3. Post to laminate-swap API
-      setSwapperStepMessage('Running visual editor pipeline. Recolor, lighting & shadow matching in progress...');
+      setSwapperStepMessage('Running visual editor pipeline...');
+      setSwapperStepIndex(2);
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/laminate-swap`, {
         method: 'POST',
         body: formData
       });
+      setSwapperStepIndex(3);
+
       const data = await res.json();
       if (data.success && data.render) {
-        setSwapperStepMessage('Success! Loading render output...');
-        
-        // Save current selected render as previous for compare view
+        setSwapperStepMessage('Finalizing swapped render...');
         setPreviousRenderForCompare(selectedRender);
-
         await fetchRenders();
-        const found = data.render;
-        setSelectedRender(found);
-
-        // Turn on compare mode by default to show changes
+        setSelectedRender(data.render);
         setBeforeAfterMode(true);
         setLaminateSwapInstruction('');
         setCustomLaminateFile(null);
         setCustomLaminatePreview(null);
         setSelectedCatalogMaterial(null);
+        setStatus('Material swap finished. Showing before/after.');
       } else {
-        alert(`Error: ${data.error || 'Failed to complete material swap'}`);
+        setStatus(data.error || 'Material swap failed.', 'error');
       }
     } catch (err) {
       console.error("Laminate swap failed:", err);
-      alert(`Error during material swap: ${err.message}`);
+      setStatus(`Material swap error: ${err.message}`, 'error');
     } finally {
       setIsSwappingLaminate(false);
       setSwapperStepMessage('');
+      setSwapperStepIndex(0);
     }
   };
 
@@ -933,6 +1028,43 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const deleteCorrection = (id) => {
     setCorrectionsList(prev => prev.filter(c => c.id !== id));
+  };
+
+  const saveLaminateSnapshot = () => {
+    const snapshot = {
+      id: `lam-snap-${Date.now()}`,
+      createdAt: new Date().toLocaleString(),
+      laminates: [...selectedLaminates],
+      renderId: selectedRender?.id || null,
+      room: selectedRender?.room || targetRoom
+    };
+    setSavedLaminateSnapshots(prev => [snapshot, ...prev].slice(0, 20));
+    setStatus('Laminate snapshot saved.', 'success');
+  };
+
+  const restoreLaminateSnapshot = (snapshot) => {
+    setSelectedLaminates(snapshot.laminates);
+    setStatus(`Restored snapshot from ${snapshot.createdAt}.`, 'success');
+  };
+
+  const exportLaminateSpec = () => {
+    const lines = [
+      'Laminate Specification',
+      `Project: ${projectId || 'draft'}`,
+      `Room: ${targetRoom}`,
+      '',
+      ...selectedLaminates.map(l => `- ${l.type}: ${l.name} | ${l.code} | ${l.color}`),
+      '',
+      `Total finishes: ${selectedLaminates.length}`
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `laminate-spec-${projectId || 'draft'}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus('Laminate specification exported.', 'success');
   };
 
   const generateRubyScript = (drawing) => {
@@ -1008,11 +1140,14 @@ export default function Render3DStudio({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("3D Renders and SketchUp layout approved!");
+        setStatus('3D Renders and SketchUp layout approved.');
         if (onComplete) onComplete();
+      } else {
+        setStatus(data.error || 'Approval failed.', 'error');
       }
     } catch (err) {
       console.error("Error approving renders:", err);
+      setStatus('Unexpected error while approving renders.', 'error');
     }
   };
 
@@ -1198,8 +1333,23 @@ export default function Render3DStudio({ projectId, onComplete }) {
         </div>
       )}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
-      
-      {/* 1. Renders Control Panel (Sidebar - 1/4 Column) */}
+
+      {/* Status bar */}
+      <div className="xl:col-span-4">
+        {statusMessage && (
+          <div className={`mb-3 border rounded-lg px-4 py-2 text-[11px] font-extrabold uppercase tracking-wider flex items-center gap-2 ${
+            statusType === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+              : statusType === 'error'
+                ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                : 'bg-slate-900 border-slate-800 text-slate-200'
+          }`}>
+            {statusType === 'success' ? <CheckCircle2 className="w-4 h-4" /> : statusType === 'error' ? <XCircle className="w-4 h-4" /> : <Info className="w-4 h-4" />}
+            {statusMessage}
+          </div>
+        )}
+      </div>
+
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-5 h-[80vh] overflow-y-auto">
         <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#D4AF37] flex items-center gap-1.5">
           <Sparkles className="w-4.5 h-4.5" /> visualizer console
@@ -1231,8 +1381,8 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 key={r.id}
                 onClick={() => setTargetRoom(r.id)}
                 className={`py-2 px-1 rounded-lg border text-center transition ${
-                  targetRoom === r.id 
-                    ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' 
+                  targetRoom === r.id
+                    ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]'
                     : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
                 }`}
               >
@@ -1242,10 +1392,54 @@ export default function Render3DStudio({ projectId, onComplete }) {
           </div>
         </div>
 
+        {/* Render presets */}
+        <div className="space-y-2">
+          <div className="screen-section-title text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 flex items-center justify-between">
+            <span>Render Presets</span>
+            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]/70" />
+          </div>
+          <div className="grid grid-cols-1 gap-1.5 text-[10px] font-bold">
+            {renderPresets.map(preset => (
+              <button
+                key={preset.id}
+                onClick={() => applyPreset(preset)}
+                className="py-2 px-3 rounded-lg border text-left bg-slate-950 border-slate-850 text-slate-300 hover:border-[#D4AF37] hover:text-[#D4AF37] transition"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Model tuning params */}
         <div className="space-y-3">
-          <div className="screen-section-title text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5">Generation Parameters</div>
-          
+          <div className="screen-section-title text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-1.5 flex items-center justify-between">
+            <span>Generation Parameters</span>
+            <span className="text-[8px] text-slate-500 font-mono uppercase">Quick States</span>
+          </div>
+          <div className="flex gap-1.5 text-[9px] font-black uppercase">
+            <button
+              type="button"
+              onClick={() => { setBudgetTier('premium'); setModelTier('precision'); setVariantCount(2); setRemovePeople(true); setStatus('Quick state: Premium active.'); }}
+              className={`flex-1 py-1.5 rounded border transition ${budgetTier === 'premium' && modelTier === 'precision' ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'}`}
+            >
+              Pro
+            </button>
+            <button
+              type="button"
+              onClick={() => { setBudgetTier('standard'); setModelTier('balanced'); setVariantCount(3); setRemovePeople(false); setStatus('Quick state: Balanced studio active.'); }}
+              className={`flex-1 py-1.5 rounded border transition ${budgetTier === 'standard' && modelTier === 'balanced' ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'}`}
+            >
+              Studio
+            </button>
+            <button
+              type="button"
+              onClick={() => { setBudgetTier('economy'); setModelTier('draft'); setVariantCount(1); setRemovePeople(true); setStatus('Quick state: Economy draft active.', 'success'); }}
+              className={`flex-1 py-1.5 rounded border transition ${budgetTier === 'economy' && modelTier === 'draft' ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'}`}
+            >
+              Draft
+            </button>
+          </div>
           <div className="space-y-1.5">
             <label className="text-[10px] text-slate-400 font-semibold block">Aesthetic Theme Direction</label>
             <select
@@ -1299,15 +1493,23 @@ export default function Render3DStudio({ projectId, onComplete }) {
             </select>
           </div>
 
-          <label className="flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={removePeople} 
-              onChange={(e) => setRemovePeople(e.target.checked)} 
-              className="accent-[#D4AF37] rounded"
-            />
-            Remove people from generation
-          </label>
+          <div className="flex gap-2 text-[10px] text-slate-400">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={removePeople}
+                onChange={(e) => setRemovePeople(e.target.checked)}
+                className="accent-[#D4AF37] rounded"
+              />
+              Remove people
+            </label>
+            <div className={`px-2 py-0.5 rounded border text-[8px] font-black uppercase ${modelTier === 'precision' ? 'bg-[#D4AF37]/10 border-[#D4AF37]/30 text-[#D4AF37]' : 'bg-slate-950 border-slate-850 text-slate-500'}`}>
+              {modelTier} model
+            </div>
+            <div className={`px-2 py-0.5 rounded border text-[8px] font-black uppercase ${budgetTier === 'premium' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-950 border-slate-850 text-slate-500'}`}>
+              {budgetTier} spend
+            </div>
+          </div>
         </div>
 
         {/* Room-specific structural rules checkboxes */}
@@ -1507,8 +1709,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <span className="text-xs font-black text-[#D4AF37] uppercase tracking-widest block">AI Laminate Swapper Active</span>
                         <p className="text-[10px] text-slate-300 leading-normal animate-pulse">{swapperStepMessage || 'Performing inpainting swap...'}</p>
                       </div>
-                      <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#D4AF37]" style={{ width: '60%' }}></div>
+                      <div className="flex gap-1.5">
+                        {[0,1,2,3].map(step => (
+                          <div key={step} className={`text-[8px] font-black px-2 py-0.5 rounded border ${step <= swapperStepIndex ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
+                            {['Image','Meta','Swap','Done'][step]}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1518,16 +1724,28 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 {selectedRender && previousRenderForCompare && (
                   <div className="bg-slate-900/60 border-t border-slate-850 px-4 py-2 flex justify-between items-center shrink-0">
                     <span className="text-[9px] font-bold text-slate-400 uppercase">Material Swap Diff Engine</span>
-                    <button
-                      onClick={() => setBeforeAfterMode(!beforeAfterMode)}
-                      className={`text-[9px] font-extrabold uppercase px-3 py-1 rounded transition border ${
-                        beforeAfterMode 
-                          ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' 
-                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {beforeAfterMode ? '✕ Normal View' : '👁️ Compare Before/After'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setBeforeAfterMode(!beforeAfterMode)}
+                        className={`text-[9px] font-extrabold uppercase px-3 py-1 rounded transition border ${
+                          beforeAfterMode
+                            ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {beforeAfterMode ? '✕ Normal View' : '👁️ Compare Before/After'}
+                      </button>
+                      {beforeAfterMode && (
+                        <>
+                          <button
+                            onClick={() => {/* slider mode only preserved via UI state later */}}
+                            className="text-[9px] font-extrabold uppercase px-2 py-1 rounded transition border bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200"
+                          >
+                            Slider
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1791,6 +2009,68 @@ export default function Render3DStudio({ projectId, onComplete }) {
             </div>
           )}
 
+          {/* Metadata / Quality Panel */}
+          {selectedRender && (
+            <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-lg text-[9px] text-slate-400 grid grid-cols-2 gap-1.5">
+              <div>
+                <strong className="block text-slate-300 uppercase">Render quality</strong>
+                {selectedRender.status || selectedRender.quality || 'production'}
+              </div>
+              <div>
+                <strong className="block text-slate-300 uppercase">Preview</strong>
+                {selectedRender.preview_url ? 'Available' : 'Default'}
+              </div>
+              <div>
+                <strong className="block text-slate-300 uppercase">Model tier</strong>
+                {modelTier}
+              </div>
+              <div>
+                <strong className="block text-slate-300 uppercase">Budget tier</strong>
+                {budgetTier}
+              </div>
+              <div>
+                <strong className="block text-slate-300 uppercase">Variants</strong>
+                {selectedRender.variant_count || variantCount}
+              </div>
+              <div>
+                <strong className="block text-slate-300 uppercase">Camera</strong>
+                {cameraAngle}
+              </div>
+            </div>
+          )}
+
+          {/* Render Quality Preset Chips */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Quality Presets</span>
+              <span className="text-[8px] text-slate-500 font-mono">smart-cost aware</span>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto">
+              {[
+                { id: 'draft', label: 'Draft', tier: 'draft', spend: 'economy' },
+                { id: 'studio', label: 'Studio', tier: 'balanced', spend: 'demo-saver' },
+                { id: 'pro', label: 'Pro', tier: 'precision', spend: 'premium-quality' }
+              ].map(preset => (
+                <button
+                  key={preset.id}
+                  onClick={() => {
+                    setModelTier(preset.tier);
+                    setBudgetTier(preset.spend === 'economy' ? 'economy' : preset.spend === 'demo-saver' ? 'standard' : 'premium');
+                    setVariantCount(preset.id === 'draft' ? 1 : preset.id === 'studio' ? 3 : 2);
+                    setSpendMode(preset.spend);
+                    setStatus(`Quality preset: ${preset.label}`, 'success');
+                  }}
+                  className={`shrink-0 text-[9px] font-black uppercase px-2.5 py-1.5 rounded border transition ${
+                    modelTier === preset.tier && (preset.id === 'draft' ? budgetTier === 'economy' : preset.id === 'studio' ? budgetTier === 'standard' : budgetTier === 'premium')
+                      ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]'
+                      : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {/* Review Panel Overlay */}
           {selectedRender && (
             <div className="bg-slate-950 border border-slate-850 p-3 rounded-lg mt-3.5 space-y-2.5 shrink-0">
@@ -1819,7 +2099,33 @@ export default function Render3DStudio({ projectId, onComplete }) {
             </div>
           )}
 
-          {/* Revision Request Input */}
+          {/* Laminate Actions Panel */}
+          {selectedRender && (
+            <div className="bg-slate-950 border border-slate-850 p-3 rounded-lg mt-2 space-y-2.5 shrink-0">
+              <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400">
+                <span>Laminate Changer Actions</span>
+                <span className="text-[8px] text-slate-500 font-mono">{selectedLaminates.length} active finish(es)</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={saveLaminateSnapshot} className="text-[9px] uppercase font-black px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition">Save Snapshot</button>
+                <button onClick={exportLaminateSpec} className="text-[9px] uppercase font-black px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition">Export Spec</button>
+                <button onClick={() => setBeforeAfterMode(true)} disabled={!previousRenderForCompare} className="text-[9px] uppercase font-black px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition disabled:opacity-40">Compare Last Swap</button>
+              </div>
+              {savedLaminateSnapshots.length > 0 && (
+                <div className="space-y-1 max-h-28 overflow-y-auto">
+                  {savedLaminateSnapshots.map(snap => (
+                    <div key={snap.id} className="flex items-center justify-between bg-slate-900/60 border border-slate-850 rounded px-2 py-1.5 text-[9px]">
+                      <div className="flex flex-col">
+                        <span className="text-slate-300 font-bold">{snap.room || 'unknown room'}</span>
+                        <span className="text-slate-500">{snap.createdAt}</span>
+                      </div>
+                      <button onClick={() => restoreLaminateSnapshot(snap)} className="text-[#D4AF37] hover:text-[#c49e2f] font-black uppercase">Restore</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {selectedRender && (
             <div className="bg-slate-950 border border-slate-850 p-3 rounded-lg mt-2 space-y-2.5 shrink-0">
               <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400">
@@ -1852,38 +2158,74 @@ export default function Render3DStudio({ projectId, onComplete }) {
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 shrink-0 space-y-2">
           <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase">
             <span>Visual shortlists</span>
-            <div className="flex border border-slate-800 rounded overflow-hidden">
-              {['all', 'approved', 'unreviewed'].map(filter => (
-                <button
-                  key={filter}
-                  onClick={() => setReviewFilter(filter)}
-                  className={`px-2 py-0.5 text-[9px] ${
-                    reviewFilter === filter ? 'bg-slate-800 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
-                  {filter} ({reviewCounts[filter] || 0})
-                </button>
-              ))}
+            <div className="flex items-center gap-1.5">
+              <div className="flex border border-slate-800 rounded overflow-hidden">
+                {['all', 'approved', 'unreviewed'].map(filter => (
+                  <button
+                    key={filter}
+                    onClick={() => setReviewFilter(filter)}
+                    className={`px-2 py-0.5 text-[9px] ${
+                      reviewFilter === filter ? 'bg-slate-800 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {filter} ({reviewCounts[filter] || 0})
+                  </button>
+                ))}
+              </div>
+              {selectedRender && (
+              <>
+              <button onClick={async () => {
+                if (!selectedRender?.room) return;
+                const targets = rendersList.filter(r => r.room === selectedRender.room && r.review_status !== 'approved');
+                if (targets.length === 0) { setStatus('No room renders left to approve.', 'error'); return; }
+                try {
+                  await Promise.all(targets.map(r => fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${r.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved', note: '' }) }).then(res => res.json())));
+                  await fetchRenders();
+                  setStatus(`Bulk approved ${targets.length} render(s).`);
+                } catch (e) {
+                  setStatus('Bulk approve failed.', 'error');
+                }
+              }} className="text-[9px] uppercase font-black px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition">Bulk Approve</button>
+              <button onClick={async () => {
+                if (!selectedRender?.room) return;
+                const targets = rendersList.filter(r => r.room === selectedRender.room && r.review_status !== 'rejected');
+                if (targets.length === 0) { setStatus('No room renders left to reject.', 'error'); return; }
+                try {
+                  await Promise.all(targets.map(r => fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${r.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected', note: '' }) }).then(res => res.json())));
+                  await fetchRenders();
+                  setStatus(`Bulk rejected ${targets.length} render(s).`, 'error');
+                } catch (e) {
+                  setStatus('Bulk reject failed.', 'error');
+                }
+              }} className="text-[9px] uppercase font-black px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition">Bulk Reject</button>
+              </>
+              )}
             </div>
           </div>
 
           <div className="flex gap-3 overflow-x-auto py-1">
             {filteredRenders.map((ren) => (
-              <div 
+              <div
                 key={ren.id}
                 onClick={() => setSelectedRender(ren)}
                 className={`h-16 w-24 shrink-0 border rounded-lg cursor-pointer overflow-hidden transition relative ${
                   selectedRender?.id === ren.id ? 'border-[#D4AF37] scale-95 shadow-md shadow-[#D4AF37]/15' : 'border-slate-800 hover:border-slate-700'
                 }`}
               >
-                <img 
-                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${ren.image_url}` : (ren.image_url || '')} 
+                <img
+                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${ren.image_url}` : (ren.image_url || '')}
                   alt="Variant swatch"
                   className="w-full h-full object-cover"
                 />
-                <span className={`absolute bottom-0.5 right-0.5 text-[8px] font-extrabold px-1 rounded ${
-                  ren.review_status === 'approved' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-950 text-slate-400'
+                <span className={`absolute bottom-0.5 left-0.5 text-[8px] font-extrabold px-1 rounded ${
+                  ren.review_status === 'approved' ? 'bg-emerald-500 text-slate-950' :
+                  ren.review_status === 'rejected' ? 'bg-red-500 text-slate-950' :
+                  ren.review_status === 'needs-revision' ? 'bg-amber-500 text-slate-950' :
+                  'bg-slate-950 text-slate-400'
                 }`}>
+                  {ren.review_status || 'pending'}
+                </span>
+                <span className="absolute top-1 right-1 text-[8px] font-bold bg-slate-950/80 text-slate-300 px-1 rounded uppercase">
                   {ren.room || 'room'}
                 </span>
               </div>

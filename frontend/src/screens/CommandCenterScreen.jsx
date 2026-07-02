@@ -344,22 +344,17 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     setTimeout(() => {
       setActionProgress(false);
       if (actionKey === 'RCP') {
-        alert("RCP Planner Tool activated! Redirecting to specialist suite.");
         onNavigateToTab('drawings');
       } else if (actionKey === 'Elevation') {
-        alert("2D Elevation CAD Drafter initialized.");
         onNavigateToTab('drawings');
       } else if (actionKey === 'BOM') {
-        alert("BOM takeoff schedule compiled successfully.");
         onNavigateToTab('finance');
       } else if (actionKey === 'Layout Plan') {
-        alert("Redirecting to Interactive CAD viewport.");
         onNavigateToTab('cad');
       } else if (actionKey === 'Video') {
-        alert("Walkthrough path nodes serialized. Animation ready.");
         onNavigateToTab('renders');
       } else {
-        alert(`Action "${actionKey}" executed simulation successfully!`);
+        onNavigateToTab('dashboard');
       }
     }, 1200);
   };

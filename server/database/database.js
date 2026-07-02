@@ -411,7 +411,6 @@ db.exec(`
     summary_json TEXT,
     created_by TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(project_id) REFERENCES projects(id),
     FOREIGN KEY(floor_plan_version_id) REFERENCES floor_plan_versions(id)
   );
 `);

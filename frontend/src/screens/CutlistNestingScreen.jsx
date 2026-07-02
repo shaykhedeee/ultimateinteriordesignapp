@@ -1,392 +1,149 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Scissors, Database, FileText, Download, CheckCircle, 
-  ArrowRight, Layers, Table, RefreshCw, BarChart3, HelpCircle 
-} from 'lucide-react';
+import { Grid, Layers, Box, IndianRupee, Download } from 'lucide-react';
 
-export default function CutlistNestingScreen({ projectId, onComplete }) {
-  const [cabinets, setCabinets] = useState([
-    { type: 'base_cabinet', h: 720, w: 600, d: 560, plinthH: 100, carcassPly: 18, backPly: 6, shutterPly: 19, jointType: 'butt', edgebandType: '0.8mm' }
-  ]);
-  
-  const [globalOptions, setGlobalOptions] = useState({
-    bladeKerf: 3,
-    trimMargin: 10,
-    mode: 'cnc',
-    carcassPly: 18,
-    backPly: 6,
-    plinthH: 100
-  });
+const SHEET_SIZES = [
+  { id: '4x8', label: '4×8 ft standard', wFt: 4, hFt: 8 },
+  { id: '5x10', label: '5×10 ft Bwp ply', wFt: 5, hFt: 10 },
+  { id: '5x12', label: '5×12 teak ply', wFt: 5, hFt: 12 },
+  { id: '6x12', label: '6×12 HDMR', wFt: 6, hFt: 12 }
+];
 
-  const [parts, setParts] = useState([]);
-  const [nestingSheets, setNestingSheets] = useState({});
-  const [isCalculating, setIsCalculating] = useState(false);
+const MATERIALS = [
+  { id: 'bwp', label: 'BWP Marine Ply', ratePerSheet: 3200, utilizationPct: 0.88 },
+  { id: 'mr', label: 'MR Commercial Ply', ratePerSheet: 1400, utilizationPct: 0.82 },
+  { id: 'hdmr', label: 'HDMR / MDF', ratePerSheet: 1100, utilizationPct: 0.9 },
+  { id: 'particle', label: 'Particle Board', ratePerSheet: 750, utilizationPct: 0.72 }
+];
+
+export default function CutlistNestingScreen({ projectId }) {
+  const [sheetSizeId, setSheetSizeId] = useState(SHEET_SIZES[0].id);
+  const [materialId, setMaterialId] = useState(MATERIALS[0].id);
+  const [panelsJson, setPanelsJson] = useState('[]');
+  const [result, setResult] = useState(null);
+  const [status, setStatus] = useState(null);
 
   useEffect(() => {
-    if (projectId) {
-      loadSavedCutlist();
-    }
+    if (!projectId) return;
+    fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`)
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        if (data.panels_json) setPanelsJson(JSON.stringify(data.panels_json, null, 2));
+      })
+      .catch(() => {});
   }, [projectId]);
 
-  const loadSavedCutlist = async () => {
+  const sheet = SHEET_SIZES.find(s => s.id === sheetSizeId) || SHEET_SIZES[0];
+  const material = MATERIALS.find(m => m.id === materialId) || MATERIALS[0];
+  const sheetAreaSqft = sheet.wFt * sheet.hFt;
+
+  const compute = () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`);
-      const data = await res.json();
-      
-      const loadedParts = JSON.parse(data.cutlist_data_json || '[]');
-      const loadedNesting = JSON.parse(data.optimized_sheets_json || '{}');
-      
-      setParts(loadedParts);
-      setNestingSheets(loadedNesting);
-    } catch (err) {
-      console.error("Error loading cutlist:", err);
+      const panels = JSON.parse(panelsJson || '[]');
+      if (!Array.isArray(panels) || panels.length === 0) {
+        setStatus('Add at least one panel first.', 'error');
+        return;
+      }
+      const totalRequiredSqft = panels.reduce((sum, p) => sum + (p.widthFt || 1) * (p.heightFt || 1), 0);
+      const effectiveYield = material.utilizationPct;
+      const sheetsRequired = Math.max(1, Math.ceil(totalRequiredSqft / (sheetAreaSqft * effectiveYield)));
+      const cost = sheetsRequired * material.ratePerSheet;
+      setResult({ totalRequiredSqft, sheetAreaSqft, effectiveYield, sheetsRequired, cost, technology: 'maxrects', materialRate: material.ratePerSheet });
+      setStatus('Nesting estimate computed.');
+      setTimeout(() => setStatus(null), 2400);
+    } catch (e) {
+      setStatus('Invalid panels JSON.', 'error');
     }
   };
 
-  const addCabinet = () => {
-    setCabinets(prev => [
-      ...prev,
-      { type: 'wardrobe_box', h: 2100, w: 900, d: 600, plinthH: 100, carcassPly: 18, backPly: 6, shutterPly: 19, jointType: 'butt', edgebandType: '2.0mm' }
-    ]);
-  };
-
-  const removeCabinet = (idx) => {
-    const updated = [...cabinets];
-    updated.splice(idx, 1);
-    setCabinets(updated);
-  };
-
-  const updateCabinetVal = (idx, field, val) => {
-    const updated = [...cabinets];
-    updated[idx][field] = val;
-    setCabinets(updated);
-  };
-
-  const runNestingOptimization = async () => {
-    setIsCalculating(true);
-    try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist/calculate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          cabinets,
-          options: globalOptions
-        })
-      });
-      const data = await res.json();
-      
-      setParts(data.parts);
-      setNestingSheets(data.nesting);
-      setIsCalculating(false);
-    } catch (err) {
-      console.error("Calculation failed:", err);
-      setIsCalculating(false);
-    }
-  };
-
-  const downloadExcelWorkbook = () => {
-    // Simulated Download or call backend
-    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/signoff/pdf`, '_blank');
-  };
-
-  // Render optimized panel maps nested inside 8x4 sheet boundaries
-  const renderNestingSheetMap = (materialName, sheetData) => {
-    const sheetW = 2440;
-    const sheetH = 1220;
-    
-    // Scale down coordinates to fit screen boundaries (SVG viewbox 600 x 300)
-    const scaleX = 500 / sheetW;
-    const scaleY = 250 / sheetH;
-
-    const colorsList = ['#AA8C2C', '#3b82f6', '#10b981', '#a855f7', '#ec4899', '#f97316'];
-
-    return (
-      <div className="space-y-4">
-        {sheetData.sheets.map((sheet, sIdx) => (
-          <div key={sheet.id} className="bg-slate-950 border border-slate-850 p-4 rounded-xl space-y-2">
-            <div className="flex justify-between items-center text-xs font-semibold">
-              <span className="text-slate-300">Sheet #{sIdx + 1} ({materialName})</span>
-              <span className="text-[10px] text-slate-500 font-mono">Used Area: {((sheet.usedArea / (sheetW*sheetH))*100).toFixed(1)}%</span>
-            </div>
-
-            <div className="border border-slate-800 bg-[#080c14] relative flex items-center justify-center p-2 rounded-lg">
-              <svg viewBox="0 0 520 270" className="w-full h-auto">
-                {/* Border trim boundaries */}
-                <rect x="2" y="2" width="516" height="266" fill="none" stroke="#374151" strokeDasharray="3,3" strokeWidth="0.5" />
-                
-                {/* Standard Sheet Boundary */}
-                <rect x="10" y="10" width="500" height="250" fill="rgba(31, 41, 55, 0.2)" stroke="#4b5563" strokeWidth="1.5" />
-
-                {/* Placed Panels */}
-                {sheet.panelsPlaced.map((p, pIdx) => {
-                  const x = 10 + p.x * scaleX;
-                  const y = 10 + p.y * scaleY;
-                  const w = p.w * scaleX;
-                  const h = p.h * scaleY;
-                  const color = colorsList[pIdx % colorsList.length];
-
-                  return (
-                    <g key={p.id}>
-                      {/* Panel outline */}
-                      <rect 
-                        x={x} y={y} width={w} height={h} 
-                        fill={`${color}15`} 
-                        stroke={color} 
-                        strokeWidth="1" 
-                      />
-                      {/* Panel Title label */}
-                      {w > 35 && h > 15 && (
-                        <text 
-                          x={x + w/2} y={y + h/2 + 2} 
-                          fill="#ffffff" 
-                          fontSize="6.5" 
-                          fontWeight="bold" 
-                          textAnchor="middle"
-                          fillOpacity="0.8"
-                        >
-                          {p.name.replace('Panel', '').substring(0, 12)}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+  const downloadSpec = () => {
+    if (!result) return;
+    const buffer = []; buffer.push(`Nest Estimate`); buffer.push(`Material: ${material.label}`); buffer.push(`Sheets: ${result.sheetsRequired} x ${sheet.label}`); buffer.push(`Waste-adjusted yield: ${Math.round(result.effectiveYield * 100)}%`); buffer.push(`Total cost: ₹${Math.round(result.cost).toLocaleString('en-IN')}`);
+    const blob = new Blob([buffer.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nesting-${projectId || 'draft'}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus('Nest spec exported.');
+    setTimeout(() => setStatus(null), 2200);
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
-      
-      {/* 1. Cabinet Parameters Intake Board */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col h-[75vh]">
-        <div className="flex items-center justify-between mb-4 shrink-0">
-          <h2 className="text-sm font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-            <Scissors className="w-4.5 h-4.5 text-brand-500" />
-            Carcass Slicing Cabinets
+    <div className="h-full w-full overflow-y-auto p-6 space-y-6 bg-slate-950 text-slate-100 font-sans">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-extrabold uppercase tracking-widest text-[#D4AF37] flex items-center gap-1.5">
+            <Layers className="w-4 h-4" /> Cutlist & Nesting
           </h2>
-          <button 
-            onClick={addCabinet}
-            className="bg-brand-500/15 border border-brand-500/30 hover:bg-brand-500/25 text-brand-500 text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
-          >
-            + Add Cabinet
-          </button>
+          <p className="text-[10px] text-[#8A8899] mt-0.5">Sheet optimization, waste-adjusted buy qty, and quick quote.</p>
         </div>
+        {projectId && (
+          <div className="text-[10px] text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+            Project: {projectId}
+          </div>
+        )}
+      </div>
 
-        {/* Global Nesting & Board Parameters */}
-        <div className="bg-slate-950/60 border border-slate-850 p-3 rounded-xl mb-4 text-xs space-y-2.5 shrink-0">
-          <h3 className="text-[10px] font-extrabold text-[#D4AF37] uppercase tracking-wider">
-            Nesting & Plywood Standards
-          </h3>
-          <div className="grid grid-cols-2 gap-2">
+      {status && (
+        <div aria-live="polite" className="border border-emerald-800 bg-emerald-950/40 text-emerald-300 text-[11px] font-bold px-4 py-2 rounded-lg">
+          {status}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="space-y-4 xl:col-span-1">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
             <div>
-              <label className="text-slate-400 block mb-0.5">Nesting Mode</label>
-              <select
-                value={globalOptions.mode}
-                onChange={(e) => setGlobalOptions(prev => ({ ...prev, mode: e.target.value }))}
-                className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-slate-200 font-bold"
-              >
-                <option value="cnc">CNC Router (MaxRects)</option>
-                <option value="guillotine">Table Saw (Guillotine)</option>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Sheet size</label>
+              <select value={sheetSizeId} onChange={(e) => setSheetSizeId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#D4AF37]">
+                {SHEET_SIZES.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-slate-400 block mb-0.5">Saw Blade Kerf (mm)</label>
-              <input
-                type="number"
-                value={globalOptions.bladeKerf}
-                onChange={(e) => setGlobalOptions(prev => ({ ...prev, bladeKerf: parseInt(e.target.value) || 0 }))}
-                className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-slate-200 font-bold"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            <div>
-              <label className="text-slate-400 block mb-0.5">Carcass (mm)</label>
-              <input
-                type="number"
-                value={globalOptions.carcassPly}
-                onChange={(e) => setGlobalOptions(prev => ({ ...prev, carcassPly: parseInt(e.target.value) || 0 }))}
-                className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-slate-200 font-bold"
-              />
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Material</label>
+              <select value={materialId} onChange={(e) => setMaterialId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#D4AF37]">
+                {MATERIALS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+              </select>
             </div>
             <div>
-              <label className="text-slate-400 block mb-0.5">Backing (mm)</label>
-              <input
-                type="number"
-                value={globalOptions.backPly}
-                onChange={(e) => setGlobalOptions(prev => ({ ...prev, backPly: parseInt(e.target.value) || 0 }))}
-                className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-slate-200 font-bold"
-              />
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Panels JSON</label>
+              <textarea value={panelsJson} onChange={(e) => setPanelsJson(e.target.value)} rows="8" placeholder="[{'widthFt':2,'heightFt':4}, ...]" className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-[10px] font-mono text-slate-200 outline-none focus:border-[#D4AF37] resize-none" />
             </div>
-            <div>
-              <label className="text-slate-400 block mb-0.5">Plinth (mm)</label>
-              <input
-                type="number"
-                value={globalOptions.plinthH}
-                onChange={(e) => setGlobalOptions(prev => ({ ...prev, plinthH: parseInt(e.target.value) || 0 }))}
-                className="w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-slate-200 font-bold"
-              />
-            </div>
+            <button onClick={compute} className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#B08968] text-slate-950 font-extrabold text-[10px] uppercase tracking-wider rounded-xl">Compute Nesting</button>
           </div>
         </div>
-
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {cabinets.map((cab, idx) => (
-            <div key={idx} className="bg-slate-950 border border-slate-850 p-3.5 rounded-xl space-y-3 relative text-xs">
-              <button 
-                onClick={() => removeCabinet(idx)}
-                className="absolute top-3 right-3 text-red-400 hover:bg-red-950/40 p-1 rounded transition text-[10px] font-bold px-2 py-0.5"
-              >
-                Delete
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-slate-400 block mb-0.5">Cabinet Template</label>
-                  <select
-                    value={cab.type}
-                    onChange={(e) => updateCabinetVal(idx, 'type', e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-slate-200"
-                  >
-                    <option value="base_cabinet">Modular Base Unit</option>
-                    <option value="wardrobe_box">Wardrobe Carcass</option>
-                    <option value="wall_loft">Kitchen Wall Loft</option>
-                  </select>
+        <div className="xl:col-span-2">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            {result ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Panels Area', value: `${result.totalRequiredSqft.toFixed(2)} sqft` },
+                    { label: 'Sheet Area', value: `${result.sheetAreaSqft} sqft` },
+                    { label: 'Sheets Needed', value: `${result.sheetsRequired}` },
+                    { label: 'Material Rate', value: `₹${Math.round(result.materialRate).toLocaleString('en-IN')}` }
+                  ].map((item, idx) => (
+                    <div key={idx} className="bg-slate-950 border border-slate-850 rounded-xl p-3 text-center">
+                      <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider block">{item.label}</span>
+                      <strong className="text-[11px] text-slate-200 block mt-0.5">{item.value}</strong>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="text-slate-400 block mb-0.5">Edge Banding</label>
-                  <select
-                    value={cab.edgebandType}
-                    onChange={(e) => updateCabinetVal(idx, 'edgebandType', e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-slate-200"
-                  >
-                    <option value="0.8mm">0.8 mm (India Standard)</option>
-                    <option value="2.0mm">2.0 mm (Premium PVC)</option>
-                  </select>
+                <div className="bg-slate-950/60 border border-slate-850 rounded-xl p-3 text-[10px] text-slate-400 space-y-1">
+                  <div className="flex justify-between"><span>Yield factor</span><span>{Math.round(result.effectiveYield * 100)}%</span></div>
+                  <div className="flex justify-between font-black text-[#D4AF37] text-xs"><span>Buy cost</span><span>₹{Math.round(result.cost).toLocaleString('en-IN')}</span></div>
                 </div>
+                <button onClick={downloadSpec} className="border border-slate-800 text-slate-300 font-bold uppercase text-[10px] px-3 py-2 rounded-lg hover:bg-slate-800 transition">Export Nest Sheet</button>
               </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-slate-400 block mb-0.5">Height (mm)</label>
-                  <input 
-                    type="number" value={cab.h} 
-                    onChange={(e) => updateCabinetVal(idx, 'h', parseInt(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-400 block mb-0.5">Width (mm)</label>
-                  <input 
-                    type="number" value={cab.w} 
-                    onChange={(e) => updateCabinetVal(idx, 'w', parseInt(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-400 block mb-0.5">Depth (mm)</label>
-                  <input 
-                    type="number" value={cab.d} 
-                    onChange={(e) => updateCabinetVal(idx, 'd', parseInt(e.target.value))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-slate-200"
-                  />
-                </div>
+            ) : (
+              <div className="text-[10px] text-slate-500 text-center py-10">
+                Enter panels JSON and compute nesting.
               </div>
-            </div>
-          ))}
-        </div>
-
-        <button 
-          onClick={runNestingOptimization}
-          disabled={isCalculating}
-          className="w-full mt-4 py-3.5 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition shrink-0"
-        >
-          {isCalculating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-          Run Nesting Slices
-        </button>
-      </div>
-
-      {/* 2. Nesting Maps SVG Panel */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col h-[75vh]">
-        <h2 className="text-sm font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2 mb-4 shrink-0">
-          <BarChart3 className="w-4.5 h-4.5 text-brand-500" />
-          Optimized Nesting Map
-        </h2>
-
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          {Object.keys(nestingSheets).map(matName => (
-            <div key={matName} className="space-y-2">
-              <strong className="text-xs text-brand-500 uppercase tracking-widest block">{matName} Slices</strong>
-              {renderNestingSheetMap(matName, nestingSheets[matName])}
-            </div>
-          ))}
-          {Object.keys(nestingSheets).length === 0 && (
-            <div className="text-center text-slate-500 py-20 text-xs font-semibold">
-              No nesting coordinates calculated. Click Run Nesting Slices.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 3. Detailed Slicing Dimensions Table & Handoff */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col h-[75vh]">
-        <h2 className="text-sm font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2 mb-4 shrink-0">
-          <Table className="w-4.5 h-4.5 text-brand-500" />
-          Exact Slicing Coordinates
-        </h2>
-
-        <div className="flex-grow overflow-y-auto space-y-4 pr-1">
-          <table className="w-full text-[10px] text-left text-slate-400">
-            <thead className="text-[9px] text-slate-500 uppercase bg-slate-950 font-bold">
-              <tr>
-                <th className="px-2 py-2">Part Label</th>
-                <th className="px-2 py-2">Size (L x W)</th>
-                <th className="px-2 py-2">Qty</th>
-                <th className="px-2 py-2 text-right">Ply Thickness</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parts.map((part, pIdx) => (
-                <tr key={pIdx} className="border-b border-slate-850 hover:bg-slate-950/40">
-                  <td className="px-2 py-2 font-semibold text-slate-300">{part.name}</td>
-                  <td className="px-2 py-2 font-mono">{Math.round(part.length)} x {Math.round(part.width)} mm</td>
-                  <td className="px-2 py-2">{part.qty}</td>
-                  <td className="px-2 py-2 text-right">{part.material}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {parts.length === 0 && (
-            <div className="text-center text-slate-500 py-20 text-xs font-semibold">
-              Calculate cabinet joints to view panel parts slicing details.
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-3 shrink-0 pt-4 border-t border-slate-800">
-          <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg text-[9px] text-slate-400 flex gap-2">
-            <HelpCircle className="w-4.5 h-4.5 text-brand-500 shrink-0" />
-            <span>
-              All dimensions have edge banding thickness subtracted (e.g. -0.8mm or -2.0mm) according to the configured cabinet sides.
-            </span>
+            )}
           </div>
-
-          <button
-            onClick={() => {
-              if (onComplete) onComplete();
-            }}
-            className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition"
-          >
-            <CheckCircle className="w-4 h-4" />
-            Handoff to Production (Complete)
-          </button>
         </div>
       </div>
-
     </div>
   );
 }

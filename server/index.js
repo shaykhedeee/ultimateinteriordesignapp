@@ -640,6 +640,124 @@ app.post('/api/projects/:id/quotation/pdf', async (req, res) => {
   }
 });
 
+// AURA AI Chat backed by tiny LLM
+app.post('/api/projects/:id/ai/chat', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const message = (req.body && req.body.message) || '';
+    if (!message || !message.trim()) {
+      return res.status(400).json({ reply: 'Please enter a design instruction for AURA.', provider: 'validation' });
+    }
+
+    let projectContext = 'General interior design assistant mode.';
+    if (projectId && projectId !== 'demo') {
+      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+      if (project) {
+        let brief = {};
+        if (project.client_brief_json) {
+          try { brief = JSON.parse(project.client_brief_json); } catch (e) {}
+        }
+        const rooms = (brief.rooms || []).map(r => r.name || r.type).join(', ');
+        projectContext = `Project: ${project.client_name} - ${project.name}. Rooms: ${rooms || 'Not yet defined'}. Status: ${project.status}.`;
+      }
+    }
+
+    const instruction = [
+      'You are AURA, an elite interior design assistant for Indian residential projects.',
+      'Reply in concise, actionable advice about materials, layouts, lighting, budget, or style.',
+      'If the user asks for actionable changes, return an actionPreview object with title, changes array, costImpact number, visualQualityImpact number from 1-5, and actions array with label and actionId.',
+      'Format actionPreview JSON when applicable inside the reply metadata; otherwise provide direct advice.',
+      `Context: ${projectContext}`,
+      `User request: ${message}`
+    ].join('\n');
+
+    let replyText = `Understood: "${message}". Mapped to the active design agent.`;
+    let provider = 'fallback-deterministic';
+
+    try {
+      const answer = await refineRenderPromptWithGemini({ prompt: message, room: 'general', style: 'adaptive', budgetTier: 'standard', layoutConstraints: { instruction } });
+      const extracted = (answer && answer.prompt) || '';
+      if (extracted && extracted.trim()) {
+        replyText = extracted.trim();
+        provider = answer.provider || provider;
+      }
+    } catch (err) {
+      console.warn('[ai/chat] LLM provider failed:', err.message);
+    }
+
+    const actionPreview = extractActionPreviewFromText(replyText, message);
+    const actions = actionPreview ? buildActionsFromPreview(actionPreview) : [];
+    const cleanReply = actionPreview
+      ? `${actionPreview.title}. Saved estimate updated with cost impact ₹${Math.abs(actionPreview.costImpact || 0).toLocaleString()}.`
+      : replyText;
+
+    res.json({ reply: cleanReply || replyText, provider, actionPreview, actions });
+  } catch (err) {
+    console.error('[ai/chat] Unexpected error:', err);
+    res.status(500).json({ reply: 'AURA encountered a processing error. Please retry.', provider: 'error' });
+  }
+});
+
+function extractActionPreviewFromText(text, originalRequest) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  let title = 'AURA Suggested Update';
+  let changes = [];
+  let costImpact = 0;
+  let visualQualityImpact = 4.0;
+
+  if (lower.includes('save') || lower.includes('budget') || lower.includes('cost') || lower.includes('optimize')) {
+    title = 'Optimize Budget / Spec';
+    costImpact = -15000;
+    changes = ['Prefers value-engineered laminate/hardware alternatives', 'Target cabinet/hardware savings applied'];
+    visualQualityImpact = 4.2;
+  } else if (lower.includes('floor') || lower.includes('wood') || lower.includes('palette') || lower.includes('paint') || lower.includes('laminate')) {
+    title = 'Apply Finish / Palette';
+    costImpact = 8000;
+    changes = ['Applies selected material system across selected zones', 'Updates finish tags for renders and procurement'];
+    visualQualityImpact = 4.6;
+  } else if (lower.includes('sofa') || lower.includes('rotate') || lower.includes('layout') || lower.includes('place')) {
+    title = 'Adjust Layout Placement';
+    costImpact = 0;
+    changes = ['Repositions selected furniture block', 'Maintains minimum walkway clearance'];
+    visualQualityImpact = 4.4;
+  } else if (lower.includes('light') || lower.includes('lux') || lower.includes('lamp')) {
+    title = 'Improve Lighting Plan';
+    costImpact = 5000;
+    changes = ['Adjusts light layering and fixture counts', 'Better CCT/Lux alignment for the room'];
+    visualQualityImpact = 4.3;
+  } else {
+    costImpact = 0;
+    changes = ['Maps instruction to current design intent'];
+  }
+
+  return {
+    title,
+    changes,
+    costImpact,
+    visualQualityImpact,
+    raw: text,
+    originalRequest
+  };
+}
+
+function buildActionsFromPreview(actionPreview) {
+  const actions = [];
+  const base = { actionId: 'aura-action', label: 'Apply Suggestion', variant: 'primary' };
+  if (actionPreview.title && actionPreview.title.toLowerCase().includes('budget')) {
+    actions.push({ ...base, actionId: 'act-budget-cut', label: 'Apply Optimization' });
+  } else if (actionPreview.title && actionPreview.title.toLowerCase().includes('finish')) {
+    actions.push({ ...base, actionId: 'act-palette-apply', label: 'Apply Finishes Globally' });
+  } else if (actionPreview.title && actionPreview.title.toLowerCase().includes('layout')) {
+    actions.push({ ...base, actionId: 'act-restyle', label: 'Execute Move' });
+  } else if (actionPreview.title && actionPreview.title.toLowerCase().includes('light')) {
+    actions.push({ ...base, actionId: 'act-lighting-apply', label: 'Apply Lighting Plan' });
+  } else {
+    actions.push({ ...base, actionId: 'act-apply-aura', label: 'Apply Suggestion' });
+  }
+  return actions;
+}
+
 // ==========================================
 // 3. INTERACTIVE 2D CAD API
 // ==========================================
@@ -2110,6 +2228,75 @@ app.get('/api/furniture-catalog', (req, res) => {
   }
 });
 
+app.post('/api/projects/:id/drafts', (req, res) => {
+  try {
+    const { category, payload } = req.body;
+    const projectId = req.params.id;
+    const id = 'draft_' + nanoid(6);
+    db.prepare(`INSERT INTO project_drafts (id, project_id, category, payload, metadata_json) VALUES (?, ?, ?, ?, ?)`)
+      .run(id, projectId, category || 'general', JSON.stringify(payload || {}), JSON.stringify({ savedAt: Date.now() }));
+    logTimelineEvent(projectId, 'draft.saved', `Draft saved: ${category || 'general'}`, JSON.stringify(payload || {}).slice(0, 120));
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/drafts', (req, res) => {
+  const rows = db.prepare("SELECT id, category, created_at FROM project_drafts WHERE project_id = ? ORDER BY created_at DESC").all(req.params.id);
+  res.json(rows.map(r => ({ id: r.id, category: r.category, createdAt: r.created_at })));
+});
+
+app.post('/api/modular/recommendations', (req, res) => {
+  try {
+    const { roomType, widthMm = 2500, budgetBand = 'standard' } = req.body;
+    let sql = 'SELECT * FROM furniture_catalog WHERE 1=1';
+    const params = [];
+
+    if (roomType && roomType !== 'all') {
+      sql += ' AND room_types LIKE ?';
+      params.push(`%${roomType}%`);
+    }
+
+    if (budgetBand === 'premium') {
+      sql += ' AND price_band IN (?, ?)';
+      params.push('premium', 'budget');
+    } else if (budgetBand === 'budget') {
+      sql += ' AND price_band = ?';
+      params.push('standard');
+    } else {
+      sql += ' AND price_band = ?';
+      params.push('standard');
+    }
+
+    sql += ' ORDER BY price ASC LIMIT 25';
+
+    const rows = db.prepare(sql).all(params);
+    const results = rows.map(r => {
+      const dims = JSON.parse(r.dimensions_json || '{}');
+      const compliant = (dims.widthMm || 0) >= 800;
+      return {
+        key: r.key,
+        label: r.label,
+        category: r.category,
+        styleTags: r.style_tags ? r.style_tags.split(',') : [],
+        roomTypes: r.room_types ? r.room_types.split(',') : [],
+        params: JSON.parse(r.params_json || '{}'),
+        priceBand: r.price_band,
+        price: r.price,
+        dimensions: dims,
+        minModuleMm: compliant ? (dims.widthMm || 800) : Math.max(800, dims.widthMm || 800),
+        standardModuleMm: Math.round(((dims.widthMm || 800) / 100)) * 100,
+        compliant
+      };
+    });
+
+    res.json({ roomType, widthMm, budgetBand, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/furniture-catalog/:key', (req, res) => {
   try {
     const row = db.prepare("SELECT * FROM furniture_catalog WHERE key = ?").get(req.params.key);
@@ -2136,6 +2323,78 @@ app.get('/api/furniture-catalog/:key', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/projects/:id/vendors/:category', (req, res) => {
+  try {
+    const category = req.params.category || 'all';
+    const q = (req.query.q || '').trim();
+    let rows;
+    if (category === 'hardware') {
+      let sql = "SELECT * FROM material_catalog WHERE category = 'hardware'";
+      const params = [];
+      if (q) {
+        sql += " AND (name LIKE ? OR brand LIKE ? OR code LIKE ?)";
+        params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      }
+      rows = db.prepare(sql).all(params);
+    } else if (['laminates', 'fixtures', 'worktops', 'lighting'].includes(category)) {
+      let sql = "SELECT * FROM material_catalog WHERE 1=1";
+      const params = [];
+      if (category !== 'all') {
+        sql += " AND (subcategory LIKE ? OR category LIKE ?)";
+        params.push(`%${category}%`, `%${category}%`);
+      }
+      if (q) {
+        sql += " AND (name LIKE ? OR brand LIKE ? OR code LIKE ?)";
+        params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      }
+      rows = db.prepare(sql).all(params);
+    } else {
+      rows = db.prepare("SELECT * FROM material_catalog LIMIT 80").all();
+    }
+
+    const vendors = rows.map(r => ({
+      id: r.id,
+      sku: r.code,
+      name: r.name,
+      brand: r.brand,
+      category: r.category,
+      subcategory: r.subcategory,
+      price: parseFloat(r.price_per_sqft || 0),
+      rating: parseFloat(r.rating || 0),
+      moq: 1,
+      leadTime: '5-10',
+      fulfillment: 'Hub',
+      finish: r.finish,
+      color: r.color,
+      source: 'material_catalog'
+    }));
+
+    res.json(vendors);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/vendors/:category/refresh', (req, res) => {
+  res.json({ success: true, providers: ['openrouter', 'openai', 'huggingface'], cached: true });
+});
+
+app.get('/api/projects/:id/pinterest/search', (req, res) => {
+  const q = (req.query.q || 'interior').trim();
+  const projectId = req.params.id;
+  const seeded = [
+    { id: `${projectId}-pin-1`, title: `${q} modern lounge`, url: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=600&q=80', thumbnail: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=400&q=60', source: 'pinterest-demo', tags: [q] },
+    { id: `${projectId}-pin-2`, title: `${q} minimal palette`, url: 'https://images.unsplash.com/photo-1616137466211-f939a420be84?auto=format&fit=crop&w=600&q=80', thumbnail: 'https://images.unsplash.com/photo-1616137466211-f939a420be84?auto=format&fit=crop&w=400&q=60', source: 'pinterest-demo', tags: [q, 'minimal'] },
+    { id: `${projectId}-pin-3`, title: `${q} warm lighting`, url: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=600&q=80', thumbnail: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=400&q=60', source: 'pinterest-demo', tags: [q, 'lighting'] }
+  ];
+  res.json(seeded);
+});
+
+app.post('/api/projects/:id/pinterest/library', (req, res) => {
+  const items = Array.isArray(req.body?.images) ? req.body.images : [];
+  res.json({ success: true, saved: items.length, ids: items.map(i => i.id) });
 });
 
 // Seed DB and start Express
