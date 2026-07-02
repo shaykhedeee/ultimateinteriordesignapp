@@ -3,7 +3,7 @@ import {
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
   BarChart3, Users, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, TrendingUp, Zap,
-  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee, Monitor
+  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee, Monitor, Store
 } from 'lucide-react';
 
 // Import Screens
@@ -240,46 +240,86 @@ export function App() {
     return () => clearInterval(interval);
   }, [selectedProjectId, prevActiveJobsCount, orchestratorMode]);
 
-  const handleSendMessage = async (text) => {
+  const handleSendMessage = async (text, retryingForId) => {
     setLastUserText(text);
     const userMsg = {
-      id: `msg-${Date.now()}`,
+      id: retryingForId || `msg-${Date.now()}`,
       sender: 'user',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       text,
-      status: 'sending'
+      status: 'sending',
+      originalText: text
     };
-    setChatMessages(prev => [...prev, userMsg]);
+    setChatMessages(prev =>
+      retryingForId
+        ? prev.map(m => m.id === retryingForId ? { ...m, status: 'sending', text, originalText: text } : m)
+        : [...prev, userMsg]
+    );
 
-    try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId || 'demo'}/ai/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, projectId: selectedProjectId })
-      });
-      const data = await res.json();
-      const auraMsg = {
-        id: `msg-${Date.now() + 1}`,
-        sender: 'aura',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: data.reply || data.message || 'AURA is re-evaluating that request.',
-        provider: data.provider || 'llm',
-        actionPreview: data.actionPreview,
-        actions: data.actions
-      };
-      setChatMessages(prev => prev.map(m => m.id === userMsg.id ? { ...m, status: 'sent' } : m));
-      setChatMessages(prev => [...prev, auraMsg]);
-    } catch (err) {
-      const auraMsg = {
-        id: `msg-${Date.now() + 1}`,
-        sender: 'aura',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `Understood: "${text}". I have mapped this prompt to the active design agent. Let me know if you would like me to generate renders or optimize the budget.`,
-        provider: 'fallback-deterministic'
-      };
-      setChatMessages(prev => prev.map(m => m.id === userMsg.id ? { ...m, status: 'sent' } : m));
-      setChatMessages(prev => [...prev, auraMsg]);
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts) {
+      attempts += 1;
+      try {
+        const projectId = await ensureProject();
+        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/ai/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, projectId })
+        });
+
+        if (!res.ok) throw new Error(`Backend responded with ${res.status}`);
+
+        const contentType = res.headers.get('content-type') || '';
+        const data = contentType.includes('application/json') ? await res.json() : { reply: await res.text(), provider: 'text' };
+
+        const auraMsg = {
+          id: `msg-${Date.now() + 1}`,
+          sender: 'aura',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: data.reply || data.message || 'AURA is re-evaluating that request.',
+          provider: data.provider || 'llm',
+          actionPreview: data.actionPreview || null,
+          actions: data.actions || null,
+          status: 'sent'
+        };
+
+        setChatMessages(prev =>
+          retryingForId
+            ? prev.map(m => m.id === retryingForId ? { ...m, status: 'sent' } : m)
+            : prev.map(m => m.id === userMsg.id ? { ...m, status: 'sent' } : m)
+        );
+        setChatMessages(prev => [...prev, auraMsg]);
+        return;
+      } catch (err) {
+        console.warn(`[AURA] Request failed ${attempts}/${maxAttempts}:`, err);
+
+        if (attempts >= maxAttempts) {
+          const auraMsg = {
+            id: `msg-${Date.now() + 1}`,
+            sender: 'aura',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            text: `I hit a snag processing: "${text}". Tap Retry or try a shorter instruction.`,
+            provider: 'fallback-error',
+            actionPreview: null,
+            actions: null,
+            status: 'error'
+          };
+
+          setChatMessages(prev =>
+            retryingForId
+              ? prev.map(m => m.id === retryingForId ? { ...m, status: 'error' } : m)
+              : prev.map(m => m.id === userMsg.id ? { ...m, status: 'error' } : m)
+          );
+          setChatMessages(prev => [...prev, auraMsg]);
+        }
+      }
     }
+  };
+
+  const handleRetryMessage = async (text, failedId) => {
+    await handleSendMessage(text || '', failedId);
   };
 
   const navigateTab = (tab) => {
@@ -775,6 +815,7 @@ export function App() {
             messages={chatMessages}
             onSendMessage={handleSendMessage}
             onExecuteAction={handleExecuteAction}
+            onRetryMessage={handleRetryMessage}
             project={selectedProject}
             isOpen={isAuraOpen}
             onClose={() => setIsAuraOpen(false)}

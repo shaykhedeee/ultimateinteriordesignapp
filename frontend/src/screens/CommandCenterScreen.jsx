@@ -1838,67 +1838,45 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     }
   };
 
-  const handleRunTool = () => {
+  const handleRunTool = async () => {
     setIsRunning(true);
     setToolResult(null);
 
-    setTimeout(() => {
-      setIsRunning(false);
-      
-      // Calculate outputs based on key
+    try {
+      const projectId = project?.id;
+      if (!projectId) {
+        throw new Error('No active project selected');
+      }
+
+      const res = await fetch('http://127.0.0.1:5055/api/tools/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, toolKey: activeTool.key })
+      });
+      if (!res.ok) throw new Error(`Tool run failed: ${res.status}`);
+      await res.json();
+
+      const resultRes = await fetch(`http://127.0.0.1:5055/api/tools/result?toolKey=${encodeURIComponent(activeTool.key)}&projectId=${encodeURIComponent(projectId)}`);
+      const resultJson = await resultRes.json();
+
       if (activeTool.key === 'ambient_lighting') {
-        let text = "";
-        let color = "";
-        if (lightPreset === 'golden_hour') { text = "Twilight Golden Hour (3500K) set. Rotation vector sun offset calculated."; color = "linear-gradient(135deg, #1e112a 0%, #3a1e2f 50%, #5d3434 100%)"; }
-        else if (lightPreset === 'noon') { text = "Direct Noon daylight (5500K) configured. Shadow bias set to 0.05."; color = "linear-gradient(135deg, #0e1726 0%, #172a45 100%)"; }
-        else if (lightPreset === 'evening') { text = "Evening Warm light (2700K). Indoor ceiling pendants power multipliers boosted."; color = "linear-gradient(135deg, #080c18 0%, #101428 100%)"; }
-        else { text = "Midnight moonlight (6500K). Accent under-glow LEDs activated."; color = "linear-gradient(135deg, #030712 0%, #060b24 100%)"; }
-        setToolResult({ success: true, text, visualSim: color });
+        setToolResult({ success: true, text: resultJson.text || '' });
+      } else if (activeTool.key === 'rcp_planner') {
+        setToolResult({ success: true, text: resultJson.text || '', layoutPoints: resultJson.layoutPoints || [] });
+      } else if (activeTool.key === 'elevation_draft') {
+        setToolResult({ success: true, text: resultJson.text || '', wallFace: resultJson.wallFace || 'North Wall' });
+      } else if (activeTool.key === 'swatch_match') {
+        setToolResult({ success: true, text: resultJson.text || '', swatchMatch: resultJson.swatchMatch || null });
+      } else if (activeTool.key === 'extruder_3d') {
+        setToolResult({ success: true, text: resultJson.text || '', extruded: !!resultJson.extruded });
+      } else {
+        setToolResult({ success: true, text: resultJson.text || `Specialist tool execution success. Outputs saved & linked to active project: "${project?.name || 'Onboarding Lead'}"` });
       }
-      else if (activeTool.key === 'rcp_planner') {
-        const totalSpot = rcpItems.filter(i => i.type === 'Spotlight').length;
-        const totalPendant = rcpItems.filter(i => i.type === 'Pendant').length;
-        const totalLED = rcpItems.filter(i => i.type === 'LED Strip').length;
-        const totalLux = (totalSpot * 120) + (totalPendant * 280) + (totalLED * 400);
-        setToolResult({
-          success: true,
-          text: `RCP plan exported. Mapped ${rcpItems.length} lighting nodes. Total lux estimate: ${totalLux} lm. Visual clearance: Optimal.`,
-          layoutPoints: [...rcpItems]
-        });
-      }
-      else if (activeTool.key === 'elevation_draft') {
-        setToolResult({
-          success: true,
-          text: `Successfully calculated dimensions for ${elevationWall}. Plotted elevation drawing to project drawings pack.`,
-          wallFace: elevationWall
-        });
-      }
-      else if (activeTool.key === 'swatch_match') {
-        let matchName = "Calacatta Gold Quartz (Merino)";
-        let code = "MT-8012";
-        let conf = "98.7%";
-        if (swatchType === 'charcoal_matte') { matchName = "Charcoal Matte Laminate (Royale Touche)"; code = "MT-8012"; conf = "97.2%"; }
-        else if (swatchType === 'frosty_white') { matchName = "Frosty White Laminate (CenturyPly)"; code = "SF-9120"; conf = "99.4%"; }
-        setToolResult({
-          success: true,
-          text: `Matched reference swatch with ${conf} confidence rating. Matching catalog item: ${matchName} (Code: ${code}).`,
-          swatchMatch: { name: matchName, code, confidence: conf }
-        });
-      }
-      else if (activeTool.key === 'extruder_3d') {
-        setToolResult({
-          success: true,
-          text: `Extrusion pipeline completed. Built 3D walls at thickness ${extrudeThickness}mm with ceiling height 3000mm. Extruded 12 faces.`,
-          extruded: true
-        });
-      }
-      else {
-        setToolResult({
-          success: true,
-          text: `Specialist tool execution success. Outputs saved & linked to active project: "${project?.name || 'Onboarding Lead'}"`
-        });
-      }
-    }, 1500);
+    } catch (err) {
+      setToolResult({ success: false, text: `Tool execution failed: ${err.message}` });
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   return (

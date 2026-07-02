@@ -21,6 +21,7 @@ import planIntelligenceCore from './services/plan-intelligence-core.js';
 import ruleEngine from './services/rule-engine.js';
 import drawingGenerator from './services/drawing-generator.js';
 import dxfGenerator from './services/dxf-generator.js';
+import { chatAura, getAuraProviderStatus } from './services/aura-chat-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -640,123 +641,50 @@ app.post('/api/projects/:id/quotation/pdf', async (req, res) => {
   }
 });
 
-// AURA AI Chat backed by tiny LLM
+// AURA AI Chat central hub endpoint
 app.post('/api/projects/:id/ai/chat', async (req, res) => {
   try {
     const projectId = req.params.id;
-    const message = (req.body && req.body.message) || '';
-    if (!message || !message.trim()) {
-      return res.status(400).json({ reply: 'Please enter a design instruction for AURA.', provider: 'validation' });
-    }
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    const history = Array.isArray(body.history) ? body.history : [];
+    const context = typeof body.context === 'string' ? body.context : body.message || '';
 
-    let projectContext = 'General interior design assistant mode.';
+    let projectContext = context || 'General interior design assistant mode.';
     if (projectId && projectId !== 'demo') {
       const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
       if (project) {
         let brief = {};
         if (project.client_brief_json) {
-          try { brief = JSON.parse(project.client_brief_json); } catch (e) {}
+          try { brief = JSON.parse(project.client_brief_json); } catch (e) { brief = {}; }
         }
         const rooms = (brief.rooms || []).map(r => r.name || r.type).join(', ');
-        projectContext = `Project: ${project.client_name} - ${project.name}. Rooms: ${rooms || 'Not yet defined'}. Status: ${project.status}.`;
+        const extra = `Project: ${project.client_name || ''} ${project.name || projectId}. Rooms: ${rooms || 'not defined'}. Status: ${project.status || 'unknown'}.`;
+        projectContext = [context, extra].filter(Boolean).join('\n');
       }
     }
 
-    const instruction = [
-      'You are AURA, an elite interior design assistant for Indian residential projects.',
-      'Reply in concise, actionable advice about materials, layouts, lighting, budget, or style.',
-      'If the user asks for actionable changes, return an actionPreview object with title, changes array, costImpact number, visualQualityImpact number from 1-5, and actions array with label and actionId.',
-      'Format actionPreview JSON when applicable inside the reply metadata; otherwise provide direct advice.',
-      `Context: ${projectContext}`,
-      `User request: ${message}`
-    ].join('\n');
-
-    let replyText = `Understood: "${message}". Mapped to the active design agent.`;
-    let provider = 'fallback-deterministic';
-
-    try {
-      const answer = await refineRenderPromptWithGemini({ prompt: message, room: 'general', style: 'adaptive', budgetTier: 'standard', layoutConstraints: { instruction } });
-      const extracted = (answer && answer.prompt) || '';
-      if (extracted && extracted.trim()) {
-        replyText = extracted.trim();
-        provider = answer.provider || provider;
-      }
-    } catch (err) {
-      console.warn('[ai/chat] LLM provider failed:', err.message);
-    }
-
-    const actionPreview = extractActionPreviewFromText(replyText, message);
-    const actions = actionPreview ? buildActionsFromPreview(actionPreview) : [];
-    const cleanReply = actionPreview
-      ? `${actionPreview.title}. Saved estimate updated with cost impact ₹${Math.abs(actionPreview.costImpact || 0).toLocaleString()}.`
-      : replyText;
-
-    res.json({ reply: cleanReply || replyText, provider, actionPreview, actions });
+    const result = await chatAura({ message, history, context: projectContext });
+    res.json({
+      reply: result.reply,
+      provider: result.provider,
+      actionPreview: result.actionPreview,
+      actions: result.actions
+    });
   } catch (err) {
     console.error('[ai/chat] Unexpected error:', err);
-    res.status(500).json({ reply: 'AURA encountered a processing error. Please retry.', provider: 'error' });
+    res.status(500).json({ reply: 'AURA encountered a processing error. Please retry.', provider: 'error', actionPreview: null, actions: [] });
   }
 });
 
-function extractActionPreviewFromText(text, originalRequest) {
-  if (!text) return null;
-  const lower = text.toLowerCase();
-  let title = 'AURA Suggested Update';
-  let changes = [];
-  let costImpact = 0;
-  let visualQualityImpact = 4.0;
-
-  if (lower.includes('save') || lower.includes('budget') || lower.includes('cost') || lower.includes('optimize')) {
-    title = 'Optimize Budget / Spec';
-    costImpact = -15000;
-    changes = ['Prefers value-engineered laminate/hardware alternatives', 'Target cabinet/hardware savings applied'];
-    visualQualityImpact = 4.2;
-  } else if (lower.includes('floor') || lower.includes('wood') || lower.includes('palette') || lower.includes('paint') || lower.includes('laminate')) {
-    title = 'Apply Finish / Palette';
-    costImpact = 8000;
-    changes = ['Applies selected material system across selected zones', 'Updates finish tags for renders and procurement'];
-    visualQualityImpact = 4.6;
-  } else if (lower.includes('sofa') || lower.includes('rotate') || lower.includes('layout') || lower.includes('place')) {
-    title = 'Adjust Layout Placement';
-    costImpact = 0;
-    changes = ['Repositions selected furniture block', 'Maintains minimum walkway clearance'];
-    visualQualityImpact = 4.4;
-  } else if (lower.includes('light') || lower.includes('lux') || lower.includes('lamp')) {
-    title = 'Improve Lighting Plan';
-    costImpact = 5000;
-    changes = ['Adjusts light layering and fixture counts', 'Better CCT/Lux alignment for the room'];
-    visualQualityImpact = 4.3;
-  } else {
-    costImpact = 0;
-    changes = ['Maps instruction to current design intent'];
+app.get('/api/projects/:id/ai/chat-status', (req, res) => {
+  try {
+    const status = getAuraProviderStatus();
+    res.json({ ...status, endpoint: 'post /api/projects/:id/ai/chat', accepts: ['message', 'history[]', 'context?'] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  return {
-    title,
-    changes,
-    costImpact,
-    visualQualityImpact,
-    raw: text,
-    originalRequest
-  };
-}
-
-function buildActionsFromPreview(actionPreview) {
-  const actions = [];
-  const base = { actionId: 'aura-action', label: 'Apply Suggestion', variant: 'primary' };
-  if (actionPreview.title && actionPreview.title.toLowerCase().includes('budget')) {
-    actions.push({ ...base, actionId: 'act-budget-cut', label: 'Apply Optimization' });
-  } else if (actionPreview.title && actionPreview.title.toLowerCase().includes('finish')) {
-    actions.push({ ...base, actionId: 'act-palette-apply', label: 'Apply Finishes Globally' });
-  } else if (actionPreview.title && actionPreview.title.toLowerCase().includes('layout')) {
-    actions.push({ ...base, actionId: 'act-restyle', label: 'Execute Move' });
-  } else if (actionPreview.title && actionPreview.title.toLowerCase().includes('light')) {
-    actions.push({ ...base, actionId: 'act-lighting-apply', label: 'Apply Lighting Plan' });
-  } else {
-    actions.push({ ...base, actionId: 'act-apply-aura', label: 'Apply Suggestion' });
-  }
-  return actions;
-}
+});
 
 // ==========================================
 // 3. INTERACTIVE 2D CAD API
@@ -2395,6 +2323,80 @@ app.get('/api/projects/:id/pinterest/search', (req, res) => {
 app.post('/api/projects/:id/pinterest/library', (req, res) => {
   const items = Array.isArray(req.body?.images) ? req.body.images : [];
   res.json({ success: true, saved: items.length, ids: items.map(i => i.id) });
+});
+
+// ==========================================
+// 8. AI SPECIALIST TOOL RUNNER API
+// ==========================================
+
+// Run an AI specialist tool and return a simulated job/result payload
+app.post('/api/tools/run', async (req, res) => {
+  try {
+    const projectId = req.body.projectId || req.params.id;
+    const toolKey = (req.body.toolKey || '').trim();
+    if (!toolKey) return res.status(400).json({ error: 'toolKey is required' });
+
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const jobId = 'job_' + nanoid(6);
+    db.prepare(`INSERT INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id) VALUES (?, ?, ?, 'running', 0, 'tool', ?)`)
+      .run(jobId, projectId, toolKey, toolKey);
+
+    logTimelineEvent(projectId, 'tool.started', `AI Tool: ${toolKey}`, `Job ID: ${jobId}`);
+
+    // Simulate completion after short delay and return deterministic canned outputs by tool
+    setTimeout(() => {
+      db.prepare("UPDATE jobs SET status = 'succeeded', progress = 100 WHERE id = ?").run(jobId);
+      logTimelineEvent(projectId, 'tool.succeeded', `AI Tool: ${toolKey}`, `Job ID: ${jobId}`);
+    }, 1200);
+
+    return res.json({ success: true, jobId, toolKey, projectId, status: 'running' });
+  } catch (err) {
+    console.error('[tool/run] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Build tool-run result payloads deterministically
+app.get('/api/tools/result', (req, res) => {
+  try {
+    const toolKey = (req.query.toolKey || '').trim();
+    const projectId = req.query.projectId || '';
+    if (!toolKey) return res.status(400).json({ error: 'toolKey is required' });
+
+    const project = db.prepare("SELECT id, name, status FROM projects WHERE id = ?").get(projectId);
+    const projectName = project?.name || 'Onboarding Lead';
+
+    let payload = { success: true };
+
+    if (toolKey === 'ambient_lighting') {
+      payload.text = 'Lighting preset applied. Scene ambient vector updated with selected temperature profile.';
+    } else if (toolKey === 'rcp_planner') {
+      payload.text = 'RCP plan exported. Lighting nodes mapped to ceiling grid. Visual clearance: Optimal.';
+      payload.layoutPoints = [
+        { id: 'rcp_1', type: 'Spotlight', x: 80, y: 80 },
+        { id: 'rcp_2', type: 'Pendant', x: 220, y: 80 },
+        { id: 'rcp_3', type: 'LED Strip', x: 80, y: 220 },
+        { id: 'rcp_4', type: 'Spotlight', x: 220, y: 220 }
+      ];
+    } else if (toolKey === 'elevation_draft') {
+      payload.text = 'Elevation drawing generated for selected wall slice. Dimension labels and cabinet outlines written to drawings pack.';
+      payload.wallFace = 'North Wall';
+    } else if (toolKey === 'swatch_match') {
+      payload.text = 'Matched reference swatch with 98.7% confidence. Merino MT-8012 Charcoal Matte assigned.';
+      payload.swatchMatch = { name: 'Charcoal Matte Laminate (Merino)', code: 'MT-8012', confidence: '98.7%' };
+    } else if (toolKey === 'extruder_3d') {
+      payload.text = `Extrusion pipeline completed for \"${projectName}\". Built 3D wall shells with default ceiling height 3000mm.`;
+      payload.extruded = true;
+    } else {
+      payload.text = `Specialist tool execution success. Outputs saved & linked to active project: "${projectName}"`;
+    }
+
+    res.json(payload);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Seed DB and start Express
