@@ -90,6 +90,7 @@ export function App() {
   // Jesture: use [window.__JESTURE_API_URL__] if present, otherwise default to http://127.0.0.1:5055
   const JESTURE_API_URL = typeof window !== 'undefined' ? (window.__JESTURE_API_URL__ || 'http://127.0.0.1:5055') : 'http://127.0.0.1:5055';
   const [brainOnline, setBrainOnline] = useState(false);
+  const [activeJobs, setActiveJobs] = useState([]);
 
   // Keyboard shortcuts for fast navigation
   useEffect(() => {
