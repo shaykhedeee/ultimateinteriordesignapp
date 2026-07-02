@@ -96,6 +96,7 @@ export default function PlanReviewScreen({ projectId, onNavigateToTab }) {
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<OverlayMarker['markerType'] | 'all'>('all');
   const [calibrationPoints, setCalibrationPoints] = useState<OverlayPoint[]>([]);
+  const [planStatus, setPlanStatus] = useState('');
   const fileInputRef = React.useRef(null);
 
   const selectedVersion = useMemo(
@@ -167,7 +168,8 @@ export default function PlanReviewScreen({ projectId, onNavigateToTab }) {
       knownDistanceMm: Number(knownDistanceMm),
       pixelDistance: Number(pixelDistance),
     });
-    alert('Calibration saved.');
+    setPlanStatus('Calibration saved.');
+    setTimeout(() => setPlanStatus(''), 2200);
   }
 
   async function annotateVersion() {
@@ -177,13 +179,15 @@ export default function PlanReviewScreen({ projectId, onNavigateToTab }) {
       modules: [{ moduleType, roomRef: 'room_living_1', wallRef: 'wall_l1', note: 'Planned by user + AI assist' }],
       references: [{ roomRef: 'room_living_1', imageLabel: referenceImageLabel, styleNote: 'Use as style and material reference' }],
     });
-    alert('Annotation saved.');
+    setPlanStatus('Annotation saved.');
+    setTimeout(() => setPlanStatus(''), 2200);
   }
 
   async function finalizeVersion() {
     if (!selectedVersion) return;
     await apiPost(`/api/floor-plan-versions/${selectedVersion.id}/finalize`, {});
-    alert('Finalized. Next step: promote into editable design scene.');
+    setPlanStatus('Finalized. Next step: promote into editable design scene.');
+    setTimeout(() => setPlanStatus(''), 2500);
     onNavigateToTab?.('cad');
   }
 
@@ -212,7 +216,8 @@ export default function PlanReviewScreen({ projectId, onNavigateToTab }) {
       acceptRemainingHighConfidence: true,
       corrections: [{ itemType: 'room', itemRef: 'room_tmp_1', action: 'accept' }],
     });
-    alert('Plan review approved.');
+    setPlanStatus('Plan review approved.');
+    setTimeout(() => setPlanStatus(''), 2500);
   }
 
   function emitOverlay(nextPoints: OverlayPoint[], nextMarkers: OverlayMarker[]) {
