@@ -582,6 +582,10 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setTimeout(() => { setStatusMessage(null); setStatusType(null); }, 4000);
   }, []);
 
+  // Generation state for clearer UX
+  const [generationLabel, setGenerationLabel] = useState('Generate Renders');
+  const editorControllerRef = useRef(null);
+
   const renderPresets = [
     {
       id: 'preset-3bhk-living',
@@ -830,15 +834,17 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const handleRegenerateRenders = async () => {
     try {
+      setStatus('Regenerating all renders…', 'loading');
       await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'render_generation' })
       });
       setProject(prev => prev ? { ...prev, stale_renders: 0 } : null);
-      setStatus('Render regeneration job spawned. Check Background Jobs tab.');
+      setStatus('Render regeneration queued.', 'success');
     } catch (err) {
       console.error(err);
+      setStatus('Regeneration failed.', 'error');
     }
   };
 
@@ -882,8 +888,20 @@ export default function Render3DStudio({ projectId, onComplete }) {
   };
 
   const generateAIRender = async () => {
+    if (isGenerating) {
+      if (editorControllerRef.current) {
+        editorControllerRef.current.abort();
+        editorControllerRef.current = null;
+      }
+      setIsGenerating(false);
+      setGenerationStatus('Generation cancelled');
+      setGenerationLabel('Generate Renders');
+      return;
+    }
     setIsGenerating(true);
+    setGenerationLabel('Cancel');
     setGenerationStatus('Generating...');
+    editorControllerRef.current = new AbortController();
     try {
       const formData = new FormData();
       formData.append('room', targetRoom);
@@ -898,7 +916,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('customInstruction', customInstruction);
       formData.append('renderMode', renderMode);
       formData.append('sourceType', cameraFile ? 'camera-capture' : 'generative');
-      
+
       // Append kitchen rules
       formData.append('hobSinkSwapped', String(kitchenRules.hobSinkSwapped));
       formData.append('chimneyOverHob', String(kitchenRules.chimneyOverHob));
@@ -920,28 +938,50 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/generate`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: editorControllerRef.current.signal
       });
       const data = await res.json();
       setGenerationStatus(data?.success ? 'Render complete.' : 'Render finished with issues.');
       if (data.success) {
+        setStatus('Render generated.');
         await fetchRenders();
         if (data.render) {
           setSelectedRender(data.render);
         }
       }
     } catch (err) {
-      console.error("AI Generation failed:", err);
-      setGenerationStatus('Generation failed');
+      if (err?.name === 'AbortError') {
+        setGenerationStatus('Generation cancelled');
+        setStatus('Generation cancelled.', 'error');
+      } else {
+        console.error("AI Generation failed:", err);
+        setGenerationStatus('Generation failed');
+        setStatus('Generation failed.', 'error');
+      }
     } finally {
       setIsGenerating(false);
+      setGenerationLabel('Generate Renders');
+      editorControllerRef.current = null;
     }
   };
 
   const handleEditRender = async () => {
     if (!selectedRender || !revisionRequest.trim()) return;
+    if (isGenerating) {
+      if (editorControllerRef.current) {
+        editorControllerRef.current.abort();
+        editorControllerRef.current = null;
+      }
+      setIsGenerating(false);
+      setGenerationStatus('Edit cancelled');
+      setGenerationLabel('Apply Edit');
+      return;
+    }
     setIsGenerating(true);
+    setGenerationLabel('Cancel');
     setGenerationStatus('Applying edit...');
+    editorControllerRef.current = new AbortController();
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/edit`, {
         method: 'POST',
@@ -951,11 +991,13 @@ export default function Render3DStudio({ projectId, onComplete }) {
           revisionRequest,
           renderMode,
           iterationNumber: revisionCount + 1
-        })
+        }),
+        signal: editorControllerRef.current.signal
       });
       const data = await res.json();
       setGenerationStatus(data?.success ? `Edit applied. Iteration ${revisionCount + 1}` : 'Edit finished with issues.');
       if (data.success) {
+        setStatus(`Edit applied. Iteration ${revisionCount + 1}`);
         trackIteration(`Iteration ${revisionCount + 1}`, revisionRequest);
         setRevisionRequest('');
         await fetchRenders();
@@ -964,10 +1006,18 @@ export default function Render3DStudio({ projectId, onComplete }) {
         }
       }
     } catch (err) {
-      console.error("AI Revision failed:", err);
-      setGenerationStatus('Edit failed');
+      if (err?.name === 'AbortError') {
+        setGenerationStatus('Edit cancelled');
+        setStatus('Edit cancelled.', 'error');
+      } else {
+        console.error("AI Revision failed:", err);
+        setGenerationStatus('Edit failed');
+        setStatus('Edit failed.', 'error');
+      }
     } finally {
       setIsGenerating(false);
+      setGenerationLabel('Apply Edit');
+      editorControllerRef.current = null;
     }
   };
 
@@ -983,14 +1033,47 @@ export default function Render3DStudio({ projectId, onComplete }) {
       const data = await res.json();
       setGenerationStatus(data?.success ? `Marked as ${status}.` : 'Review update failed.');
       if (data.success) {
+        setStatus(`Marked as ${status}.`);
         setReviewNote('');
         await fetchRenders();
       }
     } catch (err) {
       console.error("Error submitting review:", err);
       setGenerationStatus('Review failed');
+      setStatus('Review failed.', 'error');
     }
   };
+
+  const handleKeyboard = useCallback((e) => {
+    if (!projectId) return;
+    const tag = document.activeElement?.tagName || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.key.toLowerCase() === 'g' && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      generateAIRender();
+    }
+    if (e.key.toLowerCase() === 'e' && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      handleEditRender();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      setStatus('Save shortcut triggered.');
+    }
+    if (e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      handleReview('needs-revision');
+    }
+    if (e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      handleReview('approved');
+    }
+  }, [projectId, generateAIRender, handleEditRender]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyboard);
+    return () => window.removeEventListener('keydown', handleKeyboard);
+  }, [handleKeyboard]);
 
   // Revision history trail for render iterations
   const revisionTrail = useMemo(() => {
@@ -1828,11 +1911,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
           <button
             onClick={generateAIRender}
-            disabled={isGenerating}
             className="w-full py-3 bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-lg transition"
           >
-            <Sparkles className="w-4 h-4" />
-            Generate Renders
+            {isGenerating ? <><RefreshCw className="w-4 h-4 animate-spin" /> {generationLabel}</> : <><Sparkles className="w-4 h-4" /> {generationLabel}</>}
           </button>
         </div>
       </div>
@@ -2367,24 +2448,29 @@ export default function Render3DStudio({ projectId, onComplete }) {
               <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400">
                 <span>Instruct AI to Revise Render</span>
               </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={revisionRequest}
-                  onChange={(e) => setRevisionRequest(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleEditRender();
-                  }}
-                  placeholder="Instruct AI to refine this render (e.g. Change cabinets to grey, make rafters end at window)..."
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
-                />
-                <button
-                  onClick={handleEditRender}
-                  disabled={isGenerating || !revisionRequest.trim()}
-                  className="bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 text-xs font-bold px-4 py-1.5 rounded flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> Revise
-                </button>
+              <div className="flex flex-col gap-2">
+                <div aria-live="polite" aria-atomic="true" role="status" className="text-[9px] font-black uppercase text-slate-400">
+                  {isGenerating ? `Operating… ${generationLabel}` : revisionCount > 0 ? `Iterations: ${revisionCount}` : 'Ready to revise'}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={revisionRequest}
+                    onChange={(e) => setRevisionRequest(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isGenerating && revisionRequest.trim() && selectedRender) handleEditRender();
+                    }}
+                    placeholder="Instruct AI to refine this render (e.g. Change cabinets to grey, make rafters end at window)..."
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
+                  />
+                  <button
+                    onClick={handleEditRender}
+                    disabled={!selectedRender || (!revisionRequest.trim() && !isGenerating)}
+                    className="bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 text-xs font-bold px-4 py-1.5 rounded flex items-center gap-1.5 transition disabled:opacity-40"
+                  >
+                    {isGenerating ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> {generationLabel}</> : <><Sparkles className="w-3.5 h-3.5" /> Revise</>}
+                  </button>
+                </div>
               </div>
             </div>
           )}
