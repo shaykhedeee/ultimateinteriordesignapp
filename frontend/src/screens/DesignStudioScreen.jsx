@@ -100,9 +100,35 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   const [selectedProductTab, setSelectedProductTab] = useState('catalog');
   const [activeRooms, setActiveRooms] = useState([]);
   const [rightTab, setRightTab] = useState('catalog');
+  const [catalogItems, setCatalogItems] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const [selectionBox, setSelectionBox] = useState(null);
   const [statusChip, setStatusChip] = useState('Rooms are being saved. Once they appear, pick one to render.');
   const [actionCounts, setActionCounts] = useState({ assigned: 0, pending: 1 });
+
+  useEffect(() => {
+    if (projectId && (rightTab === 'catalog' || rightTab === 'library')) {
+      loadCatalog();
+    }
+  }, [projectId, rightTab]);
+
+  const loadCatalog = async () => {
+    setCatalogLoading(true);
+    try {
+      const res = await fetch('http://127.0.0.1:5055/api/furniture-catalog');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setCatalogItems(data);
+      } else {
+        setCatalogItems([]);
+      }
+    } catch (e) {
+      console.error('Failed to load catalog:', e);
+      setCatalogItems([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (projectId) {
@@ -500,14 +526,19 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {SAMPLE_PRODUCTS.map(product => (
-                <div key={product.name} className="bg-white rounded-xl overflow-hidden border border-slate-800">
-                  <div className="h-24 w-full bg-slate-100 flex items-center justify-center text-[9px] text-slate-500">Preview</div>
+              {!catalogLoading && catalogItems.length === 0 && (
+                <div className="col-span-2 text-[10px] text-slate-500">No catalog items found.</div>
+              )}
+              {catalogItems.map(item => (
+                <div key={item.key} className="bg-white rounded-xl overflow-hidden border border-slate-800">
+                  <div className="h-24 w-full bg-slate-100 flex items-center justify-center text-[9px] text-slate-500">
+                    {item.thumbnail ? <img src={item.thumbnail} alt={item.label} className="w-full h-full object-cover" /> : 'Preview'}
+                  </div>
                   <div className="p-2 space-y-1">
-                    <div className="text-[10px] font-black text-slate-900 leading-tight">{product.name}</div>
-                    <div className="text-[9px] text-slate-500">{product.brand}</div>
-                    <div className="text-[10px] font-bold text-slate-900">{product.price}</div>
-                    <div className="text-[9px] text-slate-500">{product.dims}</div>
+                    <div className="text-[10px] font-black text-slate-900 leading-tight">{item.label}</div>
+                    <div className="text-[9px] text-slate-500">{item.category}</div>
+                    <div className="text-[10px] font-bold text-slate-900">{item.price ? `₹${Math.round(item.price).toLocaleString('en-IN')}` : 'Price on request'}</div>
+                    <div className="text-[9px] text-slate-500">{item.dimensions?.widthMm && item.dimensions?.depthMm ? `${item.dimensions.widthMm}x${item.dimensions.depthMm} mm` : ''}</div>
                   </div>
                 </div>
               ))}
