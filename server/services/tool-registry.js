@@ -216,6 +216,45 @@ export const TOOLS = Object.freeze([
     requiredPermissions: ['project:read'],
     jobTypes: [],
     hidden: false
+  },
+  {
+    slug: 'cutlist-exporter',
+    name: 'Cutlist Exporter',
+    category: TOOL_CATEGORIES.COMMERCE,
+    enabledByDefault: true,
+    route: '/app/tools/commerce/cutlist',
+    apiNamespace: '/api/projects/:id/cutlist',
+    capabilities: ['cutlist_export', 'nest_preview', 'cnc_dxf'],
+    requiredFeatures: [],
+    requiredPermissions: ['project:read'],
+    jobTypes: ['cutlist_calculate'],
+    hidden: false
+  },
+  {
+    slug: 'pdf-builder',
+    name: 'PDF Builder',
+    category: TOOL_CATEGORIES.DOCS,
+    enabledByDefault: true,
+    route: '/app/tools/docs/pdf',
+    apiNamespace: '/api/projects/:id/brief/pdf',
+    capabilities: ['pdf_generate', 'quotation_pdf', 'signoff_pdf'],
+    requiredFeatures: [],
+    requiredPermissions: ['project:read'],
+    jobTypes: ['pdf_build'],
+    hidden: false
+  },
+  {
+    slug: 'dxf-exporter',
+    name: 'DXF Exporter',
+    category: TOOL_CATEGORIES.DOCS,
+    enabledByDefault: true,
+    route: '/app/tools/docs/dxf',
+    apiNamespace: '/api/projects/:id/drawings/dxf',
+    capabilities: ['dxf_export', 'elevation_dxf', 'scene_dxf'],
+    requiredFeatures: [],
+    requiredPermissions: ['project:read'],
+    jobTypes: ['dxf_export'],
+    hidden: false
   }
 ]);
 

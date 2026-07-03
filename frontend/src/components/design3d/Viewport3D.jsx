@@ -87,7 +87,7 @@ const createMarbleTexture = (colorHex) => {
   return texture;
 };
 
-export default function Viewport3D() {
+export default function Viewport3D({ onReady }) {
   const mountRef = useRef(null);
   const rebuildRef = useRef(null);
   const rooms = useEditorStore(selectRooms);
@@ -130,6 +130,10 @@ export default function Viewport3D() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mountRef.current.appendChild(renderer.domElement);
+
+    if (typeof onReady === 'function') {
+      onReady({ scene, camera, renderer });
+    }
 
     // --- 2. Controls & Lights ---
     const controls = new OrbitControls(camera, renderer.domElement);
