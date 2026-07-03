@@ -5,13 +5,8 @@ import { geminiKeys, getGeminiStatus, refineRenderPromptWithGemini } from './gem
 class GeminiMultimodalService {
   /**
    * Analyzes an uploaded site walkthrough video and cross-references it with the 2D CAD floorplan
-   * @param {string} projectId 
-   * @param {string} videoFilePath 
-   */
-
-   * Analyzes an uploaded site walkthrough video and cross-references it with the 2D CAD floorplan
-   * @param {string} projectId 
-   * @param {string} videoFilePath 
+   * @param {string} projectId
+   * @param {string} videoFilePath
    */
   async analyzeWalkthroughVideo(projectId, videoFilePath) {
     // 1. Fetch project and CAD floorplan
