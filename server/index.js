@@ -2887,8 +2887,41 @@ app.get('/api/projects/:id/pinterest/search', (req, res) => {
 });
 
 app.post('/api/projects/:id/pinterest/library', (req, res) => {
+  const projectId = req.params.id;
   const items = Array.isArray(req.body?.images) ? req.body.images : [];
-  res.json({ success: true, saved: items.length, ids: items.map(i => i.id) });
+  const inserted = [];
+  const stmt = db.prepare(`INSERT OR REPLACE INTO reference_library (id, project_id, filename, category, subcategory, style, budget_tier, image_path, thumbnail_path, metadata_json, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  items.forEach((img, idx) => {
+    const id = img.id || `${projectId}-lib-${Date.now()}-${idx}`;
+    stmt.run(
+      id,
+      projectId,
+      img.title || img.filename || `ref-${idx+1}`,
+      img.category || 'style-reference',
+      img.subcategory || img.tags?.[0] || null,
+      img.style || img.tags?.join(',') || null,
+      img.budgetTier || null,
+      img.url || img.image_path,
+      img.thumbnail || img.thumbnail_path,
+      JSON.stringify({ tags: img.tags || [], source: img.source || 'pinterest', title: img.title || '' }),
+      img.source || 'pinterest',
+      new Date().toISOString(),
+      new Date().toISOString()
+    );
+    inserted.push(id);
+  });
+  res.json({ success: true, saved: inserted.length, ids: inserted });
+});
+
+app.get('/api/projects/:id/library', (req, res) => {
+  const projectId = req.params.id;
+  const rows = db.prepare("SELECT * FROM reference_library WHERE project_id = ? AND deleted_at IS NULL ORDER BY created_at DESC").all(projectId);
+  res.json(rows.map(r => ({ ...r, metadata: JSON.parse(r.metadata_json || '{}') })));
+});
+
+app.delete('/api/projects/:id/library/:itemId', (req, res) => {
+  db.prepare("UPDATE reference_library SET deleted_at = ? WHERE id = ? AND project_id = ?").run(new Date().toISOString(), req.params.itemId, req.params.id);
+  res.json({ success: true });
 });
 
 // ==========================================

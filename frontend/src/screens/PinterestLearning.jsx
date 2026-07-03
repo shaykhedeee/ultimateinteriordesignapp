@@ -5,8 +5,25 @@ export default function PinterestLearning({ projectId }) {
   const [query, setQuery] = useState('indian bedroom laminate wardrobe');
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState([]);
+  const [savedLibrary, setSavedLibrary] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [status, setStatus] = useState('');
+
+  React.useEffect(() => {
+    loadLibrary();
+  }, [projectId]);
+
+  const loadLibrary = async () => {
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/library`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setSavedLibrary(data);
+      }
+    } catch (e) {
+      console.error('Failed to load library:', e);
+    }
+  };
 
   const runSearch = async () => {
     if (!query.trim()) return;
@@ -55,6 +72,7 @@ export default function PinterestLearning({ projectId }) {
       });
       const data = await res.json();
       setStatus(`Saved ${data.saved || selectedIds.length} references to library.`);
+      await loadLibrary();
     } catch (e) {
       setStatus('Save failed.');
     } finally {
@@ -134,6 +152,44 @@ export default function PinterestLearning({ projectId }) {
           );
         })}
       </div>
+
+      {/* Saved Reuse Library */}
+      {savedLibrary.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-black uppercase tracking-widest text-[#D4AF37]">
+              Saved Reuse Library ({savedLibrary.length})
+            </div>
+            <div className="text-[9px] text-slate-500 font-mono">Persisted locally per project</div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {savedLibrary.map(item => (
+              <div key={item.id} className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden group">
+                <img
+                  src={item.thumbnail_path || item.image_path}
+                  alt={item.filename}
+                  className="w-full h-36 object-cover"
+                />
+                <div className="p-2.5 space-y-1">
+                  <div className="text-[10px] font-bold text-slate-200 truncate">{item.filename}</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] text-slate-500">{item.category}{item.subcategory ? ` / ${item.subcategory}` : ''}</span>
+                    <button
+                      onClick={async () => {
+                        await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/library/${item.id}`, { method: 'DELETE' });
+                        await loadLibrary();
+                      }}
+                      className="text-[9px] text-red-400 hover:text-red-300"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

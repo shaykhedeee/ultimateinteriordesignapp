@@ -166,6 +166,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS reference_library (
     id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
     filename TEXT NOT NULL,
     category TEXT NOT NULL,
     subcategory TEXT,
@@ -794,6 +795,106 @@ try {
       'ceiling', 'center', 'fixture_body,diffuser', 'premium', 4800,
       null,
       'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_open_drawer_unit', 'Open Drawer Base Unit', 'kitchen_base_cabinet',
+      'kitchen,modular,open-storage', 'handle-less', 'kitchen,utility',
+      JSON.stringify({ widthMm: 600, heightMm: 850, depthMm: 600, drawerCount: 2, doorCount: 0 }),
+      '/models/furniture/generic_cuboid.gltf', '#e2e8f0', 'Open drawer base unit',
+      'floor', 'back', 'carcass,drawer_fronts,open_shelves', 'standard', 18500,
+      JSON.stringify({ minHeight: 800, maxHeight: 900, minDepth: 560, maxDepth: 620 }),
+      'https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_basket_unit', 'Pull-Out Basket Unit', 'kitchen_base_cabinet',
+      'kitchen,modular,storage', 'basket-weave', 'kitchen,utility',
+      JSON.stringify({ widthMm: 400, heightMm: 850, depthMm: 600, basketType: 'wire_basket' }),
+      '/models/furniture/generic_cuboid.gltf', '#cbd5e1', 'Pull-out basket base unit',
+      'floor', 'back', 'carcass,basket_runner,handle', 'standard', 22000,
+      JSON.stringify({ minHeight: 800, maxHeight: 900, minDepth: 560, maxDepth: 620 }),
+      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_tall_unit_pantry', 'Tall Pantry Unit', 'kitchen_tall_unit',
+      'kitchen,modular,storage', 'floor-to-ceiling', 'kitchen,utility',
+      JSON.stringify({ widthMm: 450, heightMm: 2100, depthMm: 600, shelfCount: 5 }),
+      '/models/furniture/generic_cuboid.gltf', '#94a3b8', 'Tall pantry unit',
+      'floor', 'back', 'carcass,shelves,handles', 'premium', 32000,
+      JSON.stringify({ minHeight: 1800, maxHeight: 2400, minDepth: 500, maxDepth: 600 }),
+      'https://images.unsplash.com/photo-1600585153490-76fb20a32601?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_backsplash_laminate', 'Laminate Backsplash Panel', 'kitchen_accessory',
+      'kitchen,modular,finishes', 'textured-laminate', 'kitchen',
+      JSON.stringify({ widthMm: 3000, heightMm: 600, depthMm: 10, finish: 'laminate' }),
+      '/models/furniture/generic_cuboid.gltf', '#f1f5f9', 'Backsplash panel preview',
+      'wall', 'back', 'laminate_panel,adhesive', 'standard', 6500,
+      JSON.stringify({ minWidth: 1000, maxWidth: 4000, minHeight: 300, maxHeight: 800 }),
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'wardrobe_sliding_wardrobe', 'Sliding Door Wardrobe', 'wardrobe',
+      'bedroom,storage,modern', 'sliding-doors', 'master_bedroom,bedroom,kids_bedroom',
+      JSON.stringify({ widthMm: 2400, heightMm: 2700, depthMm: 650, doorCount: 3, wardrobeSystem: 'sliding' }),
+      '/models/furniture/wardrobe_tall_lowpoly.gltf', '#64748b', 'Sliding wardrobe',
+      'floor', 'back', 'carcass,sliding_shutters,handles', 'standard', 38000,
+      JSON.stringify({ minDepth: 600, maxDepth: 700 }),
+      'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'wardrobe_mirror_wardrobe', 'Mirror Panel Wardrobe', 'wardrobe',
+      'bedroom,premium,storage', 'mirror-doors', 'master_bedroom',
+      JSON.stringify({ widthMm: 2400, heightMm: 2700, depthMm: 650, doorCount: 4, wardrobeSystem: 'mirror_swing' }),
+      '/models/furniture/wardrobe_tall_lowpoly.gltf', '#7dd3fc', 'Mirror wardrobe',
+      'floor', 'back', 'carcass,mirror_shutters,aluminum_profiles', 'premium', 52000,
+      JSON.stringify({ minDepth: 600, maxDepth: 700 }),
+      'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_console_table_marble', 'Marble Console Table', 'console_table',
+      'living_room,luxury,entry', 'natural-stone', 'living_room,lobby,entry',
+      JSON.stringify({ widthMm: 1200, heightMm: 780, depthMm: 450, topMaterial: 'marble', baseType: 'solid_wood' }),
+      '/models/furniture/generic_cuboid.gltf', '#e7e5e4', 'Marble console table',
+      'floor', 'bottom', 'tabletop,legs,apron', 'premium', 28000,
+      JSON.stringify({ minWidth: 900, maxWidth: 1500, minDepth: 400, maxDepth: 500 }),
+      'https://images.unsplash.com/photo-1532372576444-dda954194ad0?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'wall_shelf_industrial', 'Industrial Wall Shelf', 'shelving',
+      'living_room,kitchen,minimal', 'industrial-pipe', 'living_room,kitchen,study',
+      JSON.stringify({ widthMm: 1200, heightMm: 200, depthMm: 300, shelfCount: 3, bracketType: 'pipe' }),
+      '/models/furniture/generic_cuboid.gltf', '#78716c', 'Industrial wall shelf',
+      'wall', 'back', 'shelf_board,pipe_brackets,screws', 'economy', 8500,
+      JSON.stringify({ minWidth: 800, maxWidth: 1800, minDepth: 200, maxDepth: 350 }),
+      'https://images.unsplash.com/photo-1594620302200-9a762244a156?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'dining_table_marble', 'Marble Dining Table', 'dining_table',
+      'dining_room,luxury,family', 'calacatta-marble', 'dining_room',
+      JSON.stringify({ widthMm: 1800, heightMm: 750, depthMm: 900, topMaterial: 'marble', seatCount: 6 }),
+      '/models/furniture/generic_cuboid.gltf', '#fafaf9', 'Dining table preview',
+      'floor', 'bottom', 'tabletop,legs,apron', 'premium', 65000,
+      JSON.stringify({ minWidth: 1400, maxWidth: 2400, minSeats: 4, maxSeats: 8 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'coffee_table_glass', 'Glass Top Coffee Table', 'coffee_table',
+      'living_room,modern,minimal', 'clear-glass', 'living_room',
+      JSON.stringify({ widthMm: 1200, heightMm: 450, depthMm: 600, topMaterial: 'tempered_glass', baseType: 'solid_wood' }),
+      '/models/furniture/generic_cuboid.gltf', '#e0f2fe', 'Glass coffee table',
+      'floor', 'bottom', 'glass_top,base_frame', 'premium', 19500,
+      JSON.stringify({ minWidth: 900, maxWidth: 1500, minDepth: 500, maxDepth: 700 }),
+      'https://images.unsplash.com/photo-1533090481720-856c6e3c1fdc?auto=format&fit=crop&w=600&q=80'
     );
   }
 } catch (e) {
