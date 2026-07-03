@@ -205,9 +205,26 @@ db.exec(`
     count INTEGER NOT NULL DEFAULT 1,
     unit_cost REAL NOT NULL,
     total_cost REAL NOT NULL,
-    currency TEXT NOT NULL DEFAULT 'USD',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(project_id) REFERENCES projects(id)
+    currency TEXT DEFAULT 'INR',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS pricing_settings (
+    id TEXT PRIMARY KEY,
+    currency TEXT DEFAULT 'INR',
+    laminate_price_per_sqft REAL DEFAULT 45,
+    hardware_markup_percent REAL DEFAULT 18,
+    labor_per_sqft REAL DEFAULT 220,
+    transport_percent REAL DEFAULT 4,
+    profit_percent REAL DEFAULT 12,
+    client_discount_percent REAL DEFAULT 0,
+    client_tax_percent REAL DEFAULT 12,
+    showroom_multiplier REAL DEFAULT 1.18,
+    price_band_economy_max REAL DEFAULT 1600,
+    price_band_standard_max REAL DEFAULT 2200,
+    price_band_premium_max REAL DEFAULT 3200,
+    default_markup_profile TEXT DEFAULT 'standard',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS render_generation_jobs (
@@ -927,7 +944,6 @@ try {
       JSON.stringify({ minWidth: 1000, maxWidth: 1500, minDepth: 400, maxDepth: 500 }),
       'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
     );
-    );
 
     insert.run(
       'wardrobe_sliding_wardrobe', 'Sliding Door Wardrobe', 'wardrobe',
@@ -1077,7 +1093,6 @@ try {
       'floor', 'back', 'carcass,sliding_shutters,shelves', 'standard', 24000,
       JSON.stringify({ minWidth: 1000, maxWidth: 1500, minDepth: 400, maxDepth: 500 }),
       'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
-    );
     );
 
     insert.run(
@@ -1248,7 +1263,6 @@ try {
       'floor', 'back', 'carcass,sliding_shutters,shelves', 'standard', 24000,
       JSON.stringify({ minWidth: 1000, maxWidth: 1500, minDepth: 400, maxDepth: 500 }),
       'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
-    );
     );
   }
 } catch (e) {

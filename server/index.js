@@ -29,6 +29,7 @@ import { executeInference, listSupportedTaskTypes, listProvidersForTask } from '
 import { TASK_TYPES, PROVIDER_MODES, CAPABILITY_TAGS, canHandleTask, providersForTask, taskSupported, normalizeProviderKey, providerLabel } from './services/provider-registry.js';
 import { resolveProviderForTask, recordProviderMetadata } from './services/provider-router-service.js';
 import { buildEquirectPlaceholder } from './services/panorama-service.js';
+import { getPricingSettings, updatePricingSettings, estimateProjectCost } from './services/pricing-service.js';
 import { renderCanonicalTopView, enhanceCanonicalTopView, getProjectTopViewAssets } from './services/topview-enhancement-worker.js';
 import { startEditWorker } from './services/job-orchestrator.js';
 import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory } from './services/render-edit-service.js';
@@ -3082,6 +3083,44 @@ app.post('/api/whitelabel', (req, res) => {
     );
     const row = db.prepare("SELECT * FROM whitelabel_settings WHERE id = 'global'").get();
     res.json({ success: true, settings: row });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 7b. Pricing Settings
+// ==========================================
+
+app.get('/api/settings/pricing', (req, res) => {
+  try {
+    const settings = getPricingSettings();
+    res.json({ success: true, settings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/pricing', (req, res) => {
+  try {
+    const settings = updatePricingSettings(req.body || {});
+    res.json({ success: true, settings });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/estimate', (req, res) => {
+  try {
+    const input = req.body || {};
+    const result = estimateProjectCost({
+      laminateSqft: Number(input.laminateSqft || 0),
+      hardwareBaseCost: Number(input.hardwareBaseCost || 0),
+      laborSqft: Number(input.laborSqft || 0),
+      transportBaseCost: Number(input.transportBaseCost || 0),
+      client: input.client !== false
+    });
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
