@@ -173,49 +173,74 @@ export async function chatAura({ message, history = [], context = '' }) {
       reply: 'Please enter a design instruction for AURA.',
       provider: 'validation',
       actionPreview: null,
-      actions: []
+      actions: [],
+      agentStatus: 'idle'
     };
   }
 
   const instruction = context ? `User context:\n${String(context)}` : '';
-  const contents = buildGeminiMessages(history, trimmed);
   const llmMessages = buildOpenRouterMessages(history, trimmed);
-
+  
+  // Agentic step 1: understand intent
+  const intentPrompt = `${instruction}\n\nYou are AURA, an interior design agent. Analyze this request and respond with a brief plan.\nRequest: ${trimmed}\n\nRespond with: 1) Intent classification, 2) Required steps, 3) Estimated impact`;
+  
   let result = null;
   try {
-    result = await callGemini(contents, instruction);
+    result = await callGemini([{ role: 'user', parts: [{ text: intentPrompt }] }, { role: 'user', parts: [{ text: trimmed }] }], instruction);
   } catch (err) {
-    console.warn('[aura-chat] Gemini path failed:', err.message);
+    console.warn('[aura-chat] Gemini intent path failed:', err.message);
   }
   if (!result) {
     try {
-      result = await callOpenRouter(llmMessages, instruction);
+      result = await callOpenRouter([...llmMessages.slice(-4), { role: 'user', content: `Intent analysis: ${trimmed}\n\nProvide a brief plan with steps.` }], instruction);
     } catch (err) {
-      console.warn('[aura-chat] OpenRouter path failed:', err.message);
+      console.warn('[aura-chat] OpenRouter intent path failed:', err.message);
     }
   }
+
   if (!result) {
     return {
       reply: `Understood: "${trimmed}". AURA is currently in offline mode.`,
       provider: 'offline-fallback',
       actionPreview: null,
-      actions: []
+      actions: [],
+      agentStatus: 'offline'
     };
   }
 
-  const actionPreview = classifyPreview(result.reply, trimmed);
+  const replyText = result.reply || trimmed;
+  const actionPreview = classifyPreview(replyText, trimmed);
   const actions = buildActions(actionPreview);
+  
+  // Agentic step 2: execute safe actions automatically
+  let executedActions = [];
+  if (actions.length > 0 && actionPreview) {
+    try {
+      // Simulate tool execution
+      const executionResult = await executeAgentTool(trimmed, actionPreview, actions);
+      executedActions = executionResult.actions || [];
+    } catch (err) {
+      console.warn('[aura-chat] Tool execution failed:', err.message);
+    }
+  }
+
   const reply = actionPreview
-    ? `AURA: ${actionPreview.title}. Saved estimate updated with cost impact ₹${Math.abs(actionPreview.costImpact || 0).toLocaleString()}.`
-    : result.reply;
+    ? `${replyText}\n\nExecuted: ${executedActions.map(a => a.label).join(', ') || 'Analysis complete'}`
+    : replyText;
 
   return {
-    ...result,
     reply,
     provider: result.provider,
     providerMeta: { provider: result.provider, model: result.model || 'unknown' },
     actionPreview,
-    actions
+    actions,
+    executedActions,
+    agentStatus: 'completed',
+    steps: [
+      { name: 'Intent Analysis', status: 'completed' },
+      { name: 'Tool Execution', status: executedActions.length > 0 ? 'completed' : 'skipped' },
+      { name: 'Response Generation', status: 'completed' }
+    ]
   };
 }
 
