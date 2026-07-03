@@ -1116,6 +1116,10 @@ try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_camera INTEGER DEFAU
 try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_geometry INTEGER DEFAULT 1;"); } catch (e) {}
 try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_lighting_direction INTEGER DEFAULT 1;"); } catch (e) {}
 
+try {
+  db.exec("ALTER TABLE reference_library ADD COLUMN project_id TEXT NOT NULL DEFAULT 'global';");
+} catch (e) {}
+
 console.log("Ultimate Interior Design SQLite Database initialized at:", dbPath);
 
 try {
