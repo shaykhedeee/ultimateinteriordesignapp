@@ -548,7 +548,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
         <div>
           <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">🚀 Your Design Flow</h3>
           <p className="text-[10px] text-slate-500 mt-0.5">Choose a template or start simple — we’ll guide you</p>
-
+        </div>
         <div className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 border border-slate-850 px-3 py-1 rounded-xl">
           STEP: <span className="text-[#D4AF37] uppercase">{wizardStep.replace('_', ' ')}</span>
         </div>
