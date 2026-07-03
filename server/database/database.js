@@ -198,6 +198,7 @@ db.exec(`
     quality_mode TEXT NOT NULL,
     spend_mode TEXT NOT NULL,
     payload TEXT NOT NULL,
+    status TEXT DEFAULT 'queued',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(project_id) REFERENCES projects(id)
   );
@@ -274,11 +275,61 @@ db.exec(`
     id TEXT PRIMARY KEY,
     project_id TEXT,
     job_type TEXT NOT NULL,
-    status TEXT NOT NULL, -- 'queued', 'running', 'succeeded', 'failed'
+    status TEXT NOT NULL,
     progress INTEGER DEFAULT 0,
     source_entity_type TEXT,
     source_entity_id TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS provider_configs (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT,
+    provider TEXT NOT NULL,
+    provider_mode TEXT NOT NULL DEFAULT 'platform',
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    fallback_order TEXT NOT NULL DEFAULT '[]',
+    api_key TEXT,
+    endpoint_url TEXT,
+    metadata_json TEXT DEFAULT '{}',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS provider_routing_log (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT,
+    project_id TEXT,
+    job_id TEXT,
+    task_type TEXT NOT NULL,
+    selected_provider TEXT NOT NULL,
+    provider_mode TEXT NOT NULL,
+    capability_match TEXT NOT NULL DEFAULT '[]',
+    fallback_used INTEGER NOT NULL DEFAULT 0,
+    error_json TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS ai_jobs (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT,
+    project_id TEXT NOT NULL,
+    zone_id TEXT,
+    job_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued',
+    stage TEXT NOT NULL DEFAULT 'queued',
+    progress INTEGER NOT NULL DEFAULT 0,
+    provider TEXT,
+    provider_job_id TEXT,
+    input_json TEXT,
+    output_json TEXT,
+    error_json TEXT,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    max_retries INTEGER NOT NULL DEFAULT 3,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(project_id) REFERENCES projects(id)
   );
 
@@ -412,6 +463,96 @@ db.exec(`
     created_by TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(floor_plan_version_id) REFERENCES floor_plan_versions(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS topview_render_assets (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    floor_plan_version_id TEXT,
+    spatial_model_version_id TEXT,
+    kind TEXT DEFAULT 'canonical_topview',
+    preset TEXT DEFAULT 'technical_clean',
+    mode TEXT,
+    svg_url TEXT,
+    png_url TEXT,
+    enhanced_image_url TEXT,
+    prompt TEXT,
+    style_reference_url TEXT,
+    validation TEXT DEFAULT '{"status":"pending","wallDrift":0,"openingDrift":0,"topologyMismatch":false,"geometryMismatch":false,"accepted":false}',
+    fallback_reason TEXT,
+    provider TEXT,
+    model TEXT,
+    tags TEXT DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS zones (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    floor_plan_version_id TEXT,
+    zone_index INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    level TEXT,
+    points_json TEXT NOT NULL,
+    wall_count INTEGER DEFAULT 0,
+    opening_count INTEGER DEFAULT 0,
+    symbol_count INTEGER DEFAULT 0,
+    area_mm2 REAL DEFAULT 0,
+    area_sqft REAL DEFAULT 0,
+    perimeter_mm REAL DEFAULT 0,
+    bounding_box TEXT,
+    aspect_ratio REAL,
+    window_to_wall_ratio REAL DEFAULT 0,
+    window_count INTEGER DEFAULT 0,
+    door_count INTEGER DEFAULT 0,
+    confidence REAL DEFAULT 0,
+    metadata_json TEXT DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS zone_assets (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    zone_id TEXT NOT NULL,
+    kind TEXT DEFAULT 'thumbnail',
+    preset TEXT DEFAULT 'technical_clean',
+    file_path TEXT NOT NULL,
+    url TEXT,
+    fallback INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS zone_design_plans (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT,
+    project_id TEXT NOT NULL,
+    floor_plan_version_id TEXT,
+    zone_id TEXT NOT NULL,
+    mode TEXT DEFAULT 'faithful_clean',
+    status TEXT DEFAULT 'ready',
+    design_direction TEXT,
+    style_keywords TEXT,
+    palette TEXT,
+    materials TEXT,
+    lighting_strategy TEXT,
+    placement_notes TEXT,
+    suggested_products TEXT,
+    rendering_constraints TEXT,
+    prompt_ready_instructions TEXT,
+    constraints TEXT DEFAULT '{}',
+    source_thumb_svg_url TEXT,
+    generated_image_url TEXT,
+    provider TEXT,
+    model TEXT,
+    fallback_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
   );
 `);
 
