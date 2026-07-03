@@ -32,14 +32,27 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [aiPrompt, setAiPrompt] = useState('');
   const [isProcessingAi, setIsProcessingAi] = useState(false);
 
+  // Accurate measurements state for this elevation
+  const [wallMeasurements, setWallMeasurements] = useState({
+    wallLengthMm: 0,
+    ceilingHeightMm: 2700,
+    moduleWidthMm: 900,
+    moduleHeightMm: 720,
+    moduleDepthMm: 600,
+    wallUnitHeightMm: 1400,
+  });
+  const [measurementsSaved, setMeasurementsSaved] = useState(false);
+
   const handleAiEdit = async () => {
     if (!aiPrompt.trim() || !selectedWallId) return;
     setIsProcessingAi(true);
     try {
+      const body = { prompt: aiPrompt };
+      if (measurementsSaved) body.userMeasurements = wallMeasurements;
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedWallId}/ai-edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: aiPrompt })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (data.success) {
@@ -52,6 +65,29 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     } catch (err) {
       console.error(err);
       showToast("Error processing AI command", "error");
+    } finally {
+      setIsProcessingAi(false);
+    }
+  };
+
+  const regenerateElevationFromRender = async () => {
+    if (!selectedWallId) return;
+    setIsProcessingAi(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/render-3d`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallId: selectedWallId, measurements: measurementsSaved ? wallMeasurements : {} })
+      });
+      const data = await res.json();
+      if (data?.success || data?.imageUrl) {
+        showToast("Elevation regenerated from 3D render with updated measurements.");
+      } else {
+        showToast(data?.error || "Could not regenerate elevation from render", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error regenerating elevation", "error");
     } finally {
       setIsProcessingAi(false);
     }
@@ -122,9 +158,22 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   // Find wall length in mm
   const getWallLengthMm = (wall) => {
     if (!wall) return 0;
+    if (measurementsSaved && wallMeasurements.wallLengthMm) {
+      return wallMeasurements.wallLengthMm;
+    }
     const pxLen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
     const meters = pxLen / pixelsPerMeter;
     return Math.round(meters * 1000);
+  };
+
+  const updateMeasurement = (key, value) => {
+    setWallMeasurements(prev => ({ ...prev, [key]: Number(value) || 0 }));
+    setMeasurementsSaved(false);
+  };
+
+  const saveMeasurements = () => {
+    setMeasurementsSaved(true);
+    showToast("Accurate measurements applied to this elevation.");
   };
 
   const selectedWall = walls.find(w => w.id === selectedWallId);
@@ -320,6 +369,81 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
             </div>
           </div>
         </div>
+
+        {/* Accurate Measurements Panel */}
+        <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[10px] font-extrabold text-[#D4AF37] uppercase tracking-wider">Measurements</h3>
+            <span className="text-[9px] font-mono text-slate-400">{measurementsSaved ? 'Saved' : 'Unsaved'}</span>
+          </div>
+          <div className="space-y-1.5">
+            <div>
+              <label className="text-slate-400 block mb-0.5">Wall Length (mm)</label>
+              <input
+                type="number"
+                value={wallMeasurements.wallLengthMm || ''}
+                onChange={(e) => updateMeasurement('wallLengthMm', e.target.value)}
+                placeholder="Measured wall length"
+                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+              />
+            </div>
+            <div>
+              <label className="text-slate-400 block mb-0.5">Ceiling Height (mm)</label>
+              <input
+                type="number"
+                value={wallMeasurements.ceilingHeightMm || wallHeight}
+                onChange={(e) => updateMeasurement('ceilingHeightMm', e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-400 block mb-0.5">Module Width (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.moduleWidthMm || ''}
+                  onChange={(e) => updateMeasurement('moduleWidthMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Module Height (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.moduleHeightMm || ''}
+                  onChange={(e) => updateMeasurement('moduleHeightMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-400 block mb-0.5">Module Depth (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.moduleDepthMm || ''}
+                  onChange={(e) => updateMeasurement('moduleDepthMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Wall Unit Height (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.wallUnitHeightMm || ''}
+                  onChange={(e) => updateMeasurement('wallUnitHeightMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+            </div>
+            <button
+              onClick={saveMeasurements}
+              className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-1.5 rounded-lg text-[11px] transition"
+            >
+              Apply Measurements
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Columns 2-3: Elevation Sheet Viewport */}
@@ -345,6 +469,14 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
               className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 transition flex items-center gap-1"
             >
               <Download className="w-3.5 h-3.5" /> DXF
+            </button>
+            <button
+              onClick={regenerateElevationFromRender}
+              disabled={isProcessingAi}
+              className="bg-indigo-700 hover:bg-indigo-600 border border-indigo-500 text-white px-2 py-1 transition flex items-center gap-1"
+            >
+              {isProcessingAi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              From Render
             </button>
             <button
               onClick={saveElevations}
