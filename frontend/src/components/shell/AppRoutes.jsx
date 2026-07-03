@@ -7,6 +7,7 @@ import InteractiveCADScreen from '../../screens/InteractiveCADScreen.jsx';
 import DrawingsElevationsStudio from '../../screens/DrawingsElevationsStudio.jsx';
 import MaterialCatalogScreen from '../../screens/MaterialCatalogScreen.jsx';
 import Render3DStudio from '../../screens/Render3DStudio.jsx';
+import RenderEditWorkspace from '../../screens/RenderEditWorkspace.jsx';
 import CutlistNestingScreen from '../../screens/CutlistNestingScreen.jsx';
 import ProjectManagementScreen from '../../screens/ProjectManagementScreen.jsx';
 import DesignStudioScreen from '../../screens/DesignStudioScreen.jsx';
@@ -81,6 +82,8 @@ export default function AppRoutes() {
         return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('renders')} />;
       case 'renders':
         return <Render3DStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('cutlist')} />;
+      case 'render-edit':
+        return <RenderEditWorkspace projectId={selectedProjectId} renderId={null} />;
       case 'cutlist':
         return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('crm')} />;
       case 'ceiling':
