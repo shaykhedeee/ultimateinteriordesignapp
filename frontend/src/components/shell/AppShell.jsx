@@ -38,32 +38,32 @@ const NAV_SECTIONS = [
   {
     title: 'Design Studio',
     items: [
-      { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: true },
-      { id: 'cad', label: '2D Blueprint Drafting', icon: <Compass className="w-4 h-4" />, disabled: true },
-      { id: 'floorplan', label: 'AI Floorplan Analyzer', icon: <Scan className="w-4 h-4" />, disabled: true },
-      { id: 'studio', label: '3D Furnishing Studio', icon: <Layers className="w-4 h-4" />, disabled: true },
-      { id: 'drawings', label: 'Wall Elevations', icon: <CheckSquare className="w-4 h-4" />, disabled: true },
-      { id: 'ceiling', label: 'False Ceiling Generator', icon: <Layers className="w-4 h-4" />, disabled: true },
-      { id: 'tvunit', label: 'TV Unit Generator', icon: <Monitor className="w-4 h-4" />, disabled: true }
+      { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" /> },
+      { id: 'cad', label: '2D Blueprint Drafting', icon: <Compass className="w-4 h-4" /> },
+      { id: 'floorplan', label: 'AI Floorplan Analyzer', icon: <Scan className="w-4 h-4" /> },
+      { id: 'studio', label: '3D Furnishing Studio', icon: <Layers className="w-4 h-4" /> },
+      { id: 'drawings', label: 'Wall Elevations', icon: <CheckSquare className="w-4 h-4" /> },
+      { id: 'ceiling', label: 'False Ceiling Generator', icon: <Layers className="w-4 h-4" /> },
+      { id: 'tvunit', label: 'TV Unit Generator', icon: <Monitor className="w-4 h-4" /> }
     ]
   },
   {
     title: 'AI Visualization',
     items: [
-      { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: true },
+      { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" /> },
       { id: 'render-edit', label: 'Render Edit Suite', icon: <Sparkles className="w-4 h-4" /> },
-      { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: true }
+      { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" /> }
     ]
   },
   {
     title: 'Production & Commerce',
     items: [
-      { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: true },
-      { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: true },
-      { id: 'vendor', label: 'Vendor Intelligence', icon: <Store className="w-4 h-4" />, disabled: true },
-      { id: 'pinterest', label: 'Pinterest Learning', icon: <Sparkles className="w-4 h-4" />, disabled: true },
-      { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: true },
-      { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: true },
+      { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" /> },
+      { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" /> },
+      { id: 'vendor', label: 'Vendor Intelligence', icon: <Store className="w-4 h-4" /> },
+      { id: 'pinterest', label: 'Pinterest Learning', icon: <Sparkles className="w-4 h-4" /> },
+      { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" /> },
+      { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" /> },
       { id: 'system-admin', label: 'System Admin', icon: <Shield className="w-4 h-4" /> },
       { id: 'settings', label: 'Providers & Settings', icon: <Settings className="w-4 h-4" /> }
     ]

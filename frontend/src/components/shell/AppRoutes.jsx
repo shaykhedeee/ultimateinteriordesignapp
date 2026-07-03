@@ -50,6 +50,12 @@ export default function AppRoutes() {
   const requiresProject = PROJECT_LOCKED_ROUTES.has(activeTab);
   const projectMissing = requiresProject && !selectedProjectId;
 
+  React.useEffect(() => {
+    if (projectMissing) {
+      useAppStore.getState().navigateTab('projects');
+    }
+  }, [projectMissing]);
+
   const renderScreen = () => {
     if (projectMissing) {
       return (
