@@ -112,7 +112,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
 
   const fetchVersions = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/floor-plan-versions`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/floor-plan-versions`);
       if (res.ok) {
         const data = await res.json();
         setVersions(data);
@@ -133,7 +133,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
 
   const fetchVersionDetails = async (versionId) => {
     try {
-      const res = await fetch(`getApiBase()/floor-plan-versions/${versionId}`);
+      const res = await fetch(`${API_BASE}/floor-plan-versions/${versionId}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
@@ -364,13 +364,13 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
       return;
     }
     if (isLocked) {
-      await fetch(`getApiBase()/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
+      await fetch(`${API_BASE}/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
       useEditorStore.setState({ isLocked: false, lockReason: '' });
       planToolkitMessage('Scene unlocked.', 'success');
     } else {
       const reason = window.prompt('Lock reason:', 'Approved by Client');
       if (reason === null) return;
-      await fetch(`getApiBase()/projects/${projectId}/scenes/${sceneId}/lock`, {
+      await fetch(`${API_BASE}/projects/${projectId}/scenes/${sceneId}/lock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -385,7 +385,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     try {
       const state = useEditorStore.getState();
       const sceneSnapshot = state.scene ? { ...state.scene, zones: zoneTags } : null;
-      const res = await fetch(`getApiBase()/floor-plan-versions/${currentVersionId}/review`, {
+      const res = await fetch(`${API_BASE}/floor-plan-versions/${currentVersionId}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
