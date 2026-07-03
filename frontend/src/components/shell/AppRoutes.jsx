@@ -20,6 +20,7 @@ import SystemsAdminScreen from '../../screens/SystemsAdminScreen';
 import VendorIntelligence from '../../screens/VendorIntelligence.jsx';
 import PinterestLearning from '../../screens/PinterestLearning.jsx';
 import FloorPlanAnalyzerScreen from '../../screens/FloorPlanAnalyzerScreen.jsx';
+import SettingsPanel from '../../screens/SettingsPanel.jsx';
 import AuraBrainChat from '../layout/AuraBrainChat';
 
 const PROJECT_LOCKED_ROUTES = new Set([
@@ -116,6 +117,8 @@ export default function AppRoutes() {
         return <FloorPlanAnalyzerScreen projectId={selectedProjectId} />;
       case 'system-admin':
         return <SystemsAdminScreen />;
+      case 'settings':
+        return <SettingsPanel />;
       case 'tvunit':
         return <TvUnitGenerator projectId={selectedProjectId} />;
       default:
