@@ -606,6 +606,12 @@ try {
     insert.run('lam_7', 'laminate', 'shutter_facade', 'AC-202', 'Pearl White Acrylic', 'Greenlam', 'High Gloss Acrylic', '#f8fafc', 115, 4.7);
     insert.run('lam_8', 'laminate', 'shutter_facade', 'AC-303', 'Champagne Gold Acrylic', 'Merino', 'High Gloss Acrylic', '#d4af37', 135, 4.9);
     insert.run('lam_9', 'laminate', 'shutter_facade', 'MT-8012', 'Charcoal Matte', 'Royale Touche', 'Anti-Fingerprint Matte', '#27272a', 95, 4.8);
+    insert.run('lam_10', 'laminate', 'shutter_facade', 'MR-1101', 'Arctic White High Gloss', 'Merino', 'High Gloss Acrylic', '#f8fafc', 110, 4.7);
+    insert.run('lam_11', 'laminate', 'shutter_facade', 'MR-2202', 'Sand Dune Super Matte', 'Merino', 'Super Matte', '#d6d3d1', 125, 4.8);
+    insert.run('lam_12', 'laminate', 'shutter_facade', 'MR-3313', 'Obsidian Black Texture', 'Merino', 'Texture Matt', '#1f1f1f', 118, 4.9);
+    insert.run('lam_13', 'laminate', 'shutter_facade', 'MR-4414', 'Terracotta Clay Acrylic', 'Merino', 'High Gloss Acrylic', '#c2410c', 108, 4.6);
+    insert.run('lam_14', 'laminate', 'carcass_interior', 'MR-5515', 'Birch Woodgrain', 'Merino', 'Woodgrain Matt', '#e7e5e4', 92, 4.7);
+    insert.run('lam_15', 'laminate', 'shutter_facade', 'MR-6616', 'Sage Green Suede', 'Merino', 'Suede Matte', '#a3a38a', 115, 4.8);
     // Seed hardware
     insert.run('hw_1', 'hardware', 'runners', 'H-01', 'Soft-Close Drawer Runners', 'Hettich', 'Drawer slides', '', 850, 4.9);
     insert.run('hw_2', 'hardware', 'hinges', 'B-hinge', 'Clip-Top 110° Hinge', 'Blum', 'Hinges', '', 220, 5.0);
@@ -853,6 +859,77 @@ try {
     );
 
     insert.run(
+      'tv_unit_backlit_led', 'Backlit LED TV Unit', 'tv_unit',
+      'living_room,premium,feature-wall', 'led-backlit', 'living_room,home_theatre',
+      JSON.stringify({ widthMm: 2600, heightMm: 520, depthMm: 420, panelType: 'backlit', consoleType: 'floating' }),
+      '/models/furniture/generic_cuboid.gltf', '#334155', 'Backlit media console',
+      'wall', 'back', 'console_body,led_backdrop,marble_panel', 'premium', 48000,
+      JSON.stringify({ minWidth: 2000, maxWidth: 3000 }),
+      'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_open_shelf', 'Open Shelf TV Unit', 'tv_unit',
+      'living_room,minimal,storage', 'open-storage', 'living_room,bedroom',
+      JSON.stringify({ widthMm: 2000, heightMm: 480, depthMm: 420, panelType: 'open', consoleType: 'floor_mount' }),
+      '/models/furniture/generic_cuboid.gltf', '#78716c', 'Open shelf media unit',
+      'floor', 'bottom', 'shelves,frame', 'standard', 19000,
+      JSON.stringify({ minWidth: 1400, maxWidth: 2200 }),
+      'https://images.unsplash.com/photo-1532372576444-dda954194ad0?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_contemporary', 'Contemporary Pooja Unit', 'pooja_unit',
+      'pooja_room,modern,worship', 'minimal-temple', 'pooja_room,living_room',
+      JSON.stringify({ widthMm: 1100, heightMm: 1500, depthMm: 500, shelfCount: 4 }),
+      '/models/furniture/generic_cuboid.gltf', '#d6d3d1', 'Contemporary minimal pooja unit',
+      'floor', 'back', 'carcass,shelves,shutters', 'premium', 31000,
+      JSON.stringify({ minWidth: 800, maxWidth: 1400 }),
+      'https://images.unsplash.com/photo-1600585153490-76fb20a32601?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_glass_door', 'Glass Door Pooja Unit', 'pooja_unit',
+      'pooja_room,premium,worship', 'glass-shutters', 'pooja_room',
+      JSON.stringify({ widthMm: 1050, heightMm: 1600, depthMm: 520, doorType: 'glass' }),
+      '/models/furniture/generic_cuboid.gltf', '#e0f2fe', 'Glass door pooja unit',
+      'floor', 'back', 'carcass,glass_shutters,led_strip', 'premium', 45000,
+      JSON.stringify({ minWidth: 750, maxWidth: 1300 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'wardrobe_open_loft', 'Loft + Open Storage Wardrobe', 'wardrobe',
+      'bedroom,compact,storage', 'loft-bed', 'kids_bedroom,study,small_bedroom',
+      JSON.stringify({ widthMm: 1600, heightMm: 2700, depthMm: 600, doorCount: 2, wardrobeSystem: 'open_with_loft' }),
+      '/models/furniture/generic_cuboid.gltf', '#94a3b8', 'Loft wardrobe with open shelves',
+      'floor', 'back', 'carcass,shutters,loft_unit,shelves', 'standard', 32000,
+      JSON.stringify({ minWidth: 1400, maxWidth: 2000 }),
+      'https://images.unsplash.com/photo-1558882224-cca166733360?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_corner_unit', 'Kitchen Corner Unit', 'kitchen',
+      'kitchen,corner,modular', 'corner-carousel', 'kitchen',
+      JSON.stringify({ widthMm: 900, heightMm: 850, depthMm: 900, cornerType: 'le_carousel' }),
+      '/models/furniture/generic_cuboid.gltf', '#cbd5e1', 'Kitchen corner carousel unit',
+      'floor', 'back', 'carcass,carousel,shutters', 'premium', 38000,
+      JSON.stringify({ minWidth: 700, maxWidth: 1100, minDepth: 700, maxDepth: 1000 }),
+      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'study_cabinet_sliding', 'Sliding Door Study Cabinet', 'study_cabinet',
+      'study,office,storage', 'sliding-panel', 'study,office,work_from_home',
+      JSON.stringify({ widthMm: 1200, heightMm: 2100, depthMm: 450, doorType: 'sliding', shelfCount: 4 }),
+      '/models/furniture/generic_cuboid.gltf', '#a8a29e', 'Sliding door study cabinet',
+      'floor', 'back', 'carcass,sliding_shutters,shelves', 'standard', 24000,
+      JSON.stringify({ minWidth: 1000, maxWidth: 1500, minDepth: 400, maxDepth: 500 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
+    );
+
+    insert.run(
       'wardrobe_sliding_wardrobe', 'Sliding Door Wardrobe', 'wardrobe',
       'bedroom,storage,modern', 'sliding-doors', 'master_bedroom,bedroom,kids_bedroom',
       JSON.stringify({ widthMm: 2400, heightMm: 2700, depthMm: 650, doorCount: 3, wardrobeSystem: 'sliding' }),
@@ -930,6 +1007,77 @@ try {
       'floor', 'back', 'carcass,drawers,doors,shelves,brass_handles', 'premium', 42000,
       JSON.stringify({ minWidth: 900, maxWidth: 1500, minHeight: 1600, maxHeight: 2200, minDepth: 500, maxDepth: 650 }),
       'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_backlit_led', 'Backlit LED TV Unit', 'tv_unit',
+      'living_room,premium,feature-wall', 'led-backlit', 'living_room,home_theatre',
+      JSON.stringify({ widthMm: 2600, heightMm: 520, depthMm: 420, panelType: 'backlit', consoleType: 'floating' }),
+      '/models/furniture/generic_cuboid.gltf', '#334155', 'Backlit media console',
+      'wall', 'back', 'console_body,led_backdrop,marble_panel', 'premium', 48000,
+      JSON.stringify({ minWidth: 2000, maxWidth: 3000 }),
+      'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_open_shelf', 'Open Shelf TV Unit', 'tv_unit',
+      'living_room,minimal,storage', 'open-storage', 'living_room,bedroom',
+      JSON.stringify({ widthMm: 2000, heightMm: 480, depthMm: 420, panelType: 'open', consoleType: 'floor_mount' }),
+      '/models/furniture/generic_cuboid.gltf', '#78716c', 'Open shelf media unit',
+      'floor', 'bottom', 'shelves,frame', 'standard', 19000,
+      JSON.stringify({ minWidth: 1400, maxWidth: 2200 }),
+      'https://images.unsplash.com/photo-1532372576444-dda954194ad0?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_contemporary', 'Contemporary Pooja Unit', 'pooja_unit',
+      'pooja_room,modern,worship', 'minimal-temple', 'pooja_room,living_room',
+      JSON.stringify({ widthMm: 1100, heightMm: 1500, depthMm: 500, shelfCount: 4 }),
+      '/models/furniture/generic_cuboid.gltf', '#d6d3d1', 'Contemporary minimal pooja unit',
+      'floor', 'back', 'carcass,shelves,shutters', 'premium', 31000,
+      JSON.stringify({ minWidth: 800, maxWidth: 1400 }),
+      'https://images.unsplash.com/photo-1600585153490-76fb20a32601?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_glass_door', 'Glass Door Pooja Unit', 'pooja_unit',
+      'pooja_room,premium,worship', 'glass-shutters', 'pooja_room',
+      JSON.stringify({ widthMm: 1050, heightMm: 1600, depthMm: 520, doorType: 'glass' }),
+      '/models/furniture/generic_cuboid.gltf', '#e0f2fe', 'Glass door pooja unit',
+      'floor', 'back', 'carcass,glass_shutters,led_strip', 'premium', 45000,
+      JSON.stringify({ minWidth: 750, maxWidth: 1300 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'wardrobe_open_loft', 'Loft + Open Storage Wardrobe', 'wardrobe',
+      'bedroom,compact,storage', 'loft-bed', 'kids_bedroom,study,small_bedroom',
+      JSON.stringify({ widthMm: 1600, heightMm: 2700, depthMm: 600, doorCount: 2, wardrobeSystem: 'open_with_loft' }),
+      '/models/furniture/generic_cuboid.gltf', '#94a3b8', 'Loft wardrobe with open shelves',
+      'floor', 'back', 'carcass,shutters,loft_unit,shelves', 'standard', 32000,
+      JSON.stringify({ minWidth: 1400, maxWidth: 2000 }),
+      'https://images.unsplash.com/photo-1558882224-cca166733360?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_corner_unit', 'Kitchen Corner Unit', 'kitchen',
+      'kitchen,corner,modular', 'corner-carousel', 'kitchen',
+      JSON.stringify({ widthMm: 900, heightMm: 850, depthMm: 900, cornerType: 'le_carousel' }),
+      '/models/furniture/generic_cuboid.gltf', '#cbd5e1', 'Kitchen corner carousel unit',
+      'floor', 'back', 'carcass,carousel,shutters', 'premium', 38000,
+      JSON.stringify({ minWidth: 700, maxWidth: 1100, minDepth: 700, maxDepth: 1000 }),
+      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'study_cabinet_sliding', 'Sliding Door Study Cabinet', 'study_cabinet',
+      'study,office,storage', 'sliding-panel', 'study,office,work_from_home',
+      JSON.stringify({ widthMm: 1200, heightMm: 2100, depthMm: 450, doorType: 'sliding', shelfCount: 4 }),
+      '/models/furniture/generic_cuboid.gltf', '#a8a29e', 'Sliding door study cabinet',
+      'floor', 'back', 'carcass,sliding_shutters,shelves', 'standard', 24000,
+      JSON.stringify({ minWidth: 1000, maxWidth: 1500, minDepth: 400, maxDepth: 500 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
     );
 
     insert.run(
@@ -1030,6 +1178,77 @@ try {
       'floor', 'back', 'carcass,shutters,shelf', 'standard', 12500,
       JSON.stringify({ minWidth: 700, maxWidth: 1100, minHeight: 700, maxHeight: 1000 }),
       'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_backlit_led', 'Backlit LED TV Unit', 'tv_unit',
+      'living_room,premium,feature-wall', 'led-backlit', 'living_room,home_theatre',
+      JSON.stringify({ widthMm: 2600, heightMm: 520, depthMm: 420, panelType: 'backlit', consoleType: 'floating' }),
+      '/models/furniture/generic_cuboid.gltf', '#334155', 'Backlit media console',
+      'wall', 'back', 'console_body,led_backdrop,marble_panel', 'premium', 48000,
+      JSON.stringify({ minWidth: 2000, maxWidth: 3000 }),
+      'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_open_shelf', 'Open Shelf TV Unit', 'tv_unit',
+      'living_room,minimal,storage', 'open-storage', 'living_room,bedroom',
+      JSON.stringify({ widthMm: 2000, heightMm: 480, depthMm: 420, panelType: 'open', consoleType: 'floor_mount' }),
+      '/models/furniture/generic_cuboid.gltf', '#78716c', 'Open shelf media unit',
+      'floor', 'bottom', 'shelves,frame', 'standard', 19000,
+      JSON.stringify({ minWidth: 1400, maxWidth: 2200 }),
+      'https://images.unsplash.com/photo-1532372576444-dda954194ad0?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_contemporary', 'Contemporary Pooja Unit', 'pooja_unit',
+      'pooja_room,modern,worship', 'minimal-temple', 'pooja_room,living_room',
+      JSON.stringify({ widthMm: 1100, heightMm: 1500, depthMm: 500, shelfCount: 4 }),
+      '/models/furniture/generic_cuboid.gltf', '#d6d3d1', 'Contemporary minimal pooja unit',
+      'floor', 'back', 'carcass,shelves,shutters', 'premium', 31000,
+      JSON.stringify({ minWidth: 800, maxWidth: 1400 }),
+      'https://images.unsplash.com/photo-1600585153490-76fb20a32601?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_glass_door', 'Glass Door Pooja Unit', 'pooja_unit',
+      'pooja_room,premium,worship', 'glass-shutters', 'pooja_room',
+      JSON.stringify({ widthMm: 1050, heightMm: 1600, depthMm: 520, doorType: 'glass' }),
+      '/models/furniture/generic_cuboid.gltf', '#e0f2fe', 'Glass door pooja unit',
+      'floor', 'back', 'carcass,glass_shutters,led_strip', 'premium', 45000,
+      JSON.stringify({ minWidth: 750, maxWidth: 1300 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'wardrobe_open_loft', 'Loft + Open Storage Wardrobe', 'wardrobe',
+      'bedroom,compact,storage', 'loft-bed', 'kids_bedroom,study,small_bedroom',
+      JSON.stringify({ widthMm: 1600, heightMm: 2700, depthMm: 600, doorCount: 2, wardrobeSystem: 'open_with_loft' }),
+      '/models/furniture/generic_cuboid.gltf', '#94a3b8', 'Loft wardrobe with open shelves',
+      'floor', 'back', 'carcass,shutters,loft_unit,shelves', 'standard', 32000,
+      JSON.stringify({ minWidth: 1400, maxWidth: 2000 }),
+      'https://images.unsplash.com/photo-1558882224-cca166733360?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_corner_unit', 'Kitchen Corner Unit', 'kitchen',
+      'kitchen,corner,modular', 'corner-carousel', 'kitchen',
+      JSON.stringify({ widthMm: 900, heightMm: 850, depthMm: 900, cornerType: 'le_carousel' }),
+      '/models/furniture/generic_cuboid.gltf', '#cbd5e1', 'Kitchen corner carousel unit',
+      'floor', 'back', 'carcass,carousel,shutters', 'premium', 38000,
+      JSON.stringify({ minWidth: 700, maxWidth: 1100, minDepth: 700, maxDepth: 1000 }),
+      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'study_cabinet_sliding', 'Sliding Door Study Cabinet', 'study_cabinet',
+      'study,office,storage', 'sliding-panel', 'study,office,work_from_home',
+      JSON.stringify({ widthMm: 1200, heightMm: 2100, depthMm: 450, doorType: 'sliding', shelfCount: 4 }),
+      '/models/furniture/generic_cuboid.gltf', '#a8a29e', 'Sliding door study cabinet',
+      'floor', 'back', 'carcass,sliding_shutters,shelves', 'standard', 24000,
+      JSON.stringify({ minWidth: 1000, maxWidth: 1500, minDepth: 400, maxDepth: 500 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
     );
   }
 } catch (e) {

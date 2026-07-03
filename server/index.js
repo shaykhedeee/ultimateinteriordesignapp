@@ -2167,6 +2167,40 @@ app.get('/api/material-catalog/export-csv', (req, res) => {
   }
 });
 
+// Add custom laminate via JSON
+app.post('/api/material-catalog/custom-laminate', (req, res) => {
+  try {
+    const { code, name, brand, finish, color, pricePerSqft, subcategory = 'custom', category = 'laminate', tags = [] } = req.body || {};
+    if (!name || !brand) return res.status(400).json({ error: 'name and brand are required' });
+    const id = 'lam_' + nanoid(6);
+    db.prepare(`
+      INSERT INTO material_catalog (id, category, subcategory, code, name, brand, finish, color, price_per_sqft, rating, is_active, finish_type, tags_json, image_path, thumbnail_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `).run(id, category, subcategory, code || '', name, brand, finish || '', color || '', pricePerSqft || 0, 5.0, 'custom', JSON.stringify(tags), null, null);
+    res.status(201).json({ success: true, id, material: { id, category, subcategory, code, name, brand, finish, color, pricePerSqft } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upload custom laminate image/screenshot
+app.post('/api/material-catalog/custom-laminate/upload', upload.single('laminateImage'), async (req, res) => {
+  try {
+    const { code, name, brand, finish, category = 'laminate', subcategory = 'custom' } = req.body || {};
+    const file = req.file;
+    if (!file && !name) return res.status(400).json({ error: 'Provide laminateImage or name' });
+    const id = 'lam_' + nanoid(6);
+    const imagePath = file ? `/storage/uploads/${file.filename}` : null;
+    db.prepare(`
+      INSERT INTO material_catalog (id, category, subcategory, code, name, brand, finish, color, price_per_sqft, rating, is_active, finish_type, tags_json, image_path, thumbnail_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `).run(id, category, subcategory, code || '', name || 'Custom Laminate', brand || 'Custom', finish || '', '#888888', 0, 5.0, 'custom', JSON.stringify(['custom']), imagePath, imagePath);
+    res.status(201).json({ success: true, id, imagePath });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Export a render image as PNG
 app.get('/api/projects/:id/renders/:renderId/export', (req, res) => {
   try {
