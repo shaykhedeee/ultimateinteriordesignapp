@@ -361,11 +361,27 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 // WORKSPACE: Smart Project
 // ============================================================================
 function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateToTab }) {
-  const consumerMode = workspaceMode === 'consumer';
-  const [consumerStep, setConsumerStep] = React.useState('welcome'); // welcome | room | style | generate
+  const consumerMode = Boolean(workspaceMode === 'consumer');
+  const [consumerStep, setConsumerStep] = React.useState('welcome'); // welcome | room | style | result
   const [consumerRoom, setConsumerRoom] = React.useState('');
   const [consumerStyle, setConsumerStyle] = React.useState('');
+  const [consumerTemplate, setConsumerTemplate] = React.useState('');
 
+  const consumerTemplates = [
+    { id: 'living_warm', label: 'Warm Living Room', room: 'living_room', style: 'warm_traditional' },
+    { id: 'bedroom_modern', label: 'Modern Bedroom', room: 'bedroom', style: 'modern_minimal' },
+    { id: 'kitchen_premium', label: 'Premium Kitchen', room: 'kitchen', style: 'premium_luxury' },
+    { id: 'pooja_classic', label: 'Classic Pooja Room', room: 'pooja_room', style: 'warm_traditional' },
+    { id: 'wardrobe_budget', label: 'Budget Wardrobe', room: 'wardrobe', style: 'budget_smart' },
+    { id: 'tv_unit_luxury', label: 'Luxury TV Unit', room: 'tv_unit', style: 'premium_luxury' }
+  ];
+
+  const quickPrompt = (() => {
+    if (!consumerRoom || !consumerStyle) return '';
+    const roomLabel = {living_room:'Living Room',bedroom:'Bedroom',kitchen:'Kitchen',pooja_room:'Pooja Room',wardrobe:'Wardrobe',tv_unit:'TV Unit'}[consumerRoom] || consumerRoom;
+    const styleLabel = {warm_traditional:'warm traditional',modern_minimal:'modern minimal',premium_luxury:'premium luxury',budget_smart:'budget friendly'}[consumerStyle] || consumerStyle;
+    return `Create a simple ${styleLabel} design concept for a ${roomLabel}. Keep it easy to understand.`;
+  })();
   const consumerRooms = [
     { id: 'living_room', label: 'Living Room', icon: '🛋️' },
     { id: 'bedroom', label: 'Bedroom', icon: '🛏️' },
@@ -538,6 +554,77 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
         </div>
       </div>
 
+      {consumerMode && consumerStep === 'welcome' && (
+        <div className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Let's design your room</h3>
+          <p className="text-[10px] text-slate-400">Choose a ready-made template to get started in 10 seconds.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {consumerTemplates.map(t => (
+              <button key={t.id} onClick={() => { setConsumerTemplate(t.id); setConsumerRoom(t.room); setConsumerStyle(t.style); setConsumerStep('result'); }} className="border border-slate-800 rounded-2xl p-4 text-left hover:border-[#C9A84C]/40 transition">
+                <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">{t.label}</div>
+                <div className="text-[10px] text-slate-400 mt-1">Quick concept</div>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setConsumerStep('room')} className="text-[10px] font-black uppercase tracking-wider text-[#D4AF37]">Customize manually</button>
+        </div>
+      )}
+
+      {consumerMode && consumerStep === 'room' && (
+        <div className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Pick your room</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {[{id:'living_room',label:'Living Room',icon:'🛋️'},{id:'bedroom',label:'Bedroom',icon:'🛏️'},{id:'kitchen',label:'Kitchen',icon:'🍳'},{id:'pooja_room',label:'Pooja Room',icon:'🪔'},{id:'wardrobe',label:'Wardrobe',icon:'🚪'},{id:'tv_unit',label:'TV Unit',icon:'📺'}].map(r => (
+              <button key={r.id} onClick={() => setConsumerRoom(r.id)} className={`border rounded-2xl p-4 text-left transition ${consumerRoom === r.id ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]' : 'border-slate-800 text-slate-200 hover:border-[#C9A84C]/40'}`}>
+                <div className="text-lg">{r.icon}</div>
+                <div className="text-[10px] font-black uppercase tracking-wider mt-1">{r.label}</div>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setConsumerStep('welcome')} className="text-[10px] font-black uppercase tracking-wider text-slate-400">Back</button>
+            <button onClick={() => setConsumerStep('style')} disabled={!consumerRoom} className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 disabled:opacity-40 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition">Next</button>
+          </div>
+        </div>
+      )}
+
+      {consumerMode && consumerStep === 'style' && (
+        <div className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Choose a style</h3>
+          <div className="flex flex-wrap gap-2">
+            {[{id:'warm_traditional',label:'Warm Traditional'},{id:'modern_minimal',label:'Modern Minimal'},{id:'premium_luxury',label:'Premium Luxury'},{id:'budget_smart',label:'Budget Friendly'}].map(s => (
+              <button key={s.id} onClick={() => setConsumerStyle(s.id)} className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase transition ${consumerStyle === s.id ? 'border-[#D4AF37] text-[#D4AF37] bg-[#D4AF37]/10' : 'border-slate-800 text-slate-300 hover:border-[#C9A84C]/50'}`}>{s.label}</button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setConsumerStep('room')} className="text-[10px] font-black uppercase tracking-wider text-slate-400">Back</button>
+            <button onClick={() => setConsumerStep('result')} disabled={!consumerStyle} className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 disabled:opacity-40 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition">See Result</button>
+          </div>
+        </div>
+      )}
+
+      {consumerMode && consumerStep === 'result' && (
+        <div className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Your Simple Concept</h3>
+          <p className="text-[10px] text-slate-400">We prepared a starting point. Open 3D concepts or materials to refine.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <button onClick={() => onNavigateToTab && onNavigateToTab('renders')} className="border border-slate-800 rounded-2xl p-4 text-left hover:border-[#C9A84C]/40 transition">
+              <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">1. See 3D Concepts</div>
+              <div className="text-[10px] text-slate-400 mt-1">Generate simple renders for your room.</div>
+            </button>
+            <button onClick={() => onNavigateToTab && onNavigateToTab('materials')} className="border border-slate-800 rounded-2xl p-4 text-left hover:border-[#C9A84C]/40 transition">
+              <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">2. Pick Finishes</div>
+              <div className="text-[10px] text-slate-400 mt-1">Choose laminates and colors.</div>
+            </button>
+            <button onClick={() => onNavigateToTab && onNavigateToTab('finance')} className="border border-slate-800 rounded-2xl p-4 text-left hover:border-[#C9A84C]/40 transition">
+              <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">3. Indicative Cost</div>
+              <div className="text-[10px] text-slate-400 mt-1">Preview an approximate budget.</div>
+            </button>
+          </div>
+          <div className="text-[10px] text-slate-500">Prompt: <span className="font-mono text-slate-300">{quickPrompt}</span></div>
+        </div>
+      )}
+
       {/* STEP 1: What should we name this project? */}
       {wizardStep === 'name_project' && (
         <div className="space-y-4 max-w-md bg-slate-900/30 border border-slate-850 p-6 rounded-2xl">
@@ -558,8 +645,19 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
         </div>
       )}
 
-      {/* STEP 2: File Upload */}
-      {wizardStep === 'upload' && (
+      {consumerMode && wizardStep === 'upload' && (
+        <div className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Add your room photo</h3>
+          <p className="text-[10px] text-slate-400">Upload a photo if you have one. Otherwise use a template instead.</p>
+          <label className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase text-[10px] tracking-wider py-2 px-5 rounded-xl cursor-pointer transition shadow-md shadow-[#D4AF37]/10">
+            Upload Photo
+            <input type="file" onChange={handleUpload} className="hidden" accept="image/*,.pdf,.dxf" />
+          </label>
+          <button onClick={() => { setConsumerStep('welcome'); }} className="text-[10px] font-black uppercase tracking-wider text-[#D4AF37]">Use a template instead</button>
+        </div>
+      )}
+
+      {!consumerMode && wizardStep === 'upload' && (
         <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-3xl p-10 bg-slate-950/40 space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
             <Upload className="w-5 h-5" />
