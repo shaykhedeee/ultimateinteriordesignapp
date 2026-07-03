@@ -31,6 +31,7 @@ const PROJECT_LOCKED_ROUTES = new Set([
   'drawings',
   'materials',
   'renders',
+  'render-edit',
   'cutlist',
   'ceiling',
   'tvunit',

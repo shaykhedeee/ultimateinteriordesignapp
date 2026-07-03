@@ -1028,6 +1028,9 @@ app.post('/api/projects/:id/materials', (req, res) => {
 
 app.get('/api/projects/:id/renders', (req, res) => {
   const rows = db.prepare("SELECT * FROM design_renders WHERE project_id = ? ORDER BY created_at DESC").all(req.params.id);
+  if (req.query.latest && rows[0]) {
+    return res.json({ renderId: rows[0].id, render: rows[0] });
+  }
   res.json(rows);
 });
 
