@@ -544,6 +544,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [cameraAngle, setCameraAngle] = useState('diagonal');
   const [variantCount, setVariantCount] = useState(1);
   const [renderMode, setRenderMode] = useState('new-interior'); // new-interior | photo-to-render | renovation
+  const [sourceType, setSourceType] = useState('ai'); // ai | library-reuse | camera-capture | manual
   const [removePeople, setRemovePeople] = useState(true);
   const [furnitureRequirement, setFurnitureRequirement] = useState('');
   const [customInstruction, setCustomInstruction] = useState('');
@@ -1805,8 +1806,18 @@ export default function Render3DStudio({ projectId, onComplete }) {
               {renderMode === 'new-interior' ? 'Generate a fresh room visualization.' : renderMode === 'photo-to-render' ? 'Use camera/site photo as source.' : 'Keep spatial layout, refresh finishes.'}
             </div>
           </div>
-
-          <div className="flex gap-2 text-[10px] text-slate-400">
+          <div className="flex gap-2 text-[10px] text-slate-400 items-center">
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mr-1">Source</span>
+            <select
+              value={sourceType}
+              onChange={(e) => setSourceType(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40"
+            >
+              <option value="ai">AI Generate</option>
+              <option value="library-reuse">Library Reuse</option>
+              <option value="camera-capture">Camera Capture</option>
+              <option value="manual">Manual Upload</option>
+            </select>
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
                 type="checkbox"
