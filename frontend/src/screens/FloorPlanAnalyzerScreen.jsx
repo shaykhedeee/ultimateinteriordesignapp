@@ -559,11 +559,16 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
             aria-live="polite"
             aria-atomic="true"
             role="status"
-            className={`text-[10px] bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 ${
-              toolkitStatus === 'error' || toolkitMessage?.startsWith?.('Run AI detect') ? 'text-red-300' : 'text-slate-300'
+            className={`text-[10px] bg-slate-900 border rounded-lg px-2.5 py-1.5 ${
+              toolkitStatus === 'error' || toolkitMessage?.startsWith?.('Run AI detect')
+                ? 'text-red-300 border-red-900/60'
+                : 'text-slate-300 border-slate-800'
             }`}
           >
-            {toolkitMessage || 'Ready'}
+            <span className="font-black uppercase tracking-wider mr-1">
+              {toolkitStatus === 'loading' ? 'PROCESSING' : toolkitStatus === 'enhancing' ? 'ENHANCING' : toolkitStatus === 'exporting' ? 'EXPORTING' : 'STATUS'}
+            </span>
+            <span className="opacity-90">{toolkitMessage || 'Ready'}</span>
           </div>
         </div>
       </div>

@@ -47,3 +47,29 @@ export async function enqueueEditJob(editId) {
 
   return { ok: true, jobId: job.jobId, edit: updated };
 }
+
+export async function processInpaintRender(job) {
+  const raw = job?.data || {};
+  const editId = raw.editId || raw.jobId;
+
+  updateEditStatus(editId, {
+    status: 'running',
+    stage: 'running',
+    provider: raw.provider || raw.providerRouting?.provider || null,
+    providerRouting: raw.providerRouting || null
+  });
+
+  // Placeholder execution path so the worker does not die,
+  // while making the run state observable for the app shell.
+  return {
+    ok: true,
+    stage: 'awaiting_provider',
+    editId,
+    provider: raw.provider || raw.providerRouting?.provider || null,
+    inputJson: raw,
+    outputJson: {
+      state: 'queued_for_provider',
+      message: 'Edit job accepted; awaiting provider execution.'
+    }
+  };
+}
