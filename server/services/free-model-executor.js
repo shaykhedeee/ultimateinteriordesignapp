@@ -3,8 +3,27 @@
  * Chooses validated free/public execution paths for image/plan tools without
  * paid APIs.
  */
-import { TASK_TYPES, PROVIDER_CAPABILITIES, canHandleTask } from './provider-registry.js';
+import { TASK_TYPES, PROVIDER_CAPABILITIES, canHandleTask, taskSupported as registryTaskSupported, providersForTask } from './provider-registry.js';
 import { getProfile, listProfiles } from './openrouter-profiles.js';
+
+const TOOL_SLUG_TO_TASK_TYPE = Object.freeze({
+  'floorplan-analyzer': 'topview_enhance',
+  'plan-enhancer': 'topview_enhance',
+  'zone-planner': 'quick_render',
+  'quick-render': 'quick_render',
+  'detailed-render': 'detailed_render',
+  'inpaint': 'inpaint',
+  'upscale': 'upscale',
+  'render-edit': 'inpaint',
+  'style-transfer': 'style_image',
+  'render-critic': 'critic_text',
+  'material-match': 'style_image',
+  'laminate-swapper': 'style_image',
+  'laminate-changer': 'style_image',
+  'zone-design-plan': 'quick_render',
+  'style-recommend': 'critic_text',
+  'room-semantics': 'critic_text'
+});
 
 const AUDIT_TAG = 'free-model-executor';
 const REDACTED = '[REDACTED]';

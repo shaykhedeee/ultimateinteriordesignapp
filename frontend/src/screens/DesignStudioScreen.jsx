@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import LeftNavigator from '../components/layout/LeftNavigator';
 import InspectorPanel from '../components/layout/InspectorPanel';
 import Canvas2D from '../components/design2d/Canvas2D';
@@ -9,7 +9,8 @@ import {
   Layers, Lock, Unlock, AlertCircle, RefreshCw, CheckCircle, X, ChevronDown,
   Maximize, Move, Square, Type, Ruler, Download, Camera as CameraIcon,
   Play, Pause, SkipForward, Gauge, Pencil, Wand2, BoxSelect, Video, FileText,
-  LayoutTemplate, FileBarChart, LineChart, Scan
+  LayoutTemplate, FileBarChart, LineChart, Scan, Search, Monitor, Box,
+  Settings2, Grid
 } from 'lucide-react';
 
 const RENDER_ACTIONS = [
@@ -39,27 +40,28 @@ const CATALOG_TABS = [
 ];
 
 const PRODUCT_CATEGORIES = [
-  {
-    name: 'SOFAS AND BENCHES',
-    sub: ['Three Seater Sofas', 'Two Seater Sofas', 'Sectional Sofas', 'Curved Sofas', 'Benches']
-  },
-  {
-    name: 'CHAIRS AND POUFF...',
-    sub: ['Lounge & Accent Chairs', 'Dining Chairs', 'Bar Chairs', 'Pouffe', 'Office Chairs']
-  },
-  {
-    name: 'TABLES AND CONS...',
-    sub: ['Coffee Tables', 'Dining Tables', 'End Tables', 'Bar Tables', 'Sideboards', 'Dressers & Desk', 'Consoles']
-  },
-  { name: 'BEDROOM', sub: ['Beds', 'Bedside Tables'] },
-  {
-    name: 'CABINETS AND SHE...',
-    sub: ['Shelves', 'Media Units', 'Bar Units', 'Partitions']
-  },
-  {
-    name: 'OUTDOOR FURNITU...',
-    sub: ['Outdoor Chairs', 'Outdoor Sofas']
-  },
+  { name: 'SOFAS', sub: ['Three Seater', 'Two Seater', 'Sectional', 'Curved', 'Benches'] },
+  { name: 'CHAIRS', sub: ['Accent Chairs', 'Dining Chairs', 'Bar Chairs', 'Pouffe', 'Office Chairs'] },
+  { name: 'TABLES', sub: ['Coffee Tables', 'Dining Tables', 'End Tables', 'Sideboards', 'Consoles'] },
+  { name: 'BEDROOM', sub: ['Beds', 'Bedside Tables', 'Dressers'] },
+  { name: 'CABINETS', sub: ['Shelves', 'Media Units', 'Bar Units', 'Partitions'] },
+  { name: 'LIGHTING', sub: ['Pendants', 'Wall Lights', 'Floor Lamps', 'Spotlights'] },
+  { name: 'OUTDOOR', sub: ['Outdoor Chairs', 'Outdoor Sofas'] },
+];
+
+const CATEGORY_FILTERS = [
+  { id: 'all', label: 'All', icon: <Grid className="w-3.5 h-3.5" /> },
+  { id: 'tv_unit', label: 'TV Units', icon: <Monitor className="w-3.5 h-3.5" /> },
+  { id: 'pooja_unit', label: 'Pooja Units', icon: <Box className="w-3.5 h-3.5" /> },
+  { id: 'wardrobe', label: 'Wardrobes', icon: <Layers className="w-3.5 h-3.5" /> },
+  { id: 'kitchen', label: 'Kitchen', icon: <FileText className="w-3.5 h-3.5" /> },
+  { id: 'living_room', label: 'Living Room', icon: <LayoutTemplate className="w-3.5 h-3.5" /> },
+  { id: 'bedroom', label: 'Bedroom', icon: <Box className="w-3.5 h-3.5" /> },
+  { id: 'dining_table', label: 'Dining', icon: <FileText className="w-3.5 h-3.5" /> },
+  { id: 'coffee_table', label: 'Coffee', icon: <FileText className="w-3.5 h-3.5" /> },
+  { id: 'bookshelf', label: 'Bookshelves', icon: <Layers className="w-3.5 h-3.5" /> },
+  { id: 'study_table', label: 'Study', icon: <FileText className="w-3.5 h-3.5" /> },
+  { id: 'utility_unit', label: 'Utility', icon: <Settings2 className="w-3.5 h-3.5" /> },
 ];
 
 const SAMPLE_PRODUCTS = [
@@ -91,7 +93,6 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   const [versions, setVersions] = useState([]);
   const [showBranchModal, setShowBranchModal] = useState(false);
 
-  // Studio UX state
   const [cameraPreset, setCameraPreset] = useState('perspective');
   const [activeAction, setActiveAction] = useState('camera-angles');
   const [detecting, setDetecting] = useState(false);
@@ -105,6 +106,8 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   const [selectionBox, setSelectionBox] = useState(null);
   const [statusChip, setStatusChip] = useState('Rooms are being saved. Once they appear, pick one to render.');
   const [actionCounts, setActionCounts] = useState({ assigned: 0, pending: 1 });
+  const [catalogCategory, setCatalogCategory] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (projectId && (rightTab === 'catalog' || rightTab === 'library')) {
@@ -130,25 +133,23 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     }
   };
 
-  useEffect(() => {
-    if (projectId) {
-      loadScene(projectId, branchName);
-      fetchBranches();
+  const visibleCatalog = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    let items = catalogItems;
+    if (catalogCategory !== 'all') {
+      items = items.filter(item => {
+        const cats = [item.category, ...(Array.isArray(item.tags) ? item.tags : [])];
+        return cats.some(c => c?.includes(catalogCategory));
+      });
     }
-  }, [projectId, versionNumber]);
-
-  useEffect(() => {
-    if (activeRooms.length === 0 && scene) {
-      setActiveRooms([
-        { id: 'z1', name: 'Open Zone 1' },
-        { id: 'z2', name: 'Open Zone 2' },
-        { id: 'z3', name: 'Open Zone 3' },
-        { id: 'z4', name: 'Open Zone 4' },
-        { id: 'z5', name: 'Open Zone 5' },
-        { id: 'z6', name: 'Open bedroom' },
-      ]);
+    if (q) {
+      items = items.filter(item => {
+        const hay = [item.label, item.category, ...(Array.isArray(item.tags) ? item.tags : [])].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
     }
-  }, [scene]);
+    return items;
+  }, [catalogItems, catalogCategory, searchQuery]);
 
   const fetchBranches = async () => {
     try {
@@ -234,238 +235,82 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     setStatusChip('Action applied. Re-rendering affected zones.');
   };
 
-  if (!scene) {
-    return (
-      <div className="w-full h-[80vh] flex flex-col items-center justify-center text-slate-400 gap-3">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#D4AF37]" />
-        <span className="text-xs font-bold uppercase tracking-wider">Loading Spatial Scene Graph...</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full h-[92vh] flex flex-col bg-slate-950 text-slate-100 overflow-hidden select-none">
-      {/* ── 1. TOP APP BAR ── */}
-      <div className="h-12 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="grid grid-cols-2 gap-0.5">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="w-2 h-2 bg-white" />
-              ))}
-            </div>
-            <span className="text-sm font-black tracking-widest text-slate-100">Bella</span>
+    <div className="w-full h-full bg-slate-950 text-slate-100">
+      {/* Top workflow/context bar */}
+      <div className="h-12 border-b border-slate-800 flex items-center justify-between px-4 gap-3">
+        <div className="flex items-center gap-2">
+          <Compass className="w-4 h-4 text-[#D4AF37]" />
+          <div>
+            <div className="text-xs font-extrabold uppercase tracking-wider text-slate-200 leading-tight">Design Studio</div>
+            <div className="text-[9px] text-slate-500">Project <b className="text-slate-300">{projectId || '—'}</b></div>
           </div>
-          <div className="h-4 w-px bg-slate-800" />
-          <nav className="flex items-center gap-1 text-[11px] font-semibold" aria-label="Design studio tabs">
-            {['AI Director', 'Interior', '1/1 edits', 'Invoice'].map(tab => (
-              <button key={tab} className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition">
-                {tab}
-              </button>
-            ))}
-          </nav>
         </div>
         <div className="flex items-center gap-2">
-          <button className="bg-slate-950 border border-slate-800 hover:border-[#D4AF37] text-slate-200 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition">
-            + New
+          <button onClick={handleDetect} className="text-[10px] font-bold uppercase tracking-wider bg-slate-900 border border-slate-800 text-slate-200 px-3 py-1.5 rounded-lg hover:border-[#D4AF37]/40 transition">
+            {detecting ? 'Detecting...' : 'Detect Layout'}
+          </button>
+          <button onClick={handleSave} className="text-[10px] font-bold uppercase tracking-wider bg-[#D4AF37] text-slate-950 px-3 py-1.5 rounded-lg hover:bg-[#e6c045] transition">
+            Save Version
           </button>
         </div>
       </div>
 
-      {/* ── 2. MAIN 3-PANEL WORKSPACE ── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* LEFT PANEL */}
-        <aside className="w-72 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col overflow-hidden">
-          <div className="p-3 space-y-4 overflow-y-auto">
-            <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Rooms are being saved. Once they appear, pick one to render.</div>
-              <div className="text-xs font-bold text-slate-200">Rooms ready — pick one to render.</div>
-              <div className="flex flex-col gap-1.5">
-                {activeRooms.map(room => (
-                  <button
-                    key={room.id}
-                    className="flex items-center justify-between bg-slate-950 border border-slate-800 hover:border-[#D4AF37] text-slate-200 px-3 py-2 rounded-xl text-[11px] font-semibold transition"
-                  >
-                    <span className="flex items-center gap-2">
-                      <LayoutTemplate className="w-3.5 h-3.5 text-slate-500" />
-                      {room.name}
-                    </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                  </button>
-                ))}
-              </div>
-              <div className="text-[10px] text-slate-400">{statusChip}</div>
-            </div>
+      <div className="flex h-[calc(100vh-48px)]">
+        {/* LEFT RAIL */}
+        <div className="w-14 border-r border-slate-800 flex flex-col items-center py-3 gap-2">
+          <LeftNavigator />
+        </div>
 
-            <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Camera view</div>
-              <div className="flex gap-2">
-                {CAMERA_PRESETS.map(preset => (
-                  <button
-                    key={preset.id}
-                    onClick={() => setCameraPreset(preset.id)}
-                    className={`flex-1 py-2 rounded-xl border text-[11px] font-bold uppercase tracking-wide transition ${
-                      cameraPreset === preset.id
-                        ? 'bg-[#D4AF37]/15 border-[#D4AF37]/60 text-[#D4AF37]'
-                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
+        {/* MAIN WORKSPACE */}
+        <main className="flex-1 relative bg-slate-950">
+          {!scene ? (
+            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-3">
+              <RefreshCw className="w-8 h-8 animate-spin text-[#D4AF37]" />
+              <div className="text-xs font-bold text-slate-300">Loading workspace...</div>
             </div>
+          ) : (
+            <div className="relative w-full h-full">
+              <Canvas2D />
+              <Viewport3D />
 
-            <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Render ready — choose what you want to do next.</div>
-              <div className="grid grid-cols-2 gap-2">
-                {RENDER_ACTIONS.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleRunAction(item.id)}
-                    className={`flex items-center gap-2 bg-slate-950 border rounded-xl px-3 py-2 text-[11px] font-semibold transition ${
-                      activeAction === item.id
-                        ? 'border-purple-500/70 text-purple-200 shadow-lg shadow-purple-900/20'
-                        : 'border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Prompt</label>
-              <textarea
-                value={promptValue}
-                onChange={(e) => setPromptValue(e.target.value)}
-                rows={3}
-                placeholder="add false ceiling"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-200 text-xs outline-none focus:border-[#D4AF37] resize-none"
-              />
-              <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={applyStudioLights}
-                  onChange={(e) => setApplyStudioLights(e.target.checked)}
-                  className="accent-[#D4AF37]"
-                />
-                Apply Studio Lights
-              </label>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Bella</div>
-              <div className="text-[10px] text-slate-400 leading-relaxed">
-                I have a floor plan. Generate render. Change the sofa in this room.
-              </div>
-              <div className="flex gap-2">
-                <input
-                  value={promptValue}
-                  onChange={(e) => setPromptValue(e.target.value)}
-                  placeholder="Message Bella..."
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-purple-500"
-                />
-                <button className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-xl">
-                  <Maximize className="w-4 h-4 rotate-45" />
-                </button>
-              </div>
-              <div className="text-[10px] text-slate-500 font-mono">0/100</div>
-            </div>
-          </div>
-        </aside>
-
-        {/* CENTER PANEL */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-slate-950">
-          <div className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="bg-slate-950 p-1 rounded-xl border border-slate-850 flex gap-1 text-xs font-bold">
-                <button className="px-2.5 py-1 rounded-lg bg-slate-900 text-purple-300 border border-purple-500/60">ALL</button>
-                <button className="px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200">Rooms</button>
-                <button className="px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200">Products</button>
-                <button className="px-2.5 py-1 rounded-lg text-slate-400 hover:text-slate-200">Layers</button>
-              </div>
-              <button
-                onClick={handleDetect}
-                className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 hover:border-purple-500 transition"
-              >
-                {detecting ? <Scan className="w-3.5 h-3.5 animate-pulse text-purple-400" /> : <Scan className="w-3.5 h-3.5 text-slate-500" />}
-                {detecting ? 'Detecting...' : 'Detect'}
-              </button>
-              <button className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 hover:border-[#D4AF37] transition">
-                <Pencil className="w-3.5 h-3.5 text-slate-500" /> Draw Object
-              </button>
-              <div className="flex items-center gap-1">
-                <button className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 transition" aria-label="Undo">
-                  <Undo2 className="w-3.5 h-3.5" />
-                </button>
-                <button className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 transition" aria-label="Redo">
-                  <Redo2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-            <div className="text-[11px] text-slate-400 font-semibold">
-              {actionCounts.assigned} assigned • {actionCounts.pending} pending
-            </div>
-          </div>
-
-          <div className="flex-1 relative overflow-hidden">
-            <div className="absolute inset-0">
-              {layoutMode === '2d' && <Canvas2D />}
-              {layoutMode === '3d' && <Viewport3D />}
-              {layoutMode === 'split' && (
-                <>
-                  <div className="w-1/2 h-full border-r border-slate-800"><Canvas2D /></div>
-                  <div className="w-1/2 h-full"><Viewport3D /></div>
-                </>
-              )}
-            </div>
-
-            {/* Floating Selection Toolbar */}
-            {selectionBox && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300">
-                  <Square className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Rectangle</span>
+              {/* Selection overlay */}
+              {selectionBox && (
+                <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-xl shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-extrabold uppercase tracking-wide text-slate-200">Selection Edit</h3>
+                        <p className="text-[10px] text-slate-500">Describe the change for the selected zone.</p>
+                      </div>
+                      <button onClick={() => setSelectionBox(null)} className="text-slate-400 hover:text-slate-100"><X className="w-4 h-4" /></button>
+                    </div>
+                    <input
+                      value={promptValue}
+                      onChange={(e) => setPromptValue(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-purple-500"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={handleQueueApply} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider">Apply</button>
+                      <button onClick={() => setSelectionBox(null)} className="text-slate-400 hover:text-slate-200 p-2"><X className="w-4 h-4" /></button>
+                    </div>
+                  </div>
                 </div>
-                <input
-                  value={promptValue}
-                  onChange={(e) => setPromptValue(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-purple-500 w-64"
-                />
-                <button className="bg-slate-950 border border-slate-800 text-slate-200 px-3 py-2 rounded-xl text-[11px] font-bold">
-                  + Queue
-                </button>
-                <button
-                  onClick={handleQueueApply}
-                  className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider"
-                >
-                  Apply
-                </button>
-                <button
-                  onClick={() => setSelectionBox(null)}
-                  className="text-slate-400 hover:text-slate-200 p-2"
-                  aria-label="Close selection"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+              )}
+
+              {/* Bottom Left PLAN Zone */}
+              <div className="absolute bottom-4 left-4 bg-slate-900/90 border border-slate-800 rounded-xl p-3 w-48 backdrop-blur">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">PLAN Zone</div>
+                <div className="text-[10px] text-slate-400 leading-snug">Top-down room occupancy preview.</div>
+                <div className="text-[9px] text-slate-500 mt-1">Smart Fill available on Mother Node only.</div>
               </div>
-            )}
 
-            {/* Bottom Left PLAN Zone */}
-            <div className="absolute bottom-4 left-4 bg-slate-900/90 border border-slate-800 rounded-xl p-3 w-48 backdrop-blur">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">PLAN Zone</div>
-              <div className="text-[10px] text-slate-400 leading-snug">Top-down room occupancy preview.</div>
-              <div className="text-[9px] text-slate-500 mt-1">Smart Fill available on Mother Node only.</div>
+              {/* Top-right status badge */}
+              <div className="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur">
+                Selection active — type your edit in the prompt bar next to your selection.
+              </div>
             </div>
-
-            {/* Top-right status badge */}
-            <div className="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 text-[11px] text-slate-300 backdrop-blur">
-              Selection active — type your edit in the prompt bar next to your selection.
-            </div>
-          </div>
+          )}
         </main>
 
         {/* RIGHT PANEL */}
@@ -491,21 +336,35 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             </button>
           </div>
 
-          <div className="px-3 pt-2">
+          <div className="px-3 pt-2 space-y-2">
             <div className="relative">
               <input
-                placeholder="Search products..."
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-purple-500"
               />
-              <div className="absolute left-3 top-2.5 text-slate-500">
-                <LayoutTemplate className="w-3.5 h-3.5" />
-              </div>
+              <div className="absolute left-3 top-2.5 text-slate-500"><Search className="w-3.5 h-3.5" /></div>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {CATEGORY_FILTERS.filter(f => f.id === 'all' || ['tv_unit','pooja_unit','wardrobe','kitchen','living_room','bedroom','dining_table','coffee_table','bookshelf','study_table','utility_unit'].includes(f.id)).map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setCatalogCategory(f.id)}
+                  className={`shrink-0 flex items-center gap-1 border rounded-lg px-2 py-1 text-[9px] font-bold uppercase tracking-wide transition ${
+                    catalogCategory === f.id ? 'border-[#D4AF37]/60 text-[#C9A84C] bg-[#D4AF37]/10' : 'border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span className="text-[10px]">{f.icon}</span>
+                  {f.label}
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">All Products</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Categories</div>
               <div className="space-y-2">
                 {PRODUCT_CATEGORIES.map(cat => (
                   <div key={cat.name} className="space-y-1">
@@ -515,9 +374,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                     </button>
                     <div className="pl-3 space-y-1">
                       {cat.sub.map(item => (
-                        <button key={item} className="text-[10px] text-slate-400 hover:text-slate-200 transition text-left">
-                          {item}
-                        </button>
+                        <button key={item} className="text-[10px] text-slate-400 hover:text-slate-200 transition text-left">{item}</button>
                       ))}
                     </div>
                   </div>
@@ -525,23 +382,27 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              {!catalogLoading && catalogItems.length === 0 && (
-                <div className="col-span-2 text-[10px] text-slate-500">No catalog items found.</div>
-              )}
-              {catalogItems.map(item => (
-                <div key={item.key} className="bg-white rounded-xl overflow-hidden border border-slate-800">
-                  <div className="h-24 w-full bg-slate-100 flex items-center justify-center text-[9px] text-slate-500">
-                    {item.thumbnail ? <img src={item.thumbnail} alt={item.label} className="w-full h-full object-cover" /> : 'Preview'}
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Catalog</div>
+              <div className="grid grid-cols-2 gap-2">
+                {catalogLoading && <div className="col-span-2 text-[10px] text-slate-500">Loading catalog...</div>}
+                {!catalogLoading && catalogItems.length === 0 && (
+                  <div className="col-span-2 text-[10px] text-slate-500">No catalog items found.</div>
+                )}
+                {visibleCatalog.map(item => (
+                  <div key={item.key || item.id} className="bg-white rounded-xl overflow-hidden border border-slate-800">
+                    <div className="h-24 w-full bg-slate-100 flex items-center justify-center text-[9px] text-slate-500">
+                      {item.thumbnail || item.image_path ? <img src={item.thumbnail || item.image_path} alt={item.label} className="w-full h-full object-cover" /> : 'Preview'}
+                    </div>
+                    <div className="p-2 space-y-1">
+                      <div className="text-[10px] font-black text-slate-900 leading-tight">{item.label}</div>
+                      <div className="text-[9px] text-slate-500">{item.category}</div>
+                      <div className="text-[10px] font-bold text-slate-900">{item.price ? `₹${Math.round(item.price).toLocaleString('en-IN')}` : 'Price on request'}</div>
+                      <div className="text-[9px] text-slate-500">{item.dimensions_json ? JSON.stringify(item.dimensions_json) : ''}</div>
+                    </div>
                   </div>
-                  <div className="p-2 space-y-1">
-                    <div className="text-[10px] font-black text-slate-900 leading-tight">{item.label}</div>
-                    <div className="text-[9px] text-slate-500">{item.category}</div>
-                    <div className="text-[10px] font-bold text-slate-900">{item.price ? `₹${Math.round(item.price).toLocaleString('en-IN')}` : 'Price on request'}</div>
-                    <div className="text-[9px] text-slate-500">{item.dimensions?.widthMm && item.dimensions?.depthMm ? `${item.dimensions.widthMm}x${item.dimensions.depthMm} mm` : ''}</div>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 
@@ -549,15 +410,13 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             <span>HD</span>
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 bg-slate-800 rounded-full border border-slate-700" aria-label="User avatar" />
-              <button className="text-slate-400 hover:text-slate-200" aria-label="Download">
-                <Download className="w-4 h-4" />
-              </button>
+              <button className="text-slate-400 hover:text-slate-200" aria-label="Download"><Download className="w-4 h-4" /></button>
             </div>
           </div>
         </aside>
       </div>
 
-      {/* ── 3. BRANCH MODAL ── */}
+      {/* BRANCH MODAL */}
       {showBranchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-slide-up text-slate-200">
@@ -569,16 +428,12 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                   <p className="text-[10px] text-slate-500">Fork, switch, and compare design layouts side-by-side</p>
                 </div>
               </div>
-              <button onClick={() => setShowBranchModal(false)} className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-100 transition">
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setShowBranchModal(false)} className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-100 transition"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Available Design Branches</span>
-                <button onClick={handleCreateBranch} className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition">
-                  + Fork New Variant
-                </button>
+                <button onClick={handleCreateBranch} className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition">+ Fork New Variant</button>
               </div>
               <div className="space-y-2.5">
                 {branches.map(b => {
@@ -606,9 +461,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                       </div>
                       <div className="flex items-center gap-2">
                         {!isCurrentBranch ? (
-                          <button onClick={() => { loadScene(projectId, b); setShowBranchModal(false); }} className="bg-slate-950 hover:bg-slate-850 text-slate-300 border border-slate-800 hover:border-[#D4AF37]/35 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition">
-                            Switch to Variant
-                          </button>
+                          <button onClick={() => { loadScene(projectId, b); setShowBranchModal(false); }} className="bg-slate-950 hover:bg-slate-850 text-slate-300 border border-slate-800 hover:border-[#D4AF37]/35 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition">Switch to Variant</button>
                         ) : <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider px-3">Active Variant</span>}
                         {b !== 'main' && (
                           <button
@@ -618,21 +471,17 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                                 setShowBranchModal(false);
                               }
                             }}
-                            className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/25 text-[#D4AF37] px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition"
+                            className="bg-slate-950 hover:bg-slate-850 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition"
                           >
                             Merge to Main
                           </button>
                         )}
+                        <button onClick={() => setShowBranchModal(false)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition">Close Manager</button>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-            <div className="p-4 bg-slate-950/40 border-t border-slate-850 flex justify-end">
-              <button onClick={() => setShowBranchModal(false)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition">
-                Close Manager
-              </button>
             </div>
           </div>
         </div>
