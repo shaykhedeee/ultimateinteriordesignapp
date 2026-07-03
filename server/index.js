@@ -1385,6 +1385,31 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
   res.json(cutlist || { cutlist_data_json: '[]', optimized_sheets_json: '{}' });
 });
 
+app.get('/api/projects/:id/cutlist/dxf', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const machineType = String(req.query.machine || 'generic').toLowerCase();
+    const cutlist = db.prepare("SELECT * FROM production_cutlists WHERE project_id = ?").get(projectId);
+    if (!cutlist) return res.status(404).json({ error: 'Cutlist not found for this project.' });
+
+    const parts = JSON.parse(cutlist.cutlist_data_json || '[]');
+    const nesting = JSON.parse(cutlist.optimized_sheets_json || '{}');
+
+    const dxf = dxfGenerator.generateCutlistDXF({
+      cutlistId: cutlist.id,
+      parts,
+      nesting,
+      machineType
+    });
+
+    res.setHeader('Content-Type', 'application/dxf');
+    res.setHeader('Content-Disposition', `attachment; filename="cutlist-${cutlist.id}-${machineType}.dxf"`);
+    res.send(dxf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==========================================
 // 5. SCENE VERSIONING & 2D/3D EDIT CORE API
 // ==========================================
