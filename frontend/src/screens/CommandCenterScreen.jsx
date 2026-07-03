@@ -1128,12 +1128,29 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
   const [generating, setGenerating] = useState(false);
   const [generatedResult, setGeneratedResult] = useState(null);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    if (!project?.id) return;
     setGenerating(true);
-    setTimeout(() => {
+    setGeneratedResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/tools/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolKey: 'quick-render', projectId: project.id, params: { room: selectedRoom, style: selectedStyle, prompt } })
+      });
+      const data = await res.json();
       setGenerating(false);
-      setGeneratedResult('https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80');
-    }, 2000);
+      if (data?.success && data?.result?.output) {
+        setGeneratedResult(data.result.output);
+      } else if (data?.success) {
+        setGeneratedResult('AI concept generation completed. Check Renders tab for outputs.');
+      } else {
+        setGeneratedResult('Generation request failed. See status for details.');
+      }
+    } catch (err) {
+      setGenerating(false);
+      setGeneratedResult('Generation request failed: ' + err.message);
+    }
   };
 
   return (
@@ -1263,12 +1280,27 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
     }
   };
 
-  const handleSubmitPatch = () => {
+  const handleSubmitPatch = async () => {
+    if (!project?.id || !photo) return;
     setEditing(true);
-    setTimeout(() => {
+    setResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/tools/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolKey: 'laminate-swapper', projectId: project.id, params: { componentType: 'region', newMaterial: instructions, coordinates } })
+      });
+      const data = await res.json();
       setEditing(false);
-      setResult('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80');
-    }, 2000);
+      if (data?.success) {
+        setResult(data.render || data.result || 'Edit applied successfully.');
+      } else {
+        setResult('Edit failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      setEditing(false);
+      setResult('Edit failed: ' + err.message);
+    }
   };
 
   return (
