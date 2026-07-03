@@ -51,3 +51,4 @@ scratch/
 # ── SQLite runtime files ─────────────────
 ultimate_interior.db-wal
 ultimate_interior.db-shm
+.venv/
