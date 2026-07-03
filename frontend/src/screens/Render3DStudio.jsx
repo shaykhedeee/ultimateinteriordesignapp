@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { 
@@ -268,7 +269,7 @@ function WalkthroughWorkspace({ projectId, cadDrawing, selectedLaminates, onLami
     try {
       setGenerating360(true);
       setPanoramaUrl(null);
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/walkthrough/360`, { method: 'POST' });
+      const res = await fetch(`getApiBase()/projects/${projectId}/walkthrough/360`, { method: 'POST' });
       const data = await res.json();
       if (data?.panoramaUrl) setPanoramaUrl(data.panoramaUrl);
     } catch (err) {
@@ -356,7 +357,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       const updatedLaminates = selectedLaminates.filter(l => l.type !== componentType);
       updatedLaminates.push({ type: componentType, name, code, color, updatedAt: new Date().toISOString() });
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -544,7 +545,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setActiveColor(colorName);
     setIsGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/change-color`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/change-color`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -634,7 +635,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchProviderStatus = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/providers/status');
+      const res = await fetch('getApiBase()/providers/status');
       const data = await res.json();
       setProviderStatus(data);
     } catch (err) {
@@ -660,7 +661,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadProjectData = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+      const res = await fetch(`getApiBase()/projects/${projectId}`);
       const data = await res.json();
       setProject(data);
       if (data.client_brief_json) {
@@ -680,7 +681,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleRegenerateRenders = async () => {
     try {
       setStatus('Regenerating all renders…', 'loading');
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
+      await fetch(`getApiBase()/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'render_generation' })
@@ -695,11 +696,11 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCADAndMaterials = async () => {
     try {
-      const resCAD = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
+      const resCAD = await fetch(`getApiBase()/projects/${projectId}/cad`);
       const drawing = await resCAD.json();
       setCadDrawing(drawing);
 
-      const resMat = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`);
+      const resMat = await fetch(`getApiBase()/projects/${projectId}/materials`);
       const materials = await resMat.json();
       setSelectedLaminates(JSON.parse(materials.laminates_json || '[]'));
 
@@ -711,7 +712,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`);
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders`);
       const data = await res.json();
       setRendersList(data);
       if (data.length > 0) {
@@ -724,7 +725,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCorrections = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
       const data = await res.json();
       setCorrectionsList(data.items || []);
     } catch (err) {
@@ -781,7 +782,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         }
       });
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/generate`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/generate`, {
         method: 'POST',
         body: formData,
         signal: editorControllerRef.current.signal
@@ -828,7 +829,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setGenerationStatus('Applying edit...');
     editorControllerRef.current = new AbortController();
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/edit`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -870,7 +871,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     if (!selectedRender) return;
     setGenerationStatus(`Setting ${status}...`);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/${selectedRender.id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, note: reviewNote })
@@ -938,7 +939,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleLogCorrection = async () => {
     if (!mistakeDescription.trim() || !mistakeCorrection.trim() || !selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistake`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/mistake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -964,7 +965,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchCatalogMaterials = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
+      const res = await fetch('getApiBase()/material-catalog');
       if (res.ok) {
         const data = await res.json();
         setCatalogMaterials(data);
@@ -990,7 +991,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('renderImage', imgBlob, 'render.png');
       formData.append('room', selectedRender.room || targetRoom);
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/analyse-components`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/analyse-components`, {
         method: 'POST',
         body: formData
       });
@@ -1063,7 +1064,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       setSwapperStepMessage('Running visual editor pipeline...');
       setSwapperStepIndex(2);
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/laminate-swap`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders/laminate-swap`, {
         method: 'POST',
         body: formData
       });
@@ -1208,7 +1209,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const approveRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/renders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -2356,7 +2357,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 const targets = rendersList.filter(r => r.room === selectedRender.room && r.review_status !== 'approved');
                 if (targets.length === 0) { setStatus('No room renders left to approve.', 'error'); return; }
                 try {
-                  await Promise.all(targets.map(r => fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${r.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved', note: '' }) }).then(res => res.json())));
+                  await Promise.all(targets.map(r => fetch(`getApiBase()/projects/${projectId}/renders/${r.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved', note: '' }) }).then(res => res.json())));
                   await fetchRenders();
                   setStatus(`Bulk approved ${targets.length} render(s).`);
                 } catch (e) {
@@ -2368,7 +2369,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 const targets = rendersList.filter(r => r.room === selectedRender.room && r.review_status !== 'rejected');
                 if (targets.length === 0) { setStatus('No room renders left to reject.', 'error'); return; }
                 try {
-                  await Promise.all(targets.map(r => fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${r.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected', note: '' }) }).then(res => res.json())));
+                  await Promise.all(targets.map(r => fetch(`getApiBase()/projects/${projectId}/renders/${r.id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected', note: '' }) }).then(res => res.json())));
                   await fetchRenders();
                   setStatus(`Bulk rejected ${targets.length} render(s).`, 'error');
                 } catch (e) {

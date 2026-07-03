@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { Grid, Layers, Box, IndianRupee, Download, Settings2, FileDown, Ruler, Boxes } from 'lucide-react';
 
@@ -18,7 +19,7 @@ export default function CutlistNestingScreen({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-    fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`)
+    fetch(`getApiBase()/projects/${projectId}/cutlist`)
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
         if (data.panels_json) setPanelsJson(JSON.stringify(data.panels_json, null, 2));
@@ -49,7 +50,7 @@ export default function CutlistNestingScreen({ projectId }) {
   const downloadDxf = async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist/dxf?machine=${encodeURIComponent(machineType)}`);
+      const res = await fetch(`getApiBase()/projects/${projectId}/cutlist/dxf?machine=${encodeURIComponent(machineType)}`);
       if (!res.ok) throw new Error('DXF export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

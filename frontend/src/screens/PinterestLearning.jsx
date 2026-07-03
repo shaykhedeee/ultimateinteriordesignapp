@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, Download, Bookmark, Sparkles, ChevronRight, Trash2 } from 'lucide-react';
 
@@ -15,7 +16,7 @@ export default function PinterestLearning({ projectId }) {
 
   const loadLibrary = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/library`);
+      const res = await fetch(`getApiBase()/projects/${projectId || 'demo'}/library`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setSavedLibrary(data);
@@ -30,7 +31,7 @@ export default function PinterestLearning({ projectId }) {
     setLoading(true);
     setStatus('Searching style references...');
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/pinterest/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`getApiBase()/projects/${projectId || 'demo'}/pinterest/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setImages(data);
@@ -65,7 +66,7 @@ export default function PinterestLearning({ projectId }) {
           source: img.source || 'pinterest',
           tags: img.tags || ['pinterest-saved']
         }));
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/pinterest/library`, {
+      const res = await fetch(`getApiBase()/projects/${projectId || 'demo'}/pinterest/library`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ images: payload })
@@ -176,7 +177,7 @@ export default function PinterestLearning({ projectId }) {
                     <span className="text-[9px] text-slate-500">{item.category}{item.subcategory ? ` / ${item.subcategory}` : ''}</span>
                     <button
                       onClick={async () => {
-                        await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/library/${item.id}`, { method: 'DELETE' });
+                        await fetch(`getApiBase()/projects/${projectId || 'demo'}/library/${item.id}`, { method: 'DELETE' });
                         await loadLibrary();
                       }}
                       className="text-[9px] text-red-400 hover:text-red-300"

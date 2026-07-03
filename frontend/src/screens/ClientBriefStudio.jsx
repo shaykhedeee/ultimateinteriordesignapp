@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, Save, Download, Plus, Trash2, LayoutGrid, 
@@ -63,7 +64,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
 
   const fetchBrief = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+      const res = await fetch(`getApiBase()/projects/${projectId}`);
       const data = await res.json();
       if (data.client_brief_json) {
         const loadedBrief = JSON.parse(data.client_brief_json);
@@ -110,7 +111,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
 
   const saveBrief = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/brief`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/brief`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ briefData: brief, currentStep: 'cad' })
@@ -133,7 +134,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
     formData.append('floorplan', file);
 
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/floorplan`, {
         method: 'POST',
         body: formData
       });
@@ -156,7 +157,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
     files.forEach(file => formData.append('styleReferences', file));
 
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/style-references`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/style-references`, {
         method: 'POST',
         body: formData
       });
@@ -909,7 +910,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
               Compile Specifications
             </button>
             <button 
-              onClick={() => window.open(`http://127.0.0.1:5055/api/projects/${projectId}/brief/pdf`, '_blank')}
+              onClick={() => window.open(`getApiBase()/projects/${projectId}/brief/pdf`, '_blank')}
               className="w-full py-3 bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-300 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
             >
               <Download className="w-4 h-4 text-[#D4AF37]" />

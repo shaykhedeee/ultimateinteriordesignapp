@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { Store, Package, IndianRupee, RefreshCw, Truck, ShieldCheck, ExternalLink, Search } from 'lucide-react';
 
@@ -20,7 +21,7 @@ export default function VendorIntelligence({ projectId }) {
     const load = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/vendors/${activeTab}`);
+        const res = await fetch(`getApiBase()/projects/${projectId || 'demo'}/vendors/${activeTab}`);
         if (!res.ok) throw new Error('vendor_load_failed');
         const data = await res.json();
         setVendors(Array.isArray(data) ? data : []);
@@ -36,7 +37,7 @@ export default function VendorIntelligence({ projectId }) {
   useEffect(() => {
     const loadHardware = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:5055/api/catalog/hardware?query=${encodeURIComponent(query || activeTab)}`);
+        const res = await fetch(`getApiBase()/catalog/hardware?query=${encodeURIComponent(query || activeTab)}`);
         if (!res.ok) throw new Error('hardware_load_failed');
         const data = await res.json();
         setHardware(Array.isArray(data) ? data : []);
@@ -50,7 +51,7 @@ export default function VendorIntelligence({ projectId }) {
   const refreshVendorPrices = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId || 'demo'}/vendors/${activeTab}/refresh`, {
+      const res = await fetch(`getApiBase()/projects/${projectId || 'demo'}/vendors/${activeTab}/refresh`, {
         method: 'POST'
       });
       const data = await res.json();

@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { 
   Grid, Monitor, ChevronDown, Download, Sparkles, Box
@@ -36,7 +37,7 @@ export default function TvUnitGenerator({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-    fetch(`http://127.0.0.1:5055/api/projects/${projectId}`)
+    fetch(`getApiBase()/projects/${projectId}`)
       .then(res => res.json())
       .then(setProject)
       .catch(() => {});

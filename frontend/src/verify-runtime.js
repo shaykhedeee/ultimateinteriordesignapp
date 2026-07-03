@@ -1,4 +1,5 @@
-const API_BASE = 'http://127.0.0.1:5055/api';
+import { apiUrl, getApiBase } from './utils/api.js';
+const API_BASE = apiUrl('');
 const checks = [
   { name: 'health', url: `${API_BASE}/health` },
   { name: 'tools', url: `${API_BASE}/tools` },
