@@ -35,24 +35,60 @@ export const ROOM_TYPES = Object.freeze([
 
 export const ZONE_ROLES = Object.freeze(['primary', 'secondary', 'accent']);
 
-export const CAMERA_MODES = Object.freeze(['topdown', 'elevated', 'eye_level', 'isometric']);
-
-export const FEEDBACK_TYPES = Object.freeze([
-  'accepted', 'rejected', 'lightly_edited', 'heavily_edited', 'flagged', 'approved', 'misclassified'
-]);
+import { buildEnhancementPlan, ENHANCEMENT_MODES } from './enhancement-planner.js';
+import { generateInteriorAsset } from './image-provider.js';
+import { listProfiles } from './openrouter-profiles.js';
+import fs from 'fs';
+import path from 'path';
 
 const KNOWLEDGE_PATH = path.join(process.cwd(), 'server/services/aura/knowledge/indian-interiors-knowledge.md');
 let KNOWLEDGE_CACHE = '';
+let KNOWLEDGE_CACHE_MTIME = 0;
 
-function loadKnowledgeCache() {
+function loadKnowledge(force = false) {
   try {
-    if (!KNOWLEDGE_CACHE && fs.existsSync(KNOWLEDGE_PATH)) {
-      KNOWLEDGE_CACHE = fs.readFileSync(KNOWLEDGE_PATH, 'utf-8');
+    if (fs.existsSync(KNOWLEDGE_PATH)) {
+      const stat = fs.statSync(KNOWLEDGE_PATH);
+      if (force || !KNOWLEDGE_CACHE || stat.mtimeMs !== KNOWLEDGE_CACHE_MTIME) {
+        KNOWLEDGE_CACHE = fs.readFileSync(KNOWLEDGE_PATH, 'utf-8');
+        KNOWLEDGE_CACHE_MTIME = stat.mtimeMs;
+      }
     }
     return KNOWLEDGE_CACHE;
-  } catch {
+  } catch (err) {
     return '';
   }
+}
+
+const DEFAULT_INDIAN_INJECTS = Object.freeze({
+  climate: 'Include Indian climate-aware guidance: moisture-resistant finishes for tropical wet, earthy low-gloss materials for tropical dry, durable high-traffic laminates for subtropical, and woodgrains/wool blends for alpine hill stations.',
+  vastu: 'Use Vastu as a preference signal, not a hard constraint: prefer NE pooja room/study, SE kitchen hob facing East, SW master bedroom, avoid NE toilets.',
+  laminates: 'Favor Indian laminate conventions: Merino/Greenlam/Royale Touche for wardrobes/TV units/pooja; moisture-resistant carcass laminates for kitchens; high-gloss acrylic for premium shutters; matte/textured for high-use surfaces.',
+  pooja: 'Pooja room norms: NE or East, elevated platform 150-200mm, warm LED strip lighting, teak/iroko/brass; include shelf count guidance.',
+  kitchen: 'Kitchen layout norms: parallel/L/U/island; tall unit depth 600mm, wall unit 300mm; min counter 900mm height; backsplash 600-750mm; use bottle pull-out and corner carousel when helpful.',
+  wardrobe: 'Wardrobe norms: 1500-1800mm width, 550-600mm depth, 2100mm height, long rod at 1800mm, short at 1000mm; add pantaloons rack, jewelry drawer, pull-out mirror; loft optional.',
+  budgeting: 'Use Indian budget bands: economy ~1200-1600 INR/sqft, standard 1600-2200, premium 2200-3200, luxury 3200-5000 INR/sqft with matching laminate/hardware recommendations.',
+  vendor: 'Prefer Indian-locally-available vendors by default: CenturyPly/Royale Touche carcass, Merino/Greenlam shutters, Hettich InnoTech/Sensys runners, Blum/AVENTOS lifts, Ebco pantry baskets.',
+  pooja_shutter: 'Glass shutters optional for pooja; generally prefer sliding/folding to save clearance in small puja/mandir units.'
+});
+
+function buildIndianInjectionText(injects) {
+  if (!injects || typeof injects !== 'object') return '';
+  const keys = Object.keys(injects);
+  if (!keys.length) return '';
+  const lines = keys.map((k) => `\n[${k}] ${String(injects[k] || '').trim()}`);
+  return lines.join('\n');
+}
+
+function resolveTemplateDefaults(template, context = {}) {
+  const injected = template.system.replace('__INDIAN_KNOWLEDGE_BASE__', loadKnowledge());
+  const injection = buildIndianInjectionText(context.indianInjects || DEFAULT_INDIAN_INJECTS);
+  return {
+    system: injected || template.system,
+    task: template.task || '',
+    repair: template.repair || '',
+    indiaContextTag: injection ? `\n\nIndian interiors expert mode. Use only Indian norms for laminates, hardware, pooja, kitchens, wardrobes, budgets, and vendors.${injection}` : ''
+  };
 }
 
 export class AuraService {
