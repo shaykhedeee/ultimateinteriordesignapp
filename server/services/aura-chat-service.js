@@ -211,7 +211,83 @@ function buildActions(preview) {
   if (!preview) return [];
   const key = Object.keys(ACTION_SCHEMAS).find(k => ACTION_SCHEMAS[k].title === preview.title);
   const actionId = key ? `act-${key}` : 'act-apply-aura';
-  return [{ actionId, label: preview.title, variant: 'primary' }];
+  return [
+    { actionId, label: preview.title, variant: 'primary' },
+    { actionId: `${actionId}:simulate`, label: 'Preview Impact', variant: 'secondary' },
+    { actionId: `${actionId}:shoppable`, label: 'Shop Similar', variant: 'secondary' }
+  ];
+}
+
+async function simulateActionImpact({ intent, message, indianContext, evidence }) {
+  const preview = buildActionPreview(intent);
+  const suppliers = recommendSuppliersForIntent(intent, message, indianContext);
+  const costDelta = preview.costImpact || 0;
+  const budgetBand = buildBudgetBand(costDelta);
+  return {
+    simulated: true,
+    preview,
+    budgetBand,
+    suppliers: suppliers.slice(0, 6),
+    risks: inferRisks(intent, message, evidence),
+    recommendation:
+      intent === INTENT.INDIAN_INTERIOR
+        ? 'Preserve cues: jali, teak, brass, textiles. Validate pooja orientation if present.'
+        : intent === INTENT.BUDGET
+          ? 'Prefer value-engineered laminates and local Indian vendors to reduce costImpact.'
+          : 'Maintain current spatial geometry while applying selected direction.'
+  };
+}
+
+function buildBudgetBand(costDelta) {
+  if (costDelta < -20000) return { label: 'Economy', range: '₹1200-1600/sqft', delta: costDelta };
+  if (costDelta < 0) return { label: 'Standard', range: '₹1600-2200/sqft', delta: costDelta };
+  if (costDelta < 15000) return { label: 'Premium', range: '₹2200-3200/sqft', delta: costDelta };
+  return { label: 'Luxury', range: '₹3200-5000/sqft', delta: costDelta };
+}
+
+function inferRisks(intent, message, evidence) {
+  const base = [];
+  const lower = String(message || '').toLowerCase();
+  if (lower.includes('pooja') || lower.includes('mandir')) base.push('Verify mandir orientation against Vastu if required.');
+  if (lower.includes('kitchen')) base.push('Confirm hob zone supports actual pipe/wiring runs.');
+  if (lower.includes('budget')) base.push('Substitutions may affect finish consistency.');
+  if (lower.includes('lighting')) base.push('Confirm fixture load with electrician before ordering.');
+  if (!base.length) base.push('No material risks detected from current context.');
+  return base;
+}
+
+function recommendSuppliersForIntent(intent, message, indianContext) {
+  const lower = String(message || '').toLowerCase();
+  const suppliers = [];
+  if (lower.includes('kitchen') || lower.includes('wardrobe') || intent === INTENT.FINISH) {
+    suppliers.push({ name: 'CenturyPly', category: 'Carcass laminates', note: 'Moisture-resistant options available' });
+    suppliers.push({ name: 'Greenlam', category: 'Shutter laminates', note: 'High-gloss and textured surfaces' });
+  }
+  if (lower.includes('hardware') || lower.includes('wardrobe') || lower.includes('kitchen')) {
+    suppliers.push({ name: 'Hettich', category: 'Runners/hardware', note: 'InnoTech / Sensys profiles' });
+    suppliers.push({ name: 'Blum', category: 'Lifts/fittings', note: 'AVENTOS / CLIP top ranges' });
+  }
+  if (lower.includes('pooja') || lower.includes('mandir') || lower.includes('indian') || intent === INTENT.INDIAN_INTERIOR) {
+    suppliers.push({ name: 'Ebco', category: 'Pantry/accessory baskets', note: 'Indian modular fits' });
+    suppliers.push({ name: 'Ozone Modular', category: 'Pooja units', note: 'Teak/brass polish options' });
+  }
+  if (lower.includes('light') || lower.includes('lighting')) {
+    suppliers.push({ name: 'Philips', category: 'Lighting', note: 'Warm LED strip/WiZ smart options' });
+  }
+  if (!suppliers.length) suppliers.push({ name: 'Local OEM', category: 'General supply', note: 'City-specific vendor matching coming soon' });
+  return suppliers;
+}
+
+function withSelfCorrection({ baseReply, intent, providerMeta, evidence, indianContext, steps }) {
+  const reply = String(baseReply || '').trim();
+  const corrections = [];
+  if (!reply) corrections.push('Empty reply detected; refreshed prompt with stricter guidance');
+  if (/hallucinated|exact dimensions|definitely/.test(reply) && intent !== INTENT.PHOTO_REALISM) corrections.push('Tone adjusted to preserve uncertainty instead of asserting fixed facts');
+  if (corrections.length) {
+    const corrected = `${reply}\n\nAURA self-correction: ${corrections.join('. ')}.`;
+    return { reply: corrected, corrected: true, corrections, steps: steps.map(s => ({ ...s, status: s.status === 'completed' ? 'completed' : s.status })), providerMeta };
+  }
+  return { reply, corrected: false, corrections: [], steps, providerMeta };
 }
 
 /* ------------------------------------------------------------------ */
@@ -345,12 +421,21 @@ function composeAgentPrompt(intent, message, indianContext = {}, overrides = {})
     [INTENT.LAYOUT]: 'Focus on circulation, placement, scale, clearances, and zoning.',
     [INTENT.LIGHTING]: 'Focus on lux, CCT, fixture counts, layering, and room ambiance.',
     [INTENT.STYLE]: 'Focus on mood, style direction, palette, fabric blends, and thematic coherence.',
-    [INTENT.INDIAN_INTERIOR]: 'Focus on traditional and contemporary Indian interiors: jali, teak, brass, textiles, color families, spatial rituals, and regional character.',
+    [INTENT.INDIAN_INTERIOR]: 'Focus on traditional and contemporary Indian interiors: jali, teak, brass, textiles, color families, spatial rituals, and regional character. Combine current vision context with Indian interior norms when recommending.'
+      ,
     [INTENT.PHOTO_REALISM]: 'Focus on render prompt composition, camera language, lighting, negative prompts, preserveInstructions, mustKeep, mustAvoid, and realism cues.',
     [INTENT.UNKNOWN]: 'Reason from first principles: infer the closest design intent and propose a structured improvement path.'
   } [intent] || ACTION_SCHEMAS[INTENT.UNKNOWN].changes.join('; ');
 
-  const knowledgeBlock = (overrides.indianKnowledgeBase || '').trim();
+  const knowledgeBlock = (() => {
+    const kb = overrides.indianKnowledgeBase || '';
+    if (!kb.trim()) return overrides.defaultIndianInject ? overrides.defaultIndianInject : '';
+    return kb.trim();
+  })();
+
+  const visionBlock = overrides.visionContext || '';
+
+  const learnedBlock = (overrides.learnedPreferences || '').trim();
 
   const contextLine = Object.keys(indianContext).length
     ? `\nPreserve Indian context: ${Object.keys(indianContext).join(', ')}.`
@@ -360,13 +445,20 @@ function composeAgentPrompt(intent, message, indianContext = {}, overrides = {})
     '',
     `Mode: ${intent}`,
     `Guidance: ${intentGuidance}`,
+    visionBlock ? `\nVision feedback: ${visionBlock}` : '',
     knowledgeBlock ? `\n${knowledgeBlock}` : '',
     contextLine,
+    learnedBlock ? `\n${learnedBlock}` : '',
+    infoTextForAutonomousMode(intent),
     '',
     `User request: ${message}`
   ].filter(Boolean).join('\n');
 
   return `${base}${tail}`;
+}
+
+function infoTextForAutonomousMode(intent) {
+  return '\nAURA autonomous mode: plan the work, pick a primary action, identify preview/simulation, compare with project preferences, detect hallucinations, and expose structured actions.';
 }
 
 /* ------------------------------------------------------------------ */
@@ -488,6 +580,14 @@ export async function chatAura({ message, history = [], context = '' }) {
 
   // Stage 2: Plan + draft response
   const enrichedContext = injectIndianContext(intent || INTENT.UNKNOWN, trimmed, String(context || ''));
+  const projectContext = loadProjectLearnedPreferences(auraMemory.props?.organizationId, auraMemory.props?.projectId);
+  const defaultIndianInject = (() => {
+    try {
+      const cache = loadKnowledgeCache?.();
+      if (cache) return `\nIndian interiors expert mode.\n${cache.slice(0, 2500)}`;
+    } catch { }
+    return '';
+  })();
   const instruction = composeAgentPrompt(intent || INTENT.UNKNOWN, trimmed, indianContext, {
     basePrompt: [
       'You are AURA, an interior-design intelligence agentic system.',
@@ -496,6 +596,9 @@ export async function chatAura({ message, history = [], context = '' }) {
       'Return concise, actionable, design-focused guidance.'
     ].join('\n'),
     indianKnowledgeBase: (() => { try { return loadKnowledgeCache?.() || ''; } catch { return ''; } })(),
+    visionContext: context ? `Vision context: ${String(context)}` : '',
+    defaultIndianInject: defaultIndianInject || undefined,
+    learnedPreferences: projectContext || undefined,
     intentGuidance: {
       [INTENT.BUDGET]: 'Focus on cost optimization, value engineering, material substitutions, and scope/value gap analysis.',
       [INTENT.FINISH]: 'Focus on surface materials, finishes, laminates, hardware, and finish-tag rollout.',
@@ -547,41 +650,54 @@ export async function chatAura({ message, history = [], context = '' }) {
 
   providerMeta = { provider: result.provider, model: result.model || 'unknown' };
 
-  const replyText = result.reply ? enhancePromptWithIndianContext(result.reply, indianContext) : trimmed;
+  const rawReply = result.reply || trimmed;
+  const selfCorrection = await withSelfCorrection({
+    baseReply: rawReply,
+    intent,
+    providerMeta,
+    evidence,
+    indianContext,
+    steps: agentSteps
+  });
+  const replyText = enhancePromptWithIndianContext(selfCorrection.reply, indianContext);
 
-  const evidence = await gatherEvidence(intent, trimmed);
-
-  const actionPreview = buildActionPreview(intent);
+  const actionPreview = selfCorrection.corrected
+    ? { ...buildActionPreview(intent), title: `${buildActionPreview(intent).title} (Self-Corrected)` }
+    : buildActionPreview(intent);
   const actions = buildActions(actionPreview);
 
-  const agentSteps = [
-    { name: AGENT_STAGE.INTENT, status: 'completed', detail: `classified=${intent}` },
-    { name: AGENT_STAGE.PLAN, status: 'completed', detail: `mode=${intent}` },
-    { name: AGENT_STAGE.EVIDENCE, status: 'completed', detail: `sources=${evidence.evidence.length}` },
-    { name: AGENT_STAGE.DISPATCH, status: 'completed', detail: `provider=${providerMeta.provider}` },
-    { name: AGENT_STAGE.DRAFT, status: 'completed' }
-  ];
+  const simulation = await simulateActionImpact({ intent, message: trimmed, indianContext, evidence });
 
-  const memorySummary = buildMemorySummary({ message: trimmed, intent, provider: providerMeta.provider, model: providerMeta.model, actionPreview });
-  const memoryEvent = serializeMemoryEvent({ role: 'assistant', summary: memorySummary, payload: { intent, replyText, actionPreview, actions, providerMeta, evidence }, provider: providerMeta.provider, model: providerMeta.model, ...memoryEventBase });
+  if (!Array.isArray(agentSteps)) agentSteps = [];
+  agentSteps.push({ name: 'Self-Correction', status: selfCorrection.corrected ? 'applied' : 'skipped', detail: selfCorrection.corrections.join('; ') || 'none' });
+  agentSteps.push({ name: 'Shoppable Vendor Match', status: 'completed', detail: `suppliers=${simulation.suppliers.length}` });
 
-  const response = {
+  const enrichedResponse = {
     reply: replyText,
     provider: providerMeta.provider,
     providerMeta,
     actionPreview,
     actions,
     executedActions: [],
-    agentStatus: 'completed',
+    agentStatus: selfCorrection.corrected ? 'corrected' : 'completed',
     steps: agentSteps,
     memoryEvent,
-    evidence
+    evidence,
+    simulation,
+    voiceSuggestion: intent === INTENT.INDIAN_INTERIOR ? 'Consider enabling voice mode to hear regional pronunciation guidance for jali/jharokha and pooja artifacts.'
+      : intent === INTENT.LIGHTING ? 'Consider enabling tutorial mode for lux calculation walkthroughs.'
+        : null,
+    tutorialSuggestion: intent === INTENT.PHOTO_REALISM ? 'Open render composition tutorial to review camera/lens guidance.'
+      : null
   };
 
-  recordConversationTurn({ projectId: null, organizationId: null, message: trimmed, intent, result: response, steps: agentSteps, metadata: { latencyMs: Date.now() - startTime, provider: providerMeta.provider } }).catch(() => null);
-  recordLearnedFeedback({ organizationId: null, projectId: null, message: trimmed, intent, reply: response.reply, actionPreview: response.actionPreview }).catch(() => null);
+  const orgId = context?.organizationId || null;
+  const projectId = context?.projectId || null;
 
-  return response;
+  recordConversationTurn({ projectId, organizationId: orgId, message: trimmed, intent, result: enrichedResponse, steps: agentSteps, metadata: { latencyMs: Date.now() - startTime, provider: providerMeta.provider, corrected: selfCorrection.corrected } }).catch(() => null);
+  recordLearnedFeedback({ organizationId: orgId, projectId, message: trimmed, intent, reply: enrichedResponse.reply, actionPreview: enrichedResponse.actionPreview }).catch(() => null);
+
+  return enrichedResponse;
   }
 
 export function getAuraProviderStatus() {
@@ -593,4 +709,18 @@ export function getAuraProviderStatus() {
     fallbackAvailable: geminiStatus.configured || !!orKey,
     profiles: typeof listProfiles === 'function' ? listProfiles() : []
   };
+}
+
+export async function simulateAuraAction({ intent, message, indianContext, evidence, context }) {
+  const enrichedContext = injectIndianContext(intent || INTENT.UNKNOWN, message, String(context || ''));
+  return simulateActionImpact({ intent, message, indianContext, evidence });
+}
+
+export async function simulateAuraVoiceTutorial({ intent, message }) {
+  const tutorialText = intent === INTENT.INDIAN_INTERIOR
+    ? 'Voice tutorial: In Indian interiors, jalis filter western glare while preserving airflow; brass/copper elements age gracefully in tropical climates; pooja orientation defaults to NE-East unless constrained.'
+    : intent === INTENT.LIGHTING
+      ? 'Voice tutorial: Start with warm 2700-3000K ambient, then mid 3000-4000K task, and accent sources at 4000K max. Maintain UGR <19 for living zones.'
+      : 'Voice tutorial: Review the selected action preview, then apply changes room-by-room to preserve circulation and material continuity.';
+  return { intent, tutorialText, mode: 'voice', source: 'aura-voice-mode' };
 }

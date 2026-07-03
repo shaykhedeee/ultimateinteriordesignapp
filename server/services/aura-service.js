@@ -116,27 +116,27 @@ export class AuraService {
   #promptLibrary = Object.freeze({
     [AURA_TASK_TYPES.ROOM_SEMANTICS]: {
       system: this.#indianizedSystemPrompt(),
-      task: `Task: room_semantics\nInputs: roomImageUrl, zoneCropUrl?, floorplanCropUrl?, layoutContext?, ocrContext?, orgContext?\nOutput: roomType, confidence, visibleElements, functionalNeeds, constraints, styleSignals, materialSignals, mustKeep, mustAvoid, uncertainties\nIndian context: consider pooja room norms, vastu orientation hints, laminate/hardware preferences, and modular furniture norms when inferring function.`,
+      task: `Task: room_semantics\nInputs: roomImageUrl, zoneCropUrl?, floorplanCropUrl?, layoutContext?, ocrContext?, orgContext?, detectedComponents?\nOutput: roomType, confidence, visibleElements, functionalNeeds, constraints, styleSignals, materialSignals, mustKeep, mustAvoid, uncertainties, detectedComponents\nIndian context: consider pooja room norms, vastu orientation hints, laminate/hardware preferences, modular furniture norms, and detected heritage components (jali, brass, teak, textiles).`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the room_semantics schema. Admit uncertainty instead of guessing.'
     },
     [AURA_TASK_TYPES.ZONE_DESIGN_PLAN]: {
       system: this.#indianizedSystemPrompt(),
-      task: `Task: zone_design_plan\nInputs: roomSemantics, projectBrief?, catalogContext?, organizationRules?\nOutput: styleName, styleKeywords, colorPalette, materialPalette, lightingStrategy, productCategories, placementNotes, circulationNotes, mustKeep, mustAvoid, riskFlags, confidence\nIndian context: prefer modular furniture from catalog, Merino laminates where premium shutters are appropriate, CenturyPly carcass for interiors, Royale Touche for wardrobes/TV units, Hettich/Blum hardware for premium segments.`,
+      task: `Task: zone_design_plan\nInputs: roomSemantics, projectBrief?, catalogContext?, organizationRules?, detectedComponents?\nOutput: styleName, styleKeywords, colorPalette, materialPalette, lightingStrategy, productCategories, placementNotes, circulationNotes, mustKeep, mustAvoid, riskFlags, confidence, shoppableShortlist\nIndian context: prefer modular furniture from catalog, Merino laminates where premium shutters are appropriate, CenturyPly carcass for interiors, Royale Touche for wardrobes/TV units, Hettich/Blum hardware for premium segments. Recommend shoppable shortlist when vision detects components.`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the zone_design_plan schema.'
     },
     [AURA_TASK_TYPES.RENDER_PROMPT_COMPOSE]: {
       system: this.#indianizedSystemPrompt(),
-      task: `Task: render_prompt_compose\nInputs: designPlan, layoutContext?, references?\nOutput: prompt, negativePrompt, cameraNotes, preserveInstructions, mustKeep, mustAvoid`,
+      task: `Task: render_prompt_compose\nInputs: designPlan, layoutContext?, references?, detectedComponents?\nOutput: prompt, negativePrompt, cameraNotes, preserveInstructions, mustKeep, mustAvoid\nIndian context: if heritage components are detected, preserve jali/teak/brass cues instead of generic western finishes; use Indian laminate vocabulary when possible.`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the render_prompt_compose schema. Always preserve geometry and must_avoid hallucinated architecture.'
     },
     [AURA_TASK_TYPES.RENDER_CRITIC]: {
       system: this.#indianizedSystemPrompt(),
-      task: `Task: render_critic\nInputs: renderImageUrl, layoutContext?, designPlan?, selectedProducts?, priorPromptPack?\nOutput: score, geometryConsistency, styleConsistency, realismScore, issues, mustFix, suggestedEdits, approve`,
+      task: `Task: render_critic\nInputs: renderImageUrl, layoutContext?, designPlan?, selectedProducts?, priorPromptPack?, detectedComponents?\nOutput: score, geometryConsistency, styleConsistency, realismScore, issues, mustFix, suggestedEdits, approve`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the render_critic schema.'
     },
     [AURA_TASK_TYPES.STYLE_RECOMMEND]: {
       system: this.#indianizedSystemPrompt(),
-      task: `Task: style_recommend\nInputs: roomImageUrl?, moodboardUrls?, briefText?, orgRules?\nOutput: primaryStyle, secondaryInfluences, palette, materialFamilies, moodKeywords, doNotUse, confidence`,
+      task: `Task: style_recommend\nInputs: roomImageUrl?, moodboardUrls?, briefText?, orgRules?, detectedComponents?\nOutput: primaryStyle, secondaryInfluences, palette, materialFamilies, moodKeywords, doNotUse, confidence, recommendation, shoppableShortlist`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the style_recommend schema.'
     }
   });

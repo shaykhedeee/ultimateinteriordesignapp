@@ -6,6 +6,8 @@ import {
   RefreshCw, MessageSquare, Plus, AlertTriangle, XCircle, CheckCircle, Trash2, Eye, ShieldAlert,
   Palette, Play, Pause, SkipForward, Gauge
 } from 'lucide-react';
+import TvUnitGenerator from './TvUnitGenerator';
+import Viewer360 from '../components/design3d/Viewer360';
 
 const roomOptions = [
   { id: 'living', label: 'Grand Living Area' },
@@ -54,6 +56,8 @@ const vastuRules = {
 
 function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminateChange, selectedRoomId, onSelectRoom }) {
   const mountRef = React.useRef(null);
+  const [isGenerating360, setIsGenerating360] = React.useState(false);
+  const [panoramaUrl, setPanoramaUrl] = React.useState(null);
   const [activeRoomId, setActiveRoomId] = useState(selectedRoomId || (cadDrawing?.rooms_json ? JSON.parse(cadDrawing.rooms_json)[0]?.id : ''));
   const [selectedCabinet, setSelectedCabinet] = useState(null);
   const [catalogLaminates, setCatalogLaminates] = useState([]);
@@ -410,8 +414,22 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
             aria-label="Decrease dwell time, faster walkthrough"
             className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
           >Fast</button>
+          <button
+            onClick={async () => {
+              try {
+                setIsGenerating360(true)
+                setPanoramaUrl(null)
+                const endpoint=`http://127.0.0.1:5055/api/projects/${projectId}/walkthrough/360`
+                const res=await fetch(endpoint,{method:'POST'})
+                const data=await res.json()
+                if (data?.panoramaUrl) setPanoramaUrl(data.panoramaUrl)
+              } catch (e) { console.error(e) } finally { setIsGenerating360(false) }
+            }}
+            aria-label="Generate 360 panorama"
+            className="text-[9px] font-black uppercase tracking-wider bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/20 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+          >{isGenerating360?'Generating...':'360 View'}</button>
           <button 
-            onClick={() => setIsPlaying(false)} 
+            onClick={() => { setIsPlaying(false); }} 
             aria-label="End walkthrough"
             className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
           >End</button>
@@ -494,6 +512,11 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
           </div>
         )}
       </div>
+      {panoramaUrl && (
+        <div className="absolute inset-0 z-30 bg-black/90">
+          <Viewer360 equirectImage={panoramaUrl} onClose={() => setPanoramaUrl(null)} />
+        </div>
+      )}
     </div>
   );
 }

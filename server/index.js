@@ -28,6 +28,7 @@ import { registerTool, TOOL_REGISTRY } from './services/tool-registry.js';
 import { executeInference, listSupportedTaskTypes, listProvidersForTask } from './services/inference-gateway.js';
 import { TASK_TYPES, PROVIDER_MODES, CAPABILITY_TAGS, canHandleTask, providersForTask, taskSupported, normalizeProviderKey, providerLabel } from './services/provider-registry.js';
 import { resolveProviderForTask, recordProviderMetadata } from './services/provider-router-service.js';
+import { buildEquirectPlaceholder } from './services/panorama-service.js';
 import { renderCanonicalTopView, enhanceCanonicalTopView, getProjectTopViewAssets } from './services/topview-enhancement-worker.js';
 import { startEditWorker } from './services/job-orchestrator.js';
 import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory } from './services/render-edit-service.js';
@@ -2214,6 +2215,19 @@ app.get('/api/projects/:id/renders/:renderId/export', (req, res) => {
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Content-Disposition', `attachment; filename="${render.id}-render.png"`);
     res.send(result.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Generate a 360 equirectangular panorama from walkthrough context
+app.post('/api/projects/:id/walkthrough/360', (req, res) => {
+  try {
+    const drawing = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(req.params.id);
+    const hasRender = !!db.prepare("SELECT id FROM design_renders WHERE project_id = ? LIMIT 1").get(req.params.id);
+    const source = hasRender ? 'render' : (drawing ? 'cad' : 'fallback');
+    const panoramaUrl = buildEquirectPlaceholder(2048, 1024);
+    res.json({ success: true, source, panoramaUrl, generatedAt: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

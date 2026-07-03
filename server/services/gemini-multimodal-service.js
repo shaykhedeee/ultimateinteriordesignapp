@@ -127,7 +127,7 @@ export default new GeminiMultimodalService();
 
 
 export function emptyRenderAnalysis(roomType) { return { roomType, components: [], recommendedSwaps: [], vastuSignals: [], source: 'simulated' }; }
-export function analyseRender(base64Image, roomType = 'living') {
+export async function analyseRender(base64Image, roomType = 'living') {
   if (!base64Image) return emptyRenderAnalysis(roomType);
   const status = getGeminiStatus();
   if (status.configured && status.enabled) {
@@ -140,6 +140,7 @@ export function analyseRender(base64Image, roomType = 'living') {
   }
   return simulateRenderAnalysis(base64Image, roomType);
 }
+
 export function detectVastuElements(projectId) {
   const drawing = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
   if (!drawing) return { projectId, found: false, reason: 'no_cad_data' };
@@ -154,10 +155,11 @@ export function detectVastuElements(projectId) {
     ]};
   } catch { return { projectId, found: false, reason: 'parse_error' }; }
 }
+
 export function designSceneContext(roomType, components = []) {
   return { roomType, components, suggestions: components.slice(0, 4).map(c => `${c.label}: ${c.changeable ? 'swap candidate' : 'preserve'}`), generatedAt: new Date().toISOString() };
 }
-async function callGeminiAnalyseRender(apiKey, model, base64Image, roomType) {
+
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);
   const body = {
     contents: [
