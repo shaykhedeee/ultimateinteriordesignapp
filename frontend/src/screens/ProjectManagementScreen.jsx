@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { 
   FolderOpen, TrendingUp, CheckCircle2, Circle, Clock, 
@@ -50,8 +51,8 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
     setIsLoading(true);
     try {
       const [resProj, resLeads] = await Promise.all([
-        fetch('http://127.0.0.1:5055/api/projects'),
-        fetch('http://127.0.0.1:5055/api/leads')
+        fetch('getApiBase()/projects'),
+        fetch('getApiBase()/leads')
       ]);
       const projs = await resProj.json();
       const leadsData = await resLeads.json();
@@ -67,7 +68,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
   const fetchReadiness = async (projId) => {
     setIsReadinessLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projId}/readiness`);
+      const res = await fetch(`getApiBase()/projects/${projId}/readiness`);
       const data = await res.json();
       setReadinessData(data);
     } catch (err) {
@@ -79,7 +80,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
 
   const handleUpdateStatus = async (projectId, newStatus) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/status`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -492,8 +493,8 @@ function PaymentMilestoneChips({ projectId }) {
     setLoading(true);
     try {
       const [planRes, paymentsRes] = await Promise.all([
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payment-plans`),
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payments`),
+        fetch(`getApiBase()/projects/${projectId}/payment-plans`),
+        fetch(`getApiBase()/projects/${projectId}/payments`),
       ]);
       const planData = planRes.ok ? await planRes.json() : [];
       const paymentsData = paymentsRes.ok ? await paymentsRes.json() : [];
@@ -569,7 +570,7 @@ function VendorApprovalFlow({ vendor }) {
     setStatus(next);
     setLocal((prev) => ({ ...(prev || {}), status: next }));
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/catalog/vendors/approve`, {
+      const res = await fetch(`getApiBase()/catalog/vendors/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vendorId: vendor?.id, status: next, note })
@@ -625,7 +626,7 @@ function BOMAttachPanel({ projectId }) {
     if (!mounted || !projectId) return;
     setStatus('Saving BOM...');
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/cutlist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ panels_json: JSON.stringify(lines) })
@@ -713,7 +714,7 @@ function TimelineAttachPanel({ projectId }) {
   const attach = async () => {
     if (!projectId || !note.trim()) return;
     try {
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/timeline`, {
+      await fetch(`getApiBase()/projects/${projectId}/timeline`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventType: 'design.note', title: 'Agent B Studio Flow Attach', detail: note, source: 'agent-b-flow' })

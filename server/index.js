@@ -3130,7 +3130,7 @@ app.post('/api/projects/:id/estimate', (req, res) => {
 // 8. AI SPECIALIST TOOL RUNNER API
 // ==========================================
 
-// Run an AI specialist tool and return a simulated job/result payload
+// Run an AI specialist tool and return a real provider-routed result payload
 app.post('/api/tools/run', async (req, res) => {
   try {
     const projectId = req.body.projectId || req.params.id;
@@ -3140,19 +3140,60 @@ app.post('/api/tools/run', async (req, res) => {
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    const jobId = 'job_' + nanoid(6);
-    db.prepare(`INSERT INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id) VALUES (?, ?, ?, 'running', 0, 'tool', ?)`)
-      .run(jobId, projectId, toolKey, toolKey);
+    const taskTypeMap = {
+      'ambient_lighting': 'critic_text',
+      'rcp_planner': 'quick_render',
+      'elevation_draft': 'detailed_render',
+      'swatch_match': 'style_image',
+      'extruder_3d': 'quick_render',
+      'floorplan-analyzer': 'topview_enhance',
+      'plan-enhancer': 'topview_enhance',
+      'zone-planner': 'quick_render',
+      'quick-render': 'quick_render',
+      'detailed-render': 'detailed_render',
+      'inpaint': 'inpaint',
+      'upscale': 'upscale',
+      'render-edit': 'inpaint',
+      'style-transfer': 'style_image',
+      'render-critic': 'critic_text',
+      'material-match': 'style_image',
+      'laminate-swapper': 'style_image',
+      'laminate-changer': 'style_image',
+      'zone-design-plan': 'quick_render',
+      'style-recommend': 'critic_text',
+      'room-semantics': 'critic_text'
+    };
 
+    const taskType = taskTypeMap[toolKey] || 'critic_text';
+    const jobId = 'job_' + nanoid(6);
+    db.prepare(`INSERT INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id) VALUES (?, ?, ?, 'running', 0, 'tool', ?)`).run(jobId, projectId, toolKey, toolKey);
     logTimelineEvent(projectId, 'tool.started', `AI Tool: ${toolKey}`, `Job ID: ${jobId}`);
 
-    // Simulate completion after short delay and return deterministic canned outputs by tool
-    setTimeout(() => {
-      db.prepare("UPDATE jobs SET status = 'succeeded', progress = 100 WHERE id = ?").run(jobId);
-      logTimelineEvent(projectId, 'tool.succeeded', `AI Tool: ${toolKey}`, `Job ID: ${jobId}`);
-    }, 1200);
+    const payload = {
+      toolSlug: toolKey,
+      projectId,
+      renderId: req.body.renderId,
+      params: req.body.params || {},
+      provider: req.body.provider,
+      model: req.body.model,
+      taskType
+    };
 
-    return res.json({ success: true, jobId, toolKey, projectId, status: 'running' });
+    let result;
+    try {
+      result = await planFreeExecution(taskType, payload);
+    } catch (err) {
+      const output = { success: false, error: err.message };
+      db.prepare("UPDATE jobs SET status = 'failed', progress = 100, result = ? WHERE id = ?").run(JSON.stringify(output), jobId);
+      logTimelineEvent(projectId, 'tool.failed', `AI Tool: ${toolKey}`, err.message);
+      return res.status(500).json({ success: false, jobId, toolKey, projectId, error: err.message });
+    }
+
+    const output = result?.ok ? { success: true, result: result.output || result } : { success: false, reason: result?.reason, reasonDetail: result?.reasonDetail };
+    db.prepare("UPDATE jobs SET status = ?, progress = 100, result = ? WHERE id = ?").run(result?.ok ? 'succeeded' : 'failed', JSON.stringify(output), jobId);
+    logTimelineEvent(projectId, result?.ok ? 'tool.succeeded' : 'tool.failed', `AI Tool: ${toolKey}`, JSON.stringify(output).slice(0, 240));
+
+    return res.json({ success: true, jobId, toolKey, projectId, status: 'completed', result: result?.output || result });
   } catch (err) {
     console.error('[tool/run] Error:', err);
     res.status(500).json({ error: err.message });

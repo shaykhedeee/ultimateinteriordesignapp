@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../stores/editorStore';
 import LeftNavigator from '../components/layout/LeftNavigator';
@@ -111,7 +112,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
 
   const fetchVersions = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floor-plan-versions`);
+      const res = await fetch(`getApiBase()/projects/${projectId}/floor-plan-versions`);
       if (res.ok) {
         const data = await res.json();
         setVersions(data);
@@ -132,7 +133,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
 
   const fetchVersionDetails = async (versionId) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/floor-plan-versions/${versionId}`);
+      const res = await fetch(`getApiBase()/floor-plan-versions/${versionId}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
@@ -161,7 +162,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     setZoneTags(tags);
   };
 
-  const API_BASE = 'http://127.0.0.1:5055/api';
+  const API_BASE = apiUrl('');
 
   const handleFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
@@ -363,13 +364,13 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
       return;
     }
     if (isLocked) {
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
+      await fetch(`getApiBase()/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
       useEditorStore.setState({ isLocked: false, lockReason: '' });
       planToolkitMessage('Scene unlocked.', 'success');
     } else {
       const reason = window.prompt('Lock reason:', 'Approved by Client');
       if (reason === null) return;
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/lock`, {
+      await fetch(`getApiBase()/projects/${projectId}/scenes/${sceneId}/lock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -384,7 +385,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     try {
       const state = useEditorStore.getState();
       const sceneSnapshot = state.scene ? { ...state.scene, zones: zoneTags } : null;
-      const res = await fetch(`http://127.0.0.1:5055/api/floor-plan-versions/${currentVersionId}/review`, {
+      const res = await fetch(`getApiBase()/floor-plan-versions/${currentVersionId}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

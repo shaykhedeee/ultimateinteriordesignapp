@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
@@ -57,7 +58,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   // 1. DATA LOADING
   // ==========================================
   useEffect(() => {
-    fetch('http://127.0.0.1:5055/api/projects')
+    fetch('getApiBase()/projects')
       .then(res => res.json())
       .then(data => {
         setProjects(data);
@@ -67,12 +68,12 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       })
       .catch(console.error);
 
-    fetch('http://127.0.0.1:5055/api/leads')
+    fetch('getApiBase()/leads')
       .then(res => res.json())
       .then(setLeads)
       .catch(console.error);
 
-    fetch('http://127.0.0.1:5055/api/material-catalog')
+    fetch('getApiBase()/material-catalog')
       .then(res => res.json())
       .then(setMaterialsCatalog)
       .catch(console.error);
@@ -83,12 +84,12 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const loadDemoClients = async () => {
     setDemoStatus('Seeding...');
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/demo/seed', { method: 'POST' });
+      const res = await fetch('getApiBase()/demo/seed', { method: 'POST' });
       const data = await res.json();
       setDemoStatus(`Loaded ${data.leads || 0} leads / ${data.projects || 0} projects`);
       const [projRes, leadRes] = await Promise.all([
-        fetch('http://127.0.0.1:5055/api/projects'),
-        fetch('http://127.0.0.1:5055/api/leads')
+        fetch('getApiBase()/projects'),
+        fetch('getApiBase()/leads')
       ]);
       const projJson = await projRes.json();
       const leadJson = await leadRes.json();
@@ -438,7 +439,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     try {
       const form = new FormData();
       form.append('floorplan', file);
-      const upload = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
+      const upload = await fetch(`getApiBase()/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
       if (!upload.ok) throw new Error('Upload failed');
       const data = await upload.json();
       const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:5055';
@@ -710,7 +711,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   if (selectedProjectId) {
                     setStatusMessage('Enhancing floor plan...');
                     try {
-                      await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/cad/ai-detect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'enhance' }) });
+                      await fetch(`getApiBase()/projects/${selectedProjectId}/cad/ai-detect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'enhance' }) });
                       setStatusMessage('AI enhancement complete');
                     } catch (err) {
                       setStatusMessage('AI enhancement failed');
@@ -863,7 +864,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                 triggerLoading('rooms_ready', 'Saving room zonation...');
                 setStatusMessage('Saving rooms');
                 try {
-                  await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`, {
+                  await fetch(`getApiBase()/projects/${project.id}/cad`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -954,7 +955,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   }
                   setStatusMessage(`Assigning via ${mode.label}...`);
                   try {
-                    await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad/ai-detect`, {
+                    await fetch(`getApiBase()/projects/${project.id}/cad/ai-detect`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ action: mode.id })
@@ -2180,7 +2181,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       const projectId = project?.id;
       if (!projectId) throw new Error('No active project selected');
 
-      const API_BASE = 'http://127.0.0.1:5055/api';
+      const API_BASE = apiUrl('');
       const toolKey = activeTool?.key || '';
       let endpoint = `${API_BASE}/tools/execute`;
       let body = { toolSlug: toolKey, projectId, provider: null, model: null, params: {} };

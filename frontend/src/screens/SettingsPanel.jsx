@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Settings,
@@ -18,7 +19,7 @@ import {
   IndianRupee
 } from 'lucide-react';
 
-const API_BASE = 'http://127.0.0.1:5055';
+const API_BASE = getApiBase();
 
 const STATUS_LABEL = {
   configured: 'Configured',

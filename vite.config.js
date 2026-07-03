@@ -6,10 +6,24 @@ export default defineConfig({
   root: 'frontend',
   server: {
     port: 5175,
-    host: '127.0.0.1'
+    host: '0.0.0.0'
+  },
+  resolve: {
+    alias: {
+      '@': '/src'
+    }
   },
   build: {
     outDir: '../dist',
-    emptyOutDir: true
-  }
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['lucide-react']
+        }
+      }
+    }
+  },
+  envDir: '..'
 });

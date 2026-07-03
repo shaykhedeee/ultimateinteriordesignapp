@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Square, DoorClosed, Ruler, Move, Compass, 
@@ -120,7 +121,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const loadCADData = async () => {
     try {
       // 1. Fetch CAD vector drawing
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
+      const res = await fetch(`getApiBase()/projects/${projectId}/cad`);
       const data = await res.json();
       
       const loadedWalls = JSON.parse(data.walls_json || '[]');
@@ -151,7 +152,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
       // 2. Fetch Project Brief to extract floorplan underlay background image
       try {
-        const resProj = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+        const resProj = await fetch(`getApiBase()/projects/${projectId}`);
         const projData = await resProj.json();
         if (projData.client_brief_json) {
           const briefData = JSON.parse(projData.client_brief_json);
@@ -171,7 +172,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const triggerAiDetect = async () => {
     setIsDetectingLayout(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/ai-detect`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/cad/ai-detect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -237,7 +238,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   // Save CAD vector back to server
   const saveCADToServer = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -280,7 +281,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         setUploadProgress(prev => Math.min(prev + 12, 90));
       }, 300);
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/video`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/cad/video`, {
         method: 'POST',
         body: formData
       });
@@ -872,7 +873,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 </div>
                 <button
                   onClick={() => {
-                    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedObj.id}/dxf`);
+                    window.open(`getApiBase()/projects/${projectId}/drawings/elevations/${selectedObj.id}/dxf`);
                   }}
                   className="w-full mt-2 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[#C9A84C] font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition shadow-sm"
                 >
@@ -1198,7 +1199,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 try {
                   const formData = new FormData();
                   formData.append('floorplan', file);
-                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                  const res = await fetch(`getApiBase()/projects/${projectId}/floorplan`, {
                     method: 'POST',
                     body: formData
                   });

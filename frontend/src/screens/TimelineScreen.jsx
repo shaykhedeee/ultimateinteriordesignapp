@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { 
   Activity, Clock, Compass, DollarSign, Lock, FileText, CheckCircle2, 
@@ -17,7 +18,7 @@ export default function TimelineScreen({ projectId }) {
   const fetchTimeline = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/timeline`);
+      const res = await fetch(`getApiBase()/projects/${projectId}/timeline`);
       const data = await res.json();
       if (data.success) {
         setEvents(data.events || []);

@@ -1,3 +1,4 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
 import { 
   Layers, Trash2, Download, CheckCircle2, XCircle, Sparkles, IndianRupee, Ruler, Grid, Sun
@@ -44,7 +45,7 @@ export default function CeilingStudio({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-    fetch(`http://127.0.0.1:5055/api/projects/${projectId}`)
+    fetch(`getApiBase()/projects/${projectId}`)
       .then(res => res.json())
       .then(setProject)
       .catch(() => {});
@@ -73,7 +74,7 @@ export default function CeilingStudio({ projectId }) {
     if (!estimate || !projectId) return;
     setStatus('Saving estimate...');
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/ceiling-estimate`, {
+      const res = await fetch(`getApiBase()/projects/${projectId}/ceiling-estimate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room, ceilingType, ledType, acDrop, smokeDetector, soffit, dimensions: { width: innerWidth, depth: innerDepth, area }, estimate })

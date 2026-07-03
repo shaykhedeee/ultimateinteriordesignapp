@@ -1,7 +1,8 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useEffect, useState } from 'react';
 import { RefreshCw, Save, Download, AlertTriangle, CheckCircle2, XCircle, Clock, Image as ImageIcon, Ruler } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055/api';
+const API = apiUrl('');
 
 export default function RenderEditWorkspace({ projectId, renderId }) {
   const [render, setRender] = useState(null);
