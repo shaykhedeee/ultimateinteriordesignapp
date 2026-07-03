@@ -14,6 +14,17 @@ const storageDir = path.resolve(__dirname, '../../storage');
 
 // RAG: Dynamic Knowledge Base Loader
 // Scans the Obsidian-style folder and dynamically filters global and room-specific guidelines
+function resolveCachedDetections(base64Image, modelId, roomType) {
+  try {
+    return detectionCacheService.get(base64Image, modelId, roomType)?.payload || null;
+  } catch {
+    return null;
+  }
+}
+
+function persistDetections(base64Image, modelId, roomType, payload, ttlMs = 1000 * 60 * 60 * 24 * 7) {
+  return detectionCacheService.set(base64Image, modelId, roomType, payload, ttlMs);
+}
 function queryKnowledgeBase(room) {
   try {
     const kbDir = path.join(storageDir, 'knowledge-base');
@@ -1746,8 +1757,13 @@ export async function analyseRenderComponents(base64Image, roomType = 'living') 
   };
 
   if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
-    // Return smart defaults without API call
-    return (defaultComponents[roomType] || defaultComponents.living);
+    const defaults = defaultComponents[roomType] || defaultComponents.living;
+    const parsedDefaults = indianInteriorComponentDetector.parseDetections(defaults, roomType);
+    const indianEnriched = indianInteriorComponentDetector.filterAndRank(
+      indianInteriorComponentDetector.mergeWithDefaults(parsedDefaults, roomType)
+    );
+    persistDetections(base64Image, modelId, roomType, { components: indianEnriched, overallConfidence: 0.82 });
+    return indianEnriched;
   }
 
   try {
@@ -1755,49 +1771,49 @@ export async function analyseRenderComponents(base64Image, roomType = 'living') 
     const openai = new OpenAI();
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: process.env.VISION_MODEL_ID || 'gpt-4o',
       messages: [
         {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `You are an expert interior design AI assistant specialising in Indian modular interiors.
-Analyse this interior design render image and identify ALL components that can be realistically changed or swapped using laminate, paint, fabric, or stone materials.
-
-For each changeable component, provide:
-- component: clear name (e.g. "Cabinet Shutters", "TV Backdrop", "Countertop Stone")
-- confidence: number 0.0-1.0 (how clearly visible and changeable it is)
-- description: one sentence about what it is
-- changeable: true
-
-Focus on: cabinet shutters, carcass, countertops, backsplash, wall panels, rafters, sofa fabric, headboard, flooring, wall paint, feature walls.
-Do NOT include: fixed structural elements, windows, doors that cannot be changed.
-
-Return a JSON array ONLY, no markdown, no extra text.`
-            },
-            {
-              type: 'image_url',
-              image_url: { url: base64Image }
-            }
-          ]
-        }
+          role: 'system',
+          content: 'You are an expert Indian modular interior vision model. Return strictly JSON according to the user schema. No markdown, no commentary.'
+        },
+        enhancedPrompt
       ],
+      temperature: 0.1,
+      top_p: 0.9,
+      frequency_penalty: 0.0,
+      presence_penalty: 0.0,
       response_format: { type: 'json_object' },
-      max_tokens: 800
+      max_tokens: 1200
     });
 
-    const parsed = JSON.parse(response.choices[0].message.content);
-    const components = Array.isArray(parsed) ? parsed : (parsed.components || parsed.items || []);
-    
-    if (components.length > 0) {
-      return components.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
-    }
-  } catch (err) {
-    console.warn('[analyseRenderComponents] GPT-4o vision failed, using defaults:', err.message);
-  }
+    const rawText = response.choices?.[0]?.message?.content?.trim() || '';
+    const primaryVision = safeParseDetectionsJson(rawText);
+    const parsedVision = Array.isArray(primaryVision)
+      ? primaryVision
+      : (Array.isArray(primaryVision.components) ? primaryVision.components : []);
 
-  return (defaultComponents[roomType] || defaultComponents.living);
+    const visionComponents = indianInteriorComponentDetector.filterAndRank(
+      indianInteriorComponentDetector.mergeWithDefaults(
+        indianInteriorComponentDetector.parseDetections(parsedVision, roomType),
+        roomType
+      )
+    );
+
+    if (visionComponents.length) {
+      const payload = { components: visionComponents, overallConfidence: visionComponents[0].confidence || 0.85 };
+      persistDetections(base64Image, modelId, roomType, payload);
+      return visionComponents;
+    }
+
+    const fallbackPayload = fallbackDetectionPipeline.detectFromBase64(base64Image, roomType);
+    persistDetections(base64Image, modelId, roomType, fallbackPayload, 1000 * 60 * 60 * 2);
+    return fallbackPayload.components;
+  } catch (err) {
+    console.warn('[analyseRenderComponents] Detection failed, using fallback:', err.message);
+    const fallbackPayload = fallbackDetectionPipeline.detectFromBase64(base64Image, roomType);
+    return fallbackPayload.components;
+  }
 }
 
 /**
@@ -2055,3 +2071,7 @@ export async function performLaminateSwap(projectId, renderBase64, laminateBase6
   };
 }
 
+
+export function safeParseDetectionsJson(text){
+  try{return JSON.parse(text)}catch{return {}}
+}
