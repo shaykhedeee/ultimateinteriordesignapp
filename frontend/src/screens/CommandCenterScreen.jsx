@@ -12,34 +12,39 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [activeWorkflowTab, setActiveWorkflowTab] = useState('smart'); // 'smart', 'generate', 'photo', 'layout', 'product'
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
-  const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'brand' | 'realestate'
+  const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'consumer'
+  const [consumerRoom, setConsumerRoom] = useState('');
+  const [consumerStyle, setConsumerStyle] = useState('');
   const [demoStatus, setDemoStatus] = useState('');
 
   const allWorkflowTabs = [
-    { id: 'smart', label: '🚀 Smart Project', desc: 'Plan to Scene', roles: ['designer', 'realestate'] },
-    { id: 'generate', label: '🎨 Quick Generate', desc: 'Style to Concept', roles: ['realestate'] },
-    { id: 'photo', label: '📸 Photo Edit', desc: 'Reference Swapping', roles: ['brand', 'realestate'] },
-    { id: 'layout', label: '📐 Quick Layout', desc: 'Fast 2D Sketcher', roles: ['designer'] },
-    { id: 'product', label: '⚙️ Design Product', desc: 'Modular Config', roles: ['designer', 'brand'] },
-    { id: 'tools', label: '⚡ AI Tool Hub', desc: 'Specialist Suite', roles: ['designer', 'brand', 'realestate'] }
+    { id: 'smart', label: '🚀 Full Project', desc: 'Plan to Render', roles: ['designer', 'consumer'] },
+    { id: 'generate', label: '🎨 Generate Ideas', desc: 'Style to Concept', roles: ['consumer'] },
+    { id: 'photo', label: '📸 Photo Edit', desc: 'Swap Finishes', roles: ['consumer'] },
+    { id: 'layout', label: '📐 Simple Layout', desc: 'Drag & Drop Room', roles: ['consumer'] },
+    { id: 'product', label: '⚙️ Modular Catalog', desc: 'Furniture Picker', roles: ['consumer', 'designer'] }
   ];
 
   const workflowTabs = allWorkflowTabs.filter(tab => tab.roles.includes(workspaceMode));
 
   const allSpecialistTools = [
-    { title: 'Upload Blueprint', desc: 'Parse CAD PDF/Image', tab: 'brief', roles: ['designer', 'realestate'] },
-    { title: 'Align Calibration', desc: 'Setup scale overlay', tab: 'cad', roles: ['designer'] },
-    { title: 'Zonation Editor', desc: 'Tag rooms & Vastu zones', tab: 'cad', roles: ['designer'] },
-    { title: 'Laminate Swapper', desc: 'Assign PBR sheet codes', tab: 'materials', roles: ['designer', 'brand'] },
-    { title: 'Camera Planner', desc: 'Setup key viewpoints', tab: 'renders', roles: ['designer', 'realestate'] },
-    { title: 'Walkthrough Config', desc: 'Reorder walkthrough path', tab: 'renders', roles: ['realestate'] },
-    { title: 'SVG Elevation Builder', desc: 'Auto-dimension drawings', tab: 'drawings', roles: ['designer'] },
-    { title: 'BOM Cost Calculator', desc: 'SQFT board yield schedule', tab: 'finance', roles: ['designer', 'brand'] },
-    { title: 'Invoice Ledger', desc: 'Milestone & billing logs', tab: 'finance', roles: ['brand'] }
+    { title: 'Upload Photo', desc: 'Use phone photo', tab: 'photo', roles: ['consumer'] },
+    { title: 'Pick Room Style', desc: 'Living / Kitchen / Bedroom', tab: 'layout', roles: ['consumer'] },
+    { title: 'Change Finish', desc: 'Wood / Marble / Laminate look', tab: 'materials', roles: ['consumer'] },
+    { title: 'Generate Render', desc: 'AI concept', tab: 'renders', roles: ['consumer'] },
+    { title: 'View Cost', desc: 'Indicative quote', tab: 'finance', roles: ['consumer'] },
+    { title: 'Talk to Designer', desc: 'Request expert review', tab: 'brief', roles: ['consumer'] },
+    { title: 'Upload CAD', desc: 'Upload if available', tab: 'cad', roles: ['designer'] },
+    { title: 'Calibrate Scale', desc: 'Set real-world size', tab: 'cad', roles: ['designer'] },
+    { title: 'Zone Rooms', desc: 'Tag rooms & Vastu', tab: 'cad', roles: ['designer'] },
+    { title: 'Laminate Catalog', desc: 'PBR finish codes', tab: 'materials', roles: ['designer'] },
+    { title: 'Camera Planner', desc: 'Viewpoint composer', tab: 'renders', roles: ['designer'] },
+    { title: 'BOM Calculator', desc: 'SQFT schedule', tab: 'finance', roles: ['designer'] }
   ];
 
   const specialistTools = allSpecialistTools.filter(tool => tool.roles.includes(workspaceMode));
   const [toolFeedback, setToolFeedback] = useState({});
+
 
   useEffect(() => {
     const activeExists = workflowTabs.some(t => t.id === activeWorkflowTab);
@@ -108,34 +113,16 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       
       {/* ── Workspace Mode / Role Switcher Header ── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#1E1E24] border border-slate-800 p-4 rounded-2xl shadow-lg shrink-0">
-        <div>
-          <h2 className="text-sm font-extrabold uppercase tracking-widest text-[#C9A84C] flex items-center gap-1.5">
-            <Sliders className="w-4 h-4 text-[#C9A84C]" /> Workspace Operating Mode
-          </h2>
-          <p className="text-[10px] text-[#8A8899] mt-0.5">Adapt visualizer pipelines and tool suites to your professional role context.</p>
-        </div>
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 gap-1.5 text-[10px] font-black uppercase" role="tablist" aria-label="Workspace operating mode">
-          {[
-            { id: 'designer', label: '🛠️ Designer Mode' },
-            { id: 'brand', label: '🏬 Brand Mode' },
-            { id: 'realestate', label: '🏡 Real Estate' }
-          ].map(mode => (
-            <button
-              key={mode.id}
-              role="tab"
-              aria-selected={workspaceMode === mode.id}
-              aria-controls="workspace-panel"
-              onClick={() => setWorkspaceMode(mode.id)}
-              className={`px-3 py-1.5 rounded-lg transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D9A84C] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
-                workspaceMode === mode.id
-                  ? 'bg-slate-900 border-slate-800 text-[#C9A84C] shadow-sm shadow-[#C9A84C]/5'
-                  : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {mode.label}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h2 className="text-sm font-extrabold uppercase tracking-widest text-[#C9A84C] flex items-center gap-1.5">
+          <Sliders className="w-4 h-4 text-[#C9A84C]" /> Mode
+        </h2>
+        <p className="text-[10px] text-[#8A8899] mt-0.5">Switch between professional and simplified flow.</p>
+      </div>
+      <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 gap-1.5 text-[10px] font-black uppercase" role="tablist" aria-label="Workspace mode">
+        <button role="tab" aria-pressed={workspaceMode === 'consumer'} onClick={() => setWorkspaceMode('consumer')} className={`px-3 py-2 rounded-xl transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D9A84C] ${workspaceMode === 'consumer' ? 'bg-[#D4AF37]/15 border-[#C9A84C]/45 text-[#C9A84C] shadow-sm shadow-[#C9A84C]/15' : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'}`}>Homeowner</button>
+        <button role="tab" aria-pressed={workspaceMode === 'designer'} onClick={() => setWorkspaceMode('designer')} className={`px-3 py-2 rounded-xl transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D9A84C] ${workspaceMode === 'designer' ? 'bg-slate-900 border-slate-800 text-[#C9A84C] shadow-sm shadow-[#C9A84C]/5' : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'}`}>Professional</button>
+      </div>
       </div>
 
       {/* ── KPI Metrics Ribbon ── */}
@@ -374,6 +361,26 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 // WORKSPACE: Smart Project
 // ============================================================================
 function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateToTab }) {
+  const consumerMode = workspaceMode === 'consumer';
+  const [consumerStep, setConsumerStep] = React.useState('welcome'); // welcome | room | style | generate
+  const [consumerRoom, setConsumerRoom] = React.useState('');
+  const [consumerStyle, setConsumerStyle] = React.useState('');
+
+  const consumerRooms = [
+    { id: 'living_room', label: 'Living Room', icon: '🛋️' },
+    { id: 'bedroom', label: 'Bedroom', icon: '🛏️' },
+    { id: 'kitchen', label: 'Kitchen', icon: '🍳' },
+    { id: 'pooja_room', label: 'Pooja Room', icon: '🪔' },
+    { id: 'wardrobe', label: 'Wardrobe', icon: '🚪' },
+    { id: 'tv_unit', label: 'TV Unit', icon: '📺' }
+  ];
+
+  const consumerStyles = [
+    { id: 'warm_traditional', label: 'Warm Traditional' },
+    { id: 'modern_minimal', label: 'Modern Minimal' },
+    { id: 'premium_luxury', label: 'Luxury' },
+    { id: 'budget_smart', label: 'Budget Friendly' }
+  ];
   const [wizardStep, setWizardStep] = useState(project?.id ? 'upload' : 'name_project'); 
   const [projectName, setProjectName] = useState(project?.name || '');
   const [floorplanFile, setFloorplanFile] = useState(null);
@@ -465,9 +472,61 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     }, 1200);
   };
 
+
+
+function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStart }) {
+  const [room, setRoom] = React.useState('');
+  const [style, setStyle] = React.useState('');
+  const canStart = Boolean(room) && Boolean(style);
+  return (
+    <div id="welcome-home" className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+      <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Welcome to Easy Mode</h3>
+      <p className="text-[10px] text-slate-400">Pick your room and a style you love. We will prepare a simple concept you can refine with a designer later.</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {rooms.map(r => (
+          <button key={r.id} onClick={() => { setRoom(r.id); onSelectRoom && onSelectRoom(r.id); }} className={`border rounded-2xl p-4 text-left transition ${room === r.id ? 'border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]' : 'border-slate-800 text-slate-200 hover:border-[#C9A84C]/40'}`}>
+            <div className="text-lg">{r.icon}</div>
+            <div className="text-[10px] font-black uppercase tracking-wider mt-1">{r.label}</div>
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {styles.map(s => (
+          <button key={s.id} onClick={() => { setStyle(s.id); onSelectStyle && onSelectStyle(s.id); }} className={`px-3 py-2 rounded-xl border text-[10px] font-black uppercase transition ${style === s.id ? 'border-[#D4AF37] text-[#D4AF37] bg-[#D4AF37]/10' : 'border-slate-800 text-slate-300 hover:border-[#C9A84C]/50'}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <button onClick={onStart} disabled={!canStart} className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 disabled:opacity-40 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-md shadow-[#D4AF37]/15 block w-full md:w-auto">Start Simple Project</button>
+    </div>
+  );
+}
+
   return (
     <div className="space-y-6 text-left">
       
+      {/* Consumer Welcome / Simplified Onboarding */}
+      {workspaceMode === 'consumer' && (
+        <div className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest">Welcome — Let’s design your room</h3>
+          <p className="text-[10px] text-slate-400">Start with a photo or pick a room type, then choose a style. We’ll suggest a layout, finishes, and an indicative price.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <button onClick={() => onNavigateToTab && onNavigateToTab('photo')} className="border border-slate-800 rounded-2xl p-4 text-left hover:border-[#C9A84C]/40 transition">
+              <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">1. Start with Photo</div>
+              <div className="text-[10px] text-slate-400 mt-1">Upload a room photo and we’ll suggest a redesign.</div>
+            </button>
+            <button onClick={() => onNavigateToTab && onNavigateToTab('renders')} className="border border-slate-800 rounded-2xl p-4 text-left hover:border-[#C9A84C]/40 transition">
+              <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">2. Generate Concepts</div>
+              <div className="text-[10px] text-slate-400 mt-1">Get simple 3D ideas for your living room, kitchen, bedroom, etc.</div>
+            </button>
+            <button onClick={() => onNavigateToTab && onNavigateToTab('finance')} className="border border-slate-800 rounded-2xl p-4 text-left hover:border-[#C9A84C]/40 transition">
+              <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">3. See Indicative Cost</div>
+              <div className="text-[10px] text-slate-400 mt-1">Preview approximate budget based on room size and finishes.</div>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Step Progress Tracker */}
       <div className="flex items-center justify-between border-b border-slate-850 pb-4">
         <div>
