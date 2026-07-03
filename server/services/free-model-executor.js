@@ -382,6 +382,5 @@ export async function planFreeExecution(taskType, payload = {}) {
     }),
     estimatedCost: 0
   };
-}
 
-export { FREE_EXECUTORS };
+}

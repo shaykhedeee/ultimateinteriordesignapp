@@ -172,22 +172,103 @@ export function listProvidersForTask(taskType) {
 }
 
 function providerController(provider) {
+  const normalized = normalizeProviderKey(provider);
   const map = {
     mock: ({ taskType, payload }) => mockResult(taskType, payload),
-    pollinations: ({ taskType, payload }) => mockPlaceholder('pollinations', taskType, payload),
-    pexels: ({ taskType, payload }) => mockPlaceholder('pexels', taskType, payload),
-    openrouter: ({ taskType, payload }) => mockPlaceholder('openrouter', taskType, payload),
-    gemini: ({ taskType, payload }) => mockPlaceholder('gemini', taskType, payload),
-    openai: ({ taskType, payload }) => mockPlaceholder('openai', taskType, payload),
-    stability: ({ taskType, payload }) => mockPlaceholder('stability', taskType, payload),
-    huggingface: ({ taskType, payload }) => mockPlaceholder('huggingface', taskType, payload),
-    local_comfyui: ({ taskType, payload }) => mockPlaceholder('local_comfyui', taskType, payload),
-    local_inference: ({ taskType, payload }) => mockPlaceholder('local_inference', taskType, payload)
+    pollinations: ({ taskType, payload }) => pollinationsController(taskType, payload),
+    pexels: ({ taskType, payload }) => pexelsController(taskType, payload),
+    openrouter: ({ taskType, payload }) => openRouterTextController(taskType, payload),
+    gemini: ({ taskType, payload }) => geminiTextController(taskType, payload),
+    openai: ({ taskType, payload }) => openAiImageController(taskType, payload),
+    stability: ({ taskType, payload }) => stabilityImageController(taskType, payload),
+    huggingface: ({ taskType, payload }) => huggingFaceController(taskType, payload),
+    local_comfyui: ({ taskType, payload }) => localComfyController(taskType, payload),
+    local_inference: ({ taskType, payload }) => localInferenceTextController(taskType, payload)
   };
 
-  const controller = map[normalizeProviderKey(provider)];
+  const controller = map[normalized];
   if (!controller) throw new Error(`No inference controller registered for provider: ${provider}`);
   return controller;
+}
+
+async function safeFetchJson(url, options = {}) {
+  try {
+    const res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return { ok: true, data: await res.json() };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+function huggingFaceController(taskType, payload) {
+  const endpointBase = String(process.env.HUGGINGFACE_TEXT_ENDPOINT_BASE || 'https://router.huggingface.co/hf-inference/models');
+  const model = payload && payload.model ? payload.model : (taskType === 'room_semantics' ? 'mistralai/Mistral-7B-Instruct-v0.2' : 'stabilityai/stable-diffusion-xl-base-1.0');
+  const endpoint = `${endpointBase}/${encodeURIComponent(model)}`;
+  const body = { inputs: payload && payload.prompt ? payload.prompt : JSON.stringify(payload) };
+  return safeFetchJson(endpoint, { method: 'POST', body: JSON.stringify(body) });
+}
+
+function openRouterTextController(taskType, payload) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return Promise.resolve({ ok: false, error: 'OPENROUTER_API_KEY is missing' });
+  const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+  const body = {
+    model: payload && payload.model ? payload.model : 'mistralai/mistral-7b-instruct',
+    messages: [{ role: 'user', content: payload && payload.prompt ? payload.prompt : JSON.stringify(payload) }]
+  };
+  return safeFetchJson(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body) });
+}
+
+function pollinationsImageController(taskType, payload) {
+  const prompt = payload && payload.prompt ? payload.prompt : 'interior design concept';
+  const endpoint = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true`;
+  return safeFetchJson(endpoint);
+}
+
+function localComfyController(taskType, payload) {
+  const base = process.env.COMFYUI_BASE || 'http://127.0.0.1:8188';
+  const endpoint = `${base}/prompt`;
+  const body = { prompt: { ...(payload || {}) } };
+  return safeFetchJson(endpoint, { method: 'POST', body: JSON.stringify(body) });
+}
+
+function localInferenceTextController(taskType, payload) {
+  const base = process.env.LOCAL_INFERENCE_BASE || 'http://127.0.0.1:11434';
+  const endpoint = `${base}/api/generate`;
+  const body = { model: payload && payload.model ? payload.model : 'llama3', prompt: payload && payload.prompt ? payload.prompt : JSON.stringify(payload) };
+  return safeFetchJson(endpoint, { method: 'POST', body: JSON.stringify(body) });
+}
+
+function geminiTextController(taskType, payload) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return Promise.resolve({ ok: false, error: 'GEMINI_API_KEY is missing' });
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+  const body = { contents: [{ parts: [{ text: payload && payload.prompt ? payload.prompt : JSON.stringify(payload) }] }] };
+  return safeFetchJson(endpoint, { method: 'POST', body: JSON.stringify(body) });
+}
+
+function openAiImageController(taskType, payload) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return Promise.resolve({ ok: false, error: 'OPENAI_API_KEY is missing' });
+  const endpoint = 'https://api.openai.com/v1/images/generations';
+  const body = { model: payload && payload.model ? payload.model : 'dall-e-3', prompt: payload && payload.prompt ? payload.prompt : JSON.stringify(payload), n: 1, size: '1024x1024' };
+  return safeFetchJson(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body) });
+}
+
+function stabilityImageController(taskType, payload) {
+  const apiKey = process.env.STABILITY_API_KEY;
+  if (!apiKey) return Promise.resolve({ ok: false, error: 'STABILITY_API_KEY is missing' });
+  const endpoint = 'https://api.stability.ai/v1/generation/stable-diffusion-xl-base-1.0/text-to-image';
+  const body = { text_prompts: [{ text: payload && payload.prompt ? payload.prompt : JSON.stringify(payload) }], cfg_scale: 7, height: 1024, width: 1024, samples: 1 };
+  return safeFetchJson(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }, body: JSON.stringify(body) });
+}
+
+function pexelsController(taskType, payload) {
+  const apiKey = process.env.PEXELS_API_KEY;
+  if (!apiKey) return Promise.resolve({ ok: false, error: 'PEXELS_API_KEY is missing' });
+  const endpoint = 'https://api.pexels.com/v1/search?query=' + encodeURIComponent(payload && payload.prompt ? payload.prompt : 'interior') + '&per_page=5';
+  return safeFetchJson(endpoint, { method: 'GET', headers: { Authorization: apiKey } });
 }
 
 function mockResult(taskType, payload) {
@@ -207,7 +288,7 @@ function mockPlaceholder(provider, taskType, payload) {
     ok: false,
     provider,
     taskType,
-    error: `${provider} adapter not yet wired. Connect the adapter in inference-gateway.js providerController map.`
+    error: `${provider} adapter disabled or unavailable.`
   };
 }
 
