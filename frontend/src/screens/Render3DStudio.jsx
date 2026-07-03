@@ -543,10 +543,14 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [spendMode, setSpendMode] = useState('smart-cost');
   const [cameraAngle, setCameraAngle] = useState('diagonal');
   const [variantCount, setVariantCount] = useState(1);
+  const [renderMode, setRenderMode] = useState('new-interior'); // new-interior | photo-to-render | renovation
   const [removePeople, setRemovePeople] = useState(true);
   const [furnitureRequirement, setFurnitureRequirement] = useState('');
   const [customInstruction, setCustomInstruction] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [revisionCount, setRevisionCount] = useState(0);
+  const [iterations, setIterations] = useState([]);
+  const [cameraFile, setCameraFile] = useState(null);
 
   // Recolor & Color Swap States
   const [selectedComponent, setSelectedComponent] = useState(null);
@@ -892,6 +896,8 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('removePeople', String(removePeople));
       formData.append('furnitureRequirement', furnitureRequirement);
       formData.append('customInstruction', customInstruction);
+      formData.append('renderMode', renderMode);
+      formData.append('sourceType', cameraFile ? 'camera-capture' : 'generative');
       
       // Append kitchen rules
       formData.append('hobSinkSwapped', String(kitchenRules.hobSinkSwapped));
@@ -1367,6 +1373,48 @@ export default function Render3DStudio({ projectId, onComplete }) {
       ...prev,
       [key]: null
     }));
+  };
+
+  const captureCameraPhoto = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        setCameraFile(file);
+        setUploads(prev => ({
+          ...prev,
+          sitePhoto: {
+            file,
+            name: file.name,
+            preview: URL.createObjectURL(file)
+          }
+        }));
+        setRenderMode('photo-to-render');
+        setStatus('Camera photo captured for Photo-to-Render.', 'success');
+      }
+    };
+    input.click();
+  };
+
+  const setRenovationMode = () => {
+    setRenderMode('renovation');
+    setStatus('Renovation mode: keep spatial layout, refresh materials/finishes.', 'success');
+  };
+
+  const setNewRenderMode = () => {
+    setRenderMode('new-interior');
+    setStatus('New interior mode selected.', 'success');
+  };
+
+  const trackIteration = (label, request) => {
+    setIterations(prev => [
+      { id: Date.now(), label, request, time: new Date().toISOString() },
+      ...prev
+    ].slice(0, 20));
+    setRevisionCount(prev => prev + 1);
   };
 
   const projectIso = (x, y, z = 0) => {

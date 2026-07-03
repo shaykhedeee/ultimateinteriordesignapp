@@ -2,7 +2,7 @@
  * Async Job Orchestration System
  *
  * Persistent, retryable, observable job execution for AI and vision tasks.
- * Redis-backed BullMQ queue with Postgres persistence via `ai_jobs` table.
+ * Redis-backed BullMQ queue with optional Redis fallback.
  */
 
 import { Queue, Worker, Job } from 'bullmq';
@@ -10,9 +10,11 @@ import Redis from 'ioredis';
 import { nanoid } from 'nanoid';
 import db from '../database/database.js';
 import { getProviderStatus } from './image-provider.js';
-import { processInpaintRender } from './render-edit-worker.js';
+import { enqueueEditJob, processInpaintRender } from './render-edit-worker.js';
 
-const connection = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379');
+const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+let redisConnection = null;
+let redisAvailable = false;
 
 export const JOB_TYPES = [
   'layout_preprocess',
@@ -27,18 +29,48 @@ export const JOB_TYPES = [
   'upscale_render'
 ];
 
-let editWorkerInstance = null;
-export function startEditWorker() {
-  if (editWorkerInstance) return editWorkerInstance;
-  editWorkerInstance = new Worker(
-    'inpaint_render',
-    async (job) => processInpaintRender(job),
-    { connection, concurrency: 2 }
-  );
-  editWorkerInstance.on('failed', (job, err) => {
-    console.error('[inpaint_render] failed', job?.id, err?.message);
-  });
-  return editWorkerInstance;
+async function getRedisConnection() {
+  if (redisConnection || !redisAvailable) return redisConnection;
+  try {
+    const connection = new Redis(redisUrl, { retryStrategy: () => null, enableOfflineQueue: false });
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Redis connection timeout')), 3000);
+      connection.once('ready', () => { clearTimeout(timeout); resolve(); });
+      connection.once('error', (err) => { clearTimeout(timeout); reject(err); });
+    });
+    redisConnection = connection;
+    redisAvailable = true;
+  } catch (err) {
+    console.warn(`[startup] Redis unavailable at ${redisUrl}: jobs will run in observation-only mode.`);
+    redisConnection = null;
+    redisAvailable = false;
+  }
+  return redisConnection;
+}
+
+// Export a stable instance for indexing.js to await.
+export { getRedisConnection as initRedis, redisAvailable, redisUrl };
+
+export async function startEditWorker() {
+  const connection = await getRedisConnection();
+  if (!connection) {
+    console.warn('[startup] edit worker deferred: no Redis connection.');
+    return null;
+  }
+  try {
+    const editWorkerInstance = new Worker(
+      'inpaint_render',
+      async (job) => processInpaintRender(job),
+      { connection, concurrency: 2, settings: { maxRetriesPerRequest: null } }
+    );
+    editWorkerInstance.on('failed', (job, err) => {
+      console.error('[inpaint_render] failed', job?.id, err?.message);
+    });
+    return editWorkerInstance;
+  } catch (err) {
+    console.warn('[startup] edit worker deferred:', err.message);
+    return null;
+  }
 }
 
 export function createJob({ organizationId, projectId, zoneId, jobType, provider = null, providerJobId = null, inputJson = {} }) {
@@ -129,15 +161,22 @@ export function cancelJob(jobId) {
   return mapJobRow({ ...row, status: 'cancelled', stage: 'cancelled' });
 }
 
-export function enqueueJob({ organizationId, projectId, zoneId, jobType, provider, providerJobId, inputJson }) {
+export async function enqueueJob({ organizationId, projectId, zoneId, jobType, provider = null, providerJobId = null, inputJson = {} }) {
+  const connection = await getRedisConnection();
+  if (!connection) {
+    return null;
+  }
   const { jobId } = createJob({ organizationId, projectId, zoneId, jobType, provider, providerJobId, inputJson });
-  const queue = new Queue(jobType, { connection });
-  queue.add(jobType, { jobId, projectId, zoneId, inputJson }, {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2000 },
-    removeOnComplete: false,
-    removeOnFail: false
-  }).catch(() => {});
+  try {
+    const queue = new Queue(jobType, { connection: connection, settings: { maxRetriesPerRequest: null } });
+    await queue.add(jobType, { jobId, projectId, zoneId, inputJson }, {
+      attempts: 3, backoff: { type: 'exponential', delay: 2000 }, removeOnComplete: false, removeOnFail: false
+    });
+  } catch (err) {
+    console.warn(`[jobs] enqueue failed for ${jobType}:`, err.message);
+    updateJobStatus(jobId, { status: 'failed', stage: 'enqueue_failed', error_json: { reason: err.message } });
+    return { jobId, queued: false, error: err.message };
+  }
   return { jobId, queued: true };
 }
 

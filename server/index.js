@@ -1058,9 +1058,12 @@ app.post('/api/projects/:id/renders/generate', visualizerFields, async (req, res
       backPanelMaterial: req.body.backPanelMaterial,
       sofaShape: req.body.sofaShape,
       modelTier: req.body.modelTier,
-      variantCount: req.body.variantCount,
+      variantCount: String(req.body.variantCount || 1),
       furnitureRequirement: req.body.furnitureRequirement,
       customInstruction: req.body.customInstruction,
+      renderMode: req.body.renderMode || 'new-interior',
+      sourceType: req.body.sourceType || 'generative',
+      providerUsed: req.body.providerUsed || 'local_comfyui',
       sitePhoto: sitePhotoFile ? `/storage/uploads/${sitePhotoFile.filename}` : req.body.sitePhotoBase64,
       stylePhoto: stylePhotoFile ? `/storage/uploads/${stylePhotoFile.filename}` : req.body.stylePhotoBase64,
       zoomedFloorPlan: zoomedFloorPlanFile ? `/storage/uploads/${zoomedFloorPlanFile.filename}` : req.body.zoomedFloorPlanBase64,
@@ -1073,16 +1076,21 @@ app.post('/api/projects/:id/renders/generate', visualizerFields, async (req, res
     if (result.variants && result.variants.length > 0) {
       const insertRender = db.prepare(`
         INSERT OR REPLACE INTO design_renders 
-        (id, project_id, image_url, room, prompt, review_status) 
-        VALUES (?, ?, ?, ?, ?, 'unreviewed')
+        (id, project_id, image_url, room, prompt, review_status, render_mode, source_type, provider_used, variant_index) 
+        VALUES (?, ?, ?, ?, ?, 'unreviewed', ?, ?, ?, ?)
       `);
-      for (const variant of result.variants) {
+      for (let idx = 0; idx < result.variants.length; idx++) {
+        const variant = result.variants[idx];
         insertRender.run(
           variant.id,
           projectId,
           variant.filePath || variant.url || '',
           variant.room || params.room || 'living',
-          variant.prompt || ''
+          variant.prompt || (params.renderMode === 'renovation' ? `Renovation render: ${params.furnitureRequirement || 'refresh finishes'}` : (params.furnitureRequirement || params.customInstruction || '')),
+          params.renderMode || 'new-interior',
+          params.sourceType || 'generative',
+          params.providerUsed || 'local_comfyui',
+          idx
         );
       }
     }
@@ -3303,8 +3311,23 @@ for (const tool of Object.values(TOOL_REGISTRY)) {
   registerTool(tool);
 }
 
-// Seed DB and start Express
-try { startEditWorker(); } catch (e) { console.warn('[startup] edit worker deferred:', e.message); }
-app.listen(port, () => {
-  console.log(`Ultimate Interior Design API running at http://127.0.0.1:${port}`);
+// Health endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'ultimate-interior-design-api',
+    timestamp: new Date().toISOString()
+  });
 });
+
+// Seed DB and start Express
+(async () => {
+  try {
+    await startEditWorker();
+  } catch (e) {
+    console.warn('[startup] background services deferred:', e.message);
+  }
+  app.listen(port, () => {
+    console.log(`Ultimate Interior Design API running at http://127.0.0.1:${port}`);
+  });
+})();
