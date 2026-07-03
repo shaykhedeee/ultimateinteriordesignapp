@@ -796,6 +796,75 @@ try {
   console.error("Error seeding furniture catalog:", e);
 }
 
+// Render history + localized edit lineage
+db.exec(`CREATE TABLE IF NOT EXISTS render_history (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  zone_id TEXT,
+  parent_render_id TEXT,
+  kind TEXT DEFAULT 'render',
+  image_url TEXT,
+  prompt TEXT,
+  negative_prompt TEXT,
+  provider TEXT,
+  model TEXT,
+  seed INTEGER,
+  style TEXT,
+  room TEXT,
+  metadata_json TEXT DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(project_id) REFERENCES projects(id)
+);`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS render_edits (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  render_id TEXT NOT NULL,
+  parent_render_id TEXT,
+  edit_type TEXT NOT NULL,
+  title TEXT,
+  instruction TEXT NOT NULL,
+  mask_asset_id TEXT,
+  mask_bbox_json TEXT,
+  reference_asset_id TEXT,
+  room_style_context TEXT,
+  geometry_context TEXT,
+  preserve_camera INTEGER DEFAULT 1,
+  preserve_geometry INTEGER DEFAULT 1,
+  preserve_lighting_direction INTEGER DEFAULT 1,
+  result_render_id TEXT,
+  provider TEXT,
+  model TEXT,
+  status TEXT DEFAULT 'queued',
+  error_json TEXT,
+  retry_count INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(project_id) REFERENCES projects(id),
+  FOREIGN KEY(render_id) REFERENCES render_history(id),
+  FOREIGN KEY(parent_render_id) REFERENCES render_history(id),
+  FOREIGN KEY(result_render_id) REFERENCES render_history(id),
+  FOREIGN KEY(mask_asset_id) REFERENCES file_assets(id)
+);`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS render_edit_masks (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  render_edit_id TEXT NOT NULL,
+  file_asset_id TEXT NOT NULL,
+  format TEXT DEFAULT 'png',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(project_id) REFERENCES projects(id),
+  FOREIGN KEY(render_edit_id) REFERENCES render_edits(id),
+  FOREIGN KEY(file_asset_id) REFERENCES file_assets(id)
+);`);
+
+try { db.exec("ALTER TABLE render_edits ADD COLUMN room_style_context TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE render_edits ADD COLUMN geometry_context TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_camera INTEGER DEFAULT 1;"); } catch (e) {}
+try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_geometry INTEGER DEFAULT 1;"); } catch (e) {}
+try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_lighting_direction INTEGER DEFAULT 1;"); } catch (e) {}
+
 console.log("Ultimate Interior Design SQLite Database initialized at:", dbPath);
 
 export default db;
