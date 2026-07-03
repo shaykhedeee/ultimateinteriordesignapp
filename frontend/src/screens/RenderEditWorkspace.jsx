@@ -165,7 +165,7 @@ export default function RenderEditWorkspace({ projectId, renderId }) {
 
   const handleCancelEdit = async (editId) => {
     try {
-      const res = await fetch(`${API}/design/edits/${editId}/cancel`, { method: 'POST' });
+      const res = await fetch(`${API}/projects/${projectId}/renders/${renderId}/edits/${editId}/cancel`, { method: 'POST' });
       if (res.ok) {
         showToast('Edit cancelled');
         loadEdits();
@@ -177,7 +177,7 @@ export default function RenderEditWorkspace({ projectId, renderId }) {
 
   const handleRetryEdit = async (editId) => {
     try {
-      const res = await fetch(`${API}/design/edits/${editId}/retry`, { method: 'POST' });
+      const res = await fetch(`${API}/projects/${projectId}/renders/${renderId}/edits/${editId}/retry`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showToast('Retry started');
