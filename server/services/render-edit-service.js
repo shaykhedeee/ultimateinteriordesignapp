@@ -138,7 +138,9 @@ export function cancelEdit(editId) {
 }
 
 export function listEditsForRender(renderId) {
-  return db.prepare('SELECT * FROM render_edits WHERE render_id = ? ORDER BY created_at DESC').all(renderId).map(mapEditRow);
+  const rows = db.prepare('SELECT * FROM render_edits WHERE render_id = ? ORDER BY created_at DESC').all(renderId);
+  if (!Array.isArray(rows)) return [];
+  return rows.map(mapEditRow);
 }
 
 export function getEdit(editId) {

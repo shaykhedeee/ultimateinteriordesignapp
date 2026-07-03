@@ -4,7 +4,7 @@ import {
   Compass, Code, Clipboard, Download, CheckCircle2, 
   ArrowRight, FileText, Layout, Info, Sparkles, Image as ImageIcon,
   RefreshCw, MessageSquare, Plus, AlertTriangle, XCircle, CheckCircle, Trash2, Eye, ShieldAlert,
-  Palette
+  Palette, Play, Pause, SkipForward, Gauge
 } from 'lucide-react';
 
 const roomOptions = [
@@ -52,12 +52,35 @@ const vastuRules = {
   }
 };
 
-function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminateChange }) {
+function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminateChange, selectedRoomId, onSelectRoom }) {
   const mountRef = React.useRef(null);
-  const [activeRoomId, setActiveRoomId] = useState('');
+  const [activeRoomId, setActiveRoomId] = useState(selectedRoomId || (cadDrawing?.rooms_json ? JSON.parse(cadDrawing.rooms_json)[0]?.id : ''));
   const [selectedCabinet, setSelectedCabinet] = useState(null);
   const [catalogLaminates, setCatalogLaminates] = useState([]);
-  
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [roomQueue, setRoomQueue] = useState([]);
+  const [fps, setFps] = useState(10);
+  const [timelineDwell, setTimelineDwell] = useState(4000);
+  const revRef = useRef({});
+
+  useEffect(() => {
+    if (Array.isArray(cadDrawing?.rooms_json)) {
+      setRoomQueue((JSON.parse(cadDrawing.rooms_json) || []).slice(0, 20));
+    }
+  }, [cadDrawing]);
+
+  useEffect(() => {
+    if (roomQueue.length === 0) return;
+    if (!activeRoomId) {
+      setActiveRoomId(roomQueue[0]?.id);
+    }
+    onSelectRoom && onSelectRoom(activeRoomId || roomQueue[0]?.id);
+  }, [roomQueue, activeRoomId, onSelectRoom]);
+
+  useEffect(() => {
+    if (activeRoomId) onSelectRoom && onSelectRoom(activeRoomId);
+  }, [activeRoomId, onSelectRoom]);
+
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
@@ -73,6 +96,41 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
     fetchCatalog();
   }, []);
 
+  const advanceRoom = () => {
+    if (!roomQueue.length) return;
+    const idx = roomQueue.findIndex(r => r.id === activeRoomId);
+    if (idx >= roomQueue.length - 1) {
+      setIsPlaying(false);
+      return;
+    }
+    setActiveRoomId(roomQueue[idx + 1].id);
+  };
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    const timer = setInterval(() => advanceRoom(), timelineDwell);
+    return () => clearInterval(timer);
+  }, [isPlaying, timelineDwell]);
+
+  const handleRoomJump = (r) => {
+    setActiveRoomId(r.id);
+    setIsPlaying(false);
+  };
+
+  const handleDwelling = (durMs) => {
+    setTimelineDwell((prev) => {
+      const next = Math.max(1000, Math.min(12000, prev + (durMs || 0)));
+      return next;
+    });
+  };
+
+  const handleSlow = () => handleDwelling(800);
+  const handleFast = () => handleDwelling(-800);
+
+  const selectActiveById = React.useCallback((id) => {
+    const r = roomQueue.find((x) => x.id === id);
+    return r;
+  },[roomQueue]);
   const walls = useMemo(() => JSON.parse(cadDrawing?.walls_json || '[]'), [cadDrawing]);
   const openings = useMemo(() => JSON.parse(cadDrawing?.openings_json || '[]'), [cadDrawing]);
   const furniture = useMemo(() => JSON.parse(cadDrawing?.furniture_json || '[]'), [cadDrawing]);
@@ -316,18 +374,76 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
 
   return (
     <div className="w-full h-full flex flex-col relative bg-slate-950 rounded-xl overflow-hidden min-h-[500px]">
-      <div className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center z-10 shrink-0">
-        <span className="text-xs font-bold text-slate-300">Room Walkthrough View:</span>
-        <select 
-          value={activeRoomId} 
-          onChange={(e) => { setActiveRoomId(e.target.value); setSelectedCabinet(null); }}
-          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
-        >
-          {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
+      <div className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center z-10 shrink-0 gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-300" id="walkthrough-heading">Room Walkthrough:</span>
+          <select
+            value={activeRoomId}
+            onChange={(e) => { setActiveRoomId(e.target.value); setSelectedCabinet(null); }}
+            aria-labelledby="walkthrough-heading"
+            className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
+          >
+            {roomQueue.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2" role="group" aria-label="Walkthrough playback">
+          <button
+            onClick={() => {
+              if (isPlaying) setIsPlaying(false);
+              else advanceRoom();
+              setIsPlaying(!isPlaying);
+            }}
+            aria-label={isPlaying ? 'Pause walkthrough' : 'Play walkthrough'}
+            aria-pressed={isPlaying}
+            className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 hover:border-[#D4AF37] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+          >
+            {isPlaying ? <><Pause className="w-3.5 h-3.5 inline mr-1"/>Pause</> : <><Play className="w-3.5 h-3.5 inline mr-1"/>Play</>}
+          </button>
+          <button 
+            onClick={handleSlow} 
+            aria-label="Increase dwell time, slower walkthrough"
+            className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+          >Slow</button>
+          <button 
+            onClick={handleFast} 
+            aria-label="Decrease dwell time, faster walkthrough"
+            className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+          >Fast</button>
+          <button 
+            onClick={() => setIsPlaying(false)} 
+            aria-label="End walkthrough"
+            className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+          >End</button>
+        </div>
+      </div>
+
+      <div className="px-3 pt-2 pb-1 bg-slate-900/60 border-b border-slate-800 shrink-0 flex gap-2 overflow-x-auto" role="listbox" aria-label="Room walkthrough queue" onKeyDown={(e) => {
+        if (!roomQueue.length) return;
+        const idx = roomQueue.findIndex(r => r.id === activeRoomId);
+        if (e.key === 'ArrowRight' && idx < roomQueue.length - 1) { e.preventDefault(); handleRoomJump(roomQueue[idx + 1]); }
+        if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleRoomJump(roomQueue[idx - 1]); }
+      }}>
+        {roomQueue.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => handleRoomJump(r)}
+            role="option"
+            aria-selected={r.id === activeRoomId}
+            className={`px-2 py-1 rounded-md border text-[10px] font-black uppercase tracking-wide transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] ${
+              r.id === activeRoomId ? 'border-[#D4AF37] text-[#D4AF37]' : 'border-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <SkipForward className="w-3 h-3 inline mr-1" aria-hidden="true"/>{r.name}
+          </button>
+        ))}
+        {!roomQueue.length && <span className="text-[10px] text-slate-500 italic" role="status">No rooms in queue.</span>}
       </div>
 
       <div ref={mountRef} className="flex-grow w-full relative min-h-0 cursor-move">
+        <div className="absolute top-3 right-3 bg-slate-900/80 border border-slate-850 px-2 py-1 rounded text-[9px] text-slate-300 font-mono pointer-events-none select-none z-10">
+          WALKTHROUGH {isPlaying ? 'PLAYING' : 'PAUSED'} · {timelineDwell/1000}s/room · ROOM QUEUE {roomQueue.length}
+        </div>
         <div className="absolute bottom-3 left-3 bg-slate-900/80 border border-slate-850 px-2 py-1 rounded text-[8px] text-slate-500 font-mono pointer-events-none select-none z-10">
           DRAG TO PANORAMA LOOK-AROUND (360) · CLICK CABINETS TO CHOOSE LAMINATES
         </div>

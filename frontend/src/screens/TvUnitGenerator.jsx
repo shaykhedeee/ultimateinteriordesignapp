@@ -21,6 +21,7 @@ const FINISHES = [
 ];
 
 export default function TvUnitGenerator({ projectId }) {
+  const [project, setProject] = useState(null);
   const [style, setStyle] = useState(UNIT_STYLES[0].id);
   const [finish, setFinish] = useState(FINISHES[0].id);
   const [widthFt, setWidthFt] = useState(7);
@@ -32,6 +33,14 @@ export default function TvUnitGenerator({ projectId }) {
   const [wireManagement, setWireManagement] = useState(true);
   const [spec, setSpec] = useState(null);
   const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    if (!projectId) return;
+    fetch(`http://127.0.0.1:5055/api/projects/${projectId}`)
+      .then(res => res.json())
+      .then(setProject)
+      .catch(() => {});
+  }, [projectId]);
 
   const styleObj = UNIT_STYLES.find(s => s.id === style) || UNIT_STYLES[0];
   const finishObj = FINISHES.find(f => f.id === finish) || FINISHES[0];
@@ -54,6 +63,7 @@ export default function TvUnitGenerator({ projectId }) {
     if (!spec) return;
     const lines = [
       'TV Unit Quick BOM',
+      project ? `Client: ${project.client_name} | Project: ${project.name}` : `Project: ${projectId || 'Draft'}`,
       `Style: ${styleObj.label}`,
       `Finish: ${finishObj.label}`,
       `Width: ${spec.w} ft  Depth: ${spec.d} in  Height: ${spec.h} in`,

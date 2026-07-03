@@ -9,6 +9,7 @@ function geminiKeys() {
   ].filter(Boolean);
 }
 
+export { geminiKeys as geminiKeys };
 export function getGeminiStatus() {
   return {
     configured: geminiKeys().length > 0,

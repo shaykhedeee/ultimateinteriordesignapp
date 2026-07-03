@@ -1,5 +1,6 @@
 import { geminiKeys, getGeminiStatus } from './gemini-service.js';
 import { openRouterKey } from './provider-config.js';
+import { getProfile, listProfiles } from './openrouter-profiles.js';
 
 function buildGeminiMessages(history = [], message) {
   const contents = [];
@@ -57,44 +58,53 @@ async function callGemini(contents, instruction = '') {
   return null;
 }
 
-async function callOpenRouter(messages, instruction = '') {
+async function callOpenRouter(messages, instruction = '', profileName = 'openrouter_free') {
   const key = openRouterKey();
   if (!key) return null;
-  try {
-    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-    const payload = {
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
-      messages: [{ role: 'user', content: instruction }],
-      temperature: 0.4,
-      max_tokens: 1200
-    };
-    if (instruction) {
-      payload.messages.unshift({ role: 'system', content: String(instruction) });
-    }
-    for (const message of messages) {
-      payload.messages.push({ role: message.role || 'user', content: String(message.content || '') });
-    }
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${key}`,
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'Spacious Venture Studio'
+  const profile = getProfile(profileName);
+  const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+  const attempts = [];
+  for (const model of profile.models) {
+    try {
+      const payload = {
+        model,
+        messages: [],
+        temperature: profile.temperature,
+        max_tokens: profile.maxTokens
+      };
+      if (instruction) {
+        payload.messages.push({ role: 'system', content: String(instruction) });
+      }
+      for (const message of messages) {
+        payload.messages.push({ role: message.role || 'user', content: String(message.content || '') });
+      }
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`, 
+          ...(profile.headers || {})
       },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
+        body: JSON.stringify(payload)
+      });
       const text = await response.text().catch(() => '');
-      throw new Error(`OpenRouter ${response.status}: ${text}`);
+      attempts.push({ model, status: response.status, text });
+      if (!response.ok) {
+        const reason = /rate limit|quota|429/i.test(text) ? 'rate limited' : `status ${response.status}`;
+        console.warn(`[aura-chat] OpenRouter ${model} ${reason}: ${text.slice(0, 220)}`);
+        if (response.status === 401 || response.status === 403) continue;
+        continue;
+      }
+      const data = JSON.parse(text);
+      const reply = data?.choices?.[0]?.message?.content?.trim();
+      if (reply) return { reply, provider: `openrouter:${model}`, model };
+    } catch (err) {
+      attempts.push({ model, error: err.message });
+      console.warn(`[aura-chat] OpenRouter ${model} failed: ${err.message}`);
     }
-    const data = await response.json();
-    const reply = data?.choices?.[0]?.message?.content?.trim();
-    if (reply) return { reply, provider: 'openrouter:meta-llama-3.3-free' };
-  } catch (err) {
-    console.warn('[aura-chat] OpenRouter fallback failed:', err.message);
   }
-  return null;
+  console.warn('[aura-chat] OpenRouter profile exhausted:', JSON.stringify(attempts).slice(0, 500));
+  return attempts.length ? { provider: 'openrouter:failed', attempts } : null;
 }
 
 function buildActionPreview() {
@@ -196,10 +206,17 @@ export async function chatAura({ message, history = [], context = '' }) {
   const actionPreview = classifyPreview(result.reply, trimmed);
   const actions = buildActions(actionPreview);
   const reply = actionPreview
-    ? `${actionPreview.title}. Saved estimate updated with cost impact ₹${Math.abs(actionPreview.costImpact || 0).toLocaleString()}.`
+    ? `AURA: ${actionPreview.title}. Saved estimate updated with cost impact ₹${Math.abs(actionPreview.costImpact || 0).toLocaleString()}.`
     : result.reply;
 
-  return { reply, provider: result.provider, actionPreview, actions };
+  return {
+    ...result,
+    reply,
+    provider: result.provider,
+    providerMeta: { provider: result.provider, model: result.model || 'unknown' },
+    actionPreview,
+    actions
+  };
 }
 
 export function getAuraProviderStatus() {
@@ -208,6 +225,7 @@ export function getAuraProviderStatus() {
   return {
     gemini: geminiStatus.configured,
     openRouter: !!orKey,
-    fallbackAvailable: geminiStatus.configured || !!orKey
+    fallbackAvailable: geminiStatus.configured || !!orKey,
+    profiles: typeof listProfiles === 'function' ? listProfiles() : []
   };
 }

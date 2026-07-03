@@ -1,0 +1,31 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --watch src --watch ../../server --exec \"node server/index.js\"",
+    "start": "node server/index.js",
+    "lint": "eslint src --ext ts,js",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node ../../server/database/migrate.js",
+    "db:seed": "node ../../server/database/seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^6.39.0",
+    "pdfkit": "^0.15.0",
+    "exceljs": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "@types/cors": "^2.8.0",
+    "@types/multer": "^1.4.0",
+    "nodemon": "^3.1.0",
+    "typescript": "^5.5.0"
+  }
+}
