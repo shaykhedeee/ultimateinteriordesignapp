@@ -33,119 +33,6 @@ function showToast(setToast, msg, type = 'success') {
   setTimeout(() => setToast(null), 2400);
 }
 
-function BrandSettings() {
-  const [settings, setSettings] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [error, setError] = useState(null);
-
-  const load = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/whitelabel`);
-      const data = await res.json();
-      setSettings(data);
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const update = (patch) => {
-    setSettings(prev => ({ ...prev, ...patch }));
-  };
-
-  const save = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/api/whitelabel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings || {})
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to save branding');
-      setSettings(data.settings);
-      showToast(setToast, 'Branding saved');
-    } catch (e) {
-      setError(e.message);
-      showToast(setToast, e.message, 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!settings) return <div className="text-[11px] text-slate-500">Loading branding settings...</div>;
-
-  return (
-    <div className="space-y-4">
-      {error && (
-        <div role="alert" className="border border-rose-500/40 bg-rose-950/50 text-rose-300 rounded-xl px-3 py-2 text-[11px] font-semibold">{error}</div>
-      )}
-      {toast && (
-        <div role="status" aria-live="polite" className="fixed bottom-4 right-4 border px-4 py-2 rounded-xl text-[11px] font-bold shadow-lg bg-slate-950">{toast.msg}</div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="wl-brand" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">App Name</label>
-          <input id="wl-brand" value={settings.brand_name || ''} onChange={(e) => update({ brand_name: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40" />
-        </div>
-        <div>
-          <label htmlFor="wl-logo" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Logo URL</label>
-          <input id="wl-logo" value={settings.logo_url || ''} onChange={(e) => update({ logo_url: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40" />
-        </div>
-        <div>
-          <label htmlFor="wl-primary" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Primary Color</label>
-          <div className="flex items-center gap-2">
-            <input id="wl-primary" value={settings.primary_color || ''} onChange={(e) => update({ primary_color: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40" />
-            <span className="text-[9px] text-slate-500 font-mono">{settings.primary_color}</span>
-          </div>
-        </div>
-        <div>
-          <label htmlFor="wl-accent" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Accent Color</label>
-          <div className="flex items-center gap-2">
-            <input id="wl-accent" value={settings.accent_color || ''} onChange={(e) => update({ accent_color: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40" />
-            <span className="text-[9px] text-slate-500 font-mono">{settings.accent_color}</span>
-          </div>
-        </div>
-        <div>
-          <label htmlFor="wl-font" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Font Family</label>
-          <input id="wl-font" value={settings.font_family || ''} onChange={(e) => update({ font_family: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40" />
-        </div>
-        <div>
-          <label htmlFor="wl-support" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Support Email</label>
-          <input id="wl-support" value={settings.support_email || ''} onChange={(e) => update({ support_email: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40" />
-        </div>
-      </div>
-      <div className="flex items-center gap-2 pt-1">
-        <button onClick={save} disabled={saving} className="text-[11px] bg-[#D4AF37] hover:bg-[#e6c045] disabled:opacity-60 text-slate-950 px-3 py-2 rounded-xl transition font-bold">Save Branding</button>
-        <span className="text-[10px] text-slate-500">Applied to exported docs and branded surfaces.</span>
-      </div>
-    </div>
-  );
-}
-
-function debounce(fn, ms) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
-
-const DEFAULT_PROVIDER_ORDER = [
-  'openrouter',
-  'huggingface',
-  'openai',
-  'freepik',
-  'pexels',
-  'pollinations',
-  'mock'
-];
-
 export default function SettingsPanel() {
   const [settings, setSettings] = useState(null);
   const [envInfo, setEnvInfo] = useState(null);
@@ -153,6 +40,8 @@ export default function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [error, setError] = useState(null);
+  const [whitelabel, setWhitelabel] = useState(null);
+  const [brandSaving, setBrandSaving] = useState(false);
 
   // Editable local state for globals
   const [globals, setGlobals] = useState({
@@ -163,35 +52,39 @@ export default function SettingsPanel() {
     spendMode: 'smart-cost'
   });
 
+  const loadProviders = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/settings/providers`).then(r => r.json());
+      if (res?.success) setSettings(res);
+    } catch (e) {
+      console.error('Failed to load settings:', e);
+    }
+  };
+
+  const loadEnv = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/diagnostics/api-keys`).then(r => r.json()).catch(() => ({}));
+      setEnvInfo(res || {});
+    } catch (e) {
+      setEnvInfo({});
+    }
+  };
+
+  const loadWhitelabel = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/whitelabel`);
+      const data = await res.json();
+      setWhitelabel(data);
+    } catch (e) {
+      console.error('Failed to load whitelabel:', e);
+    }
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const [settingsRes, envRes] = await Promise.all([
-        fetch(`${API_BASE}/api/settings/providers`).then(r => r.json()),
-        fetch(`${API_BASE}/api/diagnostics/api-keys`).then(r => r.json()).catch(() => ({}))
-      ]);
-      if (!settingsRes?.success) throw new Error(settingsRes?.error || 'Failed to load settings');
-      setSettings(settingsRes);
-      setGlobals({
-        defaultProvider: settingsRes.defaultProvider || '',
-        defaultModel: settingsRes.defaultModel || '',
-        freeProvidersFirst: Boolean(settingsRes.freeProvidersFirst),
-        maxCostPerImage: settingsRes.maxCostPerImage ?? 0,
-        spendMode: envRes?.spendMode || 'smart-cost'
-      });
-      setEnvInfo(envRes || null);
-    } catch (err) {
-      setError(err.message);
-      showToast(setToast, err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
+    await Promise.all([loadProviders(), loadEnv(), loadWhitelabel()]).finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const saveProvider = async (providerKey, patch) => {
     setSaving(true);
@@ -522,7 +415,7 @@ export default function SettingsPanel() {
                 <Globe className="w-4 h-4 text-[#C9A84C]" aria-hidden="true" />
                 Whitelabel & Branding
               </h3>
-              <BrandSettings />
+              <BrandEditor />
             </section>
 
             {/* Tool Defaults Summary */}
