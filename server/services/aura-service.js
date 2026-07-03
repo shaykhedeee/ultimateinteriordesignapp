@@ -1,9 +1,9 @@
 /**
  * AURA — Structured Interior Intelligence Layer
  *
- * Provides typed interfaces for room semantics, design planning,
- * prompt composition, critique, style recommendation, and
- * memory/feedback hooks. Backends remain swappable.
+ * Provides typed interfaces, prompt library, Indian interiors expertise,
+ * self-learning hooks, and validation for room semantics, style planning,
+ * render prompt composition, render critique, and style recommendation.
  *
  * @typedef {'room_semantics'|'zone_design_plan'|'render_prompt_compose'|'render_critic'|'style_recommend'} AuraTaskType
  * @typedef {'living_room'|'bedroom'|'kitchen'|'bathroom'|'dining'|'office'|'entry'|'outdoor'|'unknown'} RoomType
@@ -13,6 +13,8 @@
  * @typedef {'template'|'composed'|'edited'} PromptSourceType
  */
 
+import fs from 'fs';
+import path from 'path';
 import { buildEnhancementPlan, ENHANCEMENT_MODES } from './enhancement-planner.js';
 import { generateInteriorAsset } from './image-provider.js';
 import { listProfiles } from './openrouter-profiles.js';
@@ -25,12 +27,33 @@ export const AURA_TASK_TYPES = Object.freeze({
   STYLE_RECOMMEND: 'style_recommend'
 });
 
-export const AURA_TASK_TYPE_LIST = Object.freeze([AURA_TASK_TYPES.ROOM_SEMANTICS, AURA_TASK_TYPES.ZONE_DESIGN_PLAN, AURA_TASK_TYPES.RENDER_PROMPT_COMPOSE, AURA_TASK_TYPES.RENDER_CRITIC, AURA_TASK_TYPES.STYLE_RECOMMEND]);
+export const AURA_TASK_TYPE_LIST = Object.freeze(Object.values(AURA_TASK_TYPES));
 
-export const ROOM_TYPES = Object.freeze(['living_room', 'bedroom', 'kitchen', 'bathroom', 'dining', 'office', 'entry', 'outdoor', 'unknown']);
+export const ROOM_TYPES = Object.freeze([
+  'living_room', 'bedroom', 'kitchen', 'bathroom', 'dining', 'office', 'entry', 'outdoor', 'unknown'
+]);
+
 export const ZONE_ROLES = Object.freeze(['primary', 'secondary', 'accent']);
+
 export const CAMERA_MODES = Object.freeze(['topdown', 'elevated', 'eye_level', 'isometric']);
-export const FEEDBACK_TYPES = Object.freeze(['accepted', 'rejected', 'lightly_edited', 'heavily_edited', 'flagged', 'approved', 'misclassified']);
+
+export const FEEDBACK_TYPES = Object.freeze([
+  'accepted', 'rejected', 'lightly_edited', 'heavily_edited', 'flagged', 'approved', 'misclassified'
+]);
+
+const KNOWLEDGE_PATH = path.join(process.cwd(), 'server/services/aura/knowledge/indian-interiors-knowledge.md');
+let KNOWLEDGE_CACHE = '';
+
+function loadKnowledgeCache() {
+  try {
+    if (!KNOWLEDGE_CACHE && fs.existsSync(KNOWLEDGE_PATH)) {
+      KNOWLEDGE_CACHE = fs.readFileSync(KNOWLEDGE_PATH, 'utf-8');
+    }
+    return KNOWLEDGE_CACHE;
+  } catch {
+    return '';
+  }
+}
 
 export class AuraService {
   #defaultSystemPrompt = [
@@ -42,31 +65,37 @@ export class AuraService {
 
   #promptLibrary = Object.freeze({
     [AURA_TASK_TYPES.ROOM_SEMANTICS]: {
-      system: this.#defaultSystemPrompt,
-      task: `Task: room_semantics\nInputs: roomImageUrl, zoneCropUrl?, floorplanCropUrl?, layoutContext?, ocrContext?, orgContext?\nOutput: roomType, confidence, visibleElements, functionalNeeds, constraints, styleSignals, materialSignals, mustKeep, mustAvoid, uncertainties`,
+      system: this.#indianizedSystemPrompt(),
+      task: `Task: room_semantics\nInputs: roomImageUrl, zoneCropUrl?, floorplanCropUrl?, layoutContext?, ocrContext?, orgContext?\nOutput: roomType, confidence, visibleElements, functionalNeeds, constraints, styleSignals, materialSignals, mustKeep, mustAvoid, uncertainties\nIndian context: consider pooja room norms, vastu orientation hints, laminate/hardware preferences, and modular furniture norms when inferring function.`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the room_semantics schema. Admit uncertainty instead of guessing.'
     },
     [AURA_TASK_TYPES.ZONE_DESIGN_PLAN]: {
-      system: this.#defaultSystemPrompt,
-      task: `Task: zone_design_plan\nInputs: roomSemantics, projectBrief?, catalogContext?, organizationRules?\nOutput: styleName, styleKeywords, colorPalette, materialPalette, lightingStrategy, productCategories, placementNotes, circulationNotes, mustKeep, mustAvoid, riskFlags, confidence`,
+      system: this.#indianizedSystemPrompt(),
+      task: `Task: zone_design_plan\nInputs: roomSemantics, projectBrief?, catalogContext?, organizationRules?\nOutput: styleName, styleKeywords, colorPalette, materialPalette, lightingStrategy, productCategories, placementNotes, circulationNotes, mustKeep, mustAvoid, riskFlags, confidence\nIndian context: prefer modular furniture from catalog, Merino laminates where premium shutters are appropriate, CenturyPly carcass for interiors, Royale Touche for wardrobes/TV units, Hettich/Blum hardware for premium segments.`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the zone_design_plan schema.'
     },
     [AURA_TASK_TYPES.RENDER_PROMPT_COMPOSE]: {
-      system: this.#defaultSystemPrompt,
+      system: this.#indianizedSystemPrompt(),
       task: `Task: render_prompt_compose\nInputs: designPlan, layoutContext?, references?\nOutput: prompt, negativePrompt, cameraNotes, preserveInstructions, mustKeep, mustAvoid`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the render_prompt_compose schema. Always preserve geometry and must_avoid hallucinated architecture.'
     },
     [AURA_TASK_TYPES.RENDER_CRITIC]: {
-      system: this.#defaultSystemPrompt,
+      system: this.#indianizedSystemPrompt(),
       task: `Task: render_critic\nInputs: renderImageUrl, layoutContext?, designPlan?, selectedProducts?, priorPromptPack?\nOutput: score, geometryConsistency, styleConsistency, realismScore, issues, mustFix, suggestedEdits, approve`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the render_critic schema.'
     },
     [AURA_TASK_TYPES.STYLE_RECOMMEND]: {
-      system: this.#defaultSystemPrompt,
+      system: this.#indianizedSystemPrompt(),
       task: `Task: style_recommend\nInputs: roomImageUrl?, moodboardUrls?, briefText?, orgRules?\nOutput: primaryStyle, secondaryInfluences, palette, materialFamilies, moodKeywords, doNotUse, confidence`,
       repair: 'Your last output was not valid JSON. Return only valid JSON matching the style_recommend schema.'
     }
   });
+
+  #indianizedSystemPrompt() {
+    const knowledge = loadKnowledgeCache();
+    const knowledgeSnippet = knowledge ? `\nIndian interiors knowledge:\n${knowledge.slice(0, 3000)}` : '';
+    return `${this.#defaultSystemPrompt}${knowledgeSnippet}`;
+  }
 
   getPromptLibrary() {
     return this.#promptLibrary;
@@ -165,7 +194,18 @@ export function buildStylePrompt(request) {
 }
 
 export function topLevelTasks() {
-  return [AURA_TASK_TYPES.ROOM_SEMANTICS, AURA_TASK_TYPES.ZONE_DESIGN_PLAN, AURA_TASK_TYPES.RENDER_PROMPT_COMPOSE, AURA_TASK_TYPES.RENDER_CRITIC, AURA_TASK_TYPES.STYLE_RECOMMEND];
+  return Object.values(AURA_TASK_TYPES);
+}
+
+export function fallbackRenderPrompt() {
+  return {
+    prompt: 'Safe interior render preserving existing room geometry and balancing neutral warmth with refined minimal furniture placement.',
+    negativePrompt: 'no extra walls, no floating furniture, no distorted perspective, no clutter',
+    cameraNotes: { mode: 'elevated', framing: 'show full room composition', lensHint: '24-28mm' },
+    preserveInstructions: ['preserve room proportions', 'preserve door and window positions'],
+    mustKeep: ['room geometry'],
+    mustAvoid: ['hallucinated architecture']
+  };
 }
 
 function riskBlock(riskFlags) {
@@ -178,20 +218,9 @@ function geometryPreservationBlock() {
 }
 
 function cameraContext(mode) {
-  return `${String(mode || 'elevated').replace('_', ' ')} perspective view`.trim();
+  return `${String(mode || 'elevated').replace(/_/g, ' ')} perspective view`.trim();
 }
 
 function showFullRoomHint(placementNotes) {
   return placementNotes.length ? `Show key zones: ${placementNotes[0]}.` : 'Show full room composition.';
-}
-
-export function fallbackRenderPrompt() {
-  return {
-    prompt: 'Safe interior render preserving existing room geometry and balancing neutral warmth with refined minimal furniture placement.',
-    negativePrompt: 'no extra walls, no floating furniture, no distorted perspective, no clutter',
-    cameraNotes: { mode: 'elevated', framing: 'show full room composition', lensHint: '24-28mm' },
-    preserveInstructions: ['preserve room proportions', 'preserve door and window positions'],
-    mustKeep: ['room geometry'],
-    mustAvoid: ['hallucinated architecture']
-  };
 }
