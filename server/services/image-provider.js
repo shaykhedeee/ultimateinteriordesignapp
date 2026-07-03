@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import db from '../database/database.js';
 import { getGeminiStatus } from './gemini-service.js';
 import { isNativeOpenAiKey, openAiKeyType } from './provider-config.js';
+import { executeInference, listProvidersForTask } from './inference-gateway.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,12 @@ export async function generateInteriorAsset({ projectId, room, title, prompt, st
   const id = nanoid(12);
   const safeRoom = String(room || 'room').replace(/[^a-zA-Z0-9_-]/g, '_');
   const base = { id, projectId, room, safeRoom, title, prompt: enhanceInteriorPrompt(prompt, room), style, budgetTier, tags };
+
+  // Spec compliance: primary provider routing goes through the inference gateway.
+  // If the gateway cannot produce a real image result, fall back to the legacy direct-provider chain.
+  const gatewayAsset = await tryGenerateViaGateway(base, model);
+  if (gatewayAsset) return mirrorAssetToReferenceLibrary(gatewayAsset);
+
   const providers = generationProviderPriority({ reuseFirst });
 
   for (const provider of providers) {
@@ -161,6 +168,101 @@ function tryReuseGeneratedAsset({ id, projectId, room, title, prompt, style, bud
     console.warn(`Library reuse lookup failed: ${err.message}`);
     return null;
   }
+}
+
+function ensureAssetsDir() {
+  const dir = path.join(storageDir, 'assets');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function urlSafeExtension(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    const ext = path.extname(pathname);
+    if (ext && ext.length <= 5) return ext;
+  } catch {
+    // ignore and fall back
+  }
+  return '.png';
+}
+
+async function tryGenerateViaGateway(base, model) {
+  try {
+    ensureAssetsDir();
+    const taskTypes = ['quick_render', 'detailed_render', 'style_image'];
+    const gatewayResults = [];
+
+    for (const taskType of taskTypes) {
+      const result = await executeInference({
+        taskType,
+        payload: {
+          prompt: base.prompt,
+          style: base.style,
+          room: base.room,
+          model,
+          tags: base.tags,
+          budgetTier: base.budgetTier
+        },
+        organizationId: base.projectId ? `proj_${base.projectId}` : undefined,
+        projectId: base.projectId,
+        provider: model !== 'auto' ? model : undefined
+      });
+
+      gatewayResults.push({ taskType, result });
+
+      if (!result) continue;
+      if (result.ok === false) continue;
+
+      const asset = buildAssetFromGatewayResult(base, result);
+      if (!asset) continue;
+
+      await recordGenerationCost({ projectId: base.projectId, assetId: asset.id, sourceType: asset.sourceType || 'generated' });
+      return asset;
+    }
+
+    return null;
+  } catch (err) {
+    console.warn(`Inference gateway path failed, falling back to direct providers: ${err.message}`);
+    return null;
+  }
+}
+
+function buildAssetFromGatewayResult(base, result) {
+  if (!result || !result.output) return null;
+  const output = result.output;
+  let fileName;
+  let sourceType = 'generated';
+  const id = base.id;
+
+  if (typeof output.imageBase64 === 'string' && output.imageBase64.length > 100) {
+    fileName = `${base.safeRoom || base.room}-${id}.png`;
+    const filePath = path.join(ensureAssetsDir(), fileName);
+    fs.writeFileSync(filePath, Buffer.from(output.imageBase64, 'base64'));
+    sourceType = `generated-${result.provider || 'gateway'}`;
+  } else if (typeof output.url === 'string' && output.url.length > 10) {
+    const ext = urlSafeExtension(output.url);
+    fileName = `${base.safeRoom || base.room}-${id}${ext}`;
+    const filePath = path.join(ensureAssetsDir(), fileName);
+    sourceType = `downloaded-${result.provider || 'gateway'}`;
+  } else {
+    return null;
+  }
+
+  return {
+    id,
+    projectId: base.projectId,
+    room: base.room,
+    style: base.style,
+    budgetTier: base.budgetTier,
+    title: base.title,
+    prompt: base.prompt,
+    negativePrompt: output.negativePrompt || negativePrompt(),
+    filePath: `/storage/assets/${fileName}`,
+    tags: [...(base.tags || []), sourceType, `provider:${result.provider || 'gateway'}`],
+    sourceType,
+    reusableScore: Number(output.reusableScore || 88)
+  };
 }
 
 function safeJson(value, fallback) {
