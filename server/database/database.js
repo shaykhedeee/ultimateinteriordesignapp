@@ -1094,9 +1094,20 @@ db.exec(`CREATE TABLE IF NOT EXISTS render_edit_masks (
   file_asset_id TEXT NOT NULL,
   format TEXT DEFAULT 'png',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY(project_id) REFERENCES projects(id),
-  FOREIGN KEY(render_edit_id) REFERENCES render_edits(id),
-  FOREIGN KEY(file_asset_id) REFERENCES file_assets(id)
+  FOREIGN KEY (project_id) REFERENCES projects(id),
+  FOREIGN KEY (render_edit_id) REFERENCES render_edits(id),
+  FOREIGN KEY (file_asset_id) REFERENCES file_assets(id)
+);`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS aura_chat_history (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  sender TEXT NOT NULL,
+  text TEXT NOT NULL,
+  status TEXT DEFAULT 'sent',
+  metadata TEXT DEFAULT '{}',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id)
 );`);
 
 try { db.exec("ALTER TABLE render_edits ADD COLUMN room_style_context TEXT;"); } catch (e) {}

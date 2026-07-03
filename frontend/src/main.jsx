@@ -39,3 +39,45 @@ class ErrorBoundary extends React.Component {
 }
 
 createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></ErrorBoundary>);
+
+(function initAppMonitor() {
+  try {
+    const root = document.getElementById('root');
+    const fallback = document.getElementById('app-fallback');
+    const fallbackMessage = document.getElementById('app-fallback-message');
+    const appFallback = typeof fallback !== 'undefined' ? fallback : null;
+
+    window.__reloadApp = () => {
+      if (!root) return;
+      try {
+        root.innerHTML = '';
+        createRoot(root).render(App);
+      } catch (e) {
+        if (fallbackMessage) fallbackMessage.textContent = e && (e.message || String(e));
+        if (appFallback) { appFallback.classList.remove('hidden'); appFallback.classList.add('flex'); }
+      }
+    };
+
+    const showFallback = (message) => {
+      if (fallbackMessage && typeof fallbackMessage.textContent !== 'undefined') fallbackMessage.textContent = message || 'App did not render. Check console for details.';
+      if (appFallback) { appFallback.classList.remove('hidden'); appFallback.classList.add('flex'); }
+    };
+
+    setTimeout(() => {
+      if (!root || (!root.children || !root.children.length)) {
+        showFallback('React root did not mount within 4 seconds.');
+      }
+    }, 4000);
+
+    window.addEventListener('error', (event) => {
+      showFallback(event.message || 'Runtime error');
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event.reason && (event.reason.message || typeof event.reason === 'string' ? event.reason : JSON.stringify(event.reason));
+      showFallback(reason || 'Unhandled promise rejection');
+    });
+  } catch (e) {
+    console.error('[AppMonitor] init failed', e);
+  }
+})();

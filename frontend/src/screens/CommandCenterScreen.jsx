@@ -39,6 +39,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   ];
 
   const specialistTools = allSpecialistTools.filter(tool => tool.roles.includes(workspaceMode));
+  const [toolFeedback, setToolFeedback] = useState({});
 
   useEffect(() => {
     const activeExists = workflowTabs.some(t => t.id === activeWorkflowTab);

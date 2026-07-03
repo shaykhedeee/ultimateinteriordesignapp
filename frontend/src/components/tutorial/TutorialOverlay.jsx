@@ -45,7 +45,6 @@ const TUTORIAL_STEPS = [
 
 export default function TutorialOverlay({ onClose, onFinished }) {
   const [index, setIndex] = useState(0);
-  const [visible, setVisible] = useState(true);
   const step = TUTORIAL_STEPS[index] || TUTORIAL_STEPS[0];
   const isLast = index === TUTORIAL_STEPS.length - 1;
 
@@ -69,8 +68,6 @@ export default function TutorialOverlay({ onClose, onFinished }) {
   };
 
   const skip = () => finish();
-
-  if (!visible) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">

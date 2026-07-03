@@ -101,7 +101,7 @@ export default function JobsScreen({ projectId }) {
       <div className="flex-grow overflow-y-auto pr-1 pb-16 max-w-4xl w-full mx-auto">
         {jobs.length === 0 ? (
           <div className="bg-slate-900/40 border border-slate-800 p-8 rounded-2xl text-center text-slate-500 text-xs mt-6">
-            No background execution logs saved yet. Dispatch a task above.
+            No background execution logs saved yet. Dispatch a task above to generate background render jobs, CAD drafting jobs, or quotation audits.
           </div>
         ) : (
           <div className="space-y-4">
