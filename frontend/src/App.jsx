@@ -3,13 +3,19 @@ import { useAppStore } from './stores/appStore';
 import AppShell from './components/shell/AppShell';
 import AppRoutes from './components/shell/AppRoutes';
 import TutorialOverlay from './components/tutorial/TutorialOverlay';
+import { LayoutDashboard } from 'lucide-react';
 
 export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [connectivity, setConnectivity] = useState('checking');
+  const [bootError, setBootError] = useState(null);
+
   React.useEffect(() => {
     const seen = localStorage.getItem('tutorialSeen');
     if (!seen) setShowTutorial(true);
   }, []);
+
   const fetchStatsAndProjects = useAppStore((state) => state.fetchStatsAndProjects);
   const activeTab = useAppStore((state) => state.activeTab);
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
@@ -18,24 +24,34 @@ export default function App() {
   const activeJobs = useAppStore((state) => state.activeJobs);
   const setPrevActiveJobsCount = useAppStore((state) => state.setPrevActiveJobsCount);
   const setOrchestratorMode = useAppStore((state) => state.setOrchestratorMode);
-  const [loading, setLoading] = React.useState(true);
-  const [connectivity, setConnectivity] = React.useState('online');
 
   React.useEffect(() => {
-    fetchStatsAndProjects().finally(() => setLoading(false));
-  }, [fetchStatsAndProjects]);
+    let cancelled = false;
+    setBootError(null);
+    fetchStatsAndProjects()
+      .then(() => {
+        if (!cancelled) setConnectivity('online');
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setConnectivity('offline');
+          setBootError(err && err.message ? err.message : 'Unable to reach backend');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-  React.useEffect(() => {
     const handleOnline = () => setConnectivity('online');
     const handleOffline = () => setConnectivity('offline');
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    setConnectivity(navigator.onLine ? 'online' : 'offline');
     return () => {
+      cancelled = true;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [fetchStatsAndProjects]);
 
   if (loading) {
     return (
@@ -60,12 +76,20 @@ export default function App() {
           onFinished={() => setShowTutorial(false)}
         />
       )}
-      <div className={`fixed top-3 right-3 z-50 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-        connectivity === 'online' ? 'border-emerald-500/40 text-emerald-300 bg-emerald-950/40' : 'border-red-500/40 text-red-300 bg-red-950/40'
-      }`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${connectivity === 'online' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-        {connectivity === 'online' ? 'Online' : 'Offline'}
-      </div>
+      {bootError && (
+        <div className="fixed top-3 right-3 z-50 max-w-sm px-3 py-2 rounded-2xl border border-red-500/40 bg-red-950/40 text-[10px] font-bold uppercase tracking-wider text-red-200">
+          <span className="block mb-1 text-[9px] text-red-400">Offline mode</span>
+          {bootError}
+        </div>
+      )}
+      {!bootError && (
+        <div className={`fixed top-3 right-3 z-50 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+          connectivity === 'online' ? 'border-emerald-500/40 text-emerald-300 bg-emerald-950/40' : 'border-red-500/40 text-red-300 bg-red-950/40'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${connectivity === 'online' ? 'bg-emerald-400' : 'bg-red-400'}`} />
+          {connectivity === 'online' ? 'Online' : connectivity === 'offline' ? 'Offline' : 'Checking'}
+        </div>
+      )}
       <AppShell
         activeTab={activeTab}
         onNavigate={(tab) => useAppStore.getState().navigateTab(tab)}

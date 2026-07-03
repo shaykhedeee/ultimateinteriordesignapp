@@ -1,55 +1,61 @@
 @echo off
-title Ultimate Interior Design App
-chcp 65001 >nul 2>&1
+setlocal
+set "APP_DIR=%~dp0"
+cd /d "%APP_DIR%"
 
-set "ROOT=C:\Users\methe\OFFLINEGANG\ULTIMATE INTERIOR DESIGN APP\ultimateinteriordesignapp"
-set "SERVER_DIR=%ROOT%\server"
-
-echo.
-echo ==========================================
-echo    ULTIMATE INTERIOR DESIGN APP - START
-echo ==========================================
+echo ========================================
+echo   Ultimate Interior Design App Launcher
+echo ========================================
 echo.
 
-cd /d "%ROOT%"
+set "BACKEND_PORT=5055"
+set "FRONTEND_PORT=5175"
 
-echo [1/5] Cleaning stale Node processes on port 5055...
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":5055" ^| findstr "LISTENING"') do (
-  echo Killing PID %%p on port 5055...
-  taskkill /F /PID %%p >nul 2>&1
-)
-timeout /t 1 /nobreak >nul
-
-echo [2/5] Starting backend server...
-start "UID-Backend" /B node "%SERVER_DIR%\index.js"
-
-echo [3/5] Waiting for backend health...
+:: wait for port
+:wait_for_port
+set "PORT=%1"
+set "NAME=%2"
 set /a retries=0
-:wait_port
-timeout /t 1 /nobreak >nul
-curl -s http://127.0.0.1:5055/api/health >nul 2>&1
-if %errorlevel% neq 0 (
-  set /a retries+=1
-  if %retries% lss 30 goto wait_port
-  echo WARNING: Server did not respond after 30 seconds.
-  echo Check "%SERVER_DIR%" logs or run: "%SERVER_DIR%\node index.js" manually.
+:wait_loop
+powershell -Command "try { $c=New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',%PORT%); $c.Close(); exit 0 } catch { exit 1 }"
+if %errorlevel%==0 (
+  echo [OK] %NAME% is up on port %PORT%.
+  goto :eof
 )
+set /a retries+=1
+if %retries% geq 60 (
+  echo [ERROR] %NAME% did not start on port %PORT% after %retries% attempts.
+  goto :eof
+)
+timeout /t 1 >nul
+goto :wait_loop
 
-echo [4/5] Seeding demo data...
-curl -s -X POST http://127.0.0.1:5055/api/demo/seed >nul 2>&1 || true
+:cleanup
+echo.
+echo Stopping services...
+if defined BACKEND_PID taskkill /PID %BACKEND_PID% /F >nul 2>&1
+if defined FRONTEND_PID taskkill /PID %FRONTEND_PID% /F >nul 2>&1
+echo Done.
+exit /b 0
 
-echo [5/5] Launching browser...
-start http://127.0.0.1:5173
+echo [1/4] Starting backend on port %BACKEND_PORT% ...
+start "UID-Backend" cmd /c "node server/index.js"
+call :wait_for_port %BACKEND_PORT% "Backend"
+if errorlevel 1 goto cleanup
 
+echo [2/4] Starting frontend on port %FRONTEND_PORT% ...
+start "UID-Frontend" cmd /c "npm run client"
+call :wait_for_port %FRONTEND_PORT% "Frontend"
+if errorlevel 1 goto cleanup
+
+echo [3/4] Opening browser...
+timeout /t 2 >nul
+start http://127.0.0.1:%FRONTEND_PORT%
+
+echo [4/4] App is running.
+echo   Frontend : http://127.0.0.1:%FRONTEND_PORT%
+echo   Backend  : http://127.0.0.1:%BACKEND_PORT%/api/health
 echo.
-echo ==========================================
-echo    APP READY
-echo ==========================================
-echo.
-echo Backend : http://127.0.0.1:5055
-echo.
-echo If the app does not open:
-echo   1. Run this script as Administrator
-echo   2. Or open a new terminal in "%ROOT%" and run: npm run dev
-echo.
+echo Close this window to stop both services.
 pause
+goto cleanup

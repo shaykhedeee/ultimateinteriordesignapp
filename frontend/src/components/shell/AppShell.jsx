@@ -102,8 +102,31 @@ export default function AppShell({ activeTab, onNavigate, currentTime, children 
       >
         Skip to main content
       </a>
-      <div aria-live="polite" aria-atomic="true" className="sr-only" id="app-status">
-        {orchestrationChips.length > 0 ? orchestrationChips[orchestrationChips.length - 1].text : ''}
+      <div aria-live="polite" aria-atomic="true" id="app-root-live" className="sr-only">
+        <span id="app-root-status">Ready</span>
+      </div>
+      <div
+        id="app-fallback"
+        className="fixed inset-0 z-[200] hidden items-center justify-center bg-[#020617] text-slate-100"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="max-w-lg w-full mx-4 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3">
+          <h1 className="text-sm font-black uppercase tracking-widest text-red-400">App error</h1>
+          <pre id="app-fallback-message" className="text-[11px] text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3 overflow-auto whitespace-pre-wrap" />
+          <button
+            type="button"
+            onClick={() => {
+              const fb = document.getElementById('app-fallback');
+              if (fb) fb.classList.add('hidden');
+              if (fb) fb.classList.remove('flex');
+              window.__reloadApp && window.__reloadApp();
+            }}
+            className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 hover:border-[#D4AF37]"
+          >
+            Retry
+          </button>
+        </div>
       </div>
 
       {/* Left Sidebar */}

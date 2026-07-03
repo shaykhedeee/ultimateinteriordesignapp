@@ -1291,12 +1291,19 @@ app.get('/api/settings/providers', (req, res) => {
   }
 });
 
-app.post('/api/settings/providers', (req, res) => {
+app.get('/api/projects/:projectId/settings/providers', (req, res) => {
   try {
-    const { provider, patch } = req.body || {};
-    if (!provider || !patch || typeof patch !== 'object') return res.status(400).json({ error: 'provider and patch object are required' });
-    const updated = updateProviderSetting(provider, patch);
-    res.json({ success: true, provider: updated });
+    const settings = listProviderSettings();
+    const live = (getProviderStatus && getProviderStatus().providers) || {};
+    const out = {};
+    for (const [key, setting] of Object.entries(settings.providers || {})) {
+      out[key] = {
+        ...setting,
+        configured: !!live[key],
+        liveStatus: live[key] ? 'configured' : 'not_configured'
+      };
+    }
+    res.json({ success: true, defaultProvider: settings.defaultProvider, defaultModel: settings.defaultModel, freeProvidersFirst: settings.freeProvidersFirst, maxCostPerImage: settings.maxCostPerImage, providers: out });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
