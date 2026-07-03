@@ -82,9 +82,22 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
 
   const [toolkitMessage, setToolkitMessage] = useState(null);
   const [toolkitStatus, setToolkitStatus] = useState('idle');
+  const [isAiDetecting, setIsAiDetecting] = useState(false);
+  const aiDetectControllerRef = useRef(null);
+  const isMountedRef = useRef(true);
 
-  const fileInputRef = useRef(null);
-  const jobStatusIntervalRef = useRef(null);
+  // Quick action states
+  const [quickAction, setQuickAction] = useState(null);
+  const [selectedAllZones, setSelectedAllZones] = useState(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (jobStatusIntervalRef.current) clearInterval(jobStatusIntervalRef.current);
+      if (aiDetectControllerRef.current) aiDetectControllerRef.current.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (projectId) {
@@ -160,6 +173,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     setInterpretation(null);
     setOverallConfidence(null);
     setCurrentVersionId(null);
+    setQuickAction('uploading');
 
     const form = new FormData();
     form.append('floorplan', file);
@@ -173,10 +187,14 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
       const data = await res.json();
       setCurrentVersionId(data.floorPlanVersionId);
       setUploadStatus('interpreting');
+      setQuickAction('interpreting');
       pollJobStatus();
     } catch (err) {
       console.error(err);
       setUploadStatus('error');
+      setQuickAction('error');
+    } finally {
+      setTimeout(() => setQuickAction(null), 1200);
     }
   };
 
@@ -193,10 +211,14 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
           clearInterval(jobStatusIntervalRef.current);
           jobStatusIntervalRef.current = null;
           await fetchVersions();
+          setQuickAction('done');
+          setTimeout(() => setQuickAction(null), 1200);
         } else if (planJob.status === 'failed') {
           clearInterval(jobStatusIntervalRef.current);
           jobStatusIntervalRef.current = null;
           setUploadStatus('error');
+          setQuickAction('error');
+          setTimeout(() => setQuickAction(null), 1200);
         }
       } catch (err) {
         console.error('poll error', err);
@@ -204,43 +226,124 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     }, 1200);
   };
 
+  const cancelAiDetect = async () => {
+    if (aiDetectControllerRef.current) {
+      aiDetectControllerRef.current.abort();
+      aiDetectControllerRef.current = null;
+    }
+    setIsAiDetecting(false);
+    setToolkitMessage('AI detection cancelled.', 'error');
+    setToolkitStatus('idle');
+  };
+
   const handleAiDetect = async () => {
+    if (isAiDetecting) {
+      await cancelAiDetect();
+      return;
+    }
     try {
-      setIsAnalyzing(true);
+      aiDetectControllerRef.current = new AbortController();
+      setIsAiDetecting(true);
       setToolkitMessage('Running AI room detection...', 'loading');
       const res = await fetch(`${API_BASE}/tools/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolSlug: 'floorplan-analyzer', projectId, params: { mode: 'detect' } })
+        body: JSON.stringify({ toolSlug: 'floorplan-analyzer', projectId, params: { mode: 'detect' } }),
+        signal: aiDetectControllerRef.current.signal
       });
       if (!res.ok) throw new Error('AI detect failed');
       const data = await res.json();
       setUploadStatus('review_required');
       setToolkitMessage('AI detection complete. Review zones below.', 'success');
+      setToolkitStatus('idle');
       await fetchVersions();
     } catch (err) {
-      console.error(err);
-      setToolkitMessage('AI detect failed.', 'error');
-      setUploadStatus('error');
+      if (err?.name === 'AbortError') {
+        setToolkitMessage('AI detection cancelled.', 'error');
+      } else {
+        console.error(err);
+        setToolkitMessage('AI detect failed.', 'error');
+        setUploadStatus('error');
+      }
     } finally {
-      setIsAnalyzing(false);
+      setIsAiDetecting(false);
+      aiDetectControllerRef.current = null;
       setToolkitStatus('idle');
     }
   };
 
   const handleTagClick = (tag) => {
     setSelectedRoomId(tag.id);
+    setSelectedAllZones(false);
     const room = (interpretation && interpretation.rooms || []).find(r => r.id === tag.id);
     if (room?.bounds) {
       // place inspector selection focus / center could go here using stored selection bus
     }
   };
 
-  const planToolkitMessage = (msg, kind = 'idle') => {
-    setToolkitMessage(msg);
-    setToolkitStatus(kind);
-    if (kind !== 'idle') setTimeout(() => { setToolkitMessage(''); setToolkitStatus('idle'); }, 2350);
+  const handleSelectAllZones = () => {
+    const next = !selectedAllZones;
+    setSelectedAllZones(next);
+    setSelectedRoomId(next ? (interpretation?.rooms?.[0]?.id || null) : null);
+    setToolkitMessage(next ? 'All zones selected for batch actions.' : 'Selection cleared.', 'success');
   };
+
+  const handleBatchApprove = async () => {
+    if (!currentVersionId) return;
+    setToolkitStatus('loading');
+    setToolkitMessage('Batch approving all zones...', 'loading');
+    try {
+      const state = useEditorStore.getState();
+      const sceneSnapshot = state.scene ? { ...state.scene, zones: zoneTags } : null;
+      const res = await fetch(`${API_BASE}/floor-plan-versions/${currentVersionId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          corrections: [],
+          reviewedSceneData: sceneSnapshot || interpretation || {}
+        })
+      });
+      if (!res.ok) throw new Error('Review submit failed');
+      setUploadStatus('approved');
+      setToolkitMessage('All zones approved.', 'success');
+      await fetchVersions();
+    } catch (err) {
+      console.error(err);
+      setToolkitMessage('Batch approval failed.', 'error');
+      setUploadStatus('error');
+    } finally {
+      setToolkitStatus('idle');
+    }
+  };
+
+  const handleKeyboard = useCallback((e) => {
+    if (!projectId) return;
+    const tag = /^[A-Za-z]$/.test(e.key) ? e.key.toLowerCase() : null;
+    if (tag && zoneTags.length && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      const idx = tag.charCodeAt(0) - 97;
+      if (idx >= 0 && idx < zoneTags.length) {
+        handleTagClick(zoneTags[idx]);
+        return;
+      }
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      handleSaveVersion();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    }
+    if (e.key.toLowerCase() === 'f5') {
+      e.preventDefault();
+      handleAiDetect();
+    }
+  }, [projectId, zoneTags, undo, redo]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyboard);
+    return () => window.removeEventListener('keydown', handleKeyboard);
+  }, [handleKeyboard]);
 
   const handleSaveVersion = () => {
     const reason = `Version ${versionNumber + 1}`;
@@ -492,32 +595,80 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
 
       {/* ── STATUS & ZONE TAGS FOOTER ── */}
       <div className="bg-slate-900/70 border-t border-slate-800 shrink-0 px-4 py-3 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Map className="w-4 h-4 text-[#C9A84C]" />
             <span className="text-[11px] font-black uppercase tracking-widest text-slate-200">Zone Detection Status</span>
+            {quickAction && (
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#D4AF37] bg-[#D4AF37]/10 border border-[#D4AF37]/25 px-2 py-0.5 rounded">
+                {quickAction === 'uploading' ? 'Uploading' : quickAction === 'interpreting' ? 'Interpreting' : quickAction === 'done' ? 'Ready' : quickAction === 'error' ? 'Error' : 'Working'}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={handleSelectAllZones} className="text-[10px] font-bold uppercase border border-slate-800 px-2.5 py-1.5 rounded-xl text-slate-300 hover:text-[#D4AF37] hover:border-[#D4AF37]/40 transition">
+              {selectedAllZones ? 'Clear Selection' : 'Select All Zones'}
+            </button>
             {uploadStatus === 'review_required' && (
-              <button onClick={handleApprove} className="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition">
-                <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" /> Approve Zones
+              <button onClick={selectedAllZones ? handleBatchApprove : handleApprove} className="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" /> {selectedAllZones ? 'Batch Approve' : 'Approve Zones'}
+              </button>
+            )}
+            {uploadStatus === 'review_required' && (
+              <button onClick={handleAiDetect} className="bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/35 text-[#C9A84C] px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center gap-1">
+                <Scan className="w-3.5 h-3.5" /> {isAiDetecting ? 'Cancel AI' : 'Re-run AI'}
               </button>
             )}
             {overallConfidence !== null && (
               <span className="text-[10px] font-mono font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/25 px-2 py-1 rounded-lg">
-                Confidence: {(overallConfidence * 100).toFixed(1)}%
+                {(overallConfidence * 100).toFixed(1)}%
               </span>
             )}
           </div>
         </div>
-
+        <div aria-live="polite" aria-atomic="true" role="status" className="text-[10px] bg-slate-900 border rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-black uppercase tracking-wider mr-1">
+              {toolkitStatus === 'loading' || quickAction === 'uploading' ? 'PROCESSING' : toolkitStatus === 'enhancing' ? 'ENHANCING' : toolkitStatus === 'exporting' ? 'EXPORTING' : 'STATUS'}
+            </span>
+            <span className="opacity-90">{toolkitMessage || (isAiDetecting ? 'AI detection in progress…' : 'Ready')}</span>
+          </div>
+          {isAiDetecting && (
+            <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded">Detecting…</span>
+          )}
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(['idle', 'parsing', 'interpreting', 'review_required', 'approved', 'error']).map(status => (
+          {['idle', 'parsing', 'interpreting', 'review_required', 'approved', 'error'].map(status => (
             <div key={status} className="flex items-center gap-1">
               <div className={`w-1.5 h-1.5 rounded-full ${uploadStatus === status ? 'bg-[#C9A84C] animate-pulse' : 'bg-slate-700'}`} />
               <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{status.replace('_', ' ')}</span>
             </div>
           ))}
+        </div>
+        {zoneTags.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1" role="listbox" aria-label="Detected zones">
+            <Tag className="w-4 h-4 text-slate-500 shrink-0" />
+            {zoneTags.map((zone, idx) => {
+              const room = (interpretation?.rooms || []).find(r => r.id === zone.id);
+              const areaText = room?.bounds ? `${Math.max(0, ((room.bounds.width || 0) / 1000)).toFixed(1)}m × ${Math.max(0, ((room.bounds.height || 0) / 1000)).toFixed(1)}m` : '—';
+              const letter = String.fromCharCode(97 + (idx % 26));
+              return (
+                <button
+                  key={zone.id}
+                  onClick={() => handleTagClick(zone)}
+                  aria-selected={selectedRoomId === zone.id}
+                  className={`px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider shrink-0 transition focus-visible:ring-2 focus-visible:ring-[#D4AF37] ${selectedRoomId === zone.id ? 'border-[#C9A84C]/70 shadow-md shadow-[#C9A84C]/10 scale-105' : 'opacity-80 hover:opacity-100'} ${zone.colorClass}`}
+                >
+                  <span className="mr-1 text-[9px] opacity-80 font-mono">{letter}.</span>
+                  {zone.name}
+                  <span className="ml-1 text-[9px] opacity-70 font-mono">{areaText}</span>
+                  {zone.confidence !== null && <span className="ml-1 text-[9px] opacity-70">{(zone.confidence * 100).toFixed(0)}%</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div className="text-[9px] text-slate-500">Keyboard: <span className="font-mono text-slate-300">A-Z</span> select zones · <span className="font-mono text-slate-300">F5</span> AI detect · <span className="font-mono text-slate-300">Ctrl/Cmd+S</span> save · <span className="font-mono text-slate-300">Ctrl/Cmd+Z</span> undo</div>
         </div>
 
         {zoneTags.length > 0 && (
@@ -571,7 +722,6 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
             <span className="opacity-90">{toolkitMessage || 'Ready'}</span>
           </div>
         </div>
-      </div>
 
       {/* ── VARIANT BRANCH MODAL (reused from 3D studio) ── */}
       {showBranchModal && (
