@@ -2875,6 +2875,52 @@ app.post('/api/projects/:id/vendors/:category/refresh', (req, res) => {
   res.json({ success: true, providers: ['openrouter', 'openai', 'huggingface'], cached: true });
 });
 
+// Agent B Studio behavior: vendor approval workflow
+app.post('/api/catalog/vendors/approve', (req, res) => {
+  const { vendorId, status, note } = req.body || {};
+  if (!vendorId || !status) {
+    return res.status(400).json({ error: 'vendorId and status are required' });
+  }
+  const allowed = ['proposed', 'approved', 'rejected', 'on_hold'];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Allowed: ${allowed.join(', ')}` });
+  }
+  try {
+    db.prepare(
+      `UPDATE material_catalog SET status = ?, material_subtitle = ? WHERE id = ?`
+    ).run(status, note ? `Approval note: ${String(note).slice(0, 120)}` : null, vendorId);
+    res.json({ success: true, vendorId, status, note: note || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Agent B Studio behavior: payment state blocker
+app.get('/api/projects/:id/tool-state', (req, res) => {
+  const projectId = req.params.id;
+  try {
+    const project = db.prepare("SELECT status, budget FROM projects WHERE id = ?").get(projectId);
+    const payments = db.prepare("SELECT amount FROM payments WHERE project_id = ?").all(projectId);
+    const invoices = db.prepare("SELECT amount, status FROM invoices WHERE project_id = ?").all(projectId);
+    const totalPaid = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const totalInvoiced = invoices.reduce((s, inv) => s + (Number(inv.amount) || 0), 0);
+    const outstanding = Math.max(0, totalInvoiced - totalPaid);
+    const blockedTools = outstanding > 0 ? ['production', 'cutlist', 'invoice'] : [];
+    res.json({
+      projectStatus: project?.status || 'brief',
+      budget: project?.budget || 0,
+      totalPaid,
+      totalInvoiced,
+      outstanding,
+      blockedTools,
+      toolBlockReason: outstanding > 0 ? 'Outstanding payments must be cleared to unlock production tools.' : null,
+      onboardingComplete: !!(project && project.status !== 'brief')
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/projects/:id/pinterest/search', (req, res) => {
   const q = (req.query.q || 'interior').trim();
   const projectId = req.params.id;
