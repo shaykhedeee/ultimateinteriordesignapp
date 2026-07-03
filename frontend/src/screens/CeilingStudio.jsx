@@ -45,7 +45,7 @@ export default function CeilingStudio({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-    fetch(`getApiBase()/projects/${projectId}`)
+    fetch(`${API_BASE}/projects/${projectId}`)
       .then(res => res.json())
       .then(setProject)
       .catch(() => {});
@@ -74,7 +74,7 @@ export default function CeilingStudio({ projectId }) {
     if (!estimate || !projectId) return;
     setStatus('Saving estimate...');
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/ceiling-estimate`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/ceiling-estimate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ room, ceilingType, ledType, acDrop, smokeDetector, soffit, dimensions: { width: innerWidth, depth: innerDepth, area }, estimate })

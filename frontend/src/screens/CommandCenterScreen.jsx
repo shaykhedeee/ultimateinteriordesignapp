@@ -439,7 +439,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     try {
       const form = new FormData();
       form.append('floorplan', file);
-      const upload = await fetch(`getApiBase()/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
+      const upload = await fetch(`${API_BASE}/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
       if (!upload.ok) throw new Error('Upload failed');
       const data = await upload.json();
       const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:5055';
@@ -711,7 +711,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   if (selectedProjectId) {
                     setStatusMessage('Enhancing floor plan...');
                     try {
-                      await fetch(`getApiBase()/projects/${selectedProjectId}/cad/ai-detect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'enhance' }) });
+                      await fetch(`${API_BASE}/projects/${selectedProjectId}/cad/ai-detect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'enhance' }) });
                       setStatusMessage('AI enhancement complete');
                     } catch (err) {
                       setStatusMessage('AI enhancement failed');
@@ -864,7 +864,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                 triggerLoading('rooms_ready', 'Saving room zonation...');
                 setStatusMessage('Saving rooms');
                 try {
-                  await fetch(`getApiBase()/projects/${project.id}/cad`, {
+                  await fetch(`${API_BASE}/projects/${project.id}/cad`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -955,7 +955,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   }
                   setStatusMessage(`Assigning via ${mode.label}...`);
                   try {
-                    await fetch(`getApiBase()/projects/${project.id}/cad/ai-detect`, {
+                    await fetch(`${API_BASE}/projects/${project.id}/cad/ai-detect`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ action: mode.id })

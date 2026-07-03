@@ -68,7 +68,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
   const fetchReadiness = async (projId) => {
     setIsReadinessLoading(true);
     try {
-      const res = await fetch(`getApiBase()/projects/${projId}/readiness`);
+      const res = await fetch(`${API_BASE}/projects/${projId}/readiness`);
       const data = await res.json();
       setReadinessData(data);
     } catch (err) {
@@ -80,7 +80,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
 
   const handleUpdateStatus = async (projectId, newStatus) => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/status`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -493,8 +493,8 @@ function PaymentMilestoneChips({ projectId }) {
     setLoading(true);
     try {
       const [planRes, paymentsRes] = await Promise.all([
-        fetch(`getApiBase()/projects/${projectId}/payment-plans`),
-        fetch(`getApiBase()/projects/${projectId}/payments`),
+        fetch(`${API_BASE}/projects/${projectId}/payment-plans`),
+        fetch(`${API_BASE}/projects/${projectId}/payments`),
       ]);
       const planData = planRes.ok ? await planRes.json() : [];
       const paymentsData = paymentsRes.ok ? await paymentsRes.json() : [];
@@ -570,7 +570,7 @@ function VendorApprovalFlow({ vendor }) {
     setStatus(next);
     setLocal((prev) => ({ ...(prev || {}), status: next }));
     try {
-      const res = await fetch(`getApiBase()/catalog/vendors/approve`, {
+      const res = await fetch(`${API_BASE}/catalog/vendors/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vendorId: vendor?.id, status: next, note })
@@ -626,7 +626,7 @@ function BOMAttachPanel({ projectId }) {
     if (!mounted || !projectId) return;
     setStatus('Saving BOM...');
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/cutlist`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/cutlist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ panels_json: JSON.stringify(lines) })
@@ -714,7 +714,7 @@ function TimelineAttachPanel({ projectId }) {
   const attach = async () => {
     if (!projectId || !note.trim()) return;
     try {
-      await fetch(`getApiBase()/projects/${projectId}/timeline`, {
+      await fetch(`${API_BASE}/projects/${projectId}/timeline`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventType: 'design.note', title: 'Agent B Studio Flow Attach', detail: note, source: 'agent-b-flow' })

@@ -50,7 +50,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     try {
       const body = { prompt: aiPrompt };
       if (measurementsSaved) body.userMeasurements = wallMeasurements;
-      const res = await fetch(`getApiBase()/projects/${projectId}/drawings/elevations/${selectedWallId}/ai-edit`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/drawings/elevations/${selectedWallId}/ai-edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -75,7 +75,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     if (!selectedWallId) return;
     setIsProcessingAi(true);
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/render-3d`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/render-3d`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wallId: selectedWallId, measurements: measurementsSaved ? wallMeasurements : {} })
@@ -96,7 +96,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const fetchProjectDetails = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setStaleDrawings(data.stale_drawings === 1);
@@ -108,7 +108,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const handleRegenerateDrawings = async () => {
     try {
-      await fetch(`getApiBase()/projects/${projectId}/jobs`, {
+      await fetch(`${API_BASE}/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'drawing_generation' })
@@ -135,7 +135,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const loadCADData = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/cad`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/cad`);
       const data = await res.json();
       
       const loadedWalls = JSON.parse(data.walls_json || '[]');
@@ -233,7 +233,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const saveElevations = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/cad`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -463,7 +463,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
             <button
               onClick={() => {
                 if (selectedWallId) {
-                  window.open(`getApiBase()/projects/${projectId}/drawings/elevations/${selectedWallId}/dxf`, '_blank');
+                  window.open(`${API_BASE}/projects/${projectId}/drawings/elevations/${selectedWallId}/dxf`, '_blank');
                   showToast("DXF CAD Blueprint downloaded!");
                 }
               }}

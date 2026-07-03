@@ -119,7 +119,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   const loadCatalog = async () => {
     setCatalogLoading(true);
     try {
-      const res = await fetch('getApiBase()/furniture-catalog');
+      const res = await fetch('${API_BASE}/furniture-catalog');
       const data = await res.json();
       if (Array.isArray(data)) {
         setCatalogItems(data);
@@ -154,7 +154,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
 
   const fetchBranches = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/scenes`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/scenes`);
       if (res.ok) {
         const data = await res.json();
         setVersions(data);
@@ -182,7 +182,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   const handleToggleLock = async () => {
     const sceneId = useEditorStore.getState().sceneId;
     if (isLocked) {
-      const res = await fetch(`getApiBase()/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
       if (res.ok) {
         useEditorStore.setState({ isLocked: false, lockReason: '' });
         setStatusChip('Scene unlocked for edits.');
@@ -190,7 +190,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     } else {
       const reason = window.prompt('Enter lock reason:', 'Approved by Client');
       if (reason !== null) {
-        const res = await fetch(`getApiBase()/projects/${projectId}/scenes/${sceneId}/lock`, {
+        const res = await fetch(`${API_BASE}/projects/${projectId}/scenes/${sceneId}/lock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reason })
@@ -215,7 +215,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     setDetecting(true);
     setStatusChip('Detecting objects in the layout — one moment.');
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/cad/ai-detect`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/projects/${projectId}/cad/ai-detect`, { method: 'POST' });
       const data = await res.json();
       setStatusChip(data?.message || 'Detection complete.');
       setActionCounts({ assigned: 2, pending: 0 });

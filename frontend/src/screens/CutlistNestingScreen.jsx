@@ -19,7 +19,7 @@ export default function CutlistNestingScreen({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-    fetch(`getApiBase()/projects/${projectId}/cutlist`)
+    fetch(`${API_BASE}/projects/${projectId}/cutlist`)
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
         if (data.panels_json) setPanelsJson(JSON.stringify(data.panels_json, null, 2));
@@ -50,7 +50,7 @@ export default function CutlistNestingScreen({ projectId }) {
   const downloadDxf = async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/cutlist/dxf?machine=${encodeURIComponent(machineType)}`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/cutlist/dxf?machine=${encodeURIComponent(machineType)}`);
       if (!res.ok) throw new Error('DXF export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
