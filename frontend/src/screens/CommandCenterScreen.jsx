@@ -2020,30 +2020,62 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     setToolResult(null);
     try {
       const projectId = project?.id;
-      if (!projectId) {
-        throw new Error('No active project selected');
+      if (!projectId) throw new Error('No active project selected');
+
+      const API_BASE = 'http://127.0.0.1:5055/api';
+      const toolKey = activeTool?.key || '';
+      let endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
+      let body = { projectId };
+
+      if (toolKey === 'laminate_swapper' || toolKey === 'laminate-changer') {
+        endpoint = `${API_BASE}/projects/${projectId}/renders/laminate-swap`;
+        body = { room: 'living', componentType: 'Cabinet Shutters', newMaterial: '', instruction: 'AI-assisted laminate swap from active reference.' };
+      } else if (toolKey === 'swatch_match') {
+        endpoint = `${API_BASE}/projects/${projectId}/renders/suggest-palette`;
+        body = { roomType: 'living', baseColor: '#D4AF37' };
+      } else if (toolKey === 'rcp_planner') {
+        endpoint = `${API_BASE}/projects/${projectId}/zones/design-plan`;
+        body = { planType: 'rcp', notes: 'Auto-planned RCP from tool hub.' };
+      } else if (toolKey === 'elevation_draft') {
+        endpoint = `${API_BASE}/projects/${projectId}/renders/export`;
+        body = { type: 'elevation', wallFace: elevationWall || 'North Wall' };
+      } else if (toolKey === 'extruder_3d') {
+        endpoint = `${API_BASE}/projects/${projectId}/renders/generate`;
+        body = { variantCount: 1, modelTier: 'draft', room: 'living', style: 'contemporary' };
+      } else if (toolKey === 'blueprint_parser' || toolKey === 'camera_planner' || toolKey === 'walkthrough_config' || toolKey === 'svg_elevation_builder' || toolKey === 'bom_calculator' || toolKey === 'invoice_ledger') {
+        endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
+        body = { projectId };
+      } else {
+        endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
+        body = { projectId };
       }
-      const res = await fetch('http://127.0.0.1:5055/api/tools/run', {
+
+      const runRes = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, toolKey: activeTool?.key })
+        body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error(`Tool run failed: ${res.status}`);
-      await res.json();
-      const resultRes = await fetch(`http://127.0.0.1:5055/api/tools/result?toolKey=${encodeURIComponent(activeTool?.key || '')}&projectId=${encodeURIComponent(projectId)}`);
-      const resultJson = await resultRes.json();
-      if (activeTool?.key === 'ambient_lighting') {
-        setToolResult({ success: true, text: resultJson.text || '' });
-      } else if (activeTool?.key === 'rcp_planner') {
-        setToolResult({ success: true, text: resultJson.text || '', layoutPoints: resultJson.layoutPoints || [] });
-      } else if (activeTool?.key === 'elevation_draft') {
-        setToolResult({ success: true, text: resultJson.text || '', wallFace: resultJson.wallFace || 'North Wall' });
-      } else if (activeTool?.key === 'swatch_match') {
-        setToolResult({ success: true, text: resultJson.text || '', swatchMatch: resultJson.swatchMatch || null });
-      } else if (activeTool?.key === 'extruder_3d') {
-        setToolResult({ success: true, text: resultJson.text || '', extruded: !!resultJson.extruded });
+      if (!runRes.ok) {
+        const text = await runRes.text().catch(() => '');
+        throw new Error(`Run failed: ${runRes.status} ${text.slice(0, 200)}`);
+      }
+      const resultJson = await runRes.json();
+      const success = resultJson?.success || resultJson?.success === undefined;
+
+      if (toolKey === 'laminate_swapper' || toolKey === 'laminate-changer') {
+        setToolResult({ success, text: resultJson?.render ? 'Laminate swap render updated.' : 'Laminate swap request accepted.', render: resultJson?.render || null });
+      } else if (toolKey === 'swatch_match') {
+        setToolResult({ success, text: resultJson?.suggestions ? 'Palette suggestions returned.' : 'Swatch match request accepted.', suggestions: resultJson?.suggestions || null });
+      } else if (toolKey === 'rcp_planner') {
+        setToolResult({ success, text: resultJson?.text || 'RCP planning task accepted.', layoutPoints: resultJson?.layoutPoints || [] });
+      } else if (toolKey === 'elevation_draft') {
+        setToolResult({ success, text: resultJson?.text || 'Elevation draft request accepted.', wallFace: elevationWall || 'North Wall' });
+      } else if (toolKey === 'extruder_3d') {
+        setToolResult({ success, text: resultJson?.text || '3D generation requested.', extruded: !!resultJson?.variants?.length || !!resultJson?.render });
+      } else if (toolKey === 'blueprint_parser' || toolKey === 'camera_planner' || toolKey === 'walkthrough_config' || toolKey === 'svg_elevation_builder' || toolKey === 'bom_calculator' || toolKey === 'invoice_ledger') {
+        setToolResult({ success, text: resultJson?.text || resultJson?.message || `Specialist tool ${toolKey} executed successfully.` });
       } else {
-        setToolResult({ success: true, text: resultJson.text || `Specialist tool execution success. Outputs saved & linked to active project: "${project?.name || 'Onboarding Lead'}"` });
+        setToolResult({ success, text: resultJson?.text || resultJson?.reply || `Tool execution completed for ${toolKey}. Outputs saved to active project.` });
       }
     } catch (err) {
       setToolResult({ success: false, text: `Tool execution failed: ${err.message}` });

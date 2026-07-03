@@ -23,7 +23,8 @@ const TAB_TITLES = {
   tvunit: 'TV Unit Generator',
   finance: 'Commerce, Estimates & Quotations',
   timeline: 'Project Activity & Event Log',
-  jobs: 'Background Jobs & Rendering Pipeline Monitor'
+  jobs: 'Background Jobs & Rendering Pipeline Monitor',
+  settings: 'Settings & Providers'
 };
 
 const NAV_SECTIONS = [
@@ -62,7 +63,8 @@ const NAV_SECTIONS = [
       { id: 'pinterest', label: 'Pinterest Learning', icon: <Sparkles className="w-4 h-4" />, disabled: true },
       { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: true },
       { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: true },
-      { id: 'system-admin', label: 'System Admin', icon: <Shield className="w-4 h-4" /> }
+      { id: 'system-admin', label: 'System Admin', icon: <Shield className="w-4 h-4" /> },
+      { id: 'settings', label: 'Providers & Settings', icon: <Settings className="w-4 h-4" /> }
     ]
   }
 ];

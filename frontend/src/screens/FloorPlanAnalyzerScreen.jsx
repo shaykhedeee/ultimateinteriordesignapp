@@ -231,19 +231,33 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     }
   };
 
+  const planToolkitMessage = (msg, kind = 'idle') => {
+    setToolkitMessage(msg);
+    setToolkitStatus(kind);
+    if (kind !== 'idle') setTimeout(() => { setToolkitMessage(''); setToolkitStatus('idle'); }, 2350);
+  };
+
   const handleSaveVersion = () => {
-    const reason = window.prompt('Enter revision note:', `Version ${versionNumber + 1}`);
-    if (reason !== null) {
-      saveSceneVersion(reason || undefined);
-    }
+    const reason = `Version ${versionNumber + 1}`;
+    const confirmed = {};
+    planToolkitMessage('Saving version...', 'loading');
+    saveSceneVersion(reason).then(() => {
+      planToolkitMessage('Floorplan version saved.', 'success');
+    }).catch((_) => {
+      planToolkitMessage('Version save failed.', 'error');
+    });
   };
 
   const handleToggleLock = async () => {
     const sceneId = useEditorStore.getState().sceneId;
+    if (!sceneId) {
+      planToolkitMessage('Scene ID missing.', 'error');
+      return;
+    }
     if (isLocked) {
-      if (!window.confirm('Unlock this scene?')) return;
       await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
       useEditorStore.setState({ isLocked: false, lockReason: '' });
+      planToolkitMessage('Scene unlocked.', 'success');
     } else {
       const reason = window.prompt('Lock reason:', 'Approved by Client');
       if (reason === null) return;
@@ -253,6 +267,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
         body: JSON.stringify({ reason })
       });
       useEditorStore.setState({ isLocked: true, lockReason: reason || '' });
+      planToolkitMessage('Scene locked.', 'success');
     }
   };
 
@@ -284,11 +299,10 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
   };
 
   const handleCreateBranch = async () => {
-    const newB = window.prompt('Enter new design branch name:', 'variant_2');
-    if (!newB) return;
-    const cleaned = newB.trim().toLowerCase().replace(/\s+/g, '_');
+    const newB = `V-${Date.now().toString(36).slice(-4)}`;
+    const cleaned = newB.trim().toLowerCase().replace(/\s+/g, '_') || newB;
     loadScene(projectId, cleaned);
-    setBranches(prev => Array.from(new Set([...prev, cleaned])));
+    setBranches((prev) => Array.from(new Set([...prev, cleaned])));
     setToolkitMessage(`Created branch: ${cleaned}`, 'success');
   };
 
