@@ -154,6 +154,9 @@ export default function VendorIntelligence({ projectId }) {
                 <Truck className="w-3.5 h-3.5 text-blue-500" /> Logistics Ready
               </span>
             </div>
+
+            <VendorApprovalFlow vendor={vendor} />
+
           </div>
         ))}
       </div>

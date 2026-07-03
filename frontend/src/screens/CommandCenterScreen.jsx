@@ -2345,13 +2345,18 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
             {/* Run Button */}
             <button
               onClick={handleRunTool}
-              disabled={isRunning}
+              disabled={isRunning || isToolBlocked}
               className="w-full py-3 bg-[#D4AF37] hover:bg-[#e6c045] disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#D4AF37]/5 cursor-pointer"
             >
               {isRunning ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   Executing AI Pipeline...
+                </>
+              ) : isToolBlocked ? (
+                <>
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  {toolBlockReason || 'Tool blocked'}
                 </>
               ) : (
                 <>
@@ -2360,6 +2365,9 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                 </>
               )}
             </button>
+            {isToolBlocked && toolBlockReason && (
+              <p className="text-[10px] text-amber-400 font-semibold text-center">{toolBlockReason}</p>
+            )}
 
             {/* Live Interactive Results Visualizer Area */}
             {isRunning && (
