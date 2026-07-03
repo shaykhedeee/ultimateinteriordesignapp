@@ -26,7 +26,11 @@ import { chatAura, getAuraProviderStatus } from './services/aura-chat-service.js
 import { listProfiles } from './services/openrouter-profiles.js';
 import { registerTool, TOOL_REGISTRY } from './services/tool-registry.js';
 import { executeInference, listSupportedTaskTypes, listProvidersForTask } from './services/inference-gateway.js';
+import { TASK_TYPES, PROVIDER_MODES, CAPABILITY_TAGS, canHandleTask, providersForTask, taskSupported, normalizeProviderKey, providerLabel } from './services/provider-registry.js';
+import { resolveProviderForTask, recordProviderMetadata } from './services/provider-router-service.js';
 import { renderCanonicalTopView, enhanceCanonicalTopView, getProjectTopViewAssets } from './services/topview-enhancement-worker.js';
+import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory } from './services/render-edit-service.js';
+import { buildEditPlan, resolveEditProvider, shouldRetryEdit, nextEditRetryState, editStatusChip } from './services/render-edit-planner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,8 +115,6 @@ app.get('/api/diagnostics/api-keys', (req, res) => {
   });
 });
 
-// Provider Router API
-import { resolveProviderForTask, recordProviderMetadata, TASK_TYPES } from './services/provider-router-service.js';
 
 app.post('/api/providers/resolve', (req, res) => {
   try {
@@ -3044,6 +3046,127 @@ app.post('/api/tools/:toolSlug/run', async (req, res) => {
     res.json({ success: true, tool, result });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 11. RENDER EDIT + LINEAGE API
+// ==========================================
+
+const EDIT_TYPE_OPTIONS = Array.from(ALLOWED_EDIT_TYPES);
+
+app.get('/api/projects/:id/renders/history', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { zoneId } = req.query;
+    const history = listRenderHistory(projectId, zoneId || null);
+    res.json({ success: true, history });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/renders', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { zoneId, parentRenderId, kind, imageUrl, prompt, negativePrompt, provider, model, seed, style, room, metadata } = req.body || {};
+    const render = createRenderHistoryRow({ projectId, zoneId, parentRenderId, kind, imageUrl, prompt, negativePrompt, provider, model, seed, style, room, metadata });
+    res.json({ success: true, render });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/renders/:renderId/edits', (req, res) => {
+  try {
+    const edits = listEditsForRender(req.params.renderId);
+    res.json({ success: true, edits });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/renders/:renderId/edits/:editId', (req, res) => {
+  try {
+    const edit = getEdit(req.params.editId);
+    if (!edit) return res.status(404).json({ error: 'Edit not found' });
+    res.json({ success: true, edit });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/renders/:renderId/edits', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const renderId = req.params.renderId;
+    const { editType, title, instruction, maskAssetId, maskBboxJson, referenceAssetId, roomStyleContext, geometryContext, preserveCamera, preserveGeometry, preserveLightingDirection } = req.body || {};
+
+    if (!EDIT_TYPE_OPTIONS.includes(editType)) {
+      return res.status(400).json({ error: `Unsupported edit type. Allowed: ${EDIT_TYPE_OPTIONS.join(', ')}` });
+    }
+    if (!instruction) return res.status(400).json({ error: 'instruction is required' });
+
+    const providerRouting = resolveProviderForTask({
+      taskType: 'inpaint',
+      organizationId: req.body.organizationId || null,
+      provider: req.body.provider || null,
+      providerMode: req.body.providerMode || null,
+      fallbackOrder: req.body.fallbackOrder || []
+    });
+
+    const result = createEditRequest({
+      projectId,
+      renderId,
+      parentRenderId: req.body.parentRenderId || null,
+      editType,
+      title,
+      instruction,
+      maskAssetId,
+      maskBboxJson,
+      referenceAssetId,
+      roomStyleContext,
+      geometryContext,
+      preserveCamera: preserveCamera !== false,
+      preserveGeometry: preserveGeometry !== false,
+      preserveLightingDirection: preserveLightingDirection !== false,
+      providerRouting
+    });
+
+    res.json({ success: true, edit: result });
+  } catch (err) {
+    console.error('[render-edit] create failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/renders/:renderId/edits/:editId/retry', (req, res) => {
+  try {
+    const result = retryEdit(req.params.editId);
+    if (!result) return res.status(404).json({ error: 'Edit not found' });
+    res.json({ success: true, retry: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/renders/:renderId/edits/:editId/cancel', (req, res) => {
+  try {
+    const result = cancelEdit(req.params.editId);
+    if (!result) return res.status(404).json({ error: 'Edit not found' });
+    res.json({ success: true, edit: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/render-edits/plan', (req, res) => {
+  try {
+    const { editType, instruction, roomStyleContext, geometryContext, referenceAssetId } = req.body || {};
+    const plan = buildEditPlan({ editType, instruction, roomStyleContext, geometryContext, referenceAssetId });
+    res.json({ success: true, plan });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 
