@@ -704,7 +704,7 @@ app.post('/api/projects/:id/ai/chat', async (req, res) => {
     const history = Array.isArray(body.history) ? body.history : [];
     const context = typeof body.context === 'string' ? body.context : body.message || '';
 
-    let projectContext = context || 'General interior design assistant mode.';
+    let projectContext = context || 'Indian interior design assistant mode. Defaults: pooja room in NE/East if space permits, parallel kitchen preferred, Merino/Grenlam laminates, Hettich/Blum hardware, budget-aware selections.';
     if (projectId && projectId !== 'demo') {
       const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
       if (project) {
@@ -714,7 +714,7 @@ app.post('/api/projects/:id/ai/chat', async (req, res) => {
         }
         const rooms = (brief.rooms || []).map(r => r.name || r.type).join(', ');
         const extra = `Project: ${project.client_name || ''} ${project.name || projectId}. Rooms: ${rooms || 'not defined'}. Status: ${project.status || 'unknown'}.`;
-        projectContext = [context, extra].filter(Boolean).join('\n');
+        projectContext = [projectContext, extra].filter(Boolean).join('\n');
       }
     }
 
@@ -723,7 +723,11 @@ app.post('/api/projects/:id/ai/chat', async (req, res) => {
       reply: result.reply,
       provider: result.provider,
       actionPreview: result.actionPreview,
-      actions: result.actions
+      actions: result.actions,
+      steps: result.steps,
+      evidence: result.evidence,
+      memoryEvent: result.memoryEvent,
+      providerMeta: result.providerMeta
     });
   } catch (err) {
     console.error('[ai/chat] Unexpected error:', err);
@@ -772,10 +776,10 @@ app.post('/api/ai/chat', async (req, res) => {
     const body = (req.body && typeof req.body === 'object') ? req.body : {};
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     const history = Array.isArray(body.history) ? body.history : [];
-    const context = typeof body.context === 'string' ? body.context : (message || 'General interior design assistant mode.');
-    if (!message) return res.status(400).json({ reply: 'Please enter a design instruction.', provider: 'validation', actionPreview: null, actions: [] });
+    const context = typeof body.context === 'string' ? body.context : (message || 'Indian interior design assistant mode. Defaults: pooja room NE/East, parallel kitchen, Merino/Grenlam laminates, Hettich/Blum hardware, budget-aware selections.');
+    if (!message) return res.status(400).json({ reply: 'Please enter a design instruction.', provider: 'validation', actionPreview: null, actions: [], steps: [], evidence: [], memoryEvent: null, providerMeta: null });
     const result = await chatAura({ message, history, context });
-    res.json({ reply: result.reply, provider: result.provider, model: result.model || 'unknown', actionPreview: result.actionPreview, actions: result.actions, providerMeta: result.providerMeta });
+    res.json({ reply: result.reply, provider: result.provider, model: result.model || 'unknown', actionPreview: result.actionPreview, actions: result.actions, providerMeta: result.providerMeta, steps: result.steps, evidence: result.evidence, memoryEvent: result.memoryEvent });
   } catch (err) {
     console.error('[ai/chat] Unexpected error:', err);
     res.status(500).json({ reply: 'AURA encountered a processing error. Please retry.', provider: 'error', model: 'unknown', actionPreview: null, actions: [] });

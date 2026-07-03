@@ -35,12 +35,6 @@ export const ROOM_TYPES = Object.freeze([
 
 export const ZONE_ROLES = Object.freeze(['primary', 'secondary', 'accent']);
 
-import { buildEnhancementPlan, ENHANCEMENT_MODES } from './enhancement-planner.js';
-import { generateInteriorAsset } from './image-provider.js';
-import { listProfiles } from './openrouter-profiles.js';
-import fs from 'fs';
-import path from 'path';
-
 const KNOWLEDGE_PATH = path.join(process.cwd(), 'server/services/aura/knowledge/indian-interiors-knowledge.md');
 let KNOWLEDGE_CACHE = '';
 let KNOWLEDGE_CACHE_MTIME = 0;
@@ -76,19 +70,39 @@ function buildIndianInjectionText(injects) {
   if (!injects || typeof injects !== 'object') return '';
   const keys = Object.keys(injects);
   if (!keys.length) return '';
-  const lines = keys.map((k) => `\n[${k}] ${String(injects[k] || '').trim()}`);
-  return lines.join('\n');
+  return keys.map((k) => `\n[${k}] ${String(injects[k] || '').trim()}`).join('');
 }
 
-function resolveTemplateDefaults(template, context = {}) {
-  const injected = template.system.replace('__INDIAN_KNOWLEDGE_BASE__', loadKnowledge());
+export function resolveTemplateDefaults(template, context = {}) {
+  const injected = String(template.system || '').replace('__INDIAN_KNOWLEDGE_BASE__', loadKnowledge());
   const injection = buildIndianInjectionText(context.indianInjects || DEFAULT_INDIAN_INJECTS);
   return {
-    system: injected || template.system,
+    system: injected,
     task: template.task || '',
     repair: template.repair || '',
     indiaContextTag: injection ? `\n\nIndian interiors expert mode. Use only Indian norms for laminates, hardware, pooja, kitchens, wardrobes, budgets, and vendors.${injection}` : ''
   };
+}
+
+export function injectIndianContext(intent, message, context = '') {
+  const lower = String(message || '').toLowerCase();
+  const additional = [];
+  if (lower.includes('pooja') || lower.includes('puja') || lower.includes('mandir')) {
+    additional.push(`[pooja] ${String(DEFAULT_INDIAN_INJECTS.pooja || '')}`);
+  }
+  if (lower.includes('kitchen') || lower.includes('hob') || lower.includes('parallel kitchen')) {
+    additional.push(`[kitchen] ${String(DEFAULT_INDIAN_INJECTS.kitchen || '')}`);
+  }
+  if (lower.includes('wardrobe') || lower.includes('wardrobe')) {
+    additional.push(`[wardrobe] ${String(DEFAULT_INDIAN_INJECTS.wardrobe || '')}`);
+  }
+  if (lower.includes('budget') || lower.includes('inexpensive') || lower.includes('cheap') || lower.includes('price')) {
+    additional.push(`[budgeting] ${String(DEFAULT_INDIAN_INJECTS.budgeting || '')}`);
+  }
+  if (additional.length === 0) {
+    additional.push(`[defaults] ${String(DEFAULT_INDIAN_INJECTS.laminates || '')}`);
+  }
+  return `${context}\n\nIndian interiors expert mode:\n${additional.join('\n')}`.trim();
 }
 
 export class AuraService {
@@ -128,7 +142,7 @@ export class AuraService {
   });
 
   #indianizedSystemPrompt() {
-    const knowledge = loadKnowledgeCache();
+    const knowledge = loadKnowledge();
     const knowledgeSnippet = knowledge ? `\nIndian interiors knowledge:\n${knowledge.slice(0, 3000)}` : '';
     return `${this.#defaultSystemPrompt}${knowledgeSnippet}`;
   }

@@ -124,3 +124,64 @@ class GeminiMultimodalService {
 }
 
 export default new GeminiMultimodalService();
+
+
+export function emptyRenderAnalysis(roomType) { return { roomType, components: [], recommendedSwaps: [], vastuSignals: [], source: 'simulated' }; }
+export function analyseRender(base64Image, roomType = 'living') {
+  if (!base64Image) return emptyRenderAnalysis(roomType);
+  const status = getGeminiStatus();
+  if (status.configured && status.enabled) {
+    for (const apiKey of geminiKeys()) {
+      try {
+        const payload = await callGeminiAnalyseRender(apiKey, status.model || 'gemini-2.5-flash', base64Image, roomType);
+        if (payload) return payload;
+      } catch {}
+    }
+  }
+  return simulateRenderAnalysis(base64Image, roomType);
+}
+export function detectVastuElements(projectId) {
+  const drawing = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+  if (!drawing) return { projectId, found: false, reason: 'no_cad_data' };
+  try {
+    const rooms = JSON.parse(drawing.rooms_json || '[]');
+    const area = sumArea(rooms);
+    const center = centroid(rooms);
+    return { projectId, found: true, rooms, areaMm2: area, centroid: center, recommendations: [
+      { principle: 'NE orientation', note: 'Mandir/study preferable in NE if space permits.' },
+      { principle: 'SE hob zone', note: 'Kitchen hob should sit toward SE corner.' },
+      { principle: 'SW master', note: 'Master bedroom prefers SW zone.' }
+    ]};
+  } catch { return { projectId, found: false, reason: 'parse_error' }; }
+}
+export function designSceneContext(roomType, components = []) {
+  return { roomType, components, suggestions: components.slice(0, 4).map(c => `${c.label}: ${c.changeable ? 'swap candidate' : 'preserve'}`), generatedAt: new Date().toISOString() };
+}
+async function callGeminiAnalyseRender(apiKey, model, base64Image, roomType) {
+  const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);
+  const body = {
+    contents: [
+      { parts: [{ text: 'You are an Indian interior-design vision assistant.' }] },
+      { parts: [{ text: 'Analyse this render for room type: ' + roomType + '. Return JSON with components[], recommendedSwaps, vastuSignals.' }] },
+      { parts: [{ text: 'Focus on Indian modular elements: pooja mandir, laminate shutters, teak-grain, marble backdrop, jali, tv console, wardrobe, chimney+hob.' }] }
+    ],
+    generationConfig: { temperature: 0.15, maxOutputTokens: 600 }
+  };
+  const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey }, body: JSON.stringify(body) });
+  if (!response.ok) throw new Error('gemini_vision_failed_' + response.status);
+  const payload = await response.json();
+  const text = payload?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join(' ').trim();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return { raw: text }; }
+}
+function simulateRenderAnalysis(base64Image, roomType) {
+  const kitchen = [{ id: 'cabinet_shutters', label: 'Cabinet Shutters', confidence: 0.9, changeable: true, finish: 'laminate' }];
+  const living = [{ id: 'tv_backdrop_panel', label: 'TV Backdrop Panel', confidence: 0.94, changeable: true, finish: 'laminate' }, { id: 'tv_console_cabinet', label: 'TV Console Cabinet', confidence: 0.9, changeable: true, finish: 'laminate' }];
+  const bedroom = [{ id: 'wardrobe_shutters', label: 'Wardrobe Shutters', confidence: 0.96, changeable: true, finish: 'laminate' }];
+  const pooja = [{ id: 'mandir_jali', label: 'Mandir Jali', confidence: 0.95, changeable: true, finish: 'laminate' }, { id: 'marble_backdrop', label: 'Marble Backdrop', confidence: 0.93, changeable: true, finish: 'stone' }];
+  const map = { kitchen, living, bedroom, pooja };
+  const components = map[roomType] || living;
+  return { roomType, components, recommendedSwaps: components.filter(c => c.changeable).slice(0,2), vastuSignals: [], source: 'simulated', generatedAt: new Date().toISOString() };
+}
+function sumArea(rooms) { let area = 0; rooms.forEach((r) => { if (!Array.isArray(r.points) || r.points.length < 3) return; let s = 0; for (let i = 0; i < r.points.length; i++) { const a = r.points[i]; const b = r.points[(i + 1) % r.points.length]; s += a.x * b.y - b.x * a.y; } area += Math.abs(s) / 2; }); return area; }
+function centroid(rooms) { let cx = 0, cy = 0, n = 0; rooms.forEach((r) => r.points?.forEach((p) => { cx += p.x; cy += p.y; n++; })); return n ? { x: cx / n, y: cy / n } : { x: 0, y: 0 }; }
