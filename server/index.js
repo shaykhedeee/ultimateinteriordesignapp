@@ -29,8 +29,9 @@ import { executeInference, listSupportedTaskTypes, listProvidersForTask } from '
 import { TASK_TYPES, PROVIDER_MODES, CAPABILITY_TAGS, canHandleTask, providersForTask, taskSupported, normalizeProviderKey, providerLabel } from './services/provider-registry.js';
 import { resolveProviderForTask, recordProviderMetadata } from './services/provider-router-service.js';
 import { renderCanonicalTopView, enhanceCanonicalTopView, getProjectTopViewAssets } from './services/topview-enhancement-worker.js';
-import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory } from './services/render-edit-service.js';
-import { buildEditPlan, resolveEditProvider, shouldRetryEdit, nextEditRetryState, editStatusChip } from './services/render-edit-planner.js';
+import { startEditWorker } from './services/job-orchestrator.js';
+import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory, enqueueEditJob } from './services/render-edit-service.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1249,6 +1250,64 @@ app.get('/api/projects/:id/renders/sketchup', (req, res) => {
 app.get('/api/providers/status', (req, res) => {
   try {
     res.json(getProviderStatus());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Editable provider/model/fallback settings for live tool execution
+import { listProviderSettings, getProviderSetting, updateProviderSetting, loadSettings, saveSettings } from './services/settings-service.js';
+
+app.get('/api/settings/providers', (req, res) => {
+  try {
+    const settings = listProviderSettings();
+    const live = (getProviderStatus && getProviderStatus().providers) || {};
+    const out = {};
+    for (const [key, setting] of Object.entries(settings.providers || {})) {
+      out[key] = {
+        ...setting,
+        configured: !!live[key],
+        liveStatus: live[key] ? 'configured' : 'not_configured'
+      };
+    }
+    res.json({ success: true, defaultProvider: settings.defaultProvider, defaultModel: settings.defaultModel, freeProvidersFirst: settings.freeProvidersFirst, maxCostPerImage: settings.maxCostPerImage, providers: out });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/providers', (req, res) => {
+  try {
+    const { provider, patch } = req.body || {};
+    if (!provider || !patch || typeof patch !== 'object') return res.status(400).json({ error: 'provider and patch object are required' });
+    const updated = updateProviderSetting(provider, patch);
+    res.json({ success: true, provider: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/providers/:provider/toggle', (req, res) => {
+  try {
+    const current = getProviderSetting(req.params.provider);
+    if (!current) return res.status(404).json({ error: 'Provider not found' });
+    const updated = updateProviderSetting(req.params.provider, { enabled: current.enabled === true ? false : true });
+    res.json({ success: true, provider: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/defaults', (req, res) => {
+  try {
+    const { defaultProvider, defaultModel, freeProvidersFirst, maxCostPerImage } = req.body || {};
+    const settings = loadSettings();
+    if (defaultProvider !== undefined) settings.defaultProvider = defaultProvider;
+    if (defaultModel !== undefined) settings.defaultModel = defaultModel;
+    if (freeProvidersFirst !== undefined) settings.freeProvidersFirst = Boolean(freeProvidersFirst);
+    if (maxCostPerImage !== undefined) settings.maxCostPerImage = Number(maxCostPerImage);
+    saveSettings(settings);
+    res.json({ success: true, settings: { defaultProvider: settings.defaultProvider, defaultModel: settings.defaultModel, freeProvidersFirst: settings.freeProvidersFirst, maxCostPerImage: settings.maxCostPerImage } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3176,6 +3235,7 @@ for (const tool of Object.values(TOOL_REGISTRY)) {
 }
 
 // Seed DB and start Express
+try { startEditWorker(); } catch (e) { console.warn('[startup] edit worker deferred:', e.message); }
 app.listen(port, () => {
   console.log(`Ultimate Interior Design API running at http://127.0.0.1:${port}`);
 });

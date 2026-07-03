@@ -13,6 +13,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
   const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'brand' | 'realestate'
+  const [demoStatus, setDemoStatus] = useState('');
 
   const allWorkflowTabs = [
     { id: 'smart', label: '🚀 Smart Project', desc: 'Plan to Scene', roles: ['designer', 'realestate'] },
@@ -73,6 +74,27 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 
   const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
 
+  const loadDemoClients = async () => {
+    setDemoStatus('Seeding...');
+    try {
+      const res = await fetch('http://127.0.0.1:5055/api/demo/seed', { method: 'POST' });
+      const data = await res.json();
+      setDemoStatus(`Loaded ${data.leads || 0} leads / ${data.projects || 0} projects`);
+      const [projRes, leadRes] = await Promise.all([
+        fetch('http://127.0.0.1:5055/api/projects'),
+        fetch('http://127.0.0.1:5055/api/leads')
+      ]);
+      const projJson = await projRes.json();
+      const leadJson = await leadRes.json();
+      setProjects(projJson);
+      setLeads(leadJson);
+      if (projJson.length > 0) setSelectedProjectId(projJson[0].id);
+    } catch (e) {
+      setDemoStatus('Seed failed');
+    }
+    setTimeout(() => setDemoStatus(''), 2200);
+  };
+
   // Pipeline calculations
   const totalLeads = leads.length;
   const activeProjectsCount = projects.length;
@@ -91,7 +113,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
           </h2>
           <p className="text-[10px] text-[#8A8899] mt-0.5">Adapt visualizer pipelines and tool suites to your professional role context.</p>
         </div>
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 gap-1.5 text-[10px] font-black uppercase">
+        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 gap-1.5 text-[10px] font-black uppercase" role="tablist" aria-label="Workspace operating mode">
           {[
             { id: 'designer', label: '🛠️ Designer Mode' },
             { id: 'brand', label: '🏬 Brand Mode' },
@@ -99,8 +121,11 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
           ].map(mode => (
             <button
               key={mode.id}
+              role="tab"
+              aria-selected={workspaceMode === mode.id}
+              aria-controls="workspace-panel"
               onClick={() => setWorkspaceMode(mode.id)}
-              className={`px-3 py-1.5 rounded-lg transition-all border ${
+              className={`px-3 py-1.5 rounded-lg transition-all border focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D9A84C] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                 workspaceMode === mode.id
                   ? 'bg-slate-900 border-slate-800 text-[#C9A84C] shadow-sm shadow-[#C9A84C]/5'
                   : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'
@@ -143,12 +168,22 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
         <div className="xl:col-span-2 space-y-6">
           
           {/* Tab Navigation */}
-          <div className="bg-slate-900/60 border border-slate-850 p-1.5 rounded-2xl flex gap-1 text-xs font-bold overflow-x-auto">
+          <div className="bg-slate-900/60 border border-slate-850 p-1.5 rounded-2xl flex gap-1 text-xs font-bold overflow-x-auto" role="tablist" aria-label="Command workflow panel">
             {workflowTabs.map(tab => (
               <button
                 key={tab.id}
+                id={`tab-${tab.id}`}
+                role="tab"
+                aria-selected={activeWorkflowTab === tab.id}
+                aria-controls={`panel-${tab.id}`}
+                tabIndex={activeWorkflowTab === tab.id ? 0 : -1}
                 onClick={() => setActiveWorkflowTab(tab.id)}
-                className={`flex-1 py-2 px-3 rounded-xl flex flex-col items-center justify-center transition min-w-[120px] ${
+                onKeyDown={(e) => {
+                  const idx = workflowTabs.findIndex(t => t.id === tab.id);
+                  if (e.key === 'ArrowRight' && idx < workflowTabs.length - 1) { e.preventDefault(); setActiveWorkflowTab(workflowTabs[idx + 1].id); }
+                  if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); setActiveWorkflowTab(workflowTabs[idx - 1].id); }
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl flex flex-col items-center justify-center transition min-w-[120px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D9A84C] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${
                   activeWorkflowTab === tab.id
                     ? 'bg-slate-950 text-[#C9A84C] border border-slate-850 shadow-md shadow-[#C9A84C]/5'
                     : 'text-slate-400 hover:text-slate-200'
@@ -161,7 +196,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
           </div>
 
           {/* Workflow Tab Workspace */}
-          <div className="glass-card border border-slate-850 rounded-3xl p-6 min-h-[460px]">
+          <div className="glass-card border border-slate-850 rounded-3xl p-6 min-h-[460px]" role="tabpanel" aria-labelledby={`tab-${activeWorkflowTab}`} id={`panel-${activeWorkflowTab}`}>
             {activeWorkflowTab === 'smart' && (
               <SmartProjectWorkspace 
                 project={activeProject} 
@@ -274,8 +309,62 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 
         </div>
 
+
+      {/* ── Pro Analytics Block ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider flex items-center gap-1.5">
+              <Activity className="w-4 h-4 text-[#C9A84C]" />
+              Pro Analytics
+            </h3>
+            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Last 7 days</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Render Jobs', value: '12', delta: '+3', positive: true },
+              { label: 'Avg Lead Time', value: '4.2d', delta: '-0.8d', positive: true },
+              { label: 'Client Reviews', value: '8', delta: '+2', positive: true },
+              { label: 'Pending BOM', value: '3', delta: '-1', positive: true },
+            ].map((item, idx) => (
+              <div key={idx} className="p-3 rounded-2xl bg-slate-950/40 border border-slate-850">
+                <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider block">{item.label}</span>
+                <div className="flex items-end justify-between mt-1">
+                  <strong className="text-xl font-black text-slate-100">{item.value}</strong>
+                  <span className={`text-[10px] font-black ${item.positive ? 'text-emerald-400' : 'text-rose-400'}`}>{item.delta}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="glass-card border border-slate-850 rounded-3xl p-6 space-y-4">
+          <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider flex items-center gap-1.5">
+            <Zap className="w-4 h-4 text-[#C9A84C]" />
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              { label: 'New Project', icon: Plus, action: () => onNavigateToTab && onNavigateToTab('smart') },
+              { label: 'Upload Files', icon: Upload, action: () => onNavigateToTab && onNavigateToTab('brief') },
+              { label: 'Run Diagnostics', icon: Activity, action: () => onNavigateToTab && onNavigateToTab('cad') },
+              { label: 'Export Pack', icon: FileText, action: () => onNavigateToTab && onNavigateToTab('finance') },
+              { label: 'Load Demo Clients', icon: RefreshCw, action: loadDemoClients }
+            ].map((item, idx) => (
+              <button key={idx} onClick={item.action} className="p-3 rounded-2xl bg-slate-950/40 border border-slate-850 hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/5 transition flex flex-col items-center justify-center gap-1.5 text-slate-300">
+                <item.icon className="w-4 h-4 text-[#C9A84C]" />
+                <span className="text-[10px] font-black uppercase tracking-wider">{item.label}</span>
+              </button>
+            ))}
+          </div>
+          {demoStatus && (
+            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400" aria-live="polite">
+              {demoStatus}
+            </div>
+          )}
+        </div>
       </div>
 
+      </div>
     </div>
   );
 }
@@ -284,29 +373,22 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 // WORKSPACE: Smart Project
 // ============================================================================
 function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateToTab }) {
-  const [wizardStep, setWizardStep] = useState('name_project'); 
-  // Steps: 'name_project', 'upload', 'enhance_view', 'scale_calibrate', 'draw_rooms', 'saving_rooms', 'rooms_ready', 'detecting_objects', 'detection_done', 'moodboard_view', 'render_ready'
-  
-  const [projectName, setProjectName] = useState('Verona Heights 3BHK Residence');
-  const [fileUploaded, setFileUploaded] = useState(false);
+  const [wizardStep, setWizardStep] = useState(project?.id ? 'upload' : 'name_project'); 
+  const [projectName, setProjectName] = useState(project?.name || '');
+  const [floorplanFile, setFloorplanFile] = useState(null);
+  const [floorplanUrl, setFloorplanUrl] = useState(project?.floorplanUrl || '');
   const [isEnhanced, setIsEnhanced] = useState(false);
   const [scaleDistance, setScaleDistance] = useState('4500');
   const [calibrationPoints, setCalibrationPoints] = useState([]);
-  const [markedRooms, setMarkedRooms] = useState([
-    { id: 'z1', label: 'Living / Dining Area', bounds: { x: 40, y: 55, w: 120, h: 70 } },
-    { id: 'z2', label: 'Master Bedroom', bounds: { x: 180, y: 35, w: 90, h: 80 } }
-  ]);
+  const [pixelsPerMeter, setPixelsPerMeter] = useState('40');
+  const [markedRooms, setMarkedRooms] = useState([]);
   const [selectedZoneToRender, setSelectedZoneToRender] = useState(null);
   const [loaderMessage, setLoaderMessage] = useState('');
-  const [detectedObjects, setDetectedObjects] = useState([
-    { id: 'o1', type: 'Sofa Unit', assigned: 'L-Shape Curved Sofa', matched: true },
-    { id: 'o2', type: 'TV Wall Node', assigned: 'Fluted Backlit Console', matched: true },
-    { id: 'o3', type: 'Bed Panel', assigned: 'Queen Upholstered Bed', matched: false }
-  ]);
-  const [assignMode, setAssignMode] = useState(null); // 'catalog', 'board', 'style'
-  const [cameraView, setCameraView] = useState(null); // 'perspective', 'isometric'
-  const [selectedAction, setSelectedAction] = useState(null); // next action click state
+  const [detectedObjects, setDetectedObjects] = useState([]);
+  const [assignMode, setAssignMode] = useState(null);
   const [actionProgress, setActionProgress] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [currentVersionId, setCurrentVersionId] = useState('');
 
   const canvasRef = useRef(null);
 
@@ -319,9 +401,32 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     }, 1500);
   };
 
-  const handleUpload = (e) => {
-    setFileUploaded(true);
-    setWizardStep('enhance_view');
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!selectedProjectId) {
+      setStatusMessage('Create or select a project first');
+      setTimeout(() => setStatusMessage(''), 2200);
+      return;
+    }
+    setFloorplanFile(file);
+    setStatusMessage('Uploading blueprint...');
+    try {
+      const form = new FormData();
+      form.append('floorplan', file);
+      const upload = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
+      if (!upload.ok) throw new Error('Upload failed');
+      const data = await upload.json();
+      const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:5055';
+      setFloorplanUrl(`${baseUrl}${data.floorplanUrl}`);
+      setCurrentVersionId(data.floorPlanVersionId);
+      setWizardStep('enhance_view');
+      setStatusMessage('Blueprint uploaded');
+    } catch (err) {
+      setStatusMessage('Upload failed');
+    } finally {
+      setTimeout(() => setStatusMessage(''), 2200);
+    }
   };
 
   const handleCanvasClick = (e) => {
@@ -399,13 +504,15 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
             <Upload className="w-5 h-5" />
           </div>
-          <div className="text-center">
-            <strong className="text-xs text-slate-200 block">Upload Floor Plan Blueprint for "{projectName}"</strong>
-            <span className="text-[10px] text-slate-500 mt-1 block font-bold uppercase">Click or Drag CAD DXF, PDF, or PNG layout plan</span>
+          <div className="text-center space-y-1">
+            <strong className="text-xs text-slate-200 block">Upload Floor Plan for "{projectName || 'New Project'}"</strong>
+            <span className="text-[10px] text-slate-500 block font-bold uppercase">CAD DXF, PDF, or PNG layout</span>
+            {floorplanFile && <span className="text-[10px] text-emerald-400 font-black uppercase">{floorplanFile.name}</span>}
+            {statusMessage && <span className="text-[10px] text-indigo-400 font-black uppercase" aria-live="polite">{statusMessage}</span>}
           </div>
           <label className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase text-[10px] tracking-wider py-2 px-5 rounded-xl cursor-pointer transition shadow-md shadow-[#D4AF37]/10">
             Select Blueprint
-            <input type="file" onChange={handleUpload} className="hidden" accept="image/*,application/pdf" />
+            <input type="file" onChange={handleUpload} className="hidden" accept="image/*,.pdf,.dxf" />
           </label>
         </div>
       )}
@@ -414,11 +521,18 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       {wizardStep === 'enhance_view' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-slate-950/60 border border-slate-850 rounded-2xl p-4 flex items-center justify-center min-h-[300px] relative overflow-hidden">
-            <img 
-              src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80" 
-              alt="Floor Plan Underlay" 
-              className={`w-full max-w-[400px] h-auto object-contain opacity-75 transition-all ${isEnhanced ? 'contrast-125 saturate-110 filter brightness-110' : ''}`} 
-            />
+            {floorplanUrl ? (
+              <img
+                src={floorplanUrl}
+                alt="Floor Plan Underlay"
+                className={`w-full max-w-[400px] h-auto object-contain opacity-75 transition-all ${isEnhanced ? 'contrast-125 saturate-110 filter brightness-110' : ''}`}
+              />
+            ) : (
+              <div className="text-center space-y-2">
+                <span className="text-[10px] text-slate-500 font-black uppercase">No floor plan loaded</span>
+                <button onClick={() => setWizardStep('upload')} className="text-[10px] text-[#D4AF37] font-bold uppercase">Upload blueprint</button>
+              </div>
+            )}
             {isEnhanced && (
               <div className="absolute top-4 right-4 bg-emerald-500/20 text-emerald-400 border border-emerald-950 font-mono text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
                 AI Enhanced
@@ -433,8 +547,19 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             
             <div className="space-y-2">
               <button 
-                onClick={() => {
+                onClick={async () => {
                   setIsEnhanced(true);
+                  if (selectedProjectId) {
+                    setStatusMessage('Enhancing floor plan...');
+                    try {
+                      await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/cad/ai-detect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'enhance' }) });
+                      setStatusMessage('AI enhancement complete');
+                    } catch (err) {
+                      setStatusMessage('AI enhancement failed');
+                    } finally {
+                      setTimeout(() => setStatusMessage(''), 2200);
+                    }
+                  }
                   triggerLoading('scale_calibrate', 'AI Top View Enhancement pipeline running...');
                 }}
                 className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-md shadow-[#D4AF37]/10"
@@ -468,11 +593,15 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               onClick={handleCanvasClick}
               className="w-full h-[320px] bg-slate-900 border border-slate-850 rounded-2xl relative overflow-hidden cursor-crosshair flex items-center justify-center"
             >
-              <img 
-                src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80" 
-                alt="Calibration Underlay" 
-                className="absolute w-full max-w-[360px] h-auto object-contain opacity-50 select-none pointer-events-none" 
-              />
+              {floorplanUrl ? (
+                <img
+                  src={floorplanUrl}
+                  alt="Calibration Underlay"
+                  className="absolute w-full max-w-[360px] h-auto object-contain opacity-50 select-none pointer-events-none"
+                />
+              ) : (
+                <div className="text-[10px] text-slate-500 font-black uppercase">No floor plan loaded</div>
+              )}
               
               {/* Calibration Line */}
               {calibrationPoints.map((pt, i) => (
@@ -532,11 +661,15 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               <span className="text-[#D4AF37] font-mono">Zones Mapped</span>
             </div>
             <div className="w-full h-[320px] bg-slate-900 border border-slate-850 rounded-2xl relative overflow-hidden flex items-center justify-center">
-              <img 
-                src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80" 
-                alt="Zonation Underlay" 
-                className="absolute w-full max-w-[360px] h-auto object-contain opacity-50 select-none pointer-events-none" 
-              />
+              {floorplanUrl ? (
+                <img
+                  src={floorplanUrl}
+                  alt="Zonation Underlay"
+                  className="absolute w-full max-w-[360px] h-auto object-contain opacity-50 select-none pointer-events-none"
+                />
+              ) : (
+                <div className="text-[10px] text-slate-500 font-black uppercase">No floor plan loaded</div>
+              )}
               
               {/* Highlight Mapped Rooms */}
               {markedRooms.map(rm => (
@@ -563,7 +696,33 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               <p className="text-[11px] text-slate-450 leading-relaxed">Draw room bounds by dragging boxes or click Save Rooms below to auto-interpret the layout zonation vectors.</p>
             </div>
             <button 
-              onClick={() => triggerLoading('rooms_ready', 'Rooms are being saved. Once they appear, pick one to render.')}
+              onClick={async () => {
+                if (!project?.id) {
+                  setStatusMessage('Select a project to continue');
+                  setTimeout(() => setStatusMessage(''), 2200);
+                  return;
+                }
+                triggerLoading('rooms_ready', 'Saving room zonation...');
+                setStatusMessage('Saving rooms');
+                try {
+                  await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      walls: [],
+                      openings: [],
+                      furniture: [],
+                      rooms: markedRooms,
+                      measures: { scaleDistance, pixelsPerMeter }
+                    })
+                  });
+                  setStatusMessage('Rooms saved');
+                } catch (err) {
+                  setStatusMessage('Save failed');
+                } finally {
+                  setTimeout(() => setStatusMessage(''), 2200);
+                }
+              }}
               className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10"
             >
               Save Rooms & Continue
@@ -577,22 +736,16 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
         <div className="space-y-4 max-w-md bg-slate-900/30 border border-slate-850 p-6 rounded-2xl">
           <label className="text-xs font-black text-slate-350 block uppercase tracking-wider">Rooms ready — pick one to render.</label>
           <div className="flex flex-col gap-2">
-            {[
-              { id: '1', name: 'Open Zone 1: Living Area' },
-              { id: '2', name: 'Open Zone 2: Master Bed' },
-              { id: '3', name: 'Open Zone 3: Kitchen' },
-              { id: '4', name: 'Open Zone 4: Kids Room' },
-              { id: '5', name: 'Open Zone 5: Balcony Garden' }
-            ].map(zone => (
+            {(markedRooms.length ? markedRooms : ([{ id: 'living', label: 'Open Zone 1: Living Area' }, { id: 'master', label: 'Open Zone 2: Master Bed' }, { id: 'kitchen', label: 'Open Zone 3: Kitchen' }])).map(zone => (
               <button 
                 key={zone.id}
                 onClick={() => {
-                  setSelectedZoneToRender(zone.name);
+                  setSelectedZoneToRender(zone.label);
                   triggerLoading('detection_done', 'Detecting objects in the layout — one moment.');
                 }}
-                className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/2 transition cursor-pointer text-slate-300"
+                className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition cursor-pointer text-slate-300"
               >
-                {zone.name}
+                {zone.label || zone.name}
               </button>
             ))}
           </div>
@@ -634,10 +787,27 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                 ].map(mode => (
                   <button
                     key={mode.id}
-                    onClick={() => {
-                      setAssignMode(mode.id);
-                      alert(`Product Assignments completed via ${mode.label}!`);
-                    }}
+                onClick={async () => {
+                  setAssignMode(mode.id);
+                  if (!project?.id) {
+                    setStatusMessage('Select a project for assignment');
+                    setTimeout(() => setStatusMessage(''), 2200);
+                    return;
+                  }
+                  setStatusMessage(`Assigning via ${mode.label}...`);
+                  try {
+                    await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad/ai-detect`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: mode.id })
+                    });
+                    setStatusMessage(`Assignments queued via ${mode.label}`);
+                  } catch (err) {
+                    setStatusMessage('Assignment failed');
+                  } finally {
+                    setTimeout(() => setStatusMessage(''), 2200);
+                  }
+                }}
                     className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
                       assignMode === mode.id 
                         ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
@@ -701,19 +871,26 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           {/* Main Rendering Canvas Preview */}
           <div className="lg:col-span-2 space-y-3">
             <div className="flex justify-between items-center text-[10px] text-slate-450 font-bold uppercase tracking-wider px-1">
-              <span>Smart Render Output ({cameraView} View)</span>
-              <span className="text-emerald-400 font-mono">Render Complete</span>
+              <span>Smart Render Output {(cameraView || 'perspective').replace(/^./, m => m.toUpperCase())} View</span>
+              <span className="text-emerald-400 font-mono">Render Ready</span>
             </div>
-            
             <div className="w-full h-[320px] rounded-2xl overflow-hidden bg-slate-950 relative border border-slate-850">
-              <img 
-                src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80" 
-                alt="Stunning 3D Render Output" 
-                className="w-full h-full object-cover" 
-              />
-              <div className="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl text-[9px] font-mono text-[#D4AF37] font-bold uppercase tracking-widest shadow-lg">
-                StudioOS AI Render v2
-              </div>
+              {selectedZoneToRender ? (
+                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                  <div className="text-center space-y-2">
+                    <span className="text-[10px] font-black uppercase">Render pending</span>
+                    <span className="text-[11px] text-slate-400 block">{selectedZoneToRender}</span>
+                    <span className="text-[10px] text-slate-500 block">Use Render Studio to generate final output</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                  <div className="text-center space-y-2">
+                    <span className="text-[10px] font-black uppercase">No zone selected</span>
+                    <span className="text-[10px] text-slate-500 block">Select a room in earlier step</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1841,33 +2018,29 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
   const handleRunTool = async () => {
     setIsRunning(true);
     setToolResult(null);
-
     try {
       const projectId = project?.id;
       if (!projectId) {
         throw new Error('No active project selected');
       }
-
       const res = await fetch('http://127.0.0.1:5055/api/tools/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, toolKey: activeTool.key })
+        body: JSON.stringify({ projectId, toolKey: activeTool?.key })
       });
       if (!res.ok) throw new Error(`Tool run failed: ${res.status}`);
       await res.json();
-
-      const resultRes = await fetch(`http://127.0.0.1:5055/api/tools/result?toolKey=${encodeURIComponent(activeTool.key)}&projectId=${encodeURIComponent(projectId)}`);
+      const resultRes = await fetch(`http://127.0.0.1:5055/api/tools/result?toolKey=${encodeURIComponent(activeTool?.key || '')}&projectId=${encodeURIComponent(projectId)}`);
       const resultJson = await resultRes.json();
-
-      if (activeTool.key === 'ambient_lighting') {
+      if (activeTool?.key === 'ambient_lighting') {
         setToolResult({ success: true, text: resultJson.text || '' });
-      } else if (activeTool.key === 'rcp_planner') {
+      } else if (activeTool?.key === 'rcp_planner') {
         setToolResult({ success: true, text: resultJson.text || '', layoutPoints: resultJson.layoutPoints || [] });
-      } else if (activeTool.key === 'elevation_draft') {
+      } else if (activeTool?.key === 'elevation_draft') {
         setToolResult({ success: true, text: resultJson.text || '', wallFace: resultJson.wallFace || 'North Wall' });
-      } else if (activeTool.key === 'swatch_match') {
+      } else if (activeTool?.key === 'swatch_match') {
         setToolResult({ success: true, text: resultJson.text || '', swatchMatch: resultJson.swatchMatch || null });
-      } else if (activeTool.key === 'extruder_3d') {
+      } else if (activeTool?.key === 'extruder_3d') {
         setToolResult({ success: true, text: resultJson.text || '', extruded: !!resultJson.extruded });
       } else {
         setToolResult({ success: true, text: resultJson.text || `Specialist tool execution success. Outputs saved & linked to active project: "${project?.name || 'Onboarding Lead'}"` });

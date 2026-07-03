@@ -71,30 +71,53 @@ export default function CeilingStudio({ projectId }) {
 
   const saveEstimate = async () => {
     if (!estimate || !projectId) return;
+    setStatus('Saving estimate...');
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/ceiling-estimate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room, ceilingType, ledType, acDrop, smokeDetector, soffit, estimate })
+        body: JSON.stringify({ room, ceilingType, ledType, acDrop, smokeDetector, soffit, dimensions: { width: innerWidth, depth: innerDepth, area }, estimate })
       });
-      if (res.ok) setStatus('Estimate saved to project record.');
+      if (res.ok) {
+        setStatus('Estimate saved to project record.');
+        window.dispatchEvent(new CustomEvent('refresh-project-stats'));
+      } else {
+        setStatus('Save failed: server error.');
+      }
     } catch (e) {
-      setStatus('Save failed.', 'error');
+      setStatus('Save failed: network error.');
     }
     setTimeout(() => setStatus(null), 2400);
   };
 
-  const exportSpec = () => {
+  const exportEstimatePDF = () => {
     if (!estimate) return;
-    const spec = `False Ceiling Spec\nArea: ${area} sq ft\nType: ${estimate.typeLabel}\nLED: ${estimate.ledLabel}\nTotal: ₹${Math.round(estimate.grand).toLocaleString('en-IN')}`;
-    const blob = new Blob([spec], { type: 'text/plain' });
+    const lines = [
+      `False Ceiling Generator - Project ${projectId || 'Draft'}`,
+      project ? `Client: ${project.client_name} | Project: ${project.name}` : '',
+      `Room: ${room}`,
+      `Dimensions: ${innerWidth} ft x ${innerDepth} ft`,
+      `Area: ${area} sq ft`,
+      ``,
+      `Finish: ${estimate.typeLabel}`,
+      `LED: ${estimate.ledLabel}`,
+      ``,
+      `Frame + Install:   ₹${Math.round(estimate.frame).toLocaleString('en-IN')}`,
+      `Ceiling Material:  ₹${Math.round(estimate.ceiling).toLocaleString('en-IN')}`,
+      `LED Cost:          ₹${Math.round(estimate.ledCost).toLocaleString('en-IN')}`,
+      `Extras:            ₹${Math.round(estimate.extras).toLocaleString('en-IN')}`,
+      `Site Markup (12%): ₹${Math.round(estimate.markup).toLocaleString('en-IN')}`,
+      ``,
+      `CLIENT QUOTE: ₹${Math.round(estimate.grand).toLocaleString('en-IN')}`
+    ];
+    const blob = new Blob([lines.filter(Boolean).join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ceiling-spec-${projectId || 'draft'}.txt`;
+    a.download = `false-ceiling-estimate-${project?.client_name || 'draft'}-${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatus('Spec exported.');
+    setStatus('Estimate exported.');
     setTimeout(() => setStatus(null), 2400);
   };
 
@@ -204,7 +227,7 @@ export default function CeilingStudio({ projectId }) {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={saveEstimate} className="flex-1 py-2 border border-emerald-800 text-emerald-400 font-bold uppercase text-[10px] rounded-lg hover:bg-emerald-950/40 transition">Save to Project</button>
-                  <button onClick={exportSpec} className="flex-1 py-2 border border-slate-800 text-slate-300 font-bold uppercase text-[10px] rounded-lg hover:bg-slate-900 transition">Export Spec TXT</button>
+                  <button onClick={exportEstimatePDF} className="flex-1 py-2 border border-slate-800 text-slate-300 font-bold uppercase text-[10px] rounded-lg hover:bg-slate-900 transition">Export Estimate</button>
                 </div>
               </div>
             ) : (

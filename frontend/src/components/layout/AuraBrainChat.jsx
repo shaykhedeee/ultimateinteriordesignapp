@@ -10,6 +10,7 @@ export default function AuraBrainChat({
   onExecuteAction,
   onRetryMessage,
   project,
+  providerStatus,
   isOpen,
   onClose
 }) {
@@ -31,7 +32,7 @@ export default function AuraBrainChat({
       if (onSendMessage) await onSendMessage(text);
     } finally {
       setIsAiTyping(false);
-      setPendingMessageId(prev => prev === sentId ? null : prev);
+      setPendingMessageId(prev => (prev === sentId ? null : prev));
     }
   };
 
@@ -43,7 +44,7 @@ export default function AuraBrainChat({
       await onRetryMessage(m.originalText || m.text, m.id);
     } finally {
       setIsAiTyping(false);
-      setPendingMessageId(prev => prev === m.id ? null : prev);
+      setPendingMessageId(prev => (prev === m.id ? null : prev));
     }
   };
 
@@ -51,7 +52,7 @@ export default function AuraBrainChat({
     setIsListening(true);
     setTimeout(() => {
       setIsListening(false);
-      onSendMessage && onSendMessage("Add a warm Chevron Herringbone oak floor material to this bedroom.");
+      if (onSendMessage) onSendMessage("Add a warm Chevron Herringbone oak floor material to this bedroom.");
     }, 2500);
   };
 
@@ -67,12 +68,9 @@ export default function AuraBrainChat({
   if (!isOpen) return null;
 
   const renderStatusPill = (status) => {
-    if (status === 'sending')
-      return <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">SENDING</span>;
-    if (status === 'sent')
-      return <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">SENT</span>;
-    if (status === 'error')
-      return <span className="text-[9px] font-mono font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded">ERROR</span>;
+    if (status === 'sending') return <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">SENDING</span>;
+    if (status === 'sent') return <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">SENT</span>;
+    if (status === 'error') return <span className="text-[9px] font-mono font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded">ERROR</span>;
     return null;
   };
 
@@ -87,8 +85,13 @@ export default function AuraBrainChat({
           <div>
             <h3 className="font-bold text-xs text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
               AURA BRAIN <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">ONLINE</span>
+              {providerStatus && (
+                <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
+                  {providerStatus.provider || providerStatus.fallbackProvider || 'LLM'} / {providerStatus.model || 'auto'}
+                </span>
+              )}
             </h3>
-            <p className="text-[9px] text-slate-500">LLaMA 3.1 70B Orchestrator</p>
+            <p className="text-[9px] text-slate-500">Tiny LLM Orchestrator</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -150,6 +153,8 @@ export default function AuraBrainChat({
           const isUser = m.sender === 'user';
           const isErrored = m.status === 'error';
           const isStreaming = m.isPartial || m.isStreaming;
+          const provider = m.provider || m.providerMeta?.provider;
+          const model = m.providerMeta?.model || m.model;
 
           return (
             <div key={m.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}>
@@ -158,6 +163,11 @@ export default function AuraBrainChat({
                 <span>•</span>
                 <span>{m.timestamp}</span>
                 <span className="ml-1">{renderStatusPill(m.status)}</span>
+                {!isUser && provider ? (
+                  <span className="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 font-mono text-[8px] text-slate-300">
+                    {provider === 'openrouter' ? `OpenRouter/${model || 'meta-llama'}` : provider}
+                  </span>
+                ) : null}
               </div>
 
               <div className={`p-3 rounded-2xl max-w-[90%] text-xs leading-relaxed ${
@@ -169,50 +179,48 @@ export default function AuraBrainChat({
               }`}>
                 <div className="flex items-start gap-2">
                   <p className="flex-1">
-                    <span className={isStreaming ? 'animate-pulse' : ''}>
-                      {isStreaming && !isUser ? (
-                        <>
-                          {m.text}
-                          <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-[#D4AF37] align-middle animate-pulse" />
-                        </>
-                      ) : (
-                        <>
-                          {m.text}
-                          {isErrored && (
-                            <span className="ml-2 inline-flex items-center gap-1">
-                              <button
-                                onClick={() => handleRetry(m)}
-                                className="text-[10px] font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 rounded px-1.5 py-0.5 transition"
-                                title="Retry"
-                              >
-                                <RefreshCcw className="w-3 h-3 inline mr-0.5" />
-                                Retry
-                              </button>
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </span>
+                    {isStreaming && !isUser ? (
+                      <span className={isStreaming ? 'animate-pulse' : ''}>
+                        {m.text}
+                        <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-[#D4AF37] align-middle animate-pulse" />
+                      </span>
+                    ) : (
+                      <span className={isStreaming ? 'animate-pulse' : ''}>
+                        {m.text}
+                        {isErrored ? (
+                          <span className="ml-2 inline-flex items-center gap-1">
+                            <button
+                              onClick={() => handleRetry(m)}
+                              className="text-[10px] font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 rounded px-1.5 py-0.5 transition"
+                              title="Retry"
+                            >
+                              <RefreshCcw className="w-3 h-3 inline mr-0.5" />
+                              Retry
+                            </button>
+                          </span>
+                        ) : null}
+                      </span>
+                    )}
                   </p>
                 </div>
 
                 {/* Executable AI Action Preview Box */}
-                {m.actionPreview && !isErrored && (
+                {m.actionPreview && !isErrored ? (
                   <div className="mt-3 p-3 rounded-xl bg-slate-950/85 border border-indigo-500/30 text-slate-200 space-y-2">
                     <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
                       <span className="font-bold text-[10px] text-indigo-300 flex items-center gap-1">
                         <Wand2 className="w-3.5 h-3.5 text-indigo-400" />
                         {m.actionPreview.title}
                       </span>
-                      {m.actionPreview.costImpact !== 0 && (
+                      {m.actionPreview.costImpact !== 0 ? (
                         <span className={`text-[10px] font-mono font-bold ${m.actionPreview.costImpact < 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
                           {m.actionPreview.costImpact < 0 ? `-$${Math.abs(m.actionPreview.costImpact)}` : `+$${m.actionPreview.costImpact}`}
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     <ul className="space-y-1 py-1 text-[10px]">
-                      {m.actionPreview.changes.map((change, idx) => (
+                      {(m.actionPreview.changes || []).map((change, idx) => (
                         <li key={idx} className="flex items-start gap-1.5 text-slate-350 font-medium">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                           <span>{change}</span>
@@ -223,12 +231,12 @@ export default function AuraBrainChat({
                     <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 border-t border-slate-800/80">
                       <span>Visual Impact:</span>
                       <span className="text-amber-400 font-bold">
-                        {'★'.repeat(Math.round(m.actionPreview.visualQualityImpact))}
-                        <span className="text-slate-700">{'★'.repeat(5 - Math.round(m.actionPreview.visualQualityImpact))}</span>
+                        {'★'.repeat(Math.round(m.actionPreview.visualQualityImpact || 0))}
+                        <span className="text-slate-700">{'★'.repeat(5 - Math.round(m.actionPreview.visualQualityImpact || 0))}</span>
                       </span>
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {/* Buttons to accept / modify */}
                 {m.actions && (
@@ -304,7 +312,7 @@ export default function AuraBrainChat({
           className={`p-2 rounded-xl border transition ${
             isListening
               ? 'bg-indigo-600 border-indigo-500 text-white animate-pulse animate-duration-500'
-              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+              : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
           }`}
           title="Click to dictate design instructions"
         >
