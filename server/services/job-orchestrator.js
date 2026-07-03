@@ -9,7 +9,7 @@ import { Queue, Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import { nanoid } from 'nanoid';
 import db from '../database/database.js';
-import { getProviderStatus } from './provider-config.js';
+import { getProviderStatus } from './image-provider.js';
 import { processInpaintRender } from './render-edit-worker.js';
 
 const connection = new Redis(process.env.REDIS_URL || 'redis://127.0.0.1:6379');

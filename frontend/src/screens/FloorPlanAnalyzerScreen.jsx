@@ -148,6 +148,8 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     setZoneTags(tags);
   };
 
+  const API_BASE = 'http://127.0.0.1:5055/api';
+
   const handleFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -163,7 +165,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     form.append('floorplan', file);
 
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/floorplan`, {
         method: 'POST',
         body: form
       });
@@ -182,7 +184,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     if (jobStatusIntervalRef.current) clearInterval(jobStatusIntervalRef.current);
     jobStatusIntervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`);
+        const res = await fetch(`${API_BASE}/projects/${projectId}/jobs`);
         if (!res.ok) return;
         const jobs = await res.json();
         const planJob = jobs.find(j => j.job_type === 'plan-analysis');
@@ -205,21 +207,24 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
   const handleAiDetect = async () => {
     try {
       setIsAnalyzing(true);
-      setUploadStatus('interpreting');
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/ai-detect`, {
+      setToolkitMessage('Running AI room detection...', 'loading');
+      const res = await fetch(`${API_BASE}/tools/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ toolSlug: 'floorplan-analyzer', projectId, params: { mode: 'detect' } })
       });
       if (!res.ok) throw new Error('AI detect failed');
       const data = await res.json();
       setUploadStatus('review_required');
+      setToolkitMessage('AI detection complete. Review zones below.', 'success');
       await fetchVersions();
     } catch (err) {
       console.error(err);
+      setToolkitMessage('AI detect failed.', 'error');
       setUploadStatus('error');
     } finally {
       setIsAnalyzing(false);
+      setToolkitStatus('idle');
     }
   };
 
@@ -330,15 +335,45 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     const tags = (interpretation?.rooms || []).map((r, idx) => `${r.name || `Zone ${idx + 1}`} → ${r.orientation || r.vastu || 'UNKNOWN'}`).join(', ');
     setToolkitMessage(tags ? `Vastu orientation draft: ${tags}` : 'No spatial orientations available', 'success');
   };
-  const handleToolkitEnhance = () => {
+  const handleToolkitEnhance = async () => {
     if (!interpretation) { setToolkitMessage('Run AI detect first, then use enhance plan for refinements.', 'error'); return; }
     setToolkitStatus('enhancing');
-    setToolkitMessage('Analyzing 2D geometry and refining placed furniture along walls...', 'success');
-    setTimeout(() => setToolkitStatus('idle'), 1200);
+    setToolkitMessage('Submitting plan enhancement to free model executor...', 'loading');
+    try {
+      const res = await fetch(`${API_BASE}/tools/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolSlug: 'plan-enhancer', projectId, params: { interpretation } })
+      });
+      if (!res.ok) throw new Error('Enhance failed');
+      const data = await res.json();
+      setToolkitMessage('Plan enhanced. Review updated geometry and placements.', 'success');
+    } catch (err) {
+      setToolkitMessage('Plan enhancement failed.', 'error');
+    } finally {
+      setToolkitStatus('idle');
+    }
   };
-  const handleToolkitExportDxf = () => {
+  const handleToolkitExportDxf = async () => {
     if (!interpretation) { setToolkitMessage('Run AI detect first to build exportable floorplan schema.', 'error'); return; }
-    setToolkitMessage('Export assembled: sketchupScript + dxf metadata available via Developer Export panel.', 'success');
+    setToolkitStatus('exporting');
+    setToolkitMessage('Generating export package...', 'loading');
+    try {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/scenes/${currentVersionId || 'latest'}/drawings/dxf`, { method: 'GET' });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `floorplan-export-${Date.now()}.dxf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToolkitMessage('DXF export downloaded.', 'success');
+    } catch (err) {
+      setToolkitMessage('Export failed. Try again after saving a version.', 'error');
+    } finally {
+      setToolkitStatus('idle');
+    }
   };
   const handleToolkitAreaSummary = () => handleKonvaAreaCompute();
   const handleToolkitPerimeter = () => handleKonvaPerimeter();
