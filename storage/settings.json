@@ -1,0 +1,110 @@
+{
+  "updatedAt": "2026-07-03T07:50:43.448Z",
+  "defaultProvider": "huggingface",
+  "defaultModel": "stabilityai/stable-diffusion-xl-base-1.0",
+  "freeProvidersFirst": true,
+  "maxCostPerImage": 0,
+  "providers": {
+    "openrouter": {
+      "provider": "openrouter",
+      "enabled": true,
+      "endpoint": "https://openrouter.ai/api/v1",
+      "model": "meta-llama/llama-3.1-70b-instruct:free",
+      "fallbackOrder": 1,
+      "capabilities": [
+        "text",
+        "critic_text",
+        "image",
+        "enhance",
+        "upscale",
+        "render",
+        "edit"
+      ]
+    },
+    "huggingface": {
+      "provider": "huggingface",
+      "enabled": true,
+      "endpoint": "https://router.huggingface.co/hf-inference/models",
+      "model": "stabilityai/stable-diffusion-xl-base-1.0",
+      "fallbackOrder": 2,
+      "capabilities": [
+        "text",
+        "image",
+        "enhance",
+        "upscale",
+        "render",
+        "edit"
+      ]
+    },
+    "openai": {
+      "provider": "openai",
+      "enabled": false,
+      "endpoint": "https://api.openai.com/v1",
+      "model": "gpt-image-1",
+      "fallbackOrder": 3,
+      "capabilities": [
+        "text",
+        "image",
+        "enhance",
+        "upscale",
+        "render",
+        "edit"
+      ]
+    },
+    "freepik": {
+      "provider": "freepik",
+      "enabled": false,
+      "endpoint": "https://api.freepik.com/v1/ai/text-to-image",
+      "model": "flux-dev",
+      "fallbackOrder": 4,
+      "capabilities": [
+        "text",
+        "image",
+        "enhance",
+        "render",
+        "edit"
+      ]
+    },
+    "pexels": {
+      "provider": "pexels",
+      "enabled": true,
+      "endpoint": "https://api.pexels.com/v1",
+      "fallbackOrder": 5,
+      "capabilities": [
+        "image",
+        "style_image",
+        "reference"
+      ]
+    },
+    "pollinations": {
+      "provider": "pollinations",
+      "enabled": true,
+      "endpoint": "https://image.pollinations.ai",
+      "model": "flux",
+      "fallbackOrder": 6,
+      "capabilities": [
+        "text",
+        "image",
+        "enhance",
+        "upscale",
+        "render",
+        "edit"
+      ]
+    },
+    "mock": {
+      "provider": "mock",
+      "enabled": true,
+      "endpoint": "",
+      "model": "mock",
+      "fallbackOrder": 99,
+      "capabilities": [
+        "text",
+        "image",
+        "enhance",
+        "upscale",
+        "render",
+        "edit"
+      ]
+    }
+  }
+}

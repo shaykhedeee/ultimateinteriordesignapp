@@ -3249,15 +3249,17 @@ app.post('/api/tools/execute', async (req, res) => {
   try {
     const { toolSlug, projectId, renderId, params, provider, model } = req.body || {};
     if (!toolSlug || !projectId) return res.status(400).json({ error: 'toolSlug and projectId are required' });
+    const taskType = String(toolSlug || 'plan-enhancer').trim().toLowerCase();
     const payload = {
       toolSlug,
       projectId,
       renderId,
       params: params || {},
       provider,
-      model
+      model,
+      taskType
     };
-    const result = await planFreeExecution(payload);
+    const result = await planFreeExecution(taskType, payload);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3289,7 +3291,8 @@ app.post('/api/projects/:id/elevations/generate', async (req, res) => {
 app.post('/api/providers/free-model/execute', async (req, res) => {
   try {
     const payload = req.body || {};
-    const result = await planFreeExecution(payload);
+    const taskType = String(payload.taskType || payload.toolSlug || 'quick_render').trim().toLowerCase();
+    const result = await planFreeExecution(taskType, payload);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
