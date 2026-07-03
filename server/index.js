@@ -31,6 +31,9 @@ import { resolveProviderForTask, recordProviderMetadata } from './services/provi
 import { renderCanonicalTopView, enhanceCanonicalTopView, getProjectTopViewAssets } from './services/topview-enhancement-worker.js';
 import { startEditWorker } from './services/job-orchestrator.js';
 import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory, enqueueEditJob } from './services/render-edit-service.js';
+import { listRenderHistory as listRenderHistoryRows, getLatestRenderId } from './services/render-history-service.js';
+import generateElevationFromRender from './services/elevation-generator.js';
+import { executeFreeModel } from './services/free-model-executor.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2065,6 +2068,17 @@ app.post('/api/projects/:id/drawings/elevations/:wallId/ai-edit', (req, res) => 
   }
 });
 
+app.get('/api/projects/:id/renders/:renderId/history', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const renderId = req.params.renderId;
+    const history = listRenderHistoryRows({ projectId, renderId });
+    res.json({ success: true, history });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET materials catalog items
 app.get('/api/material-catalog', (req, res) => {
   const rows = db.prepare("SELECT * FROM material_catalog WHERE is_active = 1").all();
@@ -3214,6 +3228,57 @@ app.post('/api/projects/:id/renders/:renderId/edits/:editId/cancel', (req, res) 
     const result = cancelEdit(req.params.editId);
     if (!result) return res.status(404).json({ error: 'Edit not found' });
     res.json({ success: true, edit: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/tools/execute', async (req, res) => {
+  try {
+    const { toolSlug, projectId, renderId, params, provider, model } = req.body || {};
+    if (!toolSlug || !projectId) return res.status(400).json({ error: 'toolSlug and projectId are required' });
+    const payload = {
+      toolSlug,
+      projectId,
+      renderId,
+      params: params || {},
+      provider,
+      model
+    };
+    const result = await executeFreeModel(payload);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/elevations/generate', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { renderId, wallFace, userMeasurements } = req.body || {};
+    const renderRow = renderId
+      ? db.prepare('SELECT * FROM design_renders WHERE id = ? AND project_id = ?').get(renderId, projectId)
+      : null;
+    const latest = renderRow || db.prepare('SELECT * FROM design_renders WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    const sceneRow = db.prepare('SELECT scene_json FROM scene_versions WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    const sceneDoc = sceneRow ? JSON.parse(sceneRow.scene_json) : {};
+    const elevation = generateElevationFromRender({
+      sceneDoc,
+      render: latest || {},
+      wallFace,
+      userMeasurements
+    });
+    res.json(elevation);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/providers/free-model/execute', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const result = await executeFreeModel(payload);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
