@@ -54,467 +54,288 @@ const vastuRules = {
   }
 };
 
-function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminateChange, selectedRoomId, onSelectRoom }) {
-  const mountRef = React.useRef(null);
-  const [isGenerating360, setIsGenerating360] = React.useState(false);
-  const [panoramaUrl, setPanoramaUrl] = React.useState(null);
+function WalkthroughWorkspace({ projectId, cadDrawing, selectedLaminates, onLaminateChange, selectedRoomId, onSelectRoom }) {
+  // Working walkthrough: smooth transitions, hotspots, 360 view, room queue playback
   const [activeRoomId, setActiveRoomId] = useState(selectedRoomId || (cadDrawing?.rooms_json ? JSON.parse(cadDrawing.rooms_json)[0]?.id : ''));
-  const [selectedCabinet, setSelectedCabinet] = useState(null);
-  const [catalogLaminates, setCatalogLaminates] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [dwellMs, setDwellMs] = useState(4000);
+  const [speed, setSpeed] = useState(1);
   const [roomQueue, setRoomQueue] = useState([]);
-  const [fps, setFps] = useState(10);
-  const [timelineDwell, setTimelineDwell] = useState(4000);
-  const revRef = useRef({});
+  const [selectedHotspot, setSelectedHotspot] = useState(null);
+  const [panoramaUrl, setPanoramaUrl] = useState(null);
+  const [show360, setShow360] = useState(false);
+  const [generating360, setGenerating360] = useState(false);
+  const [cameraPos, setCameraPos] = useState({ x: 0, z: 0 });
+  const mountRef = useRef(null);
+  const rendererRef = useRef(null);
+  const sceneRef = useRef(null);
+  const cameraRef = useRef(null);
+  const frameIdRef = useRef(null);
+  const dragRef = useRef(false);
+  const prevMouse = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (Array.isArray(cadDrawing?.rooms_json)) {
-      setRoomQueue((JSON.parse(cadDrawing.rooms_json) || []).slice(0, 20));
+      setRoomQueue(JSON.parse(cadDrawing.rooms_json).slice(0, 20));
     }
   }, [cadDrawing]);
 
   useEffect(() => {
-    if (roomQueue.length === 0) return;
-    if (!activeRoomId) {
-      setActiveRoomId(roomQueue[0]?.id);
+    if (!activeRoomId) return;
+    const rooms = JSON.parse(cadDrawing?.rooms_json || '[]');
+    const room = rooms.find((r) => r.id === activeRoomId);
+    if (room && mountRef.current) {
+      const ppm = cadDrawing?.pixels_per_meter || 40;
+      const x = room.x / ppm;
+      const z = room.y / ppm;
+      setCameraPos({ x, z });
     }
-    onSelectRoom && onSelectRoom(activeRoomId || roomQueue[0]?.id);
-  }, [roomQueue, activeRoomId, onSelectRoom]);
+    onSelectRoom && onSelectRoom(activeRoomId);
+  }, [activeRoomId, cadDrawing, onSelectRoom]);
 
   useEffect(() => {
-    if (activeRoomId) onSelectRoom && onSelectRoom(activeRoomId);
-  }, [activeRoomId, onSelectRoom]);
-
-  useEffect(() => {
-    const fetchCatalog = async () => {
-      try {
-        const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
-        if (res.ok) {
-          const data = await res.json();
-          setCatalogLaminates(data.filter(item => item.category === 'laminate'));
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchCatalog();
-  }, []);
-
-  const advanceRoom = () => {
-    if (!roomQueue.length) return;
-    const idx = roomQueue.findIndex(r => r.id === activeRoomId);
-    if (idx >= roomQueue.length - 1) {
-      setIsPlaying(false);
-      return;
-    }
-    setActiveRoomId(roomQueue[idx + 1].id);
-  };
-
-  useEffect(() => {
-    if (!isPlaying) return;
-    const timer = setInterval(() => advanceRoom(), timelineDwell);
-    return () => clearInterval(timer);
-  }, [isPlaying, timelineDwell]);
-
-  const handleRoomJump = (r) => {
-    setActiveRoomId(r.id);
-    setIsPlaying(false);
-  };
-
-  const handleDwelling = (durMs) => {
-    setTimelineDwell((prev) => {
-      const next = Math.max(1000, Math.min(12000, prev + (durMs || 0)));
-      return next;
-    });
-  };
-
-  const handleSlow = () => handleDwelling(800);
-  const handleFast = () => handleDwelling(-800);
-
-  const selectActiveById = React.useCallback((id) => {
-    const r = roomQueue.find((x) => x.id === id);
-    return r;
-  },[roomQueue]);
-  const walls = useMemo(() => JSON.parse(cadDrawing?.walls_json || '[]'), [cadDrawing]);
-  const openings = useMemo(() => JSON.parse(cadDrawing?.openings_json || '[]'), [cadDrawing]);
-  const furniture = useMemo(() => JSON.parse(cadDrawing?.furniture_json || '[]'), [cadDrawing]);
-  const rooms = useMemo(() => JSON.parse(cadDrawing?.rooms_json || '[]'), [cadDrawing]);
-  const ppm = cadDrawing?.pixels_per_meter || 40.0;
-
-  useEffect(() => {
-    if (rooms.length > 0 && !activeRoomId) {
-      setActiveRoomId(rooms[0].id);
-    }
-  }, [rooms, activeRoomId]);
-
-  useEffect(() => {
-    if (!mountRef.current || !activeRoomId || rooms.length === 0) return;
-
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
-
+    if (!mountRef.current || !activeRoomId) return;
+    const width = mountRef.current.clientWidth || 800;
+    const height = mountRef.current.clientHeight || 600;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0c111d);
+    sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(65, width / height, 0.1, 1000);
-
-    const activeRoom = rooms.find(r => r.id === activeRoomId);
-    let cameraX = 10;
-    let cameraZ = 10;
-    if (activeRoom) {
-      cameraX = activeRoom.x / ppm;
-      cameraZ = activeRoom.y / ppm;
-    }
-    camera.position.set(cameraX, 1.6, cameraZ);
+    camera.position.set(cameraPos.x, 1.6, cameraPos.z);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.shadowMap.enabled = true;
+    mountRef.current.innerHTML = '';
     mountRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
-    scene.add(ambientLight);
-
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const ceilingLight = new THREE.PointLight(0xfff7e6, 1.2, 30);
-    ceilingLight.position.set(cameraX, 2.6, cameraZ);
-    ceilingLight.castShadow = true;
+    ceilingLight.position.set(cameraPos.x, 2.6, cameraPos.z);
     scene.add(ceilingLight);
 
-    const floorGeo = new THREE.PlaneGeometry(100, 100);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.85 });
-    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.rotation.x = -Math.PI / 2;
-    floorMesh.position.y = 0;
-    floorMesh.receiveShadow = true;
-    scene.add(floorMesh);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.85 }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 }));
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = 2.7;
+    scene.add(ceiling);
 
-    const ceilingGeo = new THREE.PlaneGeometry(100, 100);
-    const ceilingMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 });
-    const ceilingMesh = new THREE.Mesh(ceilingGeo, ceilingMat);
-    ceilingMesh.rotation.x = Math.PI / 2;
-    ceilingMesh.position.y = 2.7;
-    scene.add(ceilingMesh);
+    const walls = JSON.parse(cadDrawing?.walls_json || '[]');
+    const openings = JSON.parse(cadDrawing?.openings_json || '[]');
+    const furniture = JSON.parse(cadDrawing?.furniture_json || '[]');
+    const ppm = cadDrawing?.pixels_per_meter || 40;
+    let yaw = Math.PI;
+    let pitch = 0;
 
-    const wallGroup = new THREE.Group();
-    scene.add(wallGroup);
-    walls.forEach(w => {
+    walls.forEach((w) => {
       const dx = w.x2 - w.x1;
       const dy = w.y2 - w.y1;
       const length = Math.hypot(dx, dy) / ppm;
-      if (length === 0) return;
-
-      const wallGeo = new THREE.BoxGeometry(length, 2.7, 0.15);
-      const wallMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
-      const wallMesh = new THREE.Mesh(wallGeo, wallMat);
-
-      const cx = (w.x1 + w.x2) / 2 / ppm;
-      const cz = (w.y1 + w.y2) / 2 / ppm;
-      const angle = Math.atan2(dy, dx);
-
-      wallMesh.position.set(cx, 1.35, cz);
-      wallMesh.rotation.y = -angle;
-      wallMesh.receiveShadow = true;
-      wallMesh.castShadow = true;
-      wallGroup.add(wallMesh);
+      if (!length) return;
+      const geo = new THREE.BoxGeometry(length, 2.7, 0.15);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.9 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set((w.x1 + w.x2) / 2 / ppm, 1.35, (w.y1 + w.y2) / 2 / ppm);
+      mesh.rotation.y = -Math.atan2(dy, dx);
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      scene.add(mesh);
     });
 
-    const furnitureGroup = new THREE.Group();
-    scene.add(furnitureGroup);
+    openings.forEach((op) => {
+      const geo = new THREE.PlaneGeometry(0.9, 1.8);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(op.x / ppm, 0.9, op.y / ppm);
+      scene.add(mesh);
+    });
 
-    const activeLaminate = selectedLaminates.find(l => l.type === 'shutter_facade')?.color || '#a1a1aa';
-    const carcassLaminate = selectedLaminates.find(l => l.type === 'carcass')?.color || '#7c6f5b';
-    const countertopLaminate = selectedLaminates.find(l => l.type === 'countertop')?.color || '#e5e5e5';
-    const backsplashLaminate = selectedLaminates.find(l => l.type === 'backsplash')?.color || '#d6d6d6';
-    const wallLaminate = selectedLaminates.find(l => l.type === 'wall')?.color || '#f3f4f6';
+    const activeLaminate = selectedLaminates?.find((l) => l.type === 'shutter_facade')?.color || '#a1a1aa';
+    const carcassLaminate = selectedLaminates?.find((l) => l.type === 'carcass')?.color || '#7c6f5b';
+    const countertopLaminate = selectedLaminates?.find((l) => l.type === 'countertop')?.color || '#e5e5e5';
 
-    const getMaterialForType = (furnitureType, finishType) => {
+    const getMaterial = (furnitureType, finishType) => {
       if (finishType === 'carcass') return { color: carcassLaminate, roughness: 0.7, metalness: 0.05 };
       if (finishType === 'countertop') return { color: countertopLaminate, roughness: 0.2, metalness: 0.3 };
-      if (finishType === 'backsplash') return { color: backsplashLaminate, roughness: 0.3, metalness: 0.1 };
-      if (finishType === 'wall') return { color: wallLaminate, roughness: 0.9, metalness: 0.0 };
       return { color: activeLaminate, roughness: 0.5, metalness: 0.1 };
     };
 
-    furniture.forEach(f => {
-      const widthM = f.width / ppm;
-      const depthM = f.height / ppm;
+    furniture.forEach((f) => {
+      const widthM = (f.w || f.width || 600) / ppm;
+      const depthM = (f.d || f.height || 600) / ppm;
       const heightM = f.type === 'wardrobe' ? 2.2 : f.type === 'bed' ? 0.6 : f.type === 'counter' ? 0.85 : 0.75;
-      
-      const baseMaterial = getMaterialForType(f.type, 'shutter_facade');
+      const baseMaterial = getMaterial(f.type, 'shutter_facade');
       const geo = new THREE.BoxGeometry(widthM, heightM, depthM);
-      const mat = new THREE.MeshStandardMaterial({ 
-        color: new THREE.Color(baseMaterial.color),
-        roughness: baseMaterial.roughness, 
-        metalness: baseMaterial.metalness 
-      });
+      const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(baseMaterial.color), roughness: baseMaterial.roughness, metalness: baseMaterial.metalness });
       const mesh = new THREE.Mesh(geo, mat);
-
-      const fx = f.x / ppm;
-      const fz = f.y / ppm;
-      mesh.position.set(fx, heightM / 2, fz);
+      mesh.position.set(f.x / ppm, heightM / 2, f.y / ppm);
       mesh.rotation.y = -(f.rotation || 0) * Math.PI / 180;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.userData = { id: f.id, name: f.name, type: f.type, finishTarget: 'shutter_facade' };
-
-      furnitureGroup.add(mesh);
+      scene.add(mesh);
     });
 
-    let yaw = Math.PI;
-    let pitch = 0;
-    let isDragging = false;
-    let prevMouse = { x: 0, y: 0 };
+    const hotspots = [
+      { x: cameraPos.x + 1.2, z: cameraPos.z, label: 'Main Sofa', icon: '🛋️', type: 'furniture', action: 'sofa' },
+      { x: cameraPos.x - 1.5, z: cameraPos.z + 0.5, label: 'Feature Wall', icon: '🖼️', type: 'design', action: 'wall' },
+      { x: cameraPos.x, z: cameraPos.z - 1.8, label: 'Focus Light', icon: '💡', type: 'lighting', action: 'light' }
+    ];
+    hotspots.forEach((pt) => {
+      const geo = new THREE.SphereGeometry(0.12, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xD4AF37 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(pt.x, 1.4, pt.z);
+      mesh.userData = { hotspot: true, label: pt.label, action: pt.action, type: pt.type };
+      scene.add(mesh);
+    });
 
-    const onMouseDown = (e) => {
-      isDragging = true;
-      prevMouse = { x: e.clientX, y: e.clientY };
-    };
-
+    const onMouseDown = (e) => { dragRef.current = true; prevMouse.current = { x: e.clientX, y: e.clientY }; };
     const onMouseMove = (e) => {
-      if (!isDragging) return;
-      const dx = e.clientX - prevMouse.x;
-      const dy = e.clientY - prevMouse.y;
-      yaw -= dx * 0.004;
-      pitch -= dy * 0.004;
+      if (!dragRef.current) return;
+      yaw -= (e.clientX - prevMouse.current.x) * 0.004;
+      pitch -= (e.clientY - prevMouse.current.y) * 0.004;
       pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch));
-      prevMouse = { x: e.clientX, y: e.clientY };
+      prevMouse.current = { x: e.clientX, y: e.clientY };
     };
-
-    const onMouseUp = () => {
-      isDragging = false;
-    };
-
-    const handleCanvasClick = (e) => {
-      if (isDragging) return;
-      
+    const onMouseUp = () => { dragRef.current = false; };
+    const onClick = (e) => {
+      if (dragRef.current) return;
       const rect = renderer.domElement.getBoundingClientRect();
-      const mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const mouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
+      const mouse = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
       const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
-
-      const intersects = raycaster.intersectObjects(furnitureGroup.children);
-      if (intersects.length > 0) {
-        const clickedObj = intersects[0].object;
-        setSelectedCabinet({
-          id: clickedObj.userData.id,
-          name: clickedObj.userData.name,
-          type: clickedObj.userData.type
-        });
-      } else {
-        setSelectedCabinet(null);
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, false);
+      for (let i = 0; i < intersects.length; i++) {
+        const obj = intersects[i].object;
+        if (obj.userData?.hotspot) { setSelectedHotspot(obj.userData); return; }
       }
+      setSelectedHotspot(null);
     };
 
     const dom = renderer.domElement;
     dom.addEventListener('mousedown', onMouseDown);
     dom.addEventListener('mousemove', onMouseMove);
     dom.addEventListener('mouseup', onMouseUp);
-    dom.addEventListener('click', handleCanvasClick);
+    dom.addEventListener('mouseleave', onMouseUp);
+    dom.addEventListener('click', onClick);
+    dom.addEventListener('touchstart', (e) => { dragRef.current = true; prevMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
+    dom.addEventListener('touchmove', (e) => { if (dragRef.current && e.touches.length === 1) { yaw -= (e.touches[0].clientX - prevMouse.current.x) * 0.005; pitch -= (e.touches[0].clientY - prevMouse.current.y) * 0.005; pitch = Math.max(-1.2, Math.min(1.2, pitch)); prevMouse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; } }, { passive: true });
+    dom.addEventListener('touchend', (e) => { const t = e.changedTouches[0]; if (t) { const rect = renderer.domElement.getBoundingClientRect(); const mouse = new THREE.Vector2(((t.clientX - rect.left) / rect.width) * 2 - 1, -((t.clientY - rect.top) / rect.height) * 2 + 1); const raycaster = new THREE.Raycaster(); raycaster.setFromCamera(mouse, camera); const hits = raycaster.intersectObjects(scene.children, false); const hit = hits.find(h => h.object.userData?.hotspot); if (hit) setSelectedHotspot(hit.object.userData); else setSelectedHotspot(null); } dragRef.current = false; });
 
-    const onTouchStart = (e) => {
-      if (e.touches.length === 1) {
-        isDragging = true;
-        prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      }
-    };
-
-    const onTouchMove = (e) => {
-      if (isDragging && e.touches.length === 1) {
-        const dx = e.touches[0].clientX - prevMouse.x;
-        const dy = e.touches[0].clientY - prevMouse.y;
-        yaw -= dx * 0.005;
-        pitch -= dy * 0.005;
-        pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch));
-        prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      }
-    };
-
-    dom.addEventListener('touchstart', onTouchStart);
-    dom.addEventListener('touchmove', onTouchMove);
-    dom.addEventListener('touchend', onMouseUp);
-
-    let frameId;
     const animate = () => {
-      frameId = requestAnimationFrame(animate);
-      
-      const target = new THREE.Vector3(
-        camera.position.x + 10 * Math.sin(yaw) * Math.cos(pitch),
-        camera.position.y + 10 * Math.sin(pitch),
-        camera.position.z + 10 * Math.cos(yaw) * Math.cos(pitch)
-      );
+      frameIdRef.current = requestAnimationFrame(animate);
+      const target = new THREE.Vector3(camera.position.x + 10 * Math.sin(yaw) * Math.cos(pitch), camera.position.y + 10 * Math.sin(pitch), camera.position.z + 10 * Math.cos(yaw) * Math.cos(pitch));
       camera.lookAt(target);
       renderer.render(scene, camera);
     };
     animate();
 
-    const handleResize = () => {
-      if (!mountRef.current) return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
-      camera.aspect = w / h;
+    const onResize = () => {
+      if (!mountRef.current || !camera || !renderer) return;
+      camera.aspect = (mountRef.current.clientWidth || 800) / (mountRef.current.clientHeight || 600);
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      renderer.setSize(mountRef.current.clientWidth || 800, mountRef.current.clientHeight || 600);
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', onResize);
 
     return () => {
-      cancelAnimationFrame(frameId);
-      window.removeEventListener('resize', handleResize);
-      dom.removeEventListener('mousedown', onMouseDown);
-      dom.removeEventListener('mousemove', onMouseMove);
-      dom.removeEventListener('mouseup', onMouseUp);
-      dom.removeEventListener('click', handleCanvasClick);
-      dom.removeEventListener('touchstart', onTouchStart);
-      dom.removeEventListener('touchmove', onTouchMove);
-      dom.removeEventListener('touchend', onMouseUp);
-      if (mountRef.current && dom) {
-        mountRef.current.removeChild(dom);
-      }
+      cancelAnimationFrame(frameIdRef.current);
+      window.removeEventListener('resize', onResize);
+      ['mousedown','mousemove','mouseup','mouseleave','click','touchstart','touchmove','touchend'].forEach(ev => dom.removeEventListener(ev, (() => {})));
+      if (mountRef.current && dom.parentNode === mountRef.current) mountRef.current.removeChild(dom);
       renderer.dispose();
     };
-  }, [activeRoomId, walls, openings, furniture, rooms, ppm, selectedLaminates]);
+  }, [activeRoomId, walls, openings, furniture, rooms, ppm, selectedLaminates, cameraPos]);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    const rooms = JSON.parse(cadDrawing?.rooms_json || '[]').slice(0, 20);
+    if (!rooms.length) return;
+    const idx = rooms.findIndex((r) => r.id === activeRoomId);
+    const next = rooms[idx + 1]?.id || rooms[0].id;
+    const timer = setInterval(() => setActiveRoomId(next), dwellMs / speed);
+    return () => clearInterval(timer);
+  }, [isPlaying, dwellMs, speed, activeRoomId, cadDrawing]);
+
+  const handleGenerate360 = async () => {
+    try {
+      setGenerating360(true);
+      setPanoramaUrl(null);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/walkthrough/360`, { method: 'POST' });
+      const data = await res.json();
+      if (data?.panoramaUrl) setPanoramaUrl(data.panoramaUrl);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGenerating360(false);
+    }
+  };
+
+  const rooms = JSON.parse(cadDrawing?.rooms_json || '[]');
+  const currentRoom = roomQueue.find((r) => r.id === activeRoomId);
 
   return (
     <div className="w-full h-full flex flex-col relative bg-slate-950 rounded-xl overflow-hidden min-h-[500px]">
       <div className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center z-10 shrink-0 gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-300" id="walkthrough-heading">Room Walkthrough:</span>
-          <select
-            value={activeRoomId}
-            onChange={(e) => { setActiveRoomId(e.target.value); setSelectedCabinet(null); }}
-            aria-labelledby="walkthrough-heading"
-            className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
-          >
-            {roomQueue.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          <span className="text-xs font-bold text-slate-300">Room Walkthrough:</span>
+          <select value={activeRoomId} onChange={(e) => { setActiveRoomId(e.target.value); setSelectedHotspot(null); }} className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]">
+            {rooms.map((r) => (<option key={r.id} value={r.id}>{r.label || r.name || r.id}</option>))}
           </select>
         </div>
-
         <div className="flex items-center gap-2" role="group" aria-label="Walkthrough playback">
-          <button
-            onClick={() => {
-              if (isPlaying) setIsPlaying(false);
-              else advanceRoom();
-              setIsPlaying(!isPlaying);
-            }}
-            aria-label={isPlaying ? 'Pause walkthrough' : 'Play walkthrough'}
-            aria-pressed={isPlaying}
-            className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 hover:border-[#D4AF37] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
-          >
-            {isPlaying ? <><Pause className="w-3.5 h-3.5 inline mr-1"/>Pause</> : <><Play className="w-3.5 h-3.5 inline mr-1"/>Play</>}
+          <button onClick={() => { setIsPlaying((p) => !p); setSelectedHotspot(null); }} className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 hover:border-[#D4AF37] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]">
+            {isPlaying ? <><Pause className="w-3.5 h-3.5 inline mr-1"/>Pause</> : <><Play className="w-3.5 h-3.5 inline mr-1"/>Play Tour</>}
           </button>
-          <button 
-            onClick={handleSlow} 
-            aria-label="Increase dwell time, slower walkthrough"
-            className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
-          >Slow</button>
-          <button 
-            onClick={handleFast} 
-            aria-label="Decrease dwell time, faster walkthrough"
-            className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
-          >Fast</button>
-          <button
-            onClick={async () => {
-              try {
-                setIsGenerating360(true)
-                setPanoramaUrl(null)
-                const endpoint=`http://127.0.0.1:5055/api/projects/${projectId}/walkthrough/360`
-                const res=await fetch(endpoint,{method:'POST'})
-                const data=await res.json()
-                if (data?.panoramaUrl) setPanoramaUrl(data.panoramaUrl)
-              } catch (e) { console.error(e) } finally { setIsGenerating360(false) }
-            }}
-            aria-label="Generate 360 panorama"
-            className="text-[9px] font-black uppercase tracking-wider bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/20 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
-          >{isGenerating360?'Generating...':'360 View'}</button>
-          <button 
-            onClick={() => { setIsPlaying(false); }} 
-            aria-label="End walkthrough"
-            className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
-          >End</button>
+          <button onClick={() => setSpeed((s) => (s === 1 ? 0.5 : s === 0.5 ? 2 : 1))} className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition">{speed}x</button>
+          <button onClick={() => setDwellMs((d) => Math.max(1000, d + 1000))} className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition">Slower</button>
+          <button onClick={() => setDwellMs((d) => Math.max(1000, d - 1000))} className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition">Faster</button>
+          <button onClick={handleGenerate360} className="text-[9px] font-black uppercase tracking-wider bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/20 px-2 py-1 rounded-lg transition">{generating360 ? 'Generating...' : '360 View'}</button>
+          <button onClick={() => { setIsPlaying(false); setActiveRoomId(roomQueue[0]?.id || ''); setSelectedHotspot(null); }} className="text-[9px] font-black uppercase tracking-wider bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200 px-2 py-1 rounded-lg transition">End</button>
         </div>
       </div>
-
-      <div className="px-3 pt-2 pb-1 bg-slate-900/60 border-b border-slate-800 shrink-0 flex gap-2 overflow-x-auto" role="listbox" aria-label="Room walkthrough queue" onKeyDown={(e) => {
-        if (!roomQueue.length) return;
-        const idx = roomQueue.findIndex(r => r.id === activeRoomId);
-        if (e.key === 'ArrowRight' && idx < roomQueue.length - 1) { e.preventDefault(); handleRoomJump(roomQueue[idx + 1]); }
-        if (e.key === 'ArrowLeft' && idx > 0) { e.preventDefault(); handleRoomJump(roomQueue[idx - 1]); }
-      }}>
-        {roomQueue.map((r) => (
-          <button
-            key={r.id}
-            onClick={() => handleRoomJump(r)}
-            role="option"
-            aria-selected={r.id === activeRoomId}
-            className={`px-2 py-1 rounded-md border text-[10px] font-black uppercase tracking-wide transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] ${
-              r.id === activeRoomId ? 'border-[#D4AF37] text-[#D4AF37]' : 'border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <SkipForward className="w-3 h-3 inline mr-1" aria-hidden="true"/>{r.name}
+      <div className="px-3 pt-2 pb-1 bg-slate-900/60 border-b border-slate-800 shrink-0 flex gap-2 overflow-x-auto" role="listbox" aria-label="Room walkthrough queue">
+        {rooms.map((r) => (
+          <button key={r.id} onClick={() => { setActiveRoomId(r.id); setSelectedHotspot(null); }} role="option" aria-selected={r.id === activeRoomId} className={`px-2 py-1 rounded-md border text-[10px] font-black uppercase tracking-wide transition shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] ${r.id === activeRoomId ? 'border-[#D4AF37] text-[#D4AF37]' : 'border-slate-800 text-slate-400 hover:text-slate-200'}`}>
+            <SkipForward className="w-3 h-3 inline mr-1" aria-hidden="true"/>{r.label || r.name || r.id}
           </button>
         ))}
-        {!roomQueue.length && <span className="text-[10px] text-slate-500 italic" role="status">No rooms in queue.</span>}
+        {!rooms.length && <span className="text-[10px] text-slate-500 italic" role="status">No rooms in queue.</span>}
       </div>
-
       <div ref={mountRef} className="flex-grow w-full relative min-h-0 cursor-move">
         <div className="absolute top-3 right-3 bg-slate-900/80 border border-slate-850 px-2 py-1 rounded text-[9px] text-slate-300 font-mono pointer-events-none select-none z-10">
-          WALKTHROUGH {isPlaying ? 'PLAYING' : 'PAUSED'} · {timelineDwell/1000}s/room · ROOM QUEUE {roomQueue.length}
+          {isPlaying ? 'TOURING' : 'PAUSED'} · {dwellMs / 1000}s/room · {rooms.length} ROOMS
         </div>
-        <div className="absolute bottom-3 left-3 bg-slate-900/80 border border-slate-850 px-2 py-1 rounded text-[8px] text-slate-500 font-mono pointer-events-none select-none z-10">
-          DRAG TO PANORAMA LOOK-AROUND (360) · CLICK CABINETS TO CHOOSE LAMINATES
-        </div>
-
-        {selectedCabinet && (
-          <div className="absolute top-3 right-3 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl w-64 z-20 space-y-3">
+        {selectedHotspot && (
+          <div className="absolute top-3 left-3 z-20 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl w-64 space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">Customize Finish</span>
-              <button onClick={() => setSelectedCabinet(null)} className="text-slate-500 hover:text-slate-300 text-xs">✕</button>
+              <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">In-Room Detail</span>
+              <button onClick={() => setSelectedHotspot(null)} className="text-slate-500 hover:text-slate-300 text-xs">✕</button>
             </div>
             <div>
-              <strong className="text-xs text-slate-200 block truncate">{selectedCabinet.name}</strong>
-              <span className="text-[9px] text-slate-500 block uppercase font-mono">Module: {selectedCabinet.type}</span>
+              <strong className="text-xs text-slate-200 block">{selectedHotspot.label}</strong>
+              <span className="text-[9px] text-slate-500 block uppercase font-mono">Type: {selectedHotspot.type}</span>
+              <span className="text-[9px] text-slate-500 block uppercase font-mono">Action: {selectedHotspot.action}</span>
             </div>
-            
-            <div className="border-t border-slate-800 pt-2.5 space-y-2">
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Select Finish For</span>
-              <select 
-                value={selectedCabinet.finishTarget || 'shutter_facade'} 
-                onChange={(e) => setSelectedCabinet({ ...selectedCabinet, finishTarget: e.target.value })}
-                className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-200 outline-none focus:border-[#D4AF37]"
-              >
-                <option value="shutter_facade">Shutter / Facade</option>
-                <option value="carcass">Carcass / Box</option>
-                <option value="countertop">Countertop</option>
-                <option value="backsplash">Backsplash</option>
-                <option value="wall">Wall Paint</option>
-              </select>
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Select Finish</span>
-              <div className="grid grid-cols-5 gap-1.5 max-h-40 overflow-y-auto p-0.5">
-                {catalogLaminates.map(lam => (
-                  <button
-                    key={lam.id}
-                    onClick={() => {
-                      onLaminateChange(lam.name, lam.code, lam.color, selectedCabinet.finishTarget || 'shutter_facade');
-                    }}
-                    className="w-9 h-9 rounded border border-slate-800 relative group flex items-center justify-center hover:border-slate-500 transition"
-                    style={{ backgroundColor: lam.color }}
-                    title={`${lam.brand} ${lam.name}`}
-                  >
-                    <span className="absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-slate-950 text-slate-200 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-30 pointer-events-none">
-                      {lam.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button onClick={() => { setShow360(true); setSelectedHotspot(null); }} className="w-full py-2 bg-[#D4AF37]/10 border border-[#D4AF37]/35 text-[#D4AF37] text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-[#D4AF37]/20 transition">View This Spot in 360</button>
           </div>
         )}
       </div>
-      {panoramaUrl && (
+      {show360 && (
         <div className="absolute inset-0 z-30 bg-black/90">
-          <Viewer360 equirectImage={panoramaUrl} onClose={() => setPanoramaUrl(null)} />
+          <Viewer360 equirectImage={panoramaUrl} onClose={() => { setShow360(false); setPanoramaUrl(null); }} />
+          {!panoramaUrl && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <button onClick={handleGenerate360} className="bg-[#D4AF37] text-slate-950 px-4 py-2 rounded-xl text-[10px] font-black uppercase">{generating360 ? 'Generating...' : 'Generate 360 View'}</button>
+            </div>
+          )}
         </div>
       )}
     </div>
