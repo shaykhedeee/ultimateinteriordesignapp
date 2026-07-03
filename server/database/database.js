@@ -911,6 +911,126 @@ try {
       JSON.stringify({ minWidth: 900, maxWidth: 1500, minDepth: 500, maxDepth: 700 }),
       'https://images.unsplash.com/photo-1533090481720-856c6e3c1fdc?auto=format&fit=crop&w=600&q=80'
     );
+
+    insert.run(
+      'pooja_unit_wall_mounted', 'Wall-Mounted Pooja Unit', 'pooja_unit',
+      'pooja_room,traditional,worship', 'fluted-panel', 'pooja_room,living_room,bedroom',
+      JSON.stringify({ widthMm: 900, heightMm: 1200, depthMm: 450, hasSideDoors: false, shelfCount: 3 }),
+      '/models/furniture/generic_cuboid.gltf', '#d97706', 'Wall-mounted pooja unit',
+      'wall', 'back', 'carcass,top_shelf,louvered_shutters', 'premium', 28000,
+      JSON.stringify({ minWidth: 700, maxWidth: 1200, minHeight: 1000, maxHeight: 1500, minDepth: 350, maxDepth: 500 }),
+      'https://images.unsplash.com/photo-1600585153490-76fb20a32601?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_floor_standing', 'Floor Standing Pooja Unit', 'pooja_unit',
+      'pooja_room,traditional,worship', 'brass-accent', 'pooja_room',
+      JSON.stringify({ widthMm: 1200, heightMm: 1950, depthMm: 600, hasSideDoors: true, shelfCount: 5 }),
+      '/models/furniture/generic_cuboid.gltf', '#b45309', 'Floor-standing pooja unit with side doors',
+      'floor', 'back', 'carcass,drawers,doors,shelves,brass_handles', 'premium', 42000,
+      JSON.stringify({ minWidth: 900, maxWidth: 1500, minHeight: 1600, maxHeight: 2200, minDepth: 500, maxDepth: 650 }),
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'pooja_unit_teak', 'Teak Finish Pooja Unit', 'pooja_unit',
+      'pooja_room,traditional,worship', 'teak-veneer', 'pooja_room,home_temple',
+      JSON.stringify({ widthMm: 1050, heightMm: 1400, depthMm: 480, hasKundai: true }),
+      '/models/furniture/generic_cuboid.gltf', '#92400e', 'Teak veneer pooja unit with carved details',
+      'floor', 'back', 'carcass,shelves,kundai,handles', 'premium', 36000,
+      JSON.stringify({ minWidth: 800, maxWidth: 1300, minHeight: 1100, maxHeight: 1700, minDepth: 400, maxDepth: 550 }),
+      'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_wall_mounted', 'Wall-Mounted TV Console', 'tv_unit',
+      'living_room,modern,minimal', 'floating-console', 'living_room,bedroom',
+      JSON.stringify({ widthMm: 1800, heightMm: 450, depthMm: 400, hasOpenShelf: true }),
+      '/models/furniture/generic_cuboid.gltf', '#475569', 'Floating TV console',
+      'wall', 'back', 'carcass,open_shelf,shutters,handle', 'standard', 24000,
+      JSON.stringify({ minWidth: 1200, maxWidth: 2400, minHeight: 300, maxHeight: 600, minDepth: 300, maxDepth: 450 }),
+      'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_floor_standing', 'Floor Standing TV Unit', 'tv_unit',
+      'living_room,modern,storage', 'full-height-panel', 'living_room,bedroom,home_theatre',
+      JSON.stringify({ widthMm: 2400, heightMm: 600, depthMm: 500, hasDrawers: true }),
+      '/models/furniture/generic_cuboid.gltf', '#334155', 'Full-height TV unit with drawers',
+      'floor', 'back', 'carcass,shutters,drawers,shelves,handles', 'premium', 34000,
+      JSON.stringify({ minWidth: 1500, maxWidth: 3000, minHeight: 400, maxHeight: 750, minDepth: 350, maxDepth: 550 }),
+      'https://images.unsplash.com/photo-1556911220-bff31c812dba?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'tv_unit_corner_unit', 'Corner TV Unit', 'tv_unit',
+      'living_room,compact,modern', 'l-shape', 'living_room,small_room,study',
+      JSON.stringify({ widthMm: 1600, heightMm: 500, depthMm: 450, shape: 'L' }),
+      '/models/furniture/generic_cuboid.gltf', '#64748b', 'L-shaped corner TV unit',
+      'floor', 'back', 'carcass,shutters,shelves', 'standard', 21000,
+      JSON.stringify({ minWidth: 1200, maxWidth: 2000, minHeight: 350, maxHeight: 600, minDepth: 350, maxDepth: 500 }),
+      'https://images.unsplash.com/photo-1532372576444-dda954194ad0?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'wardrobe_hinged_door', 'Hinged Door Wardrobe', 'wardrobe',
+      'bedroom,classic,storage', 'solid-panel', 'master_bedroom,bedroom,guest_room',
+      JSON.stringify({ widthMm: 1800, heightMm: 2400, depthMm: 600, doorCount: 3, wardrobeSystem: 'hinged' }),
+      '/models/furniture/wardrobe_tall_lowpoly.gltf', '#94a3b8', 'Classic hinged wardrobe',
+      'floor', 'back', 'carcass,hinged_shutters,handles,shelves', 'premium', 36000,
+      JSON.stringify({ minDepth: 550, maxDepth: 650 }),
+      'https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_parallel_layout', 'Parallel Kitchen Unit', 'kitchen',
+      'kitchen,parallel,modular', 'parallel-run', 'kitchen',
+      JSON.stringify({ widthMm: 3600, heightMm: 900, depthMm: 600, counterTop: 'quartz', hasTallUnit: true }),
+      '/models/furniture/generic_cuboid.gltf', '#cbd5e1', 'Parallel kitchen layout',
+      'floor', 'back', 'carcass,shutters,counters,chimney,hob', 'premium', 95000,
+      JSON.stringify({ minLength: 3000, maxLength: 4200, minDepth: 550, maxDepth: 650 }),
+      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'kitchen_island_unit', 'Kitchen Island Unit', 'kitchen_island',
+      'kitchen,island,premium', 'floating-island', 'kitchen,open_plan',
+      JSON.stringify({ widthMm: 1800, heightMm: 900, depthMm: 900, hasBreakfastBar: true }),
+      '/models/furniture/generic_cuboid.gltf', '#e2e8f0', 'Kitchen island with breakfast bar',
+      'floor', 'top', 'carcass,counters,shutters,breakfast_bar', 'premium', 68000,
+      JSON.stringify({ minWidth: 1200, maxWidth: 2400, minDepth: 800, maxDepth: 1000 }),
+      'https://images.unsplash.com/photo-1600585153490-76fb20a32601?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'living_room_bookshelf', 'Full-Height Bookshelf', 'bookshelf',
+      'living_room,study,storage', 'alexandria', 'living_room,study,bedroom',
+      JSON.stringify({ widthMm: 900, heightMm: 2100, depthMm: 350, shelfCount: 6 }),
+      '/models/furniture/generic_cuboid.gltf', '#78716c', 'Full-height open bookshelf',
+      'floor', 'back', 'carcass,shelves,sides,back_panel', 'standard', 22000,
+      JSON.stringify({ minWidth: 600, maxWidth: 1200, minHeight: 1500, maxHeight: 2400, minDepth: 250, maxDepth: 400 }),
+      'https://images.unsplash.com/photo-1594620302200-9a762244a156?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'bedroom_study_table', 'Bedroom Study Table', 'study_table',
+      'bedroom,study,work', 'wall-desk', 'bedroom,study,work_from_home',
+      JSON.stringify({ widthMm: 1200, heightMm: 750, depthMm: 600, hasDrawer: true }),
+      '/models/furniture/generic_cuboid.gltf', '#a8a29e', 'Compact study table with drawer',
+      'floor', 'back', 'tabletop,legs,drawer,front', 'standard', 16500,
+      JSON.stringify({ minWidth: 900, maxWidth: 1500, minDepth: 450, maxDepth: 650 }),
+      'https://images.unsplash.com/photo-1617806118233-18e1de247000?auto=format&fit=crop&w=600&q=80'
+    );
+
+    insert.run(
+      'utility_washing_machine_cover', 'Washing Machine Cover', 'utility_unit',
+      'utility,laundry,modular', 'appliance-cover', 'utility,laundry',
+      JSON.stringify({ widthMm: 900, heightMm: 900, depthMm: 600, hasDoors: true }),
+      '/models/furniture/generic_cuboid.gltf', '#cbd5e1', 'Washing machine cover with storage',
+      'floor', 'back', 'carcass,shutters,shelf', 'standard', 12500,
+      JSON.stringify({ minWidth: 700, maxWidth: 1100, minHeight: 700, maxHeight: 1000 }),
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=600&q=80'
+    );
   }
 } catch (e) {
   console.error("Error seeding furniture catalog:", e);
