@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Sliders,
-  GaugeCircle
+  GaugeCircle,
+  IndianRupee
 } from 'lucide-react';
 
 const API_BASE = 'http://127.0.0.1:5055';
@@ -42,6 +43,10 @@ export default function SettingsPanel() {
   const [error, setError] = useState(null);
   const [whitelabel, setWhitelabel] = useState(null);
   const [brandSaving, setBrandSaving] = useState(false);
+  const [pricing, setPricing] = useState(null);
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [estimate, setEstimate] = useState(null);
+  const [estimateInput, setEstimateInput] = useState({ laminateSqft: 0, hardwareBaseCost: 0, laborSqft: 0, transportBaseCost: 0, client: true });
 
   // Editable local state for globals
   const [globals, setGlobals] = useState({
@@ -80,10 +85,43 @@ export default function SettingsPanel() {
     }
   };
 
+  const loadPricing = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/settings/pricing`).then(r => r.json());
+      if (res?.success) setPricing(res.settings);
+    } catch (e) {
+      console.error('Failed to load pricing:', e);
+    }
+  };
+
+  const savePricing = async () => {
+    if (!pricing) return;
+    setPricingSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/settings/pricing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pricing) });
+      const data = await res.json();
+      if (data?.success) setPricing(data.settings);
+    } catch (e) {
+      console.error('Failed to save pricing:', e);
+    } finally {
+      setPricingSaving(false);
+    }
+  };
+
+  const runEstimate = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/projects/demo/estimate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(estimateInput) });
+      const data = await res.json();
+      if (data?.success) setEstimate(data);
+    } catch (e) {
+      console.error('Estimate failed:', e);
+    }
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    await Promise.all([loadProviders(), loadEnv(), loadWhitelabel()]).finally(() => setLoading(false));
+    await Promise.all([loadProviders(), loadEnv(), loadWhitelabel(), loadPricing()]).finally(() => setLoading(false));
   }, []);
 
   const saveProvider = async (providerKey, patch) => {
@@ -416,6 +454,67 @@ export default function SettingsPanel() {
                 Whitelabel & Branding
               </h3>
               <BrandEditor />
+            </section>
+
+            {/* Pricing Settings */}
+            <section aria-labelledby="pricing-heading" className="glass-card border border-slate-850 rounded-3xl p-6">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-4">
+                <h3 id="pricing-heading" className="text-xs font-black uppercase tracking-widest text-slate-300 flex items-center gap-2">
+                  <IndianRupee className="w-4 h-4 text-[#C9A84C]" aria-hidden="true" />
+                  Pricing Settings
+                </h3>
+                <button onClick={savePricing} disabled={pricingSaving || !pricing} className="text-[10px] font-black uppercase tracking-wider bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/20 px-2 py-1 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]">
+                  {pricingSaving ? 'Saving...' : 'Save Pricing'}
+                </button>
+              </div>
+              {pricing && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Laminate price per sqft</label>
+                    <input type="number" value={pricing.laminate_price_per_sqft} onChange={e => setPricing({...pricing, laminate_price_per_sqft: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Hardware markup %</label>
+                    <input type="number" value={pricing.hardware_markup_percent} onChange={e => setPricing({...pricing, hardware_markup_percent: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Labor per sqft</label>
+                    <input type="number" value={pricing.labor_per_sqft} onChange={e => setPricing({...pricing, labor_per_sqft: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Transport %</label>
+                    <input type="number" value={pricing.transport_percent} onChange={e => setPricing({...pricing, transport_percent: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Profit %</label>
+                    <input type="number" value={pricing.profit_percent} onChange={e => setPricing({...pricing, profit_percent: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Client discount %</label>
+                    <input type="number" value={pricing.client_discount_percent} onChange={e => setPricing({...pricing, client_discount_percent: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Client tax %</label>
+                    <input type="number" value={pricing.client_tax_percent} onChange={e => setPricing({...pricing, client_tax_percent: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Showroom multiplier</label>
+                    <input type="number" step="0.01" value={pricing.showroom_multiplier} onChange={e => setPricing({...pricing, showroom_multiplier: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Economy max ₹/sqft</label>
+                    <input type="number" value={pricing.price_band_economy_max} onChange={e => setPricing({...pricing, price_band_economy_max: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Standard max ₹/sqft</label>
+                    <input type="number" value={pricing.price_band_standard_max} onChange={e => setPricing({...pricing, price_band_standard_max: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Premium max ₹/sqft</label>
+                    <input type="number" value={pricing.price_band_premium_max} onChange={e => setPricing({...pricing, price_band_premium_max: Number(e.target.value)})} className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]" />
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Tool Defaults Summary */}
