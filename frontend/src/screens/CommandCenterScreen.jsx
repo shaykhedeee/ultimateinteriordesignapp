@@ -2042,9 +2042,12 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       } else if (toolKey === 'extruder_3d') {
         endpoint = `${API_BASE}/projects/${projectId}/renders/generate`;
         body = { variantCount: 1, modelTier: 'draft', room: 'living', style: 'contemporary' };
-      } else if (toolKey === 'blueprint_parser' || toolKey === 'camera_planner' || toolKey === 'walkthrough_config' || toolKey === 'svg_elevation_builder' || toolKey === 'bom_calculator' || toolKey === 'invoice_ledger') {
+      } else if (toolKey === 'cad_ingest' || toolKey === 'camera_planner' || toolKey === 'walkthrough_config' || toolKey === 'svg_elevation_builder' || toolKey === 'bom_calculator' || toolKey === 'invoice_ledger') {
         endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
         body = { projectId };
+      } else if (toolKey === 'render_concept' || toolKey === 'ambient_lighting' || toolKey === 'camera_director' || toolKey === 'material_swapper' || toolKey === 'walkthrough_animator' || toolKey === 'carcass_config' || toolKey === 'hardware_spec' || toolKey === 'nesting_calc' || toolKey === 'swatch_match' || toolKey === 'dxf_compiler') {
+        endpoint = `${API_BASE}/tools/execute`;
+        body = { toolSlug: toolKey, projectId, params: {} };
       } else {
         endpoint = `${API_BASE}/tools/execute`;
         body = { toolSlug: toolKey, projectId, params: {} };
