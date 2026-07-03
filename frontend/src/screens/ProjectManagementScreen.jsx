@@ -4,7 +4,7 @@ import {
   User, MapPin, IndianRupee, Calendar, BarChart3,
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
   ArrowRight, RefreshCw, Plus, ChevronLeft, ChevronRight,
-  ShieldAlert, Star, DollarSign, Activity
+  ShieldAlert, Star, DollarSign, Activity, Trash2
 } from 'lucide-react';
 
 const WORKFLOW_STAGES = [
@@ -456,10 +456,286 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
               </div>
             </div>
 
+            {selectedProject && (
+              <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-[#C9A84C]" />
+                  <div>
+                    <h4 className="text-[10px] font-bold text-[#F0EEE8] uppercase tracking-widest">Project quote</h4>
+                    <p className="text-[9px] text-slate-500">Linked estimate, milestones, and payment state.</p>
+                  </div>
+                </div>
+                <PaymentMilestoneChips projectId={selectedProject.id} />
+              </div>
+            )}
           </div>
         )}
-
       </div>
+    </div>
+  );
+}
+
+const MS_COLORS = {
+  paid: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300',
+  awaiting: 'bg-amber-500/15 border-amber-500/30 text-amber-300',
+  pending: 'bg-slate-800 border-slate-700 text-slate-400',
+};
+
+function PaymentMilestoneChips({ projectId }) {
+  const [milestones, setMilestones] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    if (!projectId) return;
+    setLoading(true);
+    try {
+      const [planRes, paymentsRes] = await Promise.all([
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payment-plans`),
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payments`),
+      ]);
+      const planData = planRes.ok ? await planRes.json() : [];
+      const paymentsData = paymentsRes.ok ? await paymentsRes.json() : [];
+      const list = Array.isArray(planData)
+        ? planData
+        : Array.isArray(planData?.milestones)
+          ? planData.milestones
+          : planData?.items || [];
+      setMilestones(list);
+      setPayments(paymentsData);
+      setError('');
+    } catch (e) {
+      setError('Unable to load payment milestones.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [projectId]);
+
+  const paidTotal = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const milestoneTotal = milestones.reduce((sum, m) => sum + (Number(m.amount) || Number(m.value) || 0), 0);
+  const paidPct = milestoneTotal > 0 ? Math.min(100, Math.round((paidTotal / milestoneTotal) * 100)) : 0;
+
+  const getStatus = (m) => {
+    const pct = Number(m.percentage || m.pct || 0);
+    if (!pct) return 'pending';
+    return paidPct >= pct ? 'paid' : 'awaiting';
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Milestone Payments</div>
+        <div className="text-[10px] font-mono text-slate-400">{paidPct}% funded</div>
+      </div>
+
+      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#E8C97A] transition-all duration-700"
+          style={{ width: `${paidPct}%` }}
+        />
+      </div>
+
+      {error && <p className="text-[11px] text-rose-400 font-semibold">{error}</p>}
+      {!error && milestones.length === 0 && (
+        <p className="text-[10px] text-slate-500">No payment milestones yet.</p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {milestones.map((m, idx) => {
+          const status = getStatus(m);
+          const label = m.stage || m.title || `Milestone ${idx + 1}`;
+          const pct = Number(m.percentage || m.pct || 0);
+          return (
+            <div key={m.id || idx} className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${MS_COLORS[status] || MS_COLORS.pending}`}>
+              <div className="leading-tight">{label}</div>
+              <div className="text-[9px] font-mono mt-0.5">{pct}%</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function VendorApprovalFlow({ vendor }) {
+  const [status, setStatus] = useState(vendor?.status || 'proposed');
+  const [note, setNote] = useState('');
+  const [local, setLocal] = useState(vendor || null);
+
+  const submit = async (next) => {
+    setStatus(next);
+    setLocal((prev) => ({ ...(prev || {}), status: next }));
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/catalog/vendors/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vendorId: vendor?.id, status: next, note })
+      });
+      if (res.ok) {
+        setStatus(next);
+      }
+    } catch (e) {
+      console.warn('Vendor approval failed', e);
+    }
+  };
+
+  if (!local) return null;
+
+  return (
+    <div className="mt-3 border border-slate-800 rounded-xl p-3 space-y-2 bg-slate-950/60">
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Vendor Approval</div>
+      <div className="text-[11px] text-slate-400">Status: <span className="font-bold text-[#F0EEE8]">{status}</span></div>
+
+      {status === 'proposed' && (
+        <div className="flex gap-2">
+          <button onClick={() => submit('approved')} className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase">Approve</button>
+          <button onClick={() => submit('rejected')} className="px-3 py-1.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-black uppercase">Reject</button>
+        </div>
+      )}
+      {status === 'approved' && (
+        <div className="text-[10px] text-emerald-400 font-bold">Approved for procurement.</div>
+      )}
+      {status === 'rejected' && (
+        <div className="text-[10px] text-rose-400 font-bold">Rejected. Update vendor or select another.</div>
+      )}
+    </div>
+  );
+}
+
+function BOMAttachPanel({ projectId }) {
+  const [lines, setLines] = useState([]);
+  const [status, setStatus] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  const addLine = () => setLines((prev) => [...prev, { id: 'bom-' + Date.now(), description: '', quantity: 1, unit: 'pcs', rate: 0 }]);
+
+  const remove = (id) => setLines((prev) => prev.filter((line) => line.id !== id));
+
+  const total = lines.reduce((s, l) => s + ((Number(l.quantity) || 0) * (Number(l.rate) || 0)), 0);
+
+  const save = async () => {
+    if (!mounted || !projectId) return;
+    setStatus('Saving BOM...');
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ panels_json: JSON.stringify(lines) })
+      });
+      if (res.ok) {
+        setStatus(`Saved. Total ₹${total.toLocaleString?.('en-IN') || total}`);
+        setTimeout(() => setStatus(''), 2400);
+      } else {
+        setStatus('Save failed.');
+      }
+    } catch (e) {
+      setStatus('Save failed.');
+    }
+  };
+
+  if (!mounted) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-wider">BOM Lines</h4>
+          <p className="text-[9px] text-slate-500">Attach quantities and unit rates for production handoff.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={addLine} className="px-2.5 py-1.5 rounded-lg border border-slate-700 text-[10px] font-bold text-slate-200 hover:border-[#D4AF37]/50">Add Line</button>
+          <button onClick={save} className="px-2.5 py-1.5 rounded-lg bg-[#D4AF37] text-slate-950 text-[10px] font-black">Save</button>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {lines.map((line, idx) => (
+          <div key={line.id} className="grid grid-cols-12 gap-2 bg-slate-900/60 border border-slate-800 rounded-xl p-2.5">
+            <input
+              value={line.description}
+              onChange={(e) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, description: e.target.value } : l)))}
+              placeholder="Description"
+              className="col-span-5 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40"
+            />
+            <input
+              value={line.quantity}
+              onChange={(e) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, quantity: Number(e.target.value) || 0 } : l)))}
+              placeholder="Qty"
+              className="col-span-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40"
+            />
+            <input
+              value={line.unit}
+              onChange={(e) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, unit: e.target.value } : l)))}
+              placeholder="Unit"
+              className="col-span-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40"
+            />
+            <input
+              value={line.rate}
+              onChange={(e) => setLines((prev) => prev.map((l) => (l.id === line.id ? { ...l, rate: Number(e.target.value) || 0 } : l)))}
+              placeholder="Rate"
+              className="col-span-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40"
+            />
+            <button onClick={() => remove(line.id)} className="col-span-1 flex items-center justify-center text-rose-400 hover:text-rose-300">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+        {lines.length === 0 && (
+          <p className="text-[10px] text-slate-500">No BOM lines yet.</p>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-black text-[#D4AF37]">Total: ₹{total.toLocaleString?.('en-IN') || total}</div>
+        {status && <div className="text-[10px] text-emerald-300">{status}</div>}
+      </div>
+    </div>
+  );
+}
+
+function TimelineAttachPanel({ projectId }) {
+  const [note, setNote] = useState('');
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+    setLoaded(true);
+  }, [projectId]);
+
+  const attach = async () => {
+    if (!projectId || !note.trim()) return;
+    try {
+      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/timeline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventType: 'design.note', title: 'Agent B Studio Flow Attach', detail: note, source: 'agent-b-flow' })
+      });
+      setNote('');
+    } catch (e) {
+      console.warn('Timeline attach failed', e);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="space-y-2 border border-slate-800 rounded-xl p-3 bg-slate-950/60">
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Attach to Timeline</div>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Add workflow note, change note, or approval context..."
+        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40"
+      />
+      <button onClick={attach} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-black uppercase text-slate-200 hover:border-[#D4AF37]/40">Attach Note</button>
     </div>
   );
 }
