@@ -83,6 +83,10 @@ db.exec(`
     prompt TEXT,
     review_status TEXT DEFAULT 'unreviewed',
     review_note TEXT,
+    render_mode TEXT DEFAULT 'new-interior',
+    source_type TEXT DEFAULT 'generative',
+    provider_used TEXT,
+    variant_index INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(project_id) REFERENCES projects(id)
   );

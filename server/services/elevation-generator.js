@@ -1,4 +1,4 @@
-function generateElevationFromRender({ sceneDoc, render, wallFace, userMeasurements }) {
+export function generateElevationFromRender({ sceneDoc, render, wallFace, userMeasurements }) {
   const level = sceneDoc?.levels?.[0] || {};
   const rooms = level.rooms || [];
   const walls = level.walls || [];
