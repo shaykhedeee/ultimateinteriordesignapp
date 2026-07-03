@@ -52,8 +52,22 @@ const storageDir = path.join(__dirname, '../storage');
 const app = express();
 const port = 5055;
 
-app.use(cors());
-app.use(express.json());
+if (process.env.NODE_ENV === 'production') {
+  const helmet = await import('helmet').then(m => m.default || m);
+  const rateLimit = await import('express-rate-limit').then(m => m.default || m);
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false
+  }));
+  app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') || false, credentials: true, maxAge: 86400 }));
+  const limiter = rateLimit({ windowMs: 15*60*1000, max: 800, standardHeaders: true, legacyHeaders: false, skip: req => ['/api/health','/api/live'].includes(req.path) });
+  app.use('/api/', limiter);
+} else {
+  app.use(cors());
+}
+
+app.use(express.json({ limit: '10mb' }));
 app.use('/storage', express.static(storageDir));
 
 // Multer setup for video/photo uploads
