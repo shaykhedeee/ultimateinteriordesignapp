@@ -1,8 +1,14 @@
 import fs from 'fs';
 import db from '../database/database.js';
+import { geminiKeys, getGeminiStatus, refineRenderPromptWithGemini } from './gemini-service.js';
 
 class GeminiMultimodalService {
   /**
+   * Analyzes an uploaded site walkthrough video and cross-references it with the 2D CAD floorplan
+   * @param {string} projectId 
+   * @param {string} videoFilePath 
+   */
+
    * Analyzes an uploaded site walkthrough video and cross-references it with the 2D CAD floorplan
    * @param {string} projectId 
    * @param {string} videoFilePath 

@@ -71,7 +71,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchProjectDetails = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setStalePricing(data.stale_pricing === 1);
@@ -96,7 +96,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchQuotation = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/quotation`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/quotation`);
       const data = await res.json();
       if (data && data.quotation_json) {
         const q = JSON.parse(data.quotation_json);
@@ -111,7 +111,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const saveQuotation = async () => {
     try {
-      await fetch(`getApiBase()/projects/${projectId}/quotation`, {
+      await fetch(`${API_BASE}/projects/${projectId}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -129,7 +129,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       });
       
       // Auto log timeline event
-      await fetch(`getApiBase()/projects/${projectId}/estimate-sets`, {
+      await fetch(`${API_BASE}/projects/${projectId}/estimate-sets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -207,7 +207,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const exportQuotationPDF = async () => {
     await saveQuotation();
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/quotation/pdf`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/quotation/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -237,7 +237,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchSelections = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/materials`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/materials`);
       const data = await res.json();
       setSelectedLaminates(JSON.parse(data.laminates_json || '[]'));
       setSelectedHardware(JSON.parse(data.hardware_json || '[]'));
@@ -279,10 +279,10 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
         const fd = new FormData();
         fd.append('laminateImage', newLaminate.image);
         Object.entries(basePayload).forEach(([k, v]) => fd.append(k, String(v ?? '')));
-        const res = await fetch('getApiBase()/material-catalog/custom-laminate/upload', { method: 'POST', body: fd });
+        const res = await fetch('${API_BASE}/material-catalog/custom-laminate/upload', { method: 'POST', body: fd });
         if (!res.ok) throw new Error('Failed to upload laminate image');
       } else {
-        const res = await fetch('getApiBase()/material-catalog/custom-laminate', {
+        const res = await fetch('${API_BASE}/material-catalog/custom-laminate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(basePayload)
@@ -361,7 +361,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to deactivate this material item?")) {
       try {
-        await fetch(`getApiBase()/material-catalog/${id}`, {
+        await fetch(`${API_BASE}/material-catalog/${id}`, {
           method: 'DELETE'
         });
         fetchCatalog();
@@ -373,7 +373,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const handleRegeneratePricing = async () => {
     try {
-      await fetch(`getApiBase()/projects/${projectId}/jobs`, {
+      await fetch(`${API_BASE}/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'pricing_generation' })
@@ -388,7 +388,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const saveMaterials = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/materials`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ laminates: selectedLaminates, hardware: selectedHardware, notes })

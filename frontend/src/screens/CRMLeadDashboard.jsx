@@ -187,7 +187,7 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
     setTranscript('📞 Dialing lead...');
     setAudioWave(true);
     try {
-      const res = await fetch(`getApiBase()/leads/${selectedLead.id}/call`, {
+      const res = await fetch(`${API_BASE}/leads/${selectedLead.id}/call`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answer: simulatedAnswer })
@@ -210,7 +210,7 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
 
   const closeDeal = async (leadId, status) => {
     try {
-      const res = await fetch(`getApiBase()/leads/${leadId}/close`, {
+      const res = await fetch(`${API_BASE}/leads/${leadId}/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })

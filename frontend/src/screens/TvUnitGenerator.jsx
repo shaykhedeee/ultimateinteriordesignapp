@@ -37,7 +37,7 @@ export default function TvUnitGenerator({ projectId }) {
 
   useEffect(() => {
     if (!projectId) return;
-    fetch(`getApiBase()/projects/${projectId}`)
+    fetch(`${API_BASE}/projects/${projectId}`)
       .then(res => res.json())
       .then(setProject)
       .catch(() => {});

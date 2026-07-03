@@ -145,12 +145,12 @@ export default function FinanceScreen({ projectId }) {
     setIsLoading(true);
     try {
       const [resProj, resInvoices, resPayments, resVariations, resPOs, resQuotation] = await Promise.all([
-        fetch(`getApiBase()/projects/${projectId}`),
-        fetch(`getApiBase()/projects/${projectId}/invoices`),
-        fetch(`getApiBase()/projects/${projectId}/payments`),
-        fetch(`getApiBase()/projects/${projectId}/variation-orders`),
-        fetch(`getApiBase()/projects/${projectId}/purchase-orders`),
-        fetch(`getApiBase()/projects/${projectId}/quotation`)
+        fetch(`${API_BASE}/projects/${projectId}`),
+        fetch(`${API_BASE}/projects/${projectId}/invoices`),
+        fetch(`${API_BASE}/projects/${projectId}/payments`),
+        fetch(`${API_BASE}/projects/${projectId}/variation-orders`),
+        fetch(`${API_BASE}/projects/${projectId}/purchase-orders`),
+        fetch(`${API_BASE}/projects/${projectId}/quotation`)
       ]);
 
       const proj = await resProj.json();
@@ -266,7 +266,7 @@ export default function FinanceScreen({ projectId }) {
   // Save Quotation to API
   const handleSaveQuotation = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/quotation`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -287,7 +287,7 @@ export default function FinanceScreen({ projectId }) {
       });
 
       // Synchronize back-end estimates sets
-      await fetch(`getApiBase()/projects/${projectId}/estimate-sets`, {
+      await fetch(`${API_BASE}/projects/${projectId}/estimate-sets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -317,7 +317,7 @@ export default function FinanceScreen({ projectId }) {
   // Export PDF
   const handleDownloadPDF = async () => {
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/quotation/pdf`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/quotation/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -349,7 +349,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreateInvoice = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/invoices`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -369,7 +369,7 @@ export default function FinanceScreen({ projectId }) {
   const handleRecordPayment = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/payments`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -390,7 +390,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreateVariation = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/variation-orders`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/variation-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -410,7 +410,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreatePO = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/purchase-orders`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/purchase-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

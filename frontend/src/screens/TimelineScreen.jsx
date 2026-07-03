@@ -18,7 +18,7 @@ export default function TimelineScreen({ projectId }) {
   const fetchTimeline = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/timeline`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/timeline`);
       const data = await res.json();
       if (data.success) {
         setEvents(data.events || []);
