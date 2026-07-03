@@ -257,6 +257,10 @@ export const useAppStore = create((set, get) => ({
 
     fetchStatsAndProjects();
   },
+  
+  handleAuraAutoExecute: async (actionId, preview) => {
+    await get().handleExecuteAction(actionId, preview);
+  },
 
   navigateTab: (tab) => {
     const { setActiveTab } = get();

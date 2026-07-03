@@ -56,6 +56,24 @@ export default function AuraBrainChat({
     }, 2500);
   };
 
+  useEffect(() => {
+    if (!messages.length) return;
+    const last = messages[messages.length - 1];
+    if (last && last.sender === 'aura' && last.actions && last.actions.length > 0 && !last.executedActions) {
+      const safeActions = last.actions.filter(a => a.variant !== 'destructive');
+      if (safeActions.length > 0 && onExecuteAction) {
+        setTimeout(() => {
+          onExecuteAction(safeActions[0].actionId, last.actionPreview);
+        }, 800);
+      }
+    }
+  }, [messages, onExecuteAction]);
+
+  useEffect(() => {
+    const el = document.getElementById('aura-chat-messages');
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, isAiTyping]);
+
   const proactiveSuggestions = [
     "💡 Add a warm pendant light above the dining table (+350 Lux, CRI 98)",
     "💡 This east wall looks empty. I suggest backlit fluted wood rafters",
