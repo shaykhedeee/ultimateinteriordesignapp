@@ -948,12 +948,15 @@ export default function Render3DStudio({ projectId, onComplete }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           assetId: selectedRender.id,
-          revisionRequest
+          revisionRequest,
+          renderMode,
+          iterationNumber: revisionCount + 1
         })
       });
       const data = await res.json();
-      setGenerationStatus(data?.success ? 'Edit applied.' : 'Edit finished with issues.');
+      setGenerationStatus(data?.success ? `Edit applied. Iteration ${revisionCount + 1}` : 'Edit finished with issues.');
       if (data.success) {
+        trackIteration(`Iteration ${revisionCount + 1}`, revisionRequest);
         setRevisionRequest('');
         await fetchRenders();
         if (data.render) {
@@ -987,6 +990,21 @@ export default function Render3DStudio({ projectId, onComplete }) {
       console.error("Error submitting review:", err);
       setGenerationStatus('Review failed');
     }
+  };
+
+  // Revision history trail for render iterations
+  const revisionTrail = useMemo(() => {
+    return iterations.slice(0, 8).map((it, idx) => ({
+      id: it.id,
+      label: it.label,
+      preview: it.request?.slice(0, 40),
+      time: it.time ? new Date(it.time).toLocaleTimeString() : ''
+    }));
+  }, [iterations]);
+
+  const clearRevisionTrail = () => {
+    setIterations([]);
+    setRevisionCount(0);
   };
 
   const handleLogCorrection = async () => {
@@ -1663,6 +1681,48 @@ export default function Render3DStudio({ projectId, onComplete }) {
             </select>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-[10px] text-slate-400 font-semibold block">Workflow Mode</label>
+            <div className="grid grid-cols-3 gap-1.5 text-[9px] font-black uppercase">
+              <button
+                type="button"
+                onClick={setNewRenderMode}
+                className={`py-2 rounded-lg border transition text-center ${
+                  renderMode === 'new-interior'
+                    ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]'
+                    : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                New Interior
+              </button>
+              <button
+                type="button"
+                onClick={() => captureCameraPhoto()}
+                className={`py-2 rounded-lg border transition text-center ${
+                  renderMode === 'photo-to-render'
+                    ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]'
+                    : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                Capture Photo
+              </button>
+              <button
+                type="button"
+                onClick={setRenovationMode}
+                className={`py-2 rounded-lg border transition text-center ${
+                  renderMode === 'renovation'
+                    ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]'
+                    : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                Renovation
+              </button>
+            </div>
+            <div className="text-[9px] text-slate-500">
+              {renderMode === 'new-interior' ? 'Generate a fresh room visualization.' : renderMode === 'photo-to-render' ? 'Use camera/site photo as source.' : 'Keep spatial layout, refresh finishes.'}
+            </div>
+          </div>
+
           <div className="flex gap-2 text-[10px] text-slate-400">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
@@ -1821,6 +1881,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
               <span className="text-[10px] uppercase font-bold text-[#D4AF37] bg-[#D4AF37]/10 px-2.5 py-1 rounded">
                 {activeTab3D === 'walkthrough' ? 'Interactive 3D Scene' : selectedRender ? `${selectedRender.room || 'living'} design` : 'empty viewport'}
               </span>
+              {activeTab3D === 'renders' && revisionTrail.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Revisions ({revisionCount})</span>
+                  <button onClick={clearRevisionTrail} className="text-[9px] font-bold uppercase text-slate-500 hover:text-slate-200 transition">Clear</button>
+                </div>
+              )}
             </div>
           </div>
 

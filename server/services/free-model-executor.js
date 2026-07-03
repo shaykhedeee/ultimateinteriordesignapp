@@ -10,7 +10,7 @@ const AUDIT_TAG = 'free-model-executor';
 const REDACTED = '[REDACTED]';
 
 const ALLOW_FREE_PROVIDERS =
-  String(process.env.FREE_MODEL_EXECUTOR_ALLOW_FREE_PROVIDERS || 'false').toLowerCase() === 'true';
+  String(process.env.FREE_MODEL_EXECUTOR_ALLOW_FREE_PROVIDERS || 'true').toLowerCase() === 'true';
 const STRICT_REGISTRY =
   String(process.env.FREE_MODEL_EXECUTOR_STRICT_REGISTRY || 'false').toLowerCase() === 'true';
 
@@ -80,6 +80,16 @@ function sanitizeEnvMeta(obj = {}) {
   return out;
 }
 
+async function safeFetchJson(url, options = {}) {
+  try {
+    const res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return { ok: true, data: await res.json() };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 const FREE_EXECUTORS = [
   {
     name: 'huggingface',
@@ -126,6 +136,18 @@ const FREE_EXECUTORS = [
         return { ok: false, reason: 'unavailable-missing-config', reasonDetail: 'No HuggingFace model is configured.' };
       }
       return { ok: true, reason: 'available', reasonDetail: 'HuggingFace is configured and reachable via router.' };
+    },
+    async execute(selection, payload) {
+      const endpointBase = String(process.env.HUGGINGFACE_TEXT_ENDPOINT_BASE || 'https://router.huggingface.co/hf-inference/models');
+      const model = selection?.meta?.model || 'black-forest-labs/FLUX.1-schnell';
+      const endpoint = `${endpointBase}/${encodeURIComponent(model)}`;
+      const prompt = payload?.prompt || payload?.customInstruction || 'interior design render';
+      const body = { inputs: prompt };
+      const result = await safeFetchJson(endpoint, { method: 'POST', body: JSON.stringify(body) });
+      if (result.ok) {
+        return { ok: true, provider: 'huggingface', model, output: result.data, endpoint };
+      }
+      return { ok: false, provider: 'huggingface', model, error: result.error };
     },
     estimatedCost() {
       return 0;
@@ -180,6 +202,23 @@ const FREE_EXECUTORS = [
 
       return { ok: true, reason: 'available', reasonDetail: 'OpenRouter free profile is configured for a compatible task.' };
     },
+    async execute(selection, payload) {
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) {
+        return { ok: false, provider: 'openrouter', model: selection.model, error: 'OPENROUTER_API_KEY is missing' };
+      }
+      const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+      const prompt = payload?.prompt || payload?.customInstruction || JSON.stringify(payload);
+      const body = {
+        model: selection.model,
+        messages: [{ role: 'user', content: prompt }]
+      };
+      const result = await safeFetchJson(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body) });
+      if (result.ok) {
+        return { ok: true, provider: 'openrouter', model: selection.model, output: result.data, endpoint };
+      }
+      return { ok: false, provider: 'openrouter', model: selection.model, error: result.error };
+    },
     estimatedCost() {
       return 0;
     }
@@ -231,6 +270,16 @@ const FREE_EXECUTORS = [
       }
       return { ok: true, reason: 'available', reasonDetail: 'Pollinations endpoint is configured and reachable without auth.' };
     },
+    async execute(selection, payload) {
+      const prompt = payload?.prompt || payload?.customInstruction || 'interior design render';
+      const model = String(process.env.POLLINATIONS_IMAGE_MODEL || 'flux');
+      const url = buildPollinationsUrl(prompt, model, selection.meta?.taskType || 'quick_render');
+      const result = await safeFetchJson(url);
+      if (result.ok) {
+        return { ok: true, provider: 'pollinations', model, output: result.data, endpoint: url };
+      }
+      return { ok: false, provider: 'pollinations', model, error: result.error };
+    },
     estimatedCost() {
       return 0;
     }
@@ -265,6 +314,15 @@ const FREE_EXECUTORS = [
     async validate(selection) {
       return { ok: true, reason: 'available', reasonDetail: 'Local curated fallback is always available.' };
     },
+    async execute(selection, payload) {
+      return {
+        ok: true,
+        provider: 'curated',
+        model: selection.model,
+        output: { mode: selection.model, note: 'Local curated fallback render plan generated.' },
+        endpoint: selection.urlOrStatus
+      };
+    },
     estimatedCost() {
       return 0;
     }
@@ -281,12 +339,6 @@ function guessCuratedMode({ title, room, style }) {
   return 'mock';
 }
 
-/**
- * planFreeExecution walks the free/public execution candidates. It returns
- * structured readiness metadata rather than silently skipping candidates.
- *
- * If free-provider mode is disabled, only the local fallback is considered.
- */
 export async function planFreeExecution(taskType, payload = {}) {
   const normalizedTask = String(taskType || '').trim().toLowerCase();
   const knownTask = Object.values(TASK_TYPES).includes(normalizedTask);
@@ -362,10 +414,26 @@ export async function planFreeExecution(taskType, payload = {}) {
       };
     }
 
+    let executionResult = selection;
+    try {
+      if (typeof executor.execute === 'function') {
+        executionResult = await executor.execute(selection, payload || {});
+      }
+    } catch (err) {
+      return {
+        provider: executor.name,
+        model: selection.model || null,
+        urlOrStatus: 'execution_failed',
+        meta: sanitizeEnvMeta({ ...meta, reason: 'execution_failed', reasonDetail: err.message }),
+        estimatedCost: 0
+      };
+    }
+
     return {
       provider: executor.name,
       model: selection.model || null,
-      urlOrStatus: selection.urlOrStatus || 'validated',
+      urlOrStatus: executionResult?.endpoint || executionResult?.urlOrStatus || 'executed',
+      output: executionResult,
       meta,
       estimatedCost: 0
     };
@@ -382,5 +450,4 @@ export async function planFreeExecution(taskType, payload = {}) {
     }),
     estimatedCost: 0
   };
-
 }
