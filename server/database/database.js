@@ -182,6 +182,21 @@ db.exec(`
     deleted_at TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS whitelabel_settings (
+    id TEXT PRIMARY KEY,
+    brand_name TEXT DEFAULT 'Ultimate Interior Design',
+    logo_url TEXT,
+    primary_color TEXT DEFAULT '#D4AF37',
+    secondary_color TEXT DEFAULT '#020617',
+    accent_color TEXT DEFAULT '#C9A84C',
+    font_family TEXT DEFAULT 'Inter, sans-serif',
+    custom_css TEXT,
+    favicon_url TEXT,
+    support_email TEXT,
+    company_address TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS generation_costs (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
@@ -971,6 +986,27 @@ try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_geometry INTEGER DEF
 try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_lighting_direction INTEGER DEFAULT 1;"); } catch (e) {}
 
 console.log("Ultimate Interior Design SQLite Database initialized at:", dbPath);
+
+try {
+  const wl = db.prepare("SELECT COUNT(*) as cnt FROM whitelabel_settings WHERE id = 'global'").get();
+  if (wl.cnt === 0) {
+    db.prepare(`INSERT INTO whitelabel_settings (id, brand_name, logo_url, primary_color, secondary_color, accent_color, font_family, custom_css, favicon_url, support_email, company_address, updated_at) VALUES ('global', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      'Ultimate Interior Design',
+      null,
+      '#D4AF37',
+      '#020617',
+      '#C9A84C',
+      'Inter, sans-serif',
+      null,
+      null,
+      null,
+      null,
+      new Date().toISOString()
+    );
+  }
+} catch (e) {
+  console.error('Error seeding whitelabel settings:', e);
+}
 
 export default db;
 

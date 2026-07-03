@@ -1,9 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from './stores/appStore';
 import AppShell from './components/shell/AppShell';
 import AppRoutes from './components/shell/AppRoutes';
+import TutorialOverlay from './components/tutorial/TutorialOverlay';
 
 export default function App() {
+  const [showTutorial, setShowTutorial] = useState(false);
+  React.useEffect(() => {
+    const seen = localStorage.getItem('tutorialSeen');
+    if (!seen) setShowTutorial(true);
+  }, []);
   const fetchStatsAndProjects = useAppStore((state) => state.fetchStatsAndProjects);
   const activeTab = useAppStore((state) => state.activeTab);
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
@@ -47,6 +53,13 @@ export default function App() {
 
   return (
     <div className="relative">
+      {showTutorial && (
+        <TutorialOverlay
+          open={showTutorial}
+          onClose={() => setShowTutorial(false)}
+          onFinished={() => setShowTutorial(false)}
+        />
+      )}
       <div className={`fixed top-3 right-3 z-50 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
         connectivity === 'online' ? 'border-emerald-500/40 text-emerald-300 bg-emerald-950/40' : 'border-red-500/40 text-red-300 bg-red-950/40'
       }`}>
