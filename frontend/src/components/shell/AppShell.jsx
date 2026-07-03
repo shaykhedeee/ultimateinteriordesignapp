@@ -51,6 +51,7 @@ const NAV_SECTIONS = [
     title: 'AI Visualization',
     items: [
       { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: true },
+      { id: 'render-edit', label: 'Render Edit Suite', icon: <Sparkles className="w-4 h-4" />, disabled: true },
       { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: true }
     ]
   },

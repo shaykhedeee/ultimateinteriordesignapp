@@ -2024,8 +2024,8 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
       const API_BASE = 'http://127.0.0.1:5055/api';
       const toolKey = activeTool?.key || '';
-      let endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
-      let body = { projectId };
+      let endpoint = `${API_BASE}/tools/execute`;
+      let body = { toolSlug: toolKey, projectId, provider: null, model: null, params: {} };
 
       if (toolKey === 'laminate_swapper' || toolKey === 'laminate-changer') {
         endpoint = `${API_BASE}/projects/${projectId}/renders/laminate-swap`;
@@ -2037,8 +2037,8 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
         endpoint = `${API_BASE}/projects/${projectId}/zones/design-plan`;
         body = { planType: 'rcp', notes: 'Auto-planned RCP from tool hub.' };
       } else if (toolKey === 'elevation_draft') {
-        endpoint = `${API_BASE}/projects/${projectId}/renders/export`;
-        body = { type: 'elevation', wallFace: elevationWall || 'North Wall' };
+        endpoint = `${API_BASE}/projects/${projectId}/elevations/generate`;
+        body = { wallFace: elevationWall || 'North Wall', userMeasurements: {} };
       } else if (toolKey === 'extruder_3d') {
         endpoint = `${API_BASE}/projects/${projectId}/renders/generate`;
         body = { variantCount: 1, modelTier: 'draft', room: 'living', style: 'contemporary' };
@@ -2046,8 +2046,8 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
         endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
         body = { projectId };
       } else {
-        endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
-        body = { projectId };
+        endpoint = `${API_BASE}/tools/execute`;
+        body = { toolSlug: toolKey, projectId, params: {} };
       }
 
       const runRes = await fetch(endpoint, {
@@ -2069,13 +2069,13 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       } else if (toolKey === 'rcp_planner') {
         setToolResult({ success, text: resultJson?.text || 'RCP planning task accepted.', layoutPoints: resultJson?.layoutPoints || [] });
       } else if (toolKey === 'elevation_draft') {
-        setToolResult({ success, text: resultJson?.text || 'Elevation draft request accepted.', wallFace: elevationWall || 'North Wall' });
+        setToolResult({ success, text: resultJson?.text || 'Elevation draft request accepted.', wallFace: elevationWall || 'North Wall', elevation: resultJson || null });
       } else if (toolKey === 'extruder_3d') {
         setToolResult({ success, text: resultJson?.text || '3D generation requested.', extruded: !!resultJson?.variants?.length || !!resultJson?.render });
       } else if (toolKey === 'blueprint_parser' || toolKey === 'camera_planner' || toolKey === 'walkthrough_config' || toolKey === 'svg_elevation_builder' || toolKey === 'bom_calculator' || toolKey === 'invoice_ledger') {
-        setToolResult({ success, text: resultJson?.text || resultJson?.message || `Specialist tool ${toolKey} executed successfully.` });
+        setToolResult({ success, text: resultJson?.text || resultJson?.message || `Specialist tool ${toolKey} executed successfully.`, result: resultJson });
       } else {
-        setToolResult({ success, text: resultJson?.text || resultJson?.reply || `Tool execution completed for ${toolKey}. Outputs saved to active project.` });
+        setToolResult({ success, text: resultJson?.text || resultJson?.reply || `Tool execution completed for ${toolKey}. Outputs saved to active project.`, result: resultJson });
       }
     } catch (err) {
       setToolResult({ success: false, text: `Tool execution failed: ${err.message}` });
