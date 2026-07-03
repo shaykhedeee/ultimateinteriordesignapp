@@ -33,7 +33,7 @@ import { startEditWorker } from './services/job-orchestrator.js';
 import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory } from './services/render-edit-service.js';
 import { enqueueEditJob } from './services/render-edit-worker.js';
 import { listRenderHistory as listRenderHistoryRows, getLatestRenderId } from './services/render-history-service.js';
-import generateElevationFromRender from './services/elevation-generator.js';
+import { generateElevationFromRender } from './services/elevation-generator.js';
 import { planFreeExecution } from './services/free-model-executor.js';
 
 
@@ -3130,7 +3130,7 @@ app.post('/api/tools/:toolSlug/run', async (req, res) => {
 // 11. RENDER EDIT + LINEAGE API
 // ==========================================
 
-const EDIT_TYPE_OPTIONS = Array.from(ALLOWED_EDIT_TYPES);
+const EDIT_TYPE_OPTIONS = ["material_swap","furniture_replace","add_object","remove_object","lighting_tweak","decor_refinement"];
 
 app.get('/api/projects/:id/renders/history', (req, res) => {
   try {
