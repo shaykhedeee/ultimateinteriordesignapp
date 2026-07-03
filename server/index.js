@@ -34,7 +34,7 @@ import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit,
 import { enqueueEditJob } from './services/render-edit-worker.js';
 import { listRenderHistory as listRenderHistoryRows, getLatestRenderId } from './services/render-history-service.js';
 import generateElevationFromRender from './services/elevation-generator.js';
-import { executeFreeModel } from './services/free-model-executor.js';
+import { planFreeExecution } from './services/free-model-executor.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -3249,7 +3249,7 @@ app.post('/api/tools/execute', async (req, res) => {
       provider,
       model
     };
-    const result = await executeFreeModel(payload);
+    const result = await planFreeExecution(payload);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3281,7 +3281,7 @@ app.post('/api/projects/:id/elevations/generate', async (req, res) => {
 app.post('/api/providers/free-model/execute', async (req, res) => {
   try {
     const payload = req.body || {};
-    const result = await executeFreeModel(payload);
+    const result = await planFreeExecution(payload);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
