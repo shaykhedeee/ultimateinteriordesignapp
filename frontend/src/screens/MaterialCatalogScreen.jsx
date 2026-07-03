@@ -263,30 +263,70 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const handleAddLaminateSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/material-catalog', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: 'laminate',
-          subcategory: newLaminate.subcategory,
-          code: newLaminate.code,
-          name: newLaminate.name,
-          brand: newLaminate.brand,
-          finish: newLaminate.finish,
-          color: newLaminate.color,
-          pricePerSqft: parseFloat(newLaminate.pricePerSqft),
-          rating: 4.8
-        })
-      });
-      if (res.ok) {
-        setShowAddLaminateForm(false);
-        setNewLaminate({ name: '', brand: 'CenturyPly', finish: 'Suede Matte', color: '#f3f4f6', pricePerSqft: '60', code: 'SF-NEW', subcategory: 'shutter_facade' });
-        fetchCatalog();
+      const basePayload = {
+        category: 'laminate',
+        subcategory: newLaminate.subcategory,
+        code: newLaminate.code,
+        name: newLaminate.name,
+        brand: newLaminate.brand,
+        finish: newLaminate.finish,
+        color: newLaminate.color,
+        pricePerSqft: Number(newLaminate.pricePerSqft || 0),
+        rating: 5
+      };
+      if (newLaminate.image) {
+        const fd = new FormData();
+        fd.append('laminateImage', newLaminate.image);
+        Object.entries(basePayload).forEach(([k, v]) => fd.append(k, String(v ?? '')));
+        const res = await fetch('http://127.0.0.1:5055/api/material-catalog/custom-laminate/upload', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('Failed to upload laminate image');
+      } else {
+        const res = await fetch('http://127.0.0.1:5055/api/material-catalog/custom-laminate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(basePayload)
+        });
+        if (!res.ok) throw new Error('Failed to save laminate');
       }
+      setShowAddLaminateForm(false);
+      setNewLaminate({ name: '', brand: 'Custom', finish: 'Custom', color: '#888888', pricePerSqft: '', code: 'CUSTOM', subcategory: 'custom', image: null, pasteDataUrl: '' });
+      fetchCatalog();
     } catch(err) {
       console.error(err);
     }
   };
+
+  const handlePasteLaminate = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find(t => t.startsWith('image'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const file = new File([blob], 'pasted-laminate.png', { type: blob.type || 'image/png' });
+          setNewLaminate(prev => ({ ...prev, image: file }));
+          const reader = new FileReader();
+          reader.onload = () => setNewLaminate(prev => ({ ...prev, pasteDataUrl: reader.result }));
+          reader.readAsDataURL(file);
+        }
+      }
+    } catch (e) {
+      console.error('Paste failed', e);
+    }
+  };
+
+  const handleDropLaminate = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setNewLaminate(prev => ({ ...prev, image: file }));
+      const reader = new FileReader();
+      reader.onload = () => setNewLaminate(prev => ({ ...prev, pasteDataUrl: reader.result }));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragOver = (e) => e.preventDefault();
 
   const handleAddHwSubmit = async (e) => {
     e.preventDefault();
@@ -480,6 +520,25 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                     <option value="shutter_facade">Shutter Finish</option>
                     <option value="premium_highlight">Premium Finish</option>
                   </select>
+                </div>
+                <div
+                  className="border border-dashed border-slate-700 rounded-lg p-2 text-center text-[9px] text-slate-500 bg-slate-950/40"
+                  onDrop={handleDropLaminate}
+                  onDragOver={handleDragOver}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handlePasteLaminate}
+                      className="px-2 py-1 bg-slate-900 border border-slate-800 rounded text-[9px] font-bold uppercase hover:border-[#D4AF37]/40 transition"
+                    >
+                      Paste Image
+                    </button>
+                    <span className="text-slate-600">or drag & drop image here</span>
+                  </div>
+                  {newLaminate.pasteDataUrl && (
+                    <img src={newLaminate.pasteDataUrl} alt="Preview" className="mt-2 max-h-20 mx-auto rounded border border-slate-700" />
+                  )}
                 </div>
                 <button type="submit" className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
                   Create Swatch
