@@ -879,6 +879,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const generateAIRender = async () => {
     setIsGenerating(true);
+    setGenerationStatus('Generating...');
     try {
       const formData = new FormData();
       formData.append('room', targetRoom);
@@ -916,6 +917,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         body: formData
       });
       const data = await res.json();
+      setGenerationStatus(data?.success ? 'Render complete.' : 'Render finished with issues.');
       if (data.success) {
         await fetchRenders();
         if (data.render) {
@@ -924,6 +926,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       }
     } catch (err) {
       console.error("AI Generation failed:", err);
+      setGenerationStatus('Generation failed');
     } finally {
       setIsGenerating(false);
     }
@@ -932,6 +935,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleEditRender = async () => {
     if (!selectedRender || !revisionRequest.trim()) return;
     setIsGenerating(true);
+    setGenerationStatus('Applying edit...');
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/edit`, {
         method: 'POST',
@@ -942,6 +946,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         })
       });
       const data = await res.json();
+      setGenerationStatus(data?.success ? 'Edit applied.' : 'Edit finished with issues.');
       if (data.success) {
         setRevisionRequest('');
         await fetchRenders();
@@ -951,6 +956,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       }
     } catch (err) {
       console.error("AI Revision failed:", err);
+      setGenerationStatus('Edit failed');
     } finally {
       setIsGenerating(false);
     }
@@ -958,6 +964,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const handleReview = async (status) => {
     if (!selectedRender) return;
+    setGenerationStatus(`Setting ${status}...`);
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
         method: 'POST',
@@ -965,15 +972,14 @@ export default function Render3DStudio({ projectId, onComplete }) {
         body: JSON.stringify({ status, note: reviewNote })
       });
       const data = await res.json();
+      setGenerationStatus(data?.success ? `Marked as ${status}.` : 'Review update failed.');
       if (data.success) {
         setReviewNote('');
         await fetchRenders();
-        setStatus(`Render marked as ${status}.`);
-      } else {
-        setStatus('Review update failed.', 'error');
       }
     } catch (err) {
       console.error("Error submitting review:", err);
+      setGenerationStatus('Review failed');
     }
   };
 

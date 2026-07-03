@@ -30,7 +30,8 @@ import { TASK_TYPES, PROVIDER_MODES, CAPABILITY_TAGS, canHandleTask, providersFo
 import { resolveProviderForTask, recordProviderMetadata } from './services/provider-router-service.js';
 import { renderCanonicalTopView, enhanceCanonicalTopView, getProjectTopViewAssets } from './services/topview-enhancement-worker.js';
 import { startEditWorker } from './services/job-orchestrator.js';
-import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory, enqueueEditJob } from './services/render-edit-service.js';
+import { createRenderHistoryRow, createEditRequest, updateEditStatus, retryEdit, cancelEdit, listEditsForRender, getEdit, listRenderHistory } from './services/render-edit-service.js';
+import { enqueueEditJob } from './services/render-edit-worker.js';
 import { listRenderHistory as listRenderHistoryRows, getLatestRenderId } from './services/render-history-service.js';
 import generateElevationFromRender from './services/elevation-generator.js';
 import { executeFreeModel } from './services/free-model-executor.js';
