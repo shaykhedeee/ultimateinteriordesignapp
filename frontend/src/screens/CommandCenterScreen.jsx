@@ -546,9 +546,9 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
       {/* Step Progress Tracker */}
       <div className="flex items-center justify-between border-b border-slate-850 pb-4">
         <div>
-          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">🚀 Smart Project Pipeline</h3>
-          <p className="text-[10px] text-slate-500 mt-0.5">End-to-end plan to design to render to drawings to BOM</p>
-        </div>
+          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">🚀 Your Design Flow</h3>
+          <p className="text-[10px] text-slate-500 mt-0.5">Choose a template or start simple — we’ll guide you</p>
+
         <div className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 border border-slate-850 px-3 py-1 rounded-xl">
           STEP: <span className="text-[#D4AF37] uppercase">{wizardStep.replace('_', ' ')}</span>
         </div>
@@ -743,7 +743,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-2">
             <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase px-1">
-              <span>Click two points on a known wall to set scale</span>
+              <span>Tap two points on a wall to set size</span>
               <span className="text-[#D4AF37] font-mono">{calibrationPoints.length} / 2 Points Selected</span>
             </div>
             <div 
@@ -788,7 +788,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
             <div className="space-y-3">
               <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">Scale Ratio Config</span>
               <div className="space-y-1">
-                <label className="text-[8px] text-slate-500 uppercase block font-bold">Real Distance (mm)</label>
+                <label className="text-[8px] text-slate-500 uppercase block font-bold">Real length (mm)</label>
                 <input 
                   type="number" 
                   value={scaleDistance} 
@@ -796,7 +796,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
                 />
               </div>
-              <span className="text-[9px] text-slate-550 block">Click on two points (e.g. kitchen rear wall) and enter distance in millimetres.</span>
+              <span className="text-[9px] text-slate-550 block">Tap two points on a wall, then enter the real length.</span>
             </div>
             
             <button 
@@ -804,7 +804,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
               disabled={calibrationPoints.length < 2}
               className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] disabled:bg-slate-800 disabled:text-slate-550 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10"
             >
-              Set Scale & Continue
+              Set Size & Continue
             </button>
           </div>
         </div>
@@ -815,7 +815,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-2">
             <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase px-1">
-              <span>Drag rectangles over each room on the canvas, then continue</span>
+              <span>Draw boxes around rooms</span>
               <span className="text-[#D4AF37] font-mono">Zones Mapped</span>
             </div>
             <div className="w-full h-[320px] bg-slate-900 border border-slate-850 rounded-2xl relative overflow-hidden flex items-center justify-center">
@@ -851,7 +851,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
           <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-4 flex flex-col justify-between">
             <div className="space-y-2">
               <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block font-bold">Room Zonation Boundary</span>
-              <p className="text-[11px] text-slate-450 leading-relaxed">Draw room bounds by dragging boxes or click Save Rooms below to auto-interpret the layout zonation vectors.</p>
+              <p className="text-[11px] text-slate-450 leading-relaxed">Draw boxes around rooms, then save.</p>
             </div>
             <button 
               onClick={async () => {
@@ -883,7 +883,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
               }}
               className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10"
             >
-              Save Rooms & Continue
+              Save Rooms
             </button>
           </div>
         </div>
@@ -892,7 +892,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
       {/* STEP 6: Rooms ready — pick one to render */}
       {wizardStep === 'rooms_ready' && (
         <div className="space-y-4 max-w-md bg-slate-900/30 border border-slate-850 p-6 rounded-2xl">
-          <label className="text-xs font-black text-slate-350 block uppercase tracking-wider">Rooms ready — pick one to render.</label>
+          <label className="text-xs font-black text-slate-350 block uppercase tracking-wider">Pick a room to design</label>
           <div className="flex flex-col gap-2">
             {(markedRooms.length ? markedRooms : ([{ id: 'living', label: 'Open Zone 1: Living Area' }, { id: 'master', label: 'Open Zone 2: Master Bed' }, { id: 'kitchen', label: 'Open Zone 3: Kitchen' }])).map(zone => (
               <button 
@@ -914,7 +914,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
       {wizardStep === 'detection_done' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-3">
-            <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest block">Detected Room Objects & Layout Matches</span>
+            <span className="text-[10px] font-bold text-slate-450 uppercase tracking-widest block">Room objects</span>
             
             <div className="bg-slate-950/80 border border-slate-850 p-4 rounded-2xl space-y-3">
               {detectedObjects.map(obj => (
@@ -934,8 +934,8 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
           </div>
           <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
-              <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider block">Assign Products / Style Preset</span>
-              <p className="text-[11px] text-slate-400">Detection finished. Assign products to detected objects, or add a style/product board reference.</p>
+              <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider block">Choose products / style</span>
+              <p className="text-[11px] text-slate-400">Review suggestions and choose products.</p>
               
               <div className="flex flex-col gap-2 pt-2">
                 {[
@@ -985,7 +985,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   onClick={() => setWizardStep('moodboard_view')}
                   className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-emerald-500/10"
                 >
-                  Create Moodboard
+                  Continue to Ideas
                 </button>
               </div>
             )}
