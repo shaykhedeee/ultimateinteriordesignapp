@@ -216,6 +216,22 @@ export class AuraMemoryService {
     const serialized = JSON.stringify(value);
     db.prepare('INSERT OR REPLACE INTO aura_memory_store (key, value_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(key, serialized);
   }
+
+  async logAcceptanceFeedback({ organizationId, projectId, taskId, feedbackType, notes, rating }) {
+    const id = 'aura_fb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    db.prepare(`INSERT INTO aura_feedback (id, organization_id, aura_task_id, feedback_type, actor_type, actor_id, rating_overall, feedback_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, organizationId || null, taskId || null, feedbackType || 'accepted', 'system', 'aura-self-learning', typeof rating === 'number' ? rating : null, notes || null);
+    return id;
+  }
+
+  async storeIndianLearnedPreference({ organizationId, preferenceType, preferenceJson }) {
+    if (!preferenceJson || !organizationId) return null;
+    const existing = this.#getJson(MEMORY_ORG_PREFS_KEY, []);
+    const merged = Array.isArray(existing) ? existing.slice(-50) : [];
+    merged.push({ preferenceType, preferenceJson, updatedAt: new Date().toISOString() });
+    this.#setJson(MEMORY_ORG_PREFS_KEY, Array.from(new Map(merged.map(item => [item.preferenceType + ':' + JSON.stringify(item.preferenceJson), item])).values()));
+    return true;
+  }
 }
 
 export const auraMemory = new AuraMemoryService();

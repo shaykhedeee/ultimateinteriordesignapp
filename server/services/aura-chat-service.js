@@ -2,6 +2,10 @@ import { geminiKeys, getGeminiStatus } from './gemini-service.js';
 import { openRouterKey } from './provider-config.js';
 import { getProfile, listProfiles } from './openrouter-profiles.js';
 import { auraMemory } from './aura-memory-service.js';
+import { loadKnowledgeCache } from './aura-service.js';
+import { injectIndianContext } from './aura-service.js';
+
+const INDIAN_KNOWLEDGE = (() => { try { return loadKnowledgeCache?.() || ''; } catch { return ''; } })();
 
 /* ------------------------------------------------------------------ */
 /* Typed low-level helpers (preserved from previous implementation)   */
@@ -327,15 +331,15 @@ function buildValidationResponse() {
 /* Prompt composer                                                   */
 /* ------------------------------------------------------------------ */
 
-function composeAgentPrompt(intent, message, indianContext = {}) {
-  const base = [
+function composeAgentPrompt(intent, message, indianContext = {}, overrides = {}) {
+  const base = overrides.basePrompt || [
     'You are AURA, an interior-design intelligence agentic system.',
     'You specialize in Indian interiors and photorealistic design planning.',
     'Preserve uncertainty, avoid hallucinating architecture or exact dimensions.',
     'Return concise, actionable, design-focused guidance.'
   ].join('\n');
 
-  const intentGuidance = {
+  const intentGuidance = overrides.intentGuidance || {
     [INTENT.BUDGET]: 'Focus on cost optimization, value engineering, material substitutions, and scope/value gap analysis.',
     [INTENT.FINISH]: 'Focus on surface materials, finishes, laminates, hardware, and finish-tag rollout.',
     [INTENT.LAYOUT]: 'Focus on circulation, placement, scale, clearances, and zoning.',
@@ -346,11 +350,97 @@ function composeAgentPrompt(intent, message, indianContext = {}) {
     [INTENT.UNKNOWN]: 'Reason from first principles: infer the closest design intent and propose a structured improvement path.'
   } [intent] || ACTION_SCHEMAS[INTENT.UNKNOWN].changes.join('; ');
 
+  const knowledgeBlock = (overrides.indianKnowledgeBase || '').trim();
+
   const contextLine = Object.keys(indianContext).length
     ? `\nPreserve Indian context: ${Object.keys(indianContext).join(', ')}.`
     : '';
 
-  return `${base}\n\nMode: ${intent}\nGuidance: ${intentGuidance}${contextLine}\n\nUser request: ${message}`;
+  const tail = [
+    '',
+    `Mode: ${intent}`,
+    `Guidance: ${intentGuidance}`,
+    knowledgeBlock ? `\n${knowledgeBlock}` : '',
+    contextLine,
+    '',
+    `User request: ${message}`
+  ].filter(Boolean).join('\n');
+
+  return `${base}${tail}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Prompt/training updater                                            */
+/* ------------------------------------------------------------------ */
+
+let INDIAN_SYSTEM_SNIPPET = '';
+
+async function refreshIndianSystemSnippet() {
+  try {
+    const knowledge = loadKnowledgeCache();
+    if (!knowledge) {
+      INDIAN_SYSTEM_SNIPPET = '';
+      return INDIAN_SYSTEM_SNIPPET;
+    }
+    INDIAN_SYSTEM_SNIPPET = [
+      'You are AURA with an Indian interiors expert mode.',
+      'Use Indian norms for laminates, hardware, pooja/mandir units, kitchens, wardrobes, TV units, budgets, and vendor availability by default.',
+      'Use Vastu as preference signal, not a hard constraint unless explicitly requested.',
+      'Accept manual override without friction.',
+      '',
+      knowledge.slice(0, 5000)
+    ].join('\n');
+    return INDIAN_SYSTEM_SNIPPET;
+  } catch {
+    return INDIAN_SYSTEM_SNIPPET;
+  }
+}
+
+async function recordLearnedFeedback({ organizationId, projectId, message, intent, reply, actionPreview }) {
+  const entry = {
+    message,
+    intent,
+    replySnippet: typeof reply === 'string' ? reply.slice(0, 240) : '',
+    actionTitle: actionPreview?.title || null,
+    preferences: {
+      defaultLaminateFamily: 'Merino/Greenlam/Royale Touche',
+      defaultHardwareFamily: 'Hettich InnoTech / Blum ClipTop',
+      defaultPoojaOrientation: 'NE or East',
+      defaultKitchenLayout: 'parallel first, then L/U/island if space permits',
+      defaultWardrobeShutter: 'hinged/sliding with loft optional'
+    }
+  };
+  const inputNote = {
+    message,
+    intent,
+    acceptedAt: new Date().toISOString(),
+    organizationId: organizationId || null,
+    projectId: projectId || null
+  };
+  return auraMemory.recordTask?.({
+    organizationId,
+    projectId,
+    taskType: 'aura_learned_feedback',
+    inputJson: inputNote,
+    modelBackend: 'aura-self-learning',
+    modelVersion: 'v1',
+    createdBy: 'aura-chat-service'
+  }).catch(() => null);
+}
+
+async function loadProjectLearnedPreferences(organizationId, projectId) {
+  const projectContext = auraMemory.getProjectContext?.({ organizationId, projectId });
+  if (!projectContext) return '';
+  const lines = [];
+  const orgPrefs = Array.isArray(projectContext.orgPrefs) ? projectContext.orgPrefs : [];
+  const recentAccepted = Array.isArray(projectContext.recentAcceptedPlans) ? projectContext.recentAcceptedPlans : [];
+  for (const pref of orgPrefs.slice(-8)) {
+    if (pref && typeof pref === 'object') lines.push(JSON.stringify(pref));
+  }
+  for (const plan of recentAccepted.slice(-4)) {
+    if (plan && typeof plan === 'object') lines.push(JSON.stringify(plan));
+  }
+  return lines.length ? `\n\nLearned preferences:\n${lines.join('\n')}` : '';
 }
 
 /* ------------------------------------------------------------------ */
@@ -397,21 +487,40 @@ export async function chatAura({ message, history = [], context = '' }) {
   let providerMeta = { provider: 'agent', model: 'aura-agent-v1' };
 
   // Stage 2: Plan + draft response
-  const instruction = composeAgentPrompt(intent, trimmed, indianContext);
-  if (context) {
-    instruction + `\nContext:\n${String(context)}`;
-  }
+  const enrichedContext = injectIndianContext(intent || INTENT.UNKNOWN, trimmed, String(context || ''));
+  const instruction = composeAgentPrompt(intent || INTENT.UNKNOWN, trimmed, indianContext, {
+    basePrompt: [
+      'You are AURA, an interior-design intelligence agentic system.',
+      'You specialize in Indian interiors and photorealistic design planning.',
+      'Preserve uncertainty, avoid hallucinating architecture or exact dimensions.',
+      'Return concise, actionable, design-focused guidance.'
+    ].join('\n'),
+    indianKnowledgeBase: (() => { try { return loadKnowledgeCache?.() || ''; } catch { return ''; } })(),
+    intentGuidance: {
+      [INTENT.BUDGET]: 'Focus on cost optimization, value engineering, material substitutions, and scope/value gap analysis.',
+      [INTENT.FINISH]: 'Focus on surface materials, finishes, laminates, hardware, and finish-tag rollout.',
+      [INTENT.LAYOUT]: 'Focus on circulation, placement, scale, clearances, and zoning.',
+      [INTENT.LIGHTING]: 'Focus on lux, CCT, fixture counts, layering, and room ambiance.',
+      [INTENT.STYLE]: 'Focus on mood, style direction, palette, fabric blends, and thematic coherence.',
+      [INTENT.INDIAN_INTERIOR]: 'Focus on traditional and contemporary Indian interiors: jali, teak, brass, textiles, color families, spatial rituals, and regional character.',
+      [INTENT.PHOTO_REALISM]: 'Focus on render prompt composition, camera language, lighting, negative prompts, preserveInstructions, mustKeep, mustAvoid, and realism cues.',
+      [INTENT.UNKNOWN]: 'Reason from first principles: infer the closest design intent and propose a structured improvement path.'
+    } [intent || INTENT.UNKNOWN] || ACTION_SCHEMAS[INTENT.UNKNOWN].changes.join('; ')
+  });
+  const finalInstruction = enrichedContext ? `${instruction}\n${enrichedContext}` : instruction;
 
   const llmMessages = buildOpenRouterMessages(history, trimmed);
   try {
-    result = await callGemini([{ role: 'user', parts: [{ text: instruction }] }, { role: 'user', parts: [{ text: trimmed }] }], instruction);
+    const composedSystem = String(finalInstruction || instruction);
+    result = await callGemini([{ role: 'user', parts: [{ text: composedSystem }] }, { role: 'user', parts: [{ text: trimmed }] }], composedSystem);
   } catch (err) {
     console.warn('[aura-chat] Gemini agent path failed:', err.message);
   }
 
   if (!result) {
     try {
-      result = await callOpenRouter([...llmMessages.slice(-4), { role: 'user', content: `Agentic planning for: ${trimmed}\n\nProvide: intent=${intent}, steps, constraints, expected artifacts, fallback.` }], instruction);
+      const composedSystem = String(finalInstruction || instruction);
+      result = await callOpenRouter([...llmMessages.slice(-4), { role: 'user', content: `Agentic planning for: ${trimmed}\n\nProvide: intent=${intent}, steps, constraints, expected artifacts, fallback.` }], composedSystem);
     } catch (err) {
       console.warn('[aura-chat] OpenRouter agent path failed:', err.message);
     }
@@ -470,9 +579,10 @@ export async function chatAura({ message, history = [], context = '' }) {
   };
 
   recordConversationTurn({ projectId: null, organizationId: null, message: trimmed, intent, result: response, steps: agentSteps, metadata: { latencyMs: Date.now() - startTime, provider: providerMeta.provider } }).catch(() => null);
+  recordLearnedFeedback({ organizationId: null, projectId: null, message: trimmed, intent, reply: response.reply, actionPreview: response.actionPreview }).catch(() => null);
 
   return response;
-}
+  }
 
 export function getAuraProviderStatus() {
   const geminiStatus = getGeminiStatus();
