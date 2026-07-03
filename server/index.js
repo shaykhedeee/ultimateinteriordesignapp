@@ -2924,6 +2924,39 @@ app.delete('/api/projects/:id/library/:itemId', (req, res) => {
   res.json({ success: true });
 });
 
+// Whitelabel / branding settings
+app.get('/api/whitelabel', (req, res) => {
+  try {
+    const row = db.prepare("SELECT * FROM whitelabel_settings WHERE id = 'global'").get();
+    res.json(row || { id: 'global', brand_name: 'Ultimate Interior Design', primary_color: '#D4AF37', secondary_color: '#020617', accent_color: '#C9A84C' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/whitelabel', (req, res) => {
+  try {
+    const patch = req.body || {};
+    db.prepare(`INSERT OR REPLACE INTO whitelabel_settings (id, brand_name, logo_url, primary_color, secondary_color, accent_color, font_family, custom_css, favicon_url, support_email, company_address, updated_at) VALUES ('global', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      patch.brand_name || 'Ultimate Interior Design',
+      patch.logo_url || null,
+      patch.primary_color || '#D4AF37',
+      patch.secondary_color || '#020617',
+      patch.accent_color || '#C9A84C',
+      patch.font_family || 'Inter, sans-serif',
+      patch.custom_css || null,
+      patch.favicon_url || null,
+      patch.support_email || null,
+      patch.company_address || null,
+      new Date().toISOString()
+    );
+    const row = db.prepare("SELECT * FROM whitelabel_settings WHERE id = 'global'").get();
+    res.json({ success: true, settings: row });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==========================================
 // 8. AI SPECIALIST TOOL RUNNER API
 // ==========================================
