@@ -1,1 +1,2 @@
 [2026-07-03 08:53:47] Health check failed: http://127.0.0.1:5055/api/health and /api/projects unreachable.
+[2026-07-03 10:55:04] Health check failed: connecting to http://127.0.0.1:5055/api/health and fallback /api/projects failed.
