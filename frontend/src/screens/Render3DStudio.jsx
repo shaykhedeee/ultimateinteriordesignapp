@@ -1481,11 +1481,16 @@ export default function Render3DStudio({ projectId, onComplete }) {
         )}
 
         {providerStatus && (
-          <div className="bg-slate-950/50 border border-slate-850 p-2.5 rounded-lg text-[10px] text-slate-400 flex justify-between items-center shrink-0">
+          <div className="bg-slate-950/50 border border-slate-850 p-2.5 rounded-lg text-[10px] text-slate-400 flex justify-between items-center shrink-0 gap-3">
             <span>IMAGE GENERATOR:</span>
-            <strong className="text-[#D4AF37] uppercase font-bold font-mono">
-              {providerStatus.activeLabel || 'mock'}
-            </strong>
+            <div className="flex items-center gap-2">
+              <strong className="text-[#D4AF37] uppercase font-bold font-mono">
+                {providerStatus.activeLabel || 'mock'}
+              </strong>
+              {providerStatus.activeModel && (
+                <span className="text-[9px] text-slate-500 font-mono">{providerStatus.activeModel}</span>
+              )}
+            </div>
           </div>
         )}
 
