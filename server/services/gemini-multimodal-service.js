@@ -160,6 +160,7 @@ export function designSceneContext(roomType, components = []) {
   return { roomType, components, suggestions: components.slice(0, 4).map(c => `${c.label}: ${c.changeable ? 'swap candidate' : 'preserve'}`), generatedAt: new Date().toISOString() };
 }
 
+async function callGeminiAnalyseRender(apiKey, model, base64Image, roomType) {
   const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);
   const body = {
     contents: [
@@ -176,6 +177,7 @@ export function designSceneContext(roomType, components = []) {
   if (!text) return null;
   try { return JSON.parse(text); } catch { return { raw: text }; }
 }
+
 function simulateRenderAnalysis(base64Image, roomType) {
   const kitchen = [{ id: 'cabinet_shutters', label: 'Cabinet Shutters', confidence: 0.9, changeable: true, finish: 'laminate' }];
   const living = [{ id: 'tv_backdrop_panel', label: 'TV Backdrop Panel', confidence: 0.94, changeable: true, finish: 'laminate' }, { id: 'tv_console_cabinet', label: 'TV Console Cabinet', confidence: 0.9, changeable: true, finish: 'laminate' }];
