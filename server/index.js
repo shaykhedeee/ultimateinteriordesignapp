@@ -18,10 +18,15 @@ import { generateInteriorAsset, getProviderStatus } from './services/image-provi
 import * as visualizerEngine from './services/visualizer-engine.js';
 import colorService from './services/component-color-service.js';
 import planIntelligenceCore from './services/plan-intelligence-core.js';
+import { seedDemoData } from './services/demo-seed-service.js';
 import ruleEngine from './services/rule-engine.js';
 import drawingGenerator from './services/drawing-generator.js';
 import dxfGenerator from './services/dxf-generator.js';
 import { chatAura, getAuraProviderStatus } from './services/aura-chat-service.js';
+import { listProfiles } from './services/openrouter-profiles.js';
+import { registerTool, TOOL_REGISTRY } from './services/tool-registry.js';
+import { executeInference, listSupportedTaskTypes, listProvidersForTask } from './services/inference-gateway.js';
+import { renderCanonicalTopView, enhanceCanonicalTopView, getProjectTopViewAssets } from './services/topview-enhancement-worker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -101,9 +106,42 @@ app.get('/api/diagnostics/api-keys', (req, res) => {
     liveImageGen: process.env.LIVE_IMAGE_GEN === 'true',
     imageProvider: process.env.IMAGE_PROVIDER || 'library-reuse',
     spendMode: process.env.AI_SPEND_MODE || 'smart-cost',
+    openRouterProfiles: listProfiles ? listProfiles() : [],
     keys
   });
 });
+
+// Provider Router API
+import { resolveProviderForTask, recordProviderMetadata, TASK_TYPES } from './services/provider-router-service.js';
+
+app.post('/api/providers/resolve', (req, res) => {
+  try {
+    const { taskType, organizationId, provider, providerMode, fallbackOrder } = req.body || {};
+    const resolution = resolveProviderForTask({ taskType, organizationId, provider, providerMode, fallbackOrder });
+    res.json({ success: true, resolution });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/providers/routing-log', (req, res) => {
+  try {
+    const { organizationId, projectId, jobId, taskType, provider, providerMode, capabilityMatch, fallbackUsed, error } = req.body || {};
+    const record = recordProviderMetadata({ organizationId, projectId, jobId, taskType, provider, providerMode, capabilityMatch, fallbackUsed, error });
+    res.json({ success: true, record });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/providers/tasks', (req, res) => {
+  try {
+    res.json({ success: true, taskTypes: Object.values(TASK_TYPES) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 const visualizerFields = upload.fields([
   { name: 'sitePhoto', maxCount: 1 },
@@ -120,6 +158,15 @@ const visualizerFields = upload.fields([
 app.get('/api/leads', (req, res) => {
   const rows = db.prepare("SELECT * FROM leads ORDER BY created_at DESC").all();
   res.json(rows);
+});
+
+app.post('/api/demo/seed', (req, res) => {
+  try {
+    const result = seedDemoData();
+    res.json({ message: 'Demo clients loaded', ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Import leads (CSV / Excel simulation)
@@ -681,6 +728,80 @@ app.get('/api/projects/:id/ai/chat-status', (req, res) => {
   try {
     const status = getAuraProviderStatus();
     res.json({ ...status, endpoint: 'post /api/projects/:id/ai/chat', accepts: ['message', 'history[]', 'context?'] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/ai/chat/history', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+    const inserted = [];
+    for (const entry of entries.slice(-50)) {
+      const id = entry.id || `ach_${nanoid(10)}`;
+      db.prepare(`INSERT OR REPLACE INTO aura_chat_history (id, project_id, sender, text, status, metadata) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(id, projectId, entry.sender || 'user', String(entry.text || ''), entry.status || 'sent', JSON.stringify(entry.metadata || {}));
+      inserted.push(id);
+    }
+    res.json({ success: true, saved: inserted.length, ids: inserted });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/ai/chat/history', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const rows = db.prepare("SELECT * FROM aura_chat_history WHERE project_id = ? ORDER BY created_at ASC LIMIT 200").all(projectId);
+    res.json({ success: true, history: rows.map(row => ({ ...row, metadata: row.metadata ? JSON.parse(row.metadata) : {} })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    const history = Array.isArray(body.history) ? body.history : [];
+    const context = typeof body.context === 'string' ? body.context : (message || 'General interior design assistant mode.');
+    if (!message) return res.status(400).json({ reply: 'Please enter a design instruction.', provider: 'validation', actionPreview: null, actions: [] });
+    const result = await chatAura({ message, history, context });
+    res.json({ reply: result.reply, provider: result.provider, model: result.model || 'unknown', actionPreview: result.actionPreview, actions: result.actions, providerMeta: result.providerMeta });
+  } catch (err) {
+    console.error('[ai/chat] Unexpected error:', err);
+    res.status(500).json({ reply: 'AURA encountered a processing error. Please retry.', provider: 'error', model: 'unknown', actionPreview: null, actions: [] });
+  }
+});
+
+app.get('/api/admin/aura-status', (req, res) => {
+  try {
+    const status = getAuraProviderStatus();
+    res.json({
+      ...status,
+      endpoint: 'POST /api/ai/chat',
+      accepts: ['message', 'history[]', 'context?']
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/aura-config', (req, res) => {
+  try {
+    const { provider, model } = req.body || {};
+    if (!provider || !model) return res.status(400).json({ error: 'provider and model are required' });
+    res.json({ success: true, provider, model, updatedAt: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ai/chat-status', (req, res) => {
+  try {
+    const status = getAuraProviderStatus();
+    res.json({ ...status, endpoint: 'post /api/ai/chat', accepts: ['message', 'history[]', 'context?'] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1422,6 +1543,292 @@ app.post('/api/projects/:id/scenes/:versionId/validate', (req, res) => {
   }
 });
 
+// Canonical deterministic top-view render
+app.post('/api/projects/:id/topview/canonical', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const floorPlanVersionId = req.body?.floorPlanVersionId || project.active_floor_plan_version_id || null;
+    const spatialModelVersionId = req.body?.spatialModelVersionId || project.active_spatial_model_version_id || null;
+    const preset = req.body?.preset || 'technical_clean';
+
+    let manifest = buildManifestFromCurrentProject(projectId);
+    if (!manifest) manifest = { rooms: [], walls: [], openings: [], symbols: [] };
+
+    const canonical = await renderCanonicalTopView({
+      projectId,
+      manifest,
+      preset,
+      mode: req.body?.mode || null,
+      floorPlanVersionId,
+      spatialModelVersionId,
+      title: req.body?.title || null
+    });
+
+    res.json({ success: true, canonical, acceptedImageUrl: canonical.svgUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Enhanced top-view workflow
+app.post('/api/projects/:id/topview/enhance', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const floorPlanVersionId = req.body?.floorPlanVersionId || project.active_floor_plan_version_id || null;
+    const spatialModelVersionId = req.body?.spatialModelVersionId || project.active_spatial_model_version_id || null;
+    const preset = req.body?.preset || 'technical_clean';
+    const mode = req.body?.mode || 'faithful_clean';
+
+    let manifest = buildManifestFromCurrentProject(projectId);
+    if (!manifest) manifest = { rooms: [], walls: [], openings: [], symbols: [] };
+
+    const canonical = await renderCanonicalTopView({
+      projectId,
+      manifest,
+      preset,
+      mode,
+      floorPlanVersionId,
+      spatialModelVersionId
+    });
+
+    const enhanced = await enhanceCanonicalTopView({
+      projectId,
+      manifest,
+      canonical,
+      mode,
+      preset,
+      floorPlanVersionId,
+      spatialModelVersionId,
+      stylePrompt: req.body?.stylePrompt || '',
+      styleReferenceUrl: req.body?.styleReferenceUrl || ''
+    });
+
+    res.json({
+      success: true,
+      mode,
+      preset,
+      validationStatus: enhanced.validation?.status || 'unknown',
+      summary: enhanced.summary,
+      canonical: {
+        svgUrl: canonical.svgUrl,
+        pngUrl: canonical.pngUrl
+      },
+      enhanced: enhanced.enhanced ? {
+        assetRecordId: enhanced.assetRecordId,
+        imageUrl: enhanced.asset?.url || enhanced.asset?.filePath || null,
+        provider: enhanced.asset?.provider || null,
+        model: enhanced.asset?.model || null
+      } : null,
+      fallback: enhanced.fallback ? {
+        svgUrl: enhanced.fallback.svgUrl,
+        pngUrl: enhanced.fallback.pngUrl
+      } : null,
+      acceptedImageUrl: enhanced.acceptedImageUrl || enhanced.fallback?.svgUrl || canonical.svgUrl
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List top-view render assets for a project
+app.get('/api/projects/:id/topview/assets', (req, res) => {
+  try {
+    const rows = getProjectTopViewAssets(req.params.id);
+    res.json({ success: true, assets: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+function buildManifestFromCurrentProject(projectId) {
+  try {
+    const fpv = db.prepare("SELECT interpretation_json FROM floor_plan_versions WHERE project_id = ? AND is_current = 1 LIMIT 1").get(projectId);
+    if (fpv?.interpretation_json) {
+      try { return JSON.parse(fpv.interpretation_json); } catch (e) {}
+    }
+
+    const cad = db.prepare("SELECT walls_json, openings_json, rooms_json FROM cad_drawings WHERE project_id = ? LIMIT 1").get(projectId);
+    if (cad) {
+      const walls = JSON.parse(cad.walls_json || '[]');
+      const openings = JSON.parse(cad.openings_json || '[]');
+      const rooms = JSON.parse(cad.rooms_json || '[]');
+      if (walls.length || openings.length || rooms.length) {
+        return { rooms, walls, openings, symbols: [] };
+      }
+    }
+
+    const spm = db.prepare("SELECT model_json FROM spatial_model_versions WHERE project_id = ? AND is_current = 1 LIMIT 1").get(projectId);
+    if (spm?.model_json) {
+      try {
+        const model = JSON.parse(spm.model_json);
+        const level = model.levels?.[0] || {};
+        return {
+          rooms: level.rooms || [],
+          walls: level.walls || [],
+          openings: level.openings || [],
+          symbols: []
+        };
+      } catch (e) {}
+    }
+  } catch (e) {
+    console.warn('[topview] manifest build failed:', e.message);
+  }
+  return null;
+}
+
+
+// Zone extraction and design planning workflow
+import { extractZonesFromManifest, renderZoneThumbnail, persistZonePlanResult, recordZoneThumbnail, getZonePlan, listZonePlans, ZONE_STATUSES } from './services/zone-service.js';
+import { buildZoneDesignPlan } from './services/zone-design-planner.js';
+
+app.post('/api/projects/:id/zones/sync', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const fpv = req.body?.floorPlanVersionId || null;
+    let manifest = null;
+    try {
+      const versionRow = fpv ? db.prepare("SELECT interpretation_json FROM floor_plan_versions WHERE id = ?").get(fpv) : null;
+      manifest = versionRow?.interpretation_json ? JSON.parse(versionRow.interpretation_json) : null;
+    } catch (e) {}
+
+    if (!manifest) {
+      const cad = db.prepare("SELECT rooms_json, walls_json, openings_json FROM cad_drawings WHERE project_id = ? LIMIT 1").get(projectId);
+      if (cad) {
+        manifest = {
+          rooms: JSON.parse(cad.rooms_json || '[]'),
+          walls: JSON.parse(cad.walls_json || '[]'),
+          openings: JSON.parse(cad.openings_json || '[]'),
+          symbols: []
+        };
+      }
+    }
+
+    if (!manifest) manifest = { rooms: [], walls: [], openings: [], symbols: [] };
+    const extracted = extractZonesFromManifest(manifest);
+    const now = new Date().toISOString();
+    const upsert = db.prepare(`INSERT OR REPLACE INTO zones (id, project_id, floor_plan_version_id, zone_index, name, type, level, points_json, wall_count, opening_count, symbol_count, area_mm2, area_sqft, perimeter_mm, bounding_box, aspect_ratio, window_to_wall_ratio, window_count, door_count, confidence, metadata_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+
+    for (const zone of extracted.zones) {
+      upsert.run(
+        zone.id,
+        String(projectId || 'unknown'),
+        String(fpv || ''),
+        zone.room_index + 1,
+        zone.name,
+        zone.type,
+        zone.level || 'unknown',
+        JSON.stringify(zone.points || []),
+        zone.wall_count,
+        zone.opening_count,
+        zone.symbol_count,
+        zone.area_mm2,
+        zone.area_sqft,
+        zone.perimeter_mm,
+        JSON.stringify(zone.bounding_box || {}),
+        zone.aspect_ratio,
+        zone.window_to_wall_ratio,
+        zone.window_count,
+        zone.door_count,
+        zone.confidence,
+        JSON.stringify(zone.metadata || {}),
+        now,
+        now
+      );
+    }
+
+    res.json({ success: true, summary: extracted.summary, zones: extracted.zones });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/zones', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM zones WHERE project_id = ? ORDER BY zone_index ASC").all(req.params.id);
+    res.json({ success: true, zones: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/zones/:zoneId', (req, res) => {
+  try {
+    const row = db.prepare("SELECT * FROM zones WHERE project_id = ? AND id = ?").get(req.params.id, req.params.zoneId);
+    if (!row) return res.status(404).json({ error: 'Zone not found' });
+    res.json({ success: true, zone: row });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/zones/:zoneId/design-plan', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const zoneId = req.params.zoneId;
+    const zoneRow = db.prepare("SELECT * FROM zones WHERE project_id = ? AND id = ?").get(projectId, zoneId);
+    if (!zoneRow) return res.status(404).json({ error: 'Zone not found' });
+
+    const mode = req.body?.mode || 'faithful_clean';
+    const budgetTier = req.body?.budgetTier || 'standard';
+    const styleBrief = req.body?.styleBrief || '';
+    const organizationPreferences = req.body?.organizationPreferences || '';
+    const climateInfo = req.body?.climateInfo || '';
+    const catalogProducts = Array.isArray(req.body?.catalogProducts) ? req.body.catalogProducts : [];
+
+    const zone = {
+      id: zoneRow.id,
+      name: zoneRow.name,
+      type: zoneRow.type,
+      points: JSON.parse(zoneRow.points_json || '[]'),
+      area_sqft: zoneRow.area_sqft,
+      aspect_ratio: zoneRow.aspect_ratio,
+      window_to_wall_ratio: zoneRow.window_to_wall_ratio,
+      metadata: JSON.parse(zoneRow.metadata_json || '{}')
+    };
+
+    const plan = buildZoneDesignPlan({ zone, styleBrief, budgetTier, catalogProducts, organizationPreferences, climateInfo });
+
+    const thumb = renderZoneThumbnail({
+      projectId,
+      zone,
+      manifest: {
+        rooms: [zone],
+        walls: [],
+        openings: [],
+        symbols: [],
+        dimensions: []
+      },
+      preset: mode === 'soft_zoning' ? 'soft_zoning' : 'technical_clean'
+    });
+    if (!thumb?.fallback && thumb?.svgUrl) {
+      recordZoneThumbnail({ projectId, zoneId: zone.id, kind: 'thumbnail', preset: mode, url: thumb.svgUrl, fallback: false });
+    }
+
+    const asset = { svgUrl: thumb.svgUrl || null, imageUrl: thumb.pngUrl, provider: 'deterministic', model: 'zone-service' };
+    const planId = persistZonePlanResult({ projectId, floorPlanVersionId: zoneRow.floor_plan_version_id, zoneId: zone.id, mode, status: ZONE_STATUSES.READY, plan, asset });
+
+    res.json({ success: true, planId, zone, plan, asset });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/zones/:zoneId/assets', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM zone_assets WHERE project_id = ? AND zone_id = ? ORDER BY created_at DESC").all(req.params.id, req.params.zoneId);
+    res.json({ success: true, assets: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Fetch automated 2D drawings (annotated plans, elevations, RCP, schedules)
 app.get('/api/projects/:id/scenes/:versionId/drawings', (req, res) => {
   try {
@@ -1624,6 +2031,78 @@ app.post('/api/material-catalog', (req, res) => {
   `).run(id, category, subcategory || '', code || '', name, brand || '', finish || '', color || '', pricePerSqft || 0, rating || 5.0);
   
   res.status(201).json({ success: true, id, material: { id, category, subcategory, code, name, brand, finish, color, pricePerSqft, rating } });
+});
+
+// Export materials CSV
+app.get('/api/material-catalog/export-csv', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT id, category, subcategory, code, name, brand, finish, color, price_per_sqft, rating FROM material_catalog WHERE is_active = 1").all();
+    const header = 'id,category,subcategory,code,name,brand,finish,color,price_per_sqft,rating';
+    const body = rows.map(r => [r.id, r.category, r.subcategory, r.code, r.name, r.brand, r.finish, r.color, r.price_per_sqft, r.rating].join(',')).join('\n');
+    const csv = `${header}\n${body}`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="material-catalog.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Export a render image as PNG
+app.get('/api/projects/:id/renders/:renderId/export', (req, res) => {
+  try {
+    const render = db.prepare("SELECT * FROM design_renders WHERE id = ? AND project_id = ?").get(req.params.renderId, req.params.id);
+    if (!render) return res.status(404).json({ error: 'Render not found' });
+    const result = visualizerEngine.getRenderImage(render);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="${render.id}-render.png"`);
+    res.send(result.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Export DXF for a scene version
+app.get('/api/projects/:id/scenes/:versionId/drawings/dxf', async (req, res) => {
+  try {
+    const row = db.prepare("SELECT scene_json FROM scene_versions WHERE id = ? AND project_id = ?").get(req.params.versionId, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Scene version not found' });
+    const doc = JSON.parse(row.scene_json);
+    const level = doc.levels?.[0] || {};
+    const dxf = dxfGenerator.generateSceneDXF({
+      levelName: level.name || 'Ground Floor',
+      rooms: level.rooms,
+      walls: level.walls,
+      openings: level.openings,
+      modules: level.modules || level.furniture,
+    });
+    res.setHeader('Content-Type', 'application/dxf');
+    res.setHeader('Content-Disposition', `attachment; filename="scene-${req.params.versionId}.dxf"`);
+    res.send(dxf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Export PDF for an estimate set
+app.get('/api/projects/:id/estimate-sets/:estimateId/pdf', async (req, res) => {
+  try {
+    const { estimateId } = req.params;
+    const estimate = db.prepare("SELECT * FROM estimate_sets WHERE id = ? AND project_id = ?").get(estimateId, req.params.id);
+    if (!estimate) return res.status(404).json({ error: 'Estimate set not found' });
+    const totals = JSON.parse(estimate.totals_json || '{}');
+    const items = JSON.parse(estimate.items_json || '[]');
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id);
+    const pdfPath = path.join(storageDir, 'proposals', `${estimateId}-estimate.pdf`);
+    await pdfBuilder.generateEstimatePDF({
+      project: project || { name: 'Project', client_name: 'Client' },
+      totals,
+      items,
+    }, pdfPath);
+    res.download(pdfPath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // PATCH material catalog details
@@ -2398,6 +2877,180 @@ app.get('/api/tools/result', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ==========================================
+// 8. PLATFORM API ROUTES
+// ==========================================
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, service: 'api', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/ready', (req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true, service: 'api', database: 'reachable' });
+  } catch (err) {
+    res.status(500).json({ ok: false, service: 'api', database: 'unreachable', error: err.message });
+  }
+});
+
+app.get('/api/live', (req, res) => {
+  res.json({ ok: true, service: 'api' });
+});
+
+// Tool registry public view
+app.get('/api/tools', (req, res) => {
+  try {
+    const tools = Object.values(TOOL_REGISTRY).map((tool) => ({
+      slug: tool.slug,
+      name: tool.name,
+      category: tool.category,
+      description: tool.description,
+      capabilities: tool.capabilities,
+      permissions: tool.permissions,
+      featureFlags: tool.featureFlags,
+      api: tool.api,
+      ui: tool.ui,
+      ownership: tool.ownership,
+      health: tool.health,
+      visibility: tool.visibility
+    }));
+    res.json({ success: true, tools });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tools/:toolSlug', (req, res) => {
+  try {
+    const tool = TOOL_REGISTRY[req.params.toolSlug];
+    if (!tool) return res.status(404).json({ error: 'Tool not found' });
+    res.json({ success: true, tool });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tools/:toolSlug/schema', (req, res) => {
+  try {
+    const tool = TOOL_REGISTRY[req.params.toolSlug];
+    if (!tool) return res.status(404).json({ error: 'Tool not found' });
+    res.json({
+      success: true,
+      inputSchemaKey: tool.inputSchemaKey,
+      outputSchemaKey: tool.outputSchemaKey,
+      featureFlags: tool.featureFlags,
+      runMode: tool.api.runMode
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tools/:toolSlug/capabilities', (req, res) => {
+  try {
+    const tool = TOOL_REGISTRY[req.params.toolSlug];
+    if (!tool) return res.status(404).json({ error: 'Tool not found' });
+    res.json({ success: true, capabilities: tool.capabilities });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tools/categories', (req, res) => {
+  try {
+    const categories = [
+      ...new Set(Object.values(TOOL_REGISTRY).map((tool) => tool.category))
+    ];
+    res.json({ success: true, categories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Inference gateway observability
+app.get('/api/providers/supported-tasks', (req, res) => {
+  try {
+    const tasks = listSupportedTaskTypes();
+    const providerMap = {};
+    for (const task of tasks) {
+      providerMap[task] = listProvidersForTask(task);
+    }
+    res.json({ success: true, tasks, providerMap });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 9. AURA API ROUTES
+// ==========================================
+
+app.post('/api/aura/room-semantics', async (req, res) => {
+  try {
+    const result = await executeInference({ taskType: 'room_semantics', payload: req.body || {} });
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/aura/style-recommend', async (req, res) => {
+  try {
+    const result = await executeInference({ taskType: 'style_recommend', payload: req.body || {} });
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/aura/zone-design-plan', async (req, res) => {
+  try {
+    const result = await executeInference({ taskType: 'zone_design_plan', payload: req.body || {} });
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/aura/render-prompt', async (req, res) => {
+  try {
+    const result = await executeInference({ taskType: 'render_prompt_compose', payload: req.body || {} });
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/aura/render-critic', async (req, res) => {
+  try {
+    const result = await executeInference({ taskType: 'render_critic', payload: req.body || {} });
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 10. GENERIC TOOL RUNNER ROUTES
+// ==========================================
+
+app.post('/api/tools/:toolSlug/run', async (req, res) => {
+  try {
+    const tool = TOOL_REGISTRY[req.params.toolSlug];
+    if (!tool) return res.status(404).json({ error: 'Tool not found' });
+    const result = await executeInference({ taskType: req.params.toolSlug, payload: req.body || {} });
+    res.json({ success: true, tool, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Tool registry bootstrap
+for (const tool of Object.values(TOOL_REGISTRY)) {
+  registerTool(tool);
+}
 
 // Seed DB and start Express
 app.listen(port, () => {
