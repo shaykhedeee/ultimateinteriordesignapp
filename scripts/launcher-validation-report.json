@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "file": "launch.bat",
+      "ok": true,
+      "reasons": {
+        "hasBackendPort": true,
+        "hasFrontendPort": true,
+        "hasNode": true,
+        "hasNpmClient": true
+      }
+    },
+    {
+      "file": "START.bat",
+      "ok": true,
+      "reasons": {
+        "hasBackendPort": true,
+        "hasFrontendPort": true,
+        "hasNode": true,
+        "hasNpmClient": true
+      }
+    },
+    {
+      "file": "start.bat",
+      "ok": true,
+      "reasons": {
+        "hasBackendPort": true,
+        "hasFrontendPort": true,
+        "hasNode": true,
+        "hasNpmClient": true
+      }
+    }
+  ]
+}

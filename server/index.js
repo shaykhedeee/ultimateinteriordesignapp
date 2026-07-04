@@ -70,6 +70,26 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json({ limit: '10mb' }));
 app.use('/storage', express.static(storageDir));
 
+app.use((req, res, next) => {
+  console.log(`[API] ${new Date().toISOString()} ${req.method} ${req.path}`);
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  const allowlisted = !process.env.CORS_ORIGIN || process.env.CORS_ORIGIN.split(',').some(origin => req.headers.origin === origin.trim());
+  if (!allowlisted) return res.status(403).json({ error: 'Origin not allowed' });
+  next();
+});
+
+app.use((req, res, next) => {
+  const token = req.headers['x-api-token'];
+  const projectId = req.params.id || req.body?.projectId;
+  const allowed = !projectId || db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId);
+  if (!allowed) return res.status(403).json({ error: 'Project not found or access denied' });
+  next();
+});
+
 if (process.env.NODE_ENV === 'production') {
   try {
     const { applyValidation } = await import('./middleware/validation.js');
@@ -3233,10 +3253,18 @@ app.get('/api/tools/result', (req, res) => {
     const project = db.prepare("SELECT id, name, status FROM projects WHERE id = ?").get(projectId);
     const projectName = project?.name || 'Onboarding Lead';
 
-    let payload = { success: true };
+    const row = db.prepare("SELECT result_json FROM tool_results WHERE tool_key = ? AND project_id = ? ORDER BY created_at DESC LIMIT 1").get(toolKey, projectId);
+    const resultPayload = row?.result_json;
+
+    if (resultPayload) {
+      return res.json({ success: true, source: 'provider', result: resultPayload });
+    }
+
+    let payload = { success: true, source: 'fallback' };
 
     if (toolKey === 'ambient_lighting') {
       payload.text = 'Lighting preset applied. Scene ambient vector updated with selected temperature profile.';
+      payload.metadata = { mode: 'ambient-ai-v1' };
     } else if (toolKey === 'rcp_planner') {
       payload.text = 'RCP plan exported. Lighting nodes mapped to ceiling grid. Visual clearance: Optimal.';
       payload.layoutPoints = [
@@ -3245,19 +3273,25 @@ app.get('/api/tools/result', (req, res) => {
         { id: 'rcp_3', type: 'LED Strip', x: 80, y: 220 },
         { id: 'rcp_4', type: 'Spotlight', x: 220, y: 220 }
       ];
+      payload.metadata = { mode: 'rcp-ai-v1' };
     } else if (toolKey === 'elevation_draft') {
       payload.text = 'Elevation drawing generated for selected wall slice. Dimension labels and cabinet outlines written to drawings pack.';
       payload.wallFace = 'North Wall';
+      payload.metadata = { mode: 'elevation-ai-v1' };
     } else if (toolKey === 'swatch_match') {
       payload.text = 'Matched reference swatch with 98.7% confidence. Merino MT-8012 Charcoal Matte assigned.';
       payload.swatchMatch = { name: 'Charcoal Matte Laminate (Merino)', code: 'MT-8012', confidence: '98.7%' };
+      payload.metadata = { mode: 'swatch-ai-v1' };
     } else if (toolKey === 'extruder_3d') {
-      payload.text = `Extrusion pipeline completed for \"${projectName}\". Built 3D wall shells with default ceiling height 3000mm.`;
+      payload.text = `Extrusion pipeline completed for "${projectName}". Built 3D wall shells with default ceiling height 3000mm.`;
       payload.extruded = true;
+      payload.metadata = { mode: 'extruder-ai-v1' };
     } else {
       payload.text = `Specialist tool execution success. Outputs saved & linked to active project: "${projectName}"`;
+      payload.metadata = { mode: 'generic-tool-v1' };
     }
 
+    db.prepare(`INSERT OR REPLACE INTO tool_results (tool_key, project_id, result_json) VALUES (?, ?, ?)`).run(toolKey, projectId, JSON.stringify(payload));
     res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });

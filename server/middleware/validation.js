@@ -1,60 +1,39 @@
-import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 
 const schemas = {
-  '/api/tools/run': { toolKey: 'string', projectId: 'string', params: 'object?' },
-  '/api/projects/:id/cad': { walls: 'array?', openings: 'array?', furniture: 'array?', rooms: 'array?', measures: 'object?' },
-  '/api/projects/:id/floorplan': {},
-  '/api/projects/:id/renders/generate': { room: 'string?', style: 'string?', renderMode: 'string?' },
-  '/api/projects/:id/renders/edit': { assetId: 'string', revisionRequest: 'string', renderMode: 'string?' },
-  '/api/projects/:id/renders/laminate-swap': { instruction: 'string?', room: 'string?' },
-  '/api/projects/:id/renders/suggest-palette': { roomType: 'string?', baseColor: 'string?' },
-  '/api/projects/:id/zones/design-plan': { planType: 'string?', notes: 'string?' },
-  '/api/projects/:id/elevations/generate': { wallFace: 'string?' },
-  '/api/settings/pricing': { price_per_sqft: 'number?', labor_cost_per_sqft: 'number?', client_discount_rate: 'number?', ex_showroom_markup: 'number?' }
+  'POST:/api/tools/run': z.object({ projectId: z.string().min(1), toolKey: z.string().min(1), params: z.record(z.any()).optional() }),
+  'POST:/api/tools/execute': z.object({ toolSlug: z.string().min(1), projectId: z.string().min(1), renderId: z.string().optional(), params: z.record(z.any()).optional(), provider: z.string().optional(), model: z.string().optional() }),
+  'POST:/api/projects/:id/renders/generate': z.object({ room: z.string().optional(), style: z.string().optional(), budgetTier: z.string().optional(), modelTier: z.string().optional(), variantCount: z.number().int().min(1).max(8).optional(), renderMode: z.string().optional(), sourceType: z.string().optional() }),
+  'POST:/api/projects/:id/renders/laminate-swap': z.object({ room: z.string().optional(), componentType: z.string().optional(), newMaterial: z.string().optional() }),
+  'POST:/api/projects/:id/renders/suggest-palette': z.object({ roomType: z.string().optional(), baseColor: z.string().optional() }),
+  'POST:/api/projects/:id/zones/design-plan': z.object({ planType: z.string().optional(), notes: z.string().optional() }),
+  'POST:/api/projects/:id/elevations/generate': z.object({ wallFace: z.string().optional(), userMeasurements: z.record(z.any()).optional() }),
+  'POST:/api/settings/defaults': z.object({ defaultProvider: z.string().optional(), defaultModel: z.string().optional(), freeProvidersFirst: z.boolean().optional(), maxCostPerImage: z.number().optional() }),
+  'POST:/api/settings/pricing': z.object({ pricePerSqft: z.number().optional(), currency: z.string().optional() }),
+  'POST:/api/projects/:id/ai/chat': z.object({ message: z.string().min(1).max(4000), provider: z.string().optional(), model: z.string().optional() }),
+  'POST:/api/projects/:id/renders/:renderId/edits': z.object({ editType: z.string().min(1), mask: z.record(z.any()).optional(), instruction: z.string().max(4000).optional() }),
+  'POST:/api/projects/:id/jobs': z.object({ jobType: z.string().min(1), sourceEntityType: z.string().optional(), sourceEntityId: z.string().optional() })
 };
 
-function parseBody(req) { return req.body || {}; }
-function coerce(value, type) {
-  if (value === undefined || value === null) return undefined;
-  if (type === 'string') return String(value);
-  if (type === 'number') return Number(value);
-  if (type === 'object') return typeof value === 'object' ? value : undefined;
-  if (type === 'array') return Array.isArray(value) ? value : undefined;
-  return value;
-}
-function validate(pattern, body) {
-  const missing = [];
-  const out = {};
-  for (const [key, rawType] of Object.entries(pattern)) {
-    const required = !rawType.endsWith('?');
-    const type = rawType.replace('?', '');
-    const value = body[key];
-    if (value === undefined || value === null) {
-      if (required) missing.push(key);
-      continue;
-    }
-    out[key] = coerce(value, type);
-  }
-  if (missing.length) return { error: `Missing required fields: ${missing.join(', ')}` };
-  return { data: out };
-}
-
-export function applyValidation(app) {
-  for (const [pattern, shape] of Object.entries(schemas)) {
-    const method = pattern.startsWith('/api/projects/') || pattern.startsWith('/api/settings/') ? 'post' : 'get';
-    const exact = (reqPath, reqMethod) => {
-      if (pattern.includes(':id')) {
-        const prefix = pattern.split(':id')[0];
-        if (reqPath.startsWith(prefix) && reqMethod === method.toUpperCase()) return true;
-      }
-      return reqPath === pattern && reqMethod === method.toUpperCase();
-    };
+let applyValidation = null;
+try {
+  const express = await import('express');
+  applyValidation = (app) => {
     app.use((req, res, next) => {
-      if (!exact(req.path, req.method)) return next();
       if (req.method !== 'POST') return next();
-      const { error } = validate(shape, req.body || {});
-      if (error) return res.status(400).json({ error });
+      const key = `${req.method}:${req.route?.path || req.path}`;
+      const schema = Object.keys(schemas).find(k => k === key);
+      if (!schema) return next();
+      const parsed = schemas[key].safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Invalid request body', issues: parsed.error.issues.map(i => i.message) });
+      }
+      req.body = parsed.data;
       next();
     });
-  }
+  };
+} catch {
+  applyValidation = () => {};
 }
+
+export { applyValidation };
