@@ -28,13 +28,13 @@ export function normalizeTaskType(raw = '') {
   const key = String(raw).trim().toLowerCase().replace(/-/g, '_');
   const known = new Set(Object.values(TASK_TYPES));
   const aliases = {
-    quick_render,
-    detailed_render,
-    style_image,
-    critic_text,
-    topview_enhance,
-    inpaint,
-    upscale,
+    quick_render: 'quick_render',
+    detailed_render: 'detailed_render',
+    style_image: 'style_image',
+    critic_text: 'critic_text',
+    topview_enhance: 'topview_enhance',
+    inpaint: 'inpaint',
+    upscale: 'upscale',
     render_edit: 'inpaint',
     style_transfer: 'style_image',
     material_match: 'style_image',
