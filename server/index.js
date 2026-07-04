@@ -3887,15 +3887,6 @@ for (const tool of Object.values(TOOL_REGISTRY)) {
   registerTool(tool);
 }
 
-// Health endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'ultimate-interior-design-api',
-    timestamp: new Date().toISOString()
-  });
-});
-
 app.get('/api/admin/db/status', async (req, res) => {
   try {
     const row = db.prepare("SELECT COUNT(*) as n FROM sqlite_master WHERE type='table'").get();
