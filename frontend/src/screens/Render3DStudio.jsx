@@ -805,8 +805,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
         setStatus('Generation cancelled.', 'warning');
       } else {
         console.error("AI Generation failed:", err);
+        const msg = err?.message || 'Generation failed';
         setGenerationStatus('Generation failed');
-        setStatus('Generation failed.', 'error');
+        setStatus(`Generation failed: ${msg}`, 'error');
       }
     } finally {
       setIsGenerating(false);
