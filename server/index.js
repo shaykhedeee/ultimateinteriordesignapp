@@ -1378,6 +1378,15 @@ app.post('/api/projects/:id/renders/change-color', async (req, res) => {
   }
 });
 
+app.post('/api/projects/:id/renders/colour-morph', async (req, res) => {
+  try {
+    req.url = req.url.replace('/renders/colour-morph', '/renders/change-color');
+    app._events.request(req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/projects/:id/renders/suggest-palette', (req, res) => {
   try {
     const { roomType, baseColor } = req.body;
@@ -2586,43 +2595,7 @@ app.post('/api/projects/:id/renders/laminate-swap',
   }
 );
 
-// POST: Quick recolor (color-swap without image upload — uses selected render from DB)
-app.post('/api/projects/:id/renders/change-color', async (req, res) => {
-  try {
-    const projectId = req.params.id;
-    const { renderId, componentType, newColor, roomType } = req.body;
 
-    if (!renderId || !componentType || !newColor) {
-      return res.status(400).json({ error: 'renderId, componentType, and newColor are required' });
-    }
-
-    // Fetch the base render asset
-    const asset = db.prepare("SELECT * FROM generated_assets WHERE id = ? AND project_id = ?").get(renderId, projectId);
-
-    // Build color suggestions based on component type
-    const suggestions = colorService.getColorSuggestionsForComponent(componentType, newColor);
-
-    // Log the color change preference for learning
-    db.prepare(`
-      INSERT OR IGNORE INTO render_color_preferences (id, project_id, render_id, component_type, color, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run('rcp_' + nanoid(6), projectId, renderId, componentType, newColor, new Date().toISOString());
-
-    logTimelineEvent(projectId, 'render.color_change', `Quick Recolor: ${componentType}`, `Changed to ${newColor}`);
-
-    res.json({
-      success: true,
-      message: `${componentType} recolored to ${newColor}`,
-      componentType,
-      newColor,
-      suggestions,
-      note: 'Upload the render + laminate image to /renders/laminate-swap for full AI-powered swap with image generation.'
-    });
-  } catch (err) {
-    console.error('[change-color] Error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // GET timeline events
 app.get('/api/projects/:id/timeline', (req, res) => {
@@ -3251,6 +3224,92 @@ app.get('/api/whitelabel', (req, res) => {
     res.json(row || { id: 'global', brand_name: 'Ultimate Interior Design', primary_color: '#D4AF37', secondary_color: '#020617', accent_color: '#C9A84C' });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/system/route-tests', (req, res) => {
+  const checks = [
+    '/api/health',
+    '/api/ready',
+    '/api/live',
+    '/api/providers/status',
+    '/api/tools',
+    '/api/diagnostics/api-keys',
+    '/api/ai/interiors/orchestrate',
+    '/api/firm/templates'
+  ];
+  const results = { runAt: new Date().toISOString(), checks: {} };
+  res.json(results);
+});
+
+// Firm project templates
+app.get('/api/firm/templates', (req, res) => {
+  try {
+    const organizationId = req.headers['x-tenant-id'] || 'global';
+    const rows = db.prepare("SELECT * FROM firm_project_templates WHERE organization_id = ? OR scope = 'global' ORDER BY is_system DESC, created_at DESC").all(organizationId);
+    res.json(rows.map(r => {
+      let rooms = [], vendorList = [], pricingProfile = {};
+      try { rooms = JSON.parse(r.rooms_json || '[]'); } catch {}
+      try { vendorList = JSON.parse(r.vendor_list_json || '[]'); } catch {}
+      try { pricingProfile = JSON.parse(r.pricing_profile_json || '{}'); } catch {}
+      return { ...r, rooms, vendorList, pricingProfile };
+    }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/firm/templates', (req, res) => {
+  try {
+    const organizationId = req.headers['x-tenant-id'] || 'global';
+    const id = 'tpl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const body = req.body || {};
+    db.prepare(`INSERT INTO firm_project_templates (id, organization_id, scope, name, description, thumbnail_url, rooms_json, style_preset, vendor_list_json, pricing_profile_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      id, organizationId, body.scope || 'org', body.name, body.description || null, body.thumbnailUrl || null,
+      JSON.stringify(body.rooms || []), body.stylePreset || null, JSON.stringify(body.vendorList || []), JSON.stringify(body.pricingProfile || {})
+    );
+    res.status(201).json({ success: true, id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/firm/templates/:id/apply', (req, res) => {
+  try {
+    const organizationId = req.headers['x-tenant-id'] || 'global';
+    const row = db.prepare("SELECT * FROM firm_project_templates WHERE id = ? AND (organization_id = ? OR scope = 'global')").get(req.params.id, organizationId);
+    if (!row) return res.status(404).json({ error: 'Template not found' });
+    let rooms = [], vendorList = [], pricingProfile = {};
+    try { rooms = JSON.parse(row.rooms_json || '[]'); } catch {}
+    try { vendorList = JSON.parse(row.vendor_list_json || '[]'); } catch {}
+    try { pricingProfile = JSON.parse(row.pricing_profile_json || '{}'); } catch {}
+    res.json({ success: true, templateId: row.id, projectName: row.name, rooms, stylePreset: row.style_preset, vendorList, pricingProfile });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/firm/catalog/links', (req, res) => {
+  try {
+    const organizationId = req.headers['x-tenant-id'] || 'global';
+    const body = req.body || {};
+    const id = 'fcl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    db.prepare(`INSERT INTO firm_catalog_links (id, organization_id, product_id, project_id, room_id, design_item_id, markup_profile, client_visible) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      id, organizationId, body.productId, body.projectId || null, body.roomId || null, body.designItemId || null, body.markupProfile || 'standard', body.clientVisible !== false ? 1 : 0
+    );
+    res.status(201).json({ success: true, id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/firm/catalog/links', (req, res) => {
+  try {
+    const organizationId = req.headers['x-tenant-id'] || 'global';
+    const rows = db.prepare("SELECT * FROM firm_catalog_links WHERE organization_id = ? ORDER BY created_at DESC").all(organizationId);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
