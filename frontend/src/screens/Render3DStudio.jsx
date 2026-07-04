@@ -762,6 +762,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('customInstruction', customInstruction);
       formData.append('renderMode', renderMode);
       formData.append('sourceType', cameraFile ? 'camera-capture' : 'generative');
+      if (providerStatus?.activeLabel) formData.append('provider', providerStatus.activeLabel);
+      if (providerStatus?.activeModel) formData.append('model', providerStatus.activeModel);
+      if (providerStatus?.defaultProvider) formData.append('defaultProvider', providerStatus.defaultProvider);
 
       // Append kitchen rules
       formData.append('hobSinkSwapped', String(kitchenRules.hobSinkSwapped));

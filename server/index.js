@@ -3559,6 +3559,10 @@ app.post('/api/tools/execute', async (req, res) => {
       taskType
     };
     const result = await planFreeExecution(taskType, payload);
+    if (result?.jobId || result?.status === 'running') {
+      db.prepare(`INSERT OR REPLACE INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id) VALUES (?, ?, ?, 'running', 0, ?, ?)`).run(result.jobId, projectId, taskType, 'tool_runner', toolSlug);
+      return res.json({ success: true, jobId: result.jobId || ('job_' + nanoid(6)), queued: true, taskType });
+    }
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
