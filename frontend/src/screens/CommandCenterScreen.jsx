@@ -101,7 +101,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
     } catch (e) {
       setDemoStatus('Seed failed');
     }
-    setTimeout(() => setDemoStatus(''), 2200);
+    useAutoClear(demoStatus, setDemoStatus, 2200);
   };
 
   // Pipeline calculations

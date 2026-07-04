@@ -130,7 +130,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+    useAutoClear(toast?.msg || null, setToast, 3000);
   };
 
   const loadCADData = async () => {

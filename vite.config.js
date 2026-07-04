@@ -18,9 +18,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['lucide-react']
+        manualChunks(id) {
+          if (/three[\\/]/.test(id) || /three$/.test(id)) return 'three';
         }
       }
     }

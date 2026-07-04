@@ -396,10 +396,6 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       const data = await res.json();
       if (data.success) {
         setSaveSuccess(true);
-        setTimeout(() => {
-          setSaveSuccess(false);
-          if (onComplete) onComplete();
-        }, 1200);
       }
     } catch (err) {
       console.error("Error saving materials:", err);

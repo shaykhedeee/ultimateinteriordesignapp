@@ -633,7 +633,7 @@ function BOMAttachPanel({ projectId }) {
       });
       if (res.ok) {
         setStatus(`Saved. Total ₹${total.toLocaleString?.('en-IN') || total}`);
-        setTimeout(() => setStatus(''), 2400);
+        useAutoClear(status, setStatus, 2400);
       } else {
         setStatus('Save failed.');
       }

@@ -20,7 +20,7 @@ export default function RenderEditWorkspace({ projectId, renderId }) {
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    useAutoClear(toast?.msg || null, setToast, 3000);
   };
 
   useEffect(() => {

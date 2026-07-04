@@ -32,7 +32,7 @@ const STATUS_STYLE = {
 
 function showToast(setToast, msg, type = 'success') {
   setToast({ msg, type });
-  setTimeout(() => setToast(null), 2400);
+  useAutoClear(toast?.msg || null, setToast, 2400);
 }
 
 export default function SettingsPanel() {

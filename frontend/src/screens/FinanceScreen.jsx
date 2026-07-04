@@ -430,7 +430,7 @@ export default function FinanceScreen({ projectId }) {
   // Helpers
   const showStatusMessage = (msg, type = 'success') => {
     setMessage({ text: msg, type });
-    setTimeout(() => setMessage(null), 4000);
+    useAutoClear(message?.text || null, setMessage, 4000);
   };
 
   const handleLogoUpload = (e, field) => {
