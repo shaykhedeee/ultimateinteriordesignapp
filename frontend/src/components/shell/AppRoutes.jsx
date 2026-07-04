@@ -1,27 +1,27 @@
 import React from 'react';
 import { useAppStore } from '../../stores/appStore';
 
-import CRMLeadDashboard from '../../screens/CRMLeadDashboard.jsx';
-import ClientBriefStudio from '../../screens/ClientBriefStudio.jsx';
-import InteractiveCADScreen from '../../screens/InteractiveCADScreen.jsx';
-import DrawingsElevationsStudio from '../../screens/DrawingsElevationsStudio.jsx';
-import MaterialCatalogScreen from '../../screens/MaterialCatalogScreen.jsx';
-import Render3DStudio from '../../screens/Render3DStudio.jsx';
-import RenderEditWorkspace from '../../screens/RenderEditWorkspace.jsx';
-import CutlistNestingScreen from '../../screens/CutlistNestingScreen.jsx';
-import ProjectManagementScreen from '../../screens/ProjectManagementScreen.jsx';
-import DesignStudioScreen from '../../screens/DesignStudioScreen.jsx';
-import FinanceScreen from '../../screens/FinanceScreen.jsx';
-import TimelineScreen from '../../screens/TimelineScreen.jsx';
-import JobsScreen from '../../screens/JobsScreen.jsx';
-import CommandCenterScreen from '../../screens/CommandCenterScreen.jsx';
-import CeilingStudio from '../../screens/CeilingStudio';
-import TvUnitGenerator from '../../screens/TvUnitGenerator';
-import SystemsAdminScreen from '../../screens/SystemsAdminScreen';
-import VendorIntelligence from '../../screens/VendorIntelligence.jsx';
-import PinterestLearning from '../../screens/PinterestLearning.jsx';
-import FloorPlanAnalyzerScreen from '../../screens/FloorPlanAnalyzerScreen.jsx';
-import SettingsPanel from '../../screens/SettingsPanel.jsx';
+const CRMLeadDashboard = React.lazy(() => import('../../screens/CRMLeadDashboard.jsx'));
+const ClientBriefStudio = React.lazy(() => import('../../screens/ClientBriefStudio.jsx'));
+const InteractiveCADScreen = React.lazy(() => import('../../screens/InteractiveCADScreen.jsx'));
+const DrawingsElevationsStudio = React.lazy(() => import('../../screens/DrawingsElevationsStudio.jsx'));
+const MaterialCatalogScreen = React.lazy(() => import('../../screens/MaterialCatalogScreen.jsx'));
+const Render3DStudio = React.lazy(() => import('../../screens/Render3DStudio.jsx'));
+const RenderEditWorkspace = React.lazy(() => import('../../screens/RenderEditWorkspace.jsx'));
+const CutlistNestingScreen = React.lazy(() => import('../../screens/CutlistNestingScreen.jsx'));
+const ProjectManagementScreen = React.lazy(() => import('../../screens/ProjectManagementScreen.jsx'));
+const DesignStudioScreen = React.lazy(() => import('../../screens/DesignStudioScreen.jsx'));
+const FinanceScreen = React.lazy(() => import('../../screens/FinanceScreen.jsx'));
+const TimelineScreen = React.lazy(() => import('../../screens/TimelineScreen.jsx'));
+const JobsScreen = React.lazy(() => import('../../screens/JobsScreen.jsx'));
+const CommandCenterScreen = React.lazy(() => import('../../screens/CommandCenterScreen.jsx'));
+const CeilingStudio = React.lazy(() => import('../../screens/CeilingStudio'));
+const TvUnitGenerator = React.lazy(() => import('../../screens/TvUnitGenerator'));
+const SystemsAdminScreen = React.lazy(() => import('../../screens/SystemsAdminScreen'));
+const VendorIntelligence = React.lazy(() => import('../../screens/VendorIntelligence.jsx'));
+const PinterestLearning = React.lazy(() => import('../../screens/PinterestLearning.jsx'));
+const FloorPlanAnalyzerScreen = React.lazy(() => import('../../screens/FloorPlanAnalyzerScreen.jsx'));
+const SettingsPanel = React.lazy(() => import('../../screens/SettingsPanel.jsx'));
 import AuraBrainChat from '../layout/AuraBrainChat';
 
 const PROJECT_LOCKED_ROUTES = new Set([
@@ -57,83 +57,89 @@ export default function AppRoutes() {
   }, [projectMissing]);
 
   const renderScreen = () => {
-    if (projectMissing) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 max-w-md text-center space-y-3">
-            <h3 className="text-sm font-bold text-slate-100">No project selected</h3>
-            <p className="text-xs text-slate-400">
-              Select or create a project to unlock this workspace. Project-gated tools stay disabled until a project is active.
-            </p>
+    const screen = (() => {
+      if (projectMissing) {
+        return (
+          <div className="flex items-center justify-center h-full">
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 max-w-md text-center space-y-3">
+              <h3 className="text-sm font-bold text-slate-100">No project selected</h3>
+              <p className="text-xs text-slate-400">Select or create a project to unlock this workspace. Project-gated tools stay disabled until a project is active.</p>
+            </div>
           </div>
-        </div>
-      );
-    }
+        );
+      }
 
-    switch (activeTab) {
-      case 'dashboard':
-        return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => useAppStore.getState().navigateTab(tab)} />;
-      case 'crm':
-        return <CRMLeadDashboard onProjectClosed={(id) => useAppStore.getState().setSelectedProjectId(id)} />;
-      case 'projects':
-        return <ProjectManagementScreen onNavigateToProject={(id) => { useAppStore.getState().setSelectedProjectId(id); useAppStore.getState().navigateTab('brief'); }} />;
-      case 'brief':
-        return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => useAppStore.getState().navigateTab('cad')} />;
-      case 'cad':
-        return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('studio')} />;
-      case 'studio':
-        return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('drawings')} />;
-      case 'drawings':
-        return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('materials')} />;
-      case 'materials':
-        return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('renders')} />;
-      case 'renders':
-        return <Render3DStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('cutlist')} />;
-      case 'render-edit':
-        return <RenderEditWorkspace projectId={selectedProjectId} renderId={null} />;
-      case 'cutlist':
-        return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('crm')} />;
-      case 'ceiling':
-        return <CeilingStudio projectId={selectedProjectId} />;
-      case 'floorplan':
-        return <FloorPlanAnalyzerScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('studio')} />;
-      case 'finance':
-        return <FinanceScreen projectId={selectedProjectId} />;
-      case 'timeline':
-        return <TimelineScreen projectId={selectedProjectId} />;
-      case 'jobs':
-        return <JobsScreen projectId={selectedProjectId} />;
-      case 'vendor':
-        return <VendorIntelligence projectId={selectedProjectId} />;
-      case 'pinterest':
-        return <PinterestLearning projectId={selectedProjectId} />;
-      case 'command-center':
-        return <CommandCenterScreen projectId={selectedProjectId} />;
-      case 'aura':
-        return <AuraBrainChat
-          messages={useAppStore.getState().chatMessages}
-          onSendMessage={useAppStore.getState().handleSendMessage}
-          onExecuteAction={useAppStore.getState().handleExecuteAction}
-          onRetryMessage={useAppStore.getState().handleRetryMessage}
-          project={useAppStore.getState().selectedProject}
-          providerStatus={null}
-          isOpen
-          onClose={() => useAppStore.getState().setActiveTab('dashboard')}
-        />;
-      case 'rooms':
-      case '3d':
-        return <Render3DStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('cutlist')} />;
-      case 'floors':
-        return <FloorPlanAnalyzerScreen projectId={selectedProjectId} />;
-      case 'system-admin':
-        return <SystemsAdminScreen />;
-      case 'settings':
-        return <SettingsPanel />;
-      case 'tvunit':
-        return <TvUnitGenerator projectId={selectedProjectId} />;
-      default:
-        return <CRMLeadDashboard onProjectClosed={(id) => useAppStore.getState().setSelectedProjectId(id)} />;
-    }
+      switch (activeTab) {
+        case 'dashboard':
+          return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => useAppStore.getState().navigateTab(tab)} />;
+        case 'crm':
+          return <CRMLeadDashboard onProjectClosed={(id) => useAppStore.getState().setSelectedProjectId(id)} />;
+        case 'projects':
+          return <ProjectManagementScreen onNavigateToProject={(id) => { useAppStore.getState().setSelectedProjectId(id); useAppStore.getState().navigateTab('brief'); }} />;
+        case 'brief':
+          return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => useAppStore.getState().navigateTab('cad')} />;
+        case 'cad':
+          return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('studio')} />;
+        case 'studio':
+          return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('drawings')} />;
+        case 'drawings':
+          return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('materials')} />;
+        case 'materials':
+          return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('renders')} />;
+        case 'renders':
+          return <Render3DStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('cutlist')} />;
+        case 'render-edit':
+          return <RenderEditWorkspace projectId={selectedProjectId} renderId={null} />;
+        case 'cutlist':
+          return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('crm')} />;
+        case 'ceiling':
+          return <CeilingStudio projectId={selectedProjectId} />;
+        case 'floorplan':
+          return <FloorPlanAnalyzerScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('studio')} />;
+        case 'finance':
+          return <FinanceScreen projectId={selectedProjectId} />;
+        case 'timeline':
+          return <TimelineScreen projectId={selectedProjectId} />;
+        case 'jobs':
+          return <JobsScreen projectId={selectedProjectId} />;
+        case 'vendor':
+          return <VendorIntelligence projectId={selectedProjectId} />;
+        case 'pinterest':
+          return <PinterestLearning projectId={selectedProjectId} />;
+        case 'command-center':
+          return <CommandCenterScreen projectId={selectedProjectId} />;
+        case 'aura':
+          return <AuraBrainChat
+            messages={useAppStore.getState().chatMessages}
+            onSendMessage={useAppStore.getState().handleSendMessage}
+            onExecuteAction={useAppStore.getState().handleExecuteAction}
+            onRetryMessage={useAppStore.getState().handleRetryMessage}
+            project={useAppStore.getState().selectedProject}
+            providerStatus={null}
+            isOpen
+            onClose={() => useAppStore.getState().setActiveTab('dashboard')}
+          />;
+        case 'rooms':
+        case '3d':
+          return <Render3DStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('cutlist')} />;
+        case 'floors':
+          return <FloorPlanAnalyzerScreen projectId={selectedProjectId} />;
+        case 'system-admin':
+          return <SystemsAdminScreen />;
+        case 'settings':
+          return <SettingsPanel />;
+        case 'tvunit':
+          return <TvUnitGenerator projectId={selectedProjectId} />;
+        default:
+          return <CRMLeadDashboard onProjectClosed={(id) => useAppStore.getState().setSelectedProjectId(id)} />;
+      }
+    })();
+
+    return (
+      <React.Suspense fallback={<div className="flex items-center justify-center h-full text-[10px] font-black uppercase tracking-widest text-[#D4AF37]">Loading workspace...</div>}>
+        {screen}
+      </React.Suspense>
+    );
   };
 
   return <>{renderScreen()}</>;

@@ -70,6 +70,15 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json({ limit: '10mb' }));
 app.use('/storage', express.static(storageDir));
 
+if (process.env.NODE_ENV === 'production') {
+  try {
+    const { applyValidation } = await import('./middleware/validation.js');
+    applyValidation(app);
+  } catch {
+    // non-fatal if validation middleware missing in bundled environments
+  }
+}
+
 // Multer setup for video/photo uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
