@@ -3249,6 +3249,7 @@ app.post('/api/tools/run', async (req, res) => {
 
     const output = result?.ok ? { success: true, result: result.output || result } : { success: false, reason: result?.reason, reasonDetail: result?.reasonDetail };
     db.prepare("UPDATE jobs SET status = ?, progress = 100, result = ? WHERE id = ?").run(result?.ok ? 'succeeded' : 'failed', JSON.stringify(output), jobId);
+    db.prepare(`INSERT OR REPLACE INTO tool_results (tool_key, project_id, result_json) VALUES (?, ?, ?)`).run(toolKey, projectId, JSON.stringify(output));
     logTimelineEvent(projectId, result?.ok ? 'tool.succeeded' : 'tool.failed', `AI Tool: ${toolKey}`, JSON.stringify(output).slice(0, 240));
 
     return res.json({ success: true, jobId, toolKey, projectId, status: 'completed', result: result?.output || result });
