@@ -1,3 +1,11 @@
+function ensureDemoProject() {
+  const existing = db.prepare("SELECT id FROM projects WHERE id = 'demo_proj_1'").get();
+  if (!existing) {
+    db.prepare("INSERT OR REPLACE INTO projects (id, client_name, name, status, budget, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      'demo_proj_1', 'Demo Client', 'Demo Project 1', 'active', 500000, new Date().toISOString(), new Date().toISOString()
+    );
+  }
+}
 import db from '../database/database.js';
 import { nanoid } from 'nanoid';
 
@@ -218,6 +226,7 @@ const DEMO_CUTLISTS = [
 ];
 
 export function seedDemoData() {
+  ensureDemoProject();
   clearDemoData();
   DEMO_LEADS.forEach(insertLead);
   DEMO_PROJECTS.forEach(insertProject);

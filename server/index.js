@@ -3186,54 +3186,13 @@ app.post('/api/projects/:id/estimate', (req, res) => {
 app.post('/api/tools/run', async (req, res) => {
   try {
     const projectId = req.body.projectId || req.params.id;
-    const toolKey = (req.body.toolKey || '').trim();
+    const toolKey = (req.body.toolKey || req.body.toolSlug || '').trim().toLowerCase();
     if (!toolKey) return res.status(400).json({ error: 'toolKey is required' });
 
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
-    const taskTypeMap = {
-      'ambient_lighting': 'critic_text',
-      'rcp_planner': 'quick_render',
-      'elevation_draft': 'detailed_render',
-      'swatch_match': 'style_image',
-      'extruder_3d': 'quick_render',
-      'floorplan-analyzer': 'topview_enhance',
-      'plan-enhancer': 'topview_enhance',
-      'zone-planner': 'quick_render',
-      'quick-render': 'quick_render',
-      'detailed-render': 'detailed_render',
-      'inpaint': 'inpaint',
-      'upscale': 'upscale',
-      'render-edit': 'inpaint',
-      'style-transfer': 'style_image',
-      'render-critic': 'critic_text',
-      'material-match': 'style_image',
-      'laminate-swapper': 'style_image',
-      'laminate-changer': 'style_image',
-      'zone-design-plan': 'quick_render',
-      'style-recommend': 'critic_text',
-      'room-semantics': 'critic_text',
-      'cad_ingest': 'topview_enhance',
-      'camera_planner': 'quick_render',
-      'walkthrough_config': 'quick_render',
-      'svg_elevation_builder': 'detailed_render',
-      'bom_calculator': 'critic_text',
-      'invoice_ledger': 'critic_text',
-      'ortho_calibrate': 'topview_enhance',
-      'vastu_annotate': 'critic_text',
-      'render_concept': 'quick_render',
-      'camera_director': 'quick_render',
-      'material_swapper': 'style_image',
-      'walkthrough_animator': 'quick_render',
-      'carcass_config': 'detailed_render',
-      'hardware_spec': 'critic_text',
-      'nesting_calc': 'quick_render',
-      'dxf_compiler': 'detailed_render',
-      'blueprint_parser': 'topview_enhance'
-    };
-
-    const taskType = taskTypeMap[toolKey] || 'critic_text';
+    const taskType = ['detailed-render','quick-render','inpaint','upscale','style-image','style_image','topview_enhance','topview_enhance','critic_text','critic-text'].includes(toolKey) ? toolKey.replace('-','_') : (toolKey.replace('-', '_'));
     const jobId = 'job_' + nanoid(6);
     db.prepare(`INSERT INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id) VALUES (?, ?, ?, 'running', 0, 'tool', ?)`).run(jobId, projectId, toolKey, toolKey);
     logTimelineEvent(projectId, 'tool.started', `AI Tool: ${toolKey}`, `Job ID: ${jobId}`);
@@ -3657,7 +3616,8 @@ app.post('/api/tools/execute', async (req, res) => {
   try {
     const { toolSlug, projectId, renderId, params, provider, model } = req.body || {};
     if (!toolSlug || !projectId) return res.status(400).json({ error: 'toolSlug and projectId are required' });
-    const taskType = String(toolSlug || 'plan-enhancer').trim().toLowerCase();
+    const normalized = String(toolSlug || 'plan-enhancer').trim().toLowerCase().replace(/-/g, '_');
+    const taskType = taskTypeMap[normalized] || normalized;
     const payload = {
       toolSlug,
       projectId,
