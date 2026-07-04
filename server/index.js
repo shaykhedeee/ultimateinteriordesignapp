@@ -764,11 +764,12 @@ app.post('/api/projects/:id/ai/chat', async (req, res) => {
     }
 
     const result = await chatAura({ message, history, context: projectContext });
+    const safeActions = (result.actions || []).filter(a => !['simulate_aura_action','simulate_aura_voice_tutorial'].includes(a.actionId));
     res.json({
       reply: result.reply,
       provider: result.provider,
       actionPreview: result.actionPreview,
-      actions: result.actions,
+      actions: safeActions,
       steps: result.steps,
       evidence: result.evidence,
       memoryEvent: result.memoryEvent,
