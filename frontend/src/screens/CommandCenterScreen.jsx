@@ -1,4 +1,5 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+import { useJobPolling } from '../hooks/useJobPolling.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
@@ -2248,34 +2249,28 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       .catch(() => {});
   }, []);
 
+  const [defaultProvider, setDefaultProvider] = useState(null);
+  const [defaultModel, setDefaultModel] = useState(null);
+  const jobPoll = useJobPolling(project?.id, { intervalMs: 1200, maxAgeMs: 10 * 60 * 1000 });
+
   useEffect(() => {
-    if (!toolJobId || !project?.id) return;
-    const base = apiUrl('');
-    const timer = setInterval(async () => {
-      try {
-        const res = await fetch(`${base}/api/projects/${project.id}/jobs/${toolJobId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const job = data.job || data;
-        const status = job?.status || job?.state;
-        if (status === 'succeeded') {
-          setToolResult({ success: true, text: job?.result?.text || job?.result?.reply || `Tool ${activeTool?.key} finished.`, result: job?.result || job?.output || null });
-          clearInterval(timer);
-          setIsRunning(false);
-        } else if (status === 'failed' || status === 'cancelled') {
-          setToolResult({ success: false, text: job?.error || `Tool ${activeTool?.key} failed.` });
-          clearInterval(timer);
-          setIsRunning(false);
-        }
-      } catch {}
-    }, 1200);
-    return () => clearInterval(timer);
-  }, [toolJobId, project?.id, activeTool?.key]);
+    if (!project?.id || !activeTool?.key) return;
+    if (jobPoll.status === 'succeeded') {
+      const job = jobPoll.job || {};
+      setToolResult({ success: true, text: job?.result?.text || job?.result?.reply || `Tool ${activeTool?.key} finished.`, result: job?.result || job?.output || null });
+      setIsRunning(false);
+    } else if (jobPoll.status === 'failed' || jobPoll.status === 'cancelled' || jobPoll.status === 'timeout') {
+      const job = jobPoll.job || {};
+      const reason = jobPoll.status === 'timeout' ? 'Polling timed out waiting for job result.' : (job?.error || `Tool ${activeTool?.key} failed.`);
+      setToolResult({ success: false, text: reason });
+      setIsRunning(false);
+    }
+  }, [jobPoll.status, jobPoll.job, project?.id, activeTool?.key]);
 
   const handleRunTool = async () => {
     setIsRunning(true);
     setToolResult(null);
-    setToolJobId(null);
+    jobPoll.reset();
     try {
       const projectId = project?.id;
       if (!projectId) throw new Error('No active project selected');
