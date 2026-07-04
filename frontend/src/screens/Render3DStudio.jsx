@@ -634,7 +634,8 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchProviderStatus = async () => {
     try {
-      const res = await fetch('${API_BASE}/providers/status');
+      const base = apiUrl('');
+      const res = await fetch(`${base}/providers/status`);
       const data = await res.json();
       setProviderStatus(data);
     } catch (err) {
