@@ -68,7 +68,7 @@ export default function CeilingStudio({ projectId }) {
       area, typeLabel: type.label, ledLabel: led.label, frame, ceiling, ledCost, extras, markup, total, grand
     });
     setStatus('False ceiling estimate computed.');
-    setTimeout(() => setStatus(null), 2400);
+    
   };
 
   const saveEstimate = async () => {

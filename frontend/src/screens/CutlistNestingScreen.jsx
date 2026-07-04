@@ -42,8 +42,7 @@ export default function CutlistNestingScreen({ projectId }) {
       const cost = sheets * (materialId === 'bwp' ? 3200 : materialId === 'mr' ? 1400 : materialId === 'hdmr' ? 1100 : 750);
       setResult({ totalSqft, sheetArea, effectiveYield, sheets, cost });
       setStatus('Done');
-      setTimeout(() => setStatus(null), 2400);
-    } catch (e) {
+      } catch (e) {
       setStatus('Invalid panel list.', 'error');
     }
   };
@@ -61,8 +60,7 @@ export default function CutlistNestingScreen({ projectId }) {
       a.click();
       URL.revokeObjectURL(url);
       setStatus('DXF exported');
-      setTimeout(() => setStatus(null), 2400);
-    } catch (e) {
+      } catch (e) {
       setStatus('DXF export failed', 'error');
     }
   };
@@ -84,7 +82,6 @@ export default function CutlistNestingScreen({ projectId }) {
     a.click();
     URL.revokeObjectURL(url);
     setStatus('Estimate exported');
-    setTimeout(() => setStatus(null), 2400);
   };
 
   return (

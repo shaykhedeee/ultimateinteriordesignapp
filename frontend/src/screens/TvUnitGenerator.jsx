@@ -58,7 +58,6 @@ export default function TvUnitGenerator({ projectId }) {
     const total = plyPrice + hardware + led + 1500;
     setSpec({ w, d, h, baseSqft, plyPrice, hardware, led, total });
     setStatus('TV unit spec calculated.');
-    setTimeout(() => setStatus(null), 2200);
   };
 
   const downloadQb = () => {
@@ -83,7 +82,6 @@ export default function TvUnitGenerator({ projectId }) {
     a.click();
     URL.revokeObjectURL(url);
     setStatus('Quick BOM exported.');
-    setTimeout(() => setStatus(null), 2200);
   };
 
   return (
