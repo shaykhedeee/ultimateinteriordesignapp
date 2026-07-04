@@ -2631,9 +2631,18 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
             {toolResult && (
               <div className="bg-slate-950 border border-slate-850/60 p-4 rounded-2xl space-y-4 animate-in slide-in-from-bottom-2">
                 <div className="flex items-center gap-2 text-xs text-slate-350">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  {toolResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
                   <span>{toolResult.text}</span>
                 </div>
+                {!toolResult.success && toolResult.recoverable && (
+                  <button
+                    onClick={handleRunTool}
+                    disabled={!project?.id || !activeTool?.key}
+                    className="px-3 py-1.5 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-black uppercase tracking-wider hover:bg-[#D4AF37]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Retry
+                  </button>
+                )}
 
                 {/* Case 1 Result: Ambient lighting shade display */}
                 {activeTool.key === 'ambient_lighting' && toolResult.visualSim && (

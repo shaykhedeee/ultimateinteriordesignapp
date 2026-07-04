@@ -48,8 +48,8 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
     try {
       let body = { toolSlug: selectedSlug, projectId, provider: provider || undefined, model: model || undefined, params: {} };
       try { body = { toolSlug: selectedSlug, projectId, provider: provider || undefined, model: model || undefined, params: params ? JSON.parse(params) : {} }; } catch (parseErr) { setError('Invalid JSON in params: ' + parseErr.message); }
-
-      const res = await fetch(apiUrl('tools/execute'), {
+      if (!error) {
+        const res = await fetch(apiUrl('tools/execute'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
