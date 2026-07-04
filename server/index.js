@@ -1091,6 +1091,14 @@ app.post('/api/projects/:id/renders/generate', visualizerFields, async (req, res
     const zoomedFloorPlanFile = req.files?.['zoomedFloorPlan']?.[0];
     const fullFloorPlanFile = req.files?.['fullFloorPlan']?.[0];
 
+    const providerResolution = req.body.taskType ? resolveProviderForTask({
+      taskType: req.body.taskType || 'detailed_render',
+      organizationId: null,
+      provider: req.body.providerUsed,
+      providerMode: req.body.providerMode || 'platform',
+      fallbackOrder: Array.isArray(req.body.fallbackOrder) ? req.body.fallbackOrder : []
+    }) : { provider: req.body.providerUsed || 'local_comfyui', providerMode: 'platform', capabilityMatch: [], fallbackUsed: false, unsupported: false };
+
     const params = {
       room: req.body.room,
       style: req.body.style,
@@ -1111,7 +1119,10 @@ app.post('/api/projects/:id/renders/generate', visualizerFields, async (req, res
       customInstruction: req.body.customInstruction,
       renderMode: req.body.renderMode || 'new-interior',
       sourceType: req.body.sourceType || 'generative',
-      providerUsed: req.body.providerUsed || 'local_comfyui',
+      providerUsed: providerResolution.provider || 'local_comfyui',
+      providerMode: providerResolution.providerMode || 'platform',
+      fallbackUsed: providerResolution.fallbackUsed || false,
+      taskType: req.body.taskType || 'detailed_render',
       sitePhoto: sitePhotoFile ? `/storage/uploads/${sitePhotoFile.filename}` : req.body.sitePhotoBase64,
       stylePhoto: stylePhotoFile ? `/storage/uploads/${stylePhotoFile.filename}` : req.body.stylePhotoBase64,
       zoomedFloorPlan: zoomedFloorPlanFile ? `/storage/uploads/${zoomedFloorPlanFile.filename}` : req.body.zoomedFloorPlanBase64,

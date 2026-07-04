@@ -48,14 +48,6 @@ export default function AuraBrainChat({
     }
   };
 
-  const simulateVoice = () => {
-    setIsListening(true);
-    setTimeout(() => {
-      setIsListening(false);
-      if (onSendMessage) onSendMessage("Add a warm Chevron Herringbone oak floor material to this bedroom.");
-    }, 2500);
-  };
-
   useEffect(() => {
     if (!messages.length) return;
     const last = messages[messages.length - 1];
