@@ -10,7 +10,22 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [connectivity, setConnectivity] = useState('checking');
   const [bootError, setBootError] = useState(null);
+  const [renderError, setRenderError] = useState(null);
 
+  React.useEffect(() => {
+    const onErr = (event) => {
+      const msg = event?.error?.message || event?.message || String(event);
+      setRenderError(msg);
+    };
+    window.addEventListener('error', onErr);
+    window.addEventListener('unhandledrejection', (e) => {
+      const reason = e?.reason?.message || String(e?.reason);
+      setRenderError(reason);
+    });
+    return () => {
+      window.removeEventListener('error', onErr);
+    };
+  }, []);
   React.useEffect(() => {
     const seen = localStorage.getItem('tutorialSeen');
     if (!seen) setShowTutorial(true);
@@ -28,19 +43,25 @@ export default function App() {
   React.useEffect(() => {
     let cancelled = false;
     setBootError(null);
-    fetchStatsAndProjects()
-      .then(() => {
-        if (!cancelled) setConnectivity('online');
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setConnectivity('offline');
-          setBootError(err && err.message ? err.message : 'Unable to reach backend');
+    try {
+      const start = async () => {
+        try {
+          await fetchStatsAndProjects();
+          if (!cancelled) setConnectivity('online');
+        } catch (err) {
+          if (!cancelled) {
+            setConnectivity('offline');
+            setBootError((err && err.message) || 'Unable to reach backend');
+          }
+        } finally {
+          if (!cancelled) setLoading(false);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      };
+      start();
+    } catch (err) {
+      setBootError((err && err.message) || 'App boot failed');
+      setLoading(false);
+    }
 
     const handleOnline = () => setConnectivity('online');
     const handleOffline = () => setConnectivity('offline');
@@ -76,14 +97,14 @@ export default function App() {
           onFinished={() => setShowTutorial(false)}
         />
       )}
-      {bootError && (
+      {(bootError || renderError) && (
         <div className="fixed top-3 right-3 z-50 max-w-sm px-3 py-2 rounded-2xl border border-red-500/40 bg-red-950/40 text-[10px] font-bold uppercase tracking-wider text-red-200">
-          <span className="block mb-1 text-[9px] text-red-400">Offline mode</span>
-          {bootError}
-          <button className="mt-2 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-bold text-slate-200" onClick={() => { useAppStore.getState().fetchStatsAndProjects().catch(()=>{}); }}>Retry</button>
+          <span className="block mb-1 text-[9px] text-red-400">{bootError ? 'Offline mode' : 'Runtime error'}</span>
+          {bootError || renderError}
+          <button className="mt-2 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[10px] font-bold text-slate-200" onClick={() => { setRenderError(null); useAppStore.getState().fetchStatsAndProjects().catch(()=>{}); }}>Retry</button>
         </div>
       )}
-      {!bootError && (
+      {!bootError && !renderError && (
         <div className={`fixed top-3 right-3 z-50 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
           connectivity === 'online' ? 'border-emerald-500/40 text-emerald-300 bg-emerald-950/40' : 'border-red-500/40 text-red-300 bg-red-950/40'
         }`}>
