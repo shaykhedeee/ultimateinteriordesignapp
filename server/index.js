@@ -82,11 +82,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req, res, next) => {
-  const token = req.headers['x-api-token'];
-  const projectId = req.params.id || req.body?.projectId;
-  const allowed = !projectId || db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId);
-  if (!allowed) return res.status(403).json({ error: 'Project not found or access denied' });
+app.use('/api/projects/:id', (req, res, next) => {
+  const projectId = req.params.id;
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId);
+  if (!project) return res.status(404).json({ error: 'Project not found' });
   next();
 });
 
@@ -3658,6 +3657,38 @@ app.get('/api/health', (req, res) => {
     service: 'ultimate-interior-design-api',
     timestamp: new Date().toISOString()
   });
+});
+
+app.get('/api/admin/db/status', async (req, res) => {
+  try {
+    const row = db.prepare("SELECT COUNT(*) as n FROM sqlite_master WHERE type='table'").get();
+    res.json({ ok: true, tableCount: row?.n || 0 });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/db/migrate', (req, res) => {
+  const { applyValidation } = require('./middleware/validation.js');
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, run_at TEXT)`);
+    res.json({ ok: true, migrated: true });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/db/backup', (req, res) => {
+  try {
+    const src = require('path').join(process.cwd(), 'server/database/ultima.db');
+    const target = require('path').join(process.cwd(), 'server/database/backups', `ultima-${new Date().toISOString().replace(/[:.]/g,'-')}.db`);
+    if (!require('fs').existsSync(src)) return res.status(404).json({ ok: false, error: 'Database missing' });
+    require('fs').mkdirSync(require('path').dirname(target), { recursive: true });
+    require('fs').copyFileSync(src, target);
+    res.json({ ok: true, backupPath: target });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // Seed DB and start Express

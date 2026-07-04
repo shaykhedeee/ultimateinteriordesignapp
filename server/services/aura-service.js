@@ -54,6 +54,10 @@ function loadKnowledge(force = false) {
   }
 }
 
+export function loadKnowledgeCache(force = false) {
+  return loadKnowledge(force);
+}
+
 const DEFAULT_INDIAN_INJECTS = Object.freeze({
   climate: 'Include Indian climate-aware guidance: moisture-resistant finishes for tropical wet, earthy low-gloss materials for tropical dry, durable high-traffic laminates for subtropical, and woodgrains/wool blends for alpine hill stations.',
   vastu: 'Use Vastu as a preference signal, not a hard constraint: prefer NE pooja room/study, SE kitchen hob facing East, SW master bedroom, avoid NE toilets.',
