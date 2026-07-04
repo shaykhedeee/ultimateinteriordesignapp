@@ -19,7 +19,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (/\bthree($|[\\/])/.test(id)) return 'three';
+          if (/^three($|[\\/])/.test(id)) return 'three';
           if (id.includes('react') || id.includes('react-dom')) return 'vendor';
           if (id.includes('lucide-react')) return 'ui';
         }
