@@ -2719,6 +2719,11 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                   </div>
                 )}
 
+                {/* Generic provider result payload */}
+                {!toolResult.visualSim && !toolResult.layoutPoints && !toolResult.wallFace && !toolResult.swatchMatch && !toolResult.extruded && toolResult.result && (
+                  <pre className="bg-slate-950 border border-slate-850/60 p-3 rounded-xl text-[10px] text-slate-300 overflow-x-auto whitespace-pre-wrap break-words">{JSON.stringify(toolResult.result, null, 2)}</pre>
+                )}
+
                 {/* Case 5 Result: 3D Extrusion build visual */}
                 {activeTool.key === 'extruder_3d' && toolResult.extruded && (
                   <div className="w-full h-36 bg-slate-950 border border-slate-850 rounded-xl relative overflow-hidden flex items-center justify-center">
