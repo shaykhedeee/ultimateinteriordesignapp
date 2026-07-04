@@ -42,6 +42,7 @@ export default function CeilingStudio({ projectId }) {
   const [soffit, setSoffit] = useState(false);
   const [estimate, setEstimate] = useState(null);
   const [status, setStatus] = useState(null);
+  useAutoClear(status, () => setStatus(null), status === 'error' ? 4000 : 2400);
 
   useEffect(() => {
     if (!projectId) return;

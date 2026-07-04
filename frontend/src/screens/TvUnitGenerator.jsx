@@ -34,6 +34,7 @@ export default function TvUnitGenerator({ projectId }) {
   const [wireManagement, setWireManagement] = useState(true);
   const [spec, setSpec] = useState(null);
   const [status, setStatus] = useState(null);
+  useAutoClear(status, () => setStatus(null), 2200);
 
   useEffect(() => {
     if (!projectId) return;
