@@ -26,6 +26,7 @@ import { chatAura, getAuraProviderStatus } from './services/aura-chat-service.js
 import { listProfiles } from './services/openrouter-profiles.js';
 import { registerTool, TOOL_REGISTRY } from './services/tool-registry.js';
 import { executeInference, listSupportedTaskTypes, listProvidersForTask } from './services/inference-gateway.js';
+import { normalizeTaskType, validateCapability, availableTools, runTool, runBatch, getHarnessStatus } from './services/ai-harness-service.js';
 import { TASK_TYPES, PROVIDER_MODES, CAPABILITY_TAGS, canHandleTask, providersForTask, taskSupported, normalizeProviderKey, providerLabel } from './services/provider-registry.js';
 import { resolveProviderForTask, recordProviderMetadata } from './services/provider-router-service.js';
 import { buildEquirectPlaceholder } from './services/panorama-service.js';
@@ -3492,10 +3493,40 @@ app.post('/api/aura/render-critic', async (req, res) => {
 
 app.post('/api/tools/:toolSlug/run', async (req, res) => {
   try {
-    const tool = TOOL_REGISTRY[req.params.toolSlug];
-    if (!tool) return res.status(404).json({ error: 'Tool not found' });
-    const result = await executeInference({ taskType: req.params.toolSlug, payload: req.body || {} });
-    res.json({ success: true, tool, result });
+    const toolSlug = req.params.toolSlug;
+    const tool = getEnabledTools().find(t => t.slug === toolSlug);
+    if (!tool) return res.status(404).json({ error: 'Tool not found', toolSlug });
+
+    const taskType = normalizeTaskType(toolSlug);
+    const assessment = validateCapability(taskType);
+    const resolution = resolveProviderForTask({
+      taskType,
+      organizationId: null,
+      provider: req.body.provider || null,
+      providerMode: req.body.providerMode || 'platform',
+      fallbackOrder: req.body.fallbackOrder || []
+    });
+
+    const result = await runTool({
+      toolSlug,
+      projectId: req.body.projectId || null,
+      params: req.body.params || {},
+      provider: resolution.provider,
+      model: req.body.model || null
+    });
+
+    res.json({
+      success: true,
+      tool: {
+        ...tool,
+        taskType,
+        assessment
+      },
+      provider: result.provider,
+      model: result.model,
+      fallbackUsed: result.fallbackUsed,
+      result
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3616,8 +3647,7 @@ app.post('/api/tools/execute', async (req, res) => {
   try {
     const { toolSlug, projectId, renderId, params, provider, model } = req.body || {};
     if (!toolSlug || !projectId) return res.status(400).json({ error: 'toolSlug and projectId are required' });
-    const normalized = String(toolSlug || 'plan-enhancer').trim().toLowerCase().replace(/-/g, '_');
-    const taskType = taskTypeMap[normalized] || normalized;
+    const taskType = normalizeTaskType(toolSlug);
     const payload = {
       toolSlug,
       projectId,
@@ -3627,10 +3657,10 @@ app.post('/api/tools/execute', async (req, res) => {
       model,
       taskType
     };
-    const result = await planFreeExecution(taskType, payload);
-    if (result?.jobId || result?.status === 'running') {
-      db.prepare(`INSERT OR REPLACE INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id) VALUES (?, ?, ?, 'running', 0, ?, ?)`).run(result.jobId, projectId, taskType, 'tool_runner', toolSlug);
-      return res.json({ success: true, jobId: result.jobId || ('job_' + nanoid(6)), queued: true, taskType });
+    const result = await runTool(payload);
+    if (result && result.output) {
+      db.prepare(`INSERT OR REPLACE INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id) VALUES (?, ?, ?, 'succeeded', 100, ?, ?)`).run(result.jobId || ('job_' + nanoid(6)), projectId, taskType, 'tool_runner', toolSlug);
+      return res.json({ success: true, result });
     }
     res.json(result);
   } catch (err) {
@@ -3663,9 +3693,41 @@ app.post('/api/projects/:id/elevations/generate', async (req, res) => {
 app.post('/api/providers/free-model/execute', async (req, res) => {
   try {
     const payload = req.body || {};
-    const taskType = String(payload.taskType || payload.toolSlug || 'quick_render').trim().toLowerCase();
-    const result = await planFreeExecution(taskType, payload);
+    const taskType = normalizeTaskType(payload.taskType || payload.toolSlug || 'quick_render');
+    const result = await runTool({
+      toolSlug: payload.toolSlug || taskType,
+      projectId: payload.projectId || null,
+      params: payload.params || {},
+      provider: payload.provider || null,
+      model: payload.model || null
+    });
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/harness/batch', async (req, res) => {
+  try {
+    const runs = Array.isArray(req.body?.runs) ? req.body.runs : [];
+    const results = await runBatch(runs);
+    res.json({ success: true, count: results.length, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ai/harness/status', (req, res) => {
+  try {
+    res.json(getHarnessStatus());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ai/harness/tools', (req, res) => {
+  try {
+    res.json(availableTools());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
