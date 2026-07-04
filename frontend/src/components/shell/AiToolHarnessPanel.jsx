@@ -188,10 +188,11 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
         ))}
         {!logs.length && <div className="text-[9px] text-slate-600 font-mono">No runs yet.</div>}
       </div>
+
+      <RagAssistantPanel projectId={projectId} />
     </div>
   );
 }
-
 
 function RagAssistantPanel({ projectId = 'demo' }) {
   const [title, setTitle] = useState('');
