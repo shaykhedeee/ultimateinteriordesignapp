@@ -1486,9 +1486,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
               <strong className="text-[#D4AF37] uppercase font-bold font-mono">
                 {providerStatus.activeLabel || 'mock'}
               </strong>
-              {providerStatus.activeModel && (
-                <span className="text-[9px] text-slate-500 font-mono">{providerStatus.activeModel}</span>
-              )}
+              <span className="text-[9px] text-slate-500 font-mono">
+                {providerStatus.liveImageGenReady ? 'ready' : providerStatus.liveImageGenRequested ? 'requested' : 'draft'}
+              </span>
             </div>
           </div>
         )}
