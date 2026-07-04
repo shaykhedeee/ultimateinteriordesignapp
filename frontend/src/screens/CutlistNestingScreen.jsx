@@ -15,6 +15,7 @@ export default function CutlistNestingScreen({ projectId }) {
   const [panelsJson, setPanelsJson] = useState('[]');
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState(null);
+  useAutoClear(status, () => setStatus(null), 2400);
   const [machineType, setMachineType] = useState('generic');
 
   useEffect(() => {
