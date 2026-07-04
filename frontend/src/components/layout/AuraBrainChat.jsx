@@ -97,7 +97,7 @@ export default function AuraBrainChat({
               AURA BRAIN <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">ONLINE</span>
               {providerStatus && (
                 <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
-                  {providerStatus.provider || providerStatus.fallbackProvider || 'LLM'} / {providerStatus.model || 'auto'}
+                  {providerStatus.provider || providerStatus.fallbackProvider || 'LLM'}
                 </span>
               )}
             </h3>
