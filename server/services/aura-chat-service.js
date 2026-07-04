@@ -610,7 +610,16 @@ export async function chatAura({ message, history = [], context = '' }) {
       [INTENT.UNKNOWN]: 'Reason from first principles: infer the closest design intent and propose a structured improvement path.'
     } [intent || INTENT.UNKNOWN] || ACTION_SCHEMAS[INTENT.UNKNOWN].changes.join('; ')
   });
-  const finalInstruction = enrichedContext ? `${instruction}\n${enrichedContext}` : instruction;
+  let ragContext = '';
+  try {
+    const ragResult = await queryCollection({ projectId: (context && context.projectId) || 'demo', query: trimmed, collection: 'project-knowledge', maxResults: 4 });
+    if (ragResult.count > 0 && Array.isArray(ragResult.results)) {
+      ragContext = '\nProject memory snippets:\n' + ragResult.results.map(r => `- ${String(r.content || '').slice(0, 220)}`).join('\n');
+    }
+  } catch (ragErr) {
+    console.warn('[aura-chat] RAG query failed:', ragErr.message);
+  }
+  const finalInstruction = enrichedContext ? `${instruction}\n${enrichedContext}${ragContext}` : `${instruction}${ragContext}`;
 
   const llmMessages = buildOpenRouterMessages(history, trimmed);
   try {
