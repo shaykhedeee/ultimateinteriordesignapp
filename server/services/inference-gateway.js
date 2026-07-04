@@ -23,14 +23,15 @@ let defaultTimeoutMs = 30_000;
 let maxRetries = 2;
 let retryBaseDelayMs = 500;
 
+const DEFAULT_FREE_PROVIDERS = ['huggingface','openrouter','pollinations','local_comfyui'];
 const FALLBACK_CHAINS = Object.freeze({
-  [TASK_TYPES.TOPVIEW_ENHANCE]: ['local_comfyui', 'pollinations', 'mock'],
-  [TASK_TYPES.QUICK_RENDER]: ['local_comfyui', 'pollinations', 'mock'],
-  [TASK_TYPES.DETAILED_RENDER]: ['local_comfyui', 'openai', 'gemini', 'pollinations', 'mock'],
-  [TASK_TYPES.INPAINT]: ['local_comfyui', 'pollinations', 'mock'],
-  [TASK_TYPES.UPSCALE]: ['local_comfyui', 'pollinations', 'mock'],
-  [TASK_TYPES.STYLE_IMAGE]: ['local_comfyui', 'pollinations', 'mock'],
-  [TASK_TYPES.CRITIC_TEXT]: ['openrouter', 'gemini', 'mock']
+  [TASK_TYPES.TOPVIEW_ENHANCE]: [...DEFAULT_FREE_PROVIDERS, 'mock'],
+  [TASK_TYPES.QUICK_RENDER]: [...DEFAULT_FREE_PROVIDERS, 'mock'],
+  [TASK_TYPES.DETAILED_RENDER]: [...DEFAULT_FREE_PROVIDERS, 'openai', 'gemini', 'mock'],
+  [TASK_TYPES.INPAINT]: [...DEFAULT_FREE_PROVIDERS, 'mock'],
+  [TASK_TYPES.UPSCALE]: [...DEFAULT_FREE_PROVIDERS, 'mock'],
+  [TASK_TYPES.STYLE_IMAGE]: [...DEFAULT_FREE_PROVIDERS, 'mock'],
+  [TASK_TYPES.CRITIC_TEXT]: ['openrouter', 'gemini', ...DEFAULT_FREE_PROVIDERS.filter((p)=>p!=='local_comfyui'), 'mock']
 });
 
 export function configureGateway({ timeoutMs, maxAttempts, retryDelayMs }) {

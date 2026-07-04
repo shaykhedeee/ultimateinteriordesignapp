@@ -1983,7 +1983,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                 <div key={idx} className="bg-slate-900/40 border border-slate-850 rounded-2xl p-3 flex flex-col justify-between hover:border-[#D4AF37]/50 transition">
                   <div className="space-y-2">
                     <div className="w-full h-28 rounded-xl overflow-hidden bg-slate-950 border border-slate-850">
-                      <img src="https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80" alt={item.name} className="w-full h-full object-cover opacity-85" />
+                      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MDAiIGhlaWdodD0iNjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWEzOTJFIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjRkZGRkZGIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Q2F0YWxvZzwvdGV4dD48L3N2Zz4=" alt={item.name} className="w-full h-full object-cover opacity-85" />
                     </div>
                     <div>
                       <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">{item.category}</span>
