@@ -107,11 +107,16 @@ export default function AuraBrainChat({
           </div>
           <div>
             <h3 className="font-bold text-xs text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
-              AURA BRAIN <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">ONLINE</span>
+              AURA BRAIN <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">{providerStatus && (providerStatus.configured || providerStatus.fallbackAvailable) ? 'ONLINE' : 'OFFLINE'}</span>
               {providerStatus && (
-                <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
-                  {providerStatus.provider || providerStatus.fallbackProvider || 'LLM'}
-                </span>
+                <>
+                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
+                    {providerStatus.provider || providerStatus.fallbackProvider || 'LLM'}
+                  </span>
+                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
+                    {providerStatus.model || providerStatus.activeModel || 'default model'}
+                  </span>
+                </>
               )}
             </h3>
             <p className="text-[9px] text-slate-500">Tiny LLM Orchestrator</p>
