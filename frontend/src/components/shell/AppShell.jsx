@@ -65,7 +65,7 @@ const NAV_SECTIONS = [
       { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" /> },
       { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" /> },
       { id: 'system-admin', label: 'System Admin', icon: <Shield className="w-4 h-4" /> },
-      { id: 'settings', label: 'Providers & Settings', icon: <Settings className="w-4 h-4" /> }
+      { id: 'settings', label: 'Providers & Settings', icon: <span className="w-4 h-4 inline-flex items-center justify-center text-[10px] font-black text-slate-300 border border-slate-700 rounded">S</span> }
     ]
   }
 ];

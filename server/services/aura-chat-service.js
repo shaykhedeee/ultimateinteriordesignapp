@@ -675,19 +675,10 @@ export async function chatAura({ message, history = [], context = '' }) {
     : buildActionPreview(intent);
   const actions = buildActions(actionPreview);
 
-  const simulation = await simulateActionImpact({ intent, message: trimmed, indianContext, evidence });
-  if (providerMeta && providerMeta.provider && !['offline','mock','local'].includes(providerMeta.provider)) {
-    simulation.simulated = false;
-    simulation.provider = providerMeta.provider;
-    simulation.model = providerMeta.model || simulation.model;
-  }
-  const simulationMeta = {
-    simulated: true,
-    provider: providerMeta.provider,
-    model: providerMeta.model || null,
-    suppliers: simulation.suppliers.length,
-    recommendation: simulation.recommendation
-  };
+  const isRealProvider = providerMeta && providerMeta.provider && !['offline', 'mock', 'local'].includes(providerMeta.provider);
+  const simulationMeta = isRealProvider
+    ? { simulated: false, provider: providerMeta.provider, model: providerMeta.model || null, suppliers: 0, recommendation: 'Live provider output; no simulated supplier impact.' }
+    : { simulated: true, provider: providerMeta?.provider || 'offline', model: providerMeta?.model || null, suppliers: 0, recommendation: 'Offline mode: showing intent preview only.' };
 
   if (!Array.isArray(agentSteps)) agentSteps = [];
   agentSteps.push({ name: 'Self-Correction', status: selfCorrection.corrected ? 'applied' : 'skipped', detail: selfCorrection.corrections.join('; ') || 'none' });

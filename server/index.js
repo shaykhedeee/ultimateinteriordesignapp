@@ -27,6 +27,11 @@ import { listProfiles } from './services/openrouter-profiles.js';
 import { registerTool, TOOL_REGISTRY } from './services/tool-registry.js';
 import { executeInference, listSupportedTaskTypes, listProvidersForTask } from './services/inference-gateway.js';
 import { normalizeTaskType, validateCapability, availableTools, runTool, runBatch, getHarnessStatus } from './services/ai-harness-service.js';
+import { AURA_STATES, AURA_TRANSITIONS, AuraLoopService } from './services/aura-loop-service.js';
+import { ProjectMemory, INDIAN_INTERIOR_PROMPT_CORPUS } from './services/project-memory.js';
+
+const auraLoop = new AuraLoopService();
+const projectMemory = new ProjectMemory();
 import { TASK_TYPES, PROVIDER_MODES, CAPABILITY_TAGS, canHandleTask, providersForTask, taskSupported, normalizeProviderKey, providerLabel } from './services/provider-registry.js';
 import { resolveProviderForTask, recordProviderMetadata } from './services/provider-router-service.js';
 import { buildEquirectPlaceholder } from './services/panorama-service.js';
@@ -893,6 +898,100 @@ app.get('/api/ai/chat-status', (req, res) => {
   try {
     const status = getAuraProviderStatus();
     res.json({ ...status, endpoint: 'post /api/ai/chat', accepts: ['message', 'history[]', 'context?'] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AURA loop control
+app.post('/api/ai/loop/start', (req, res) => {
+  try {
+    const body = req.body || {};
+    const result = auraLoop.startSession({
+      sessionId: String(body.sessionId || `aura_${Date.now()}`),
+      projectId: String(body.projectId || 'demo'),
+      goal: String(body.goal || 'Assist with interior design workflow'),
+      successCriteria: Array.isArray(body.successCriteria) ? body.successCriteria : [],
+      maxIterations: Number(body.maxIterations || 10),
+      budgetMs: Number(body.budgetMs || 120000)
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/loop/step', (req, res) => {
+  try {
+    const { sessionId } = req.params || req.body || {};
+    const result = auraLoop.step(sessionId, req.body || {});
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ai/loop/:sessionId', (req, res) => {
+  try {
+    const session = auraLoop.getSession(req.params.sessionId);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json({ ok: true, session });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/loop/:sessionId/scratch', (req, res) => {
+  try {
+    const result = auraLoop.updateScratch(req.params.sessionId, req.body || {});
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Project memory context API
+app.get('/api/projects/:id/memory', (req, res) => {
+  try {
+    const memory = projectMemory.getMemory(req.params.id) || projectMemory.initialize(req.params.id);
+    res.json({ success: true, memory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/memory/conversation', (req, res) => {
+  try {
+    const { role, text } = req.body || {};
+    const memory = projectMemory.appendConversation(req.params.id, role, text);
+    res.json({ success: true, memory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/memory/render', (req, res) => {
+  try {
+    const memory = projectMemory.setCurrentRender(req.params.id, req.body || {});
+    res.json({ success: true, memory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/memory/material', (req, res) => {
+  try {
+    const memory = projectMemory.assignMaterial(req.params.id, req.body || {});
+    res.json({ success: true, memory });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/memory/vastu', (req, res) => {
+  try {
+    const memory = projectMemory.flagVastu(req.params.id, req.body || {});
+    res.json({ success: true, memory });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3699,7 +3798,12 @@ app.post('/api/tools/execute', async (req, res) => {
     }
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[tools/execute] fatal:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: err.message, toolSlug, projectId });
+    } else {
+      res.end();
+    }
   }
 });
 
