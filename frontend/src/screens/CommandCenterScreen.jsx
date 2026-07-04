@@ -1,5 +1,6 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
 import { useJobPolling } from '../hooks/useJobPolling.js';
+import { useAutoClear } from '../hooks/useAutoClear.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
@@ -60,25 +61,9 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   // ==========================================
   useEffect(() => {
     const base = apiUrl('');
-    fetch(`${base}/projects`)
-      .then(res => res.json())
-      .then(data => {
-        setProjects(data);
-        if (data.length > 0 && !selectedProjectId) {
-          setSelectedProjectId(data[0].id);
-        }
-      })
-      .catch(console.error);
-
-    fetch(`${base}/leads`)
-      .then(res => res.json())
-      .then(setLeads)
-      .catch(console.error);
-
-    fetch(`${base}/material-catalog`)
-      .then(res => res.json())
-      .then(setMaterialsCatalog)
-      .catch(console.error);
+    fetch(`${base}/projects`).then(r => r.json()).then(data => { setProjects(data); if (data.length > 0 && !selectedProjectId) setSelectedProjectId(data[0].id); }).catch(console.error);
+    apiJson(`${base}/leads`).then(setLeads).catch(console.error);
+    fetch(`${base}/material-catalog`).then(r => r.json()).then(setMaterialsCatalog).catch(console.error);
   }, [projectId]);
 
   const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
@@ -90,15 +75,13 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       const res = await fetch(`${base}/demo/seed`, { method: 'POST' });
       const data = await res.json();
       setDemoStatus(`Loaded ${data.leads || 0} leads / ${data.projects || 0} projects`);
-      const [projRes, leadRes] = await Promise.all([
-        fetch(`${base}/projects`),
-        fetch(`${base}/leads`)
+      const [projData, leadData] = await Promise.all([
+        apiJson(`${base}/projects`),
+        apiJson(`${base}/leads`).catch(() => ({ leads: [] }))
       ]);
-      const projJson = await projRes.json();
-      const leadJson = await leadRes.json();
-      setProjects(projJson);
-      setLeads(leadJson);
-      if (projJson.length > 0) setSelectedProjectId(projJson[0].id);
+      setProjects(projData);
+      setLeads(leadData.leads || []);
+      if (projData.length > 0) setSelectedProjectId(projData[0].id);
     } catch (e) {
       setDemoStatus('Seed failed');
     }
@@ -193,6 +176,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
               <SmartProjectWorkspace 
                 project={activeProject} 
                 projects={projects}
+                workspaceMode={workspaceMode}
                 onSelectProject={(id) => setSelectedProjectId(id)}
                 onNavigateToTab={onNavigateToTab}
               />
@@ -364,7 +348,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 // ============================================================================
 // WORKSPACE: Smart Project
 // ============================================================================
-function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateToTab }) {
+function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProject, onNavigateToTab }) {
   const consumerMode = Boolean(workspaceMode === 'consumer');
   const [consumerStep, setConsumerStep] = React.useState('welcome'); // welcome | room | style | result
   const [consumerRoom, setConsumerRoom] = React.useState('');

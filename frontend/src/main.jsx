@@ -67,14 +67,6 @@ createRoot(document.getElementById('root')).render(<ErrorBoundary><App /></Error
       if (!root || (!root.children || !root.children.length)) {
         showFallback('React root did not mount within 4 seconds.');
       }
-      const fb = document.getElementById('diag-mount');
-      if (!fb) {
-        const el = document.createElement('div');
-        el.id = 'diag-mount';
-        el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#020617;color:#F0EEE8;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;padding:16px;overflow:auto;';
-        el.innerHTML = '<b>DEV DIAGNOSTIC</b><br>root=' + (!root ? 'null' : 'present') + '<br>rootChildren=' + (root ? (root.children ? root.children.length : 'null') : 'null') + '<br>rootHTML=' + (root ? (root.innerHTML.length + ' chars') : 'null') + '<br>documentState=' + document.readyState + '<br>reactRenderers=' + (window.__REACT_DEVTOOLS_GLOBAL_HOOK__ ? window.__REACT_DEVTOOLS_GLOBAL_HOOK__.renderers.size : 'no-hook') + '<br>lastScript=' + document.querySelectorAll('script[type=module]').length;
-        document.body.appendChild(el);
-      }
     }, 4000);
 
     window.addEventListener('error', (event) => {
