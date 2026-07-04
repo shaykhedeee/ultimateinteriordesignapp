@@ -2249,8 +2249,6 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       .catch(() => {});
   }, []);
 
-  const [defaultProvider, setDefaultProvider] = useState(null);
-  const [defaultModel, setDefaultModel] = useState(null);
   const jobPoll = useJobPolling(project?.id, { intervalMs: 1200, maxAgeMs: 10 * 60 * 1000 });
 
   useEffect(() => {
