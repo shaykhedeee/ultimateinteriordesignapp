@@ -119,7 +119,7 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
 
   useEffect(() => {
     fetchLeads();
-    fetch('getApiBase()/diagnostics/api-keys')
+    fetch(apiUrl('/diagnostics/api-keys'))
       .then(res => res.json())
       .then(setApiKeysInfo)
       .catch(console.error);
@@ -141,7 +141,7 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
   const fetchLeads = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch('getApiBase()/leads');
+      const res = await fetch(apiUrl('/leads'));
       const data = await res.json();
       setLeads(data);
       if (data.length > 0 && !selectedLead) {
@@ -168,7 +168,7 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
         { name: "Priya Patel", email: "priya.p@example.com", phone: "+91 96000 77788", location: "Koramangala, Bangalore", budget: 720000, area: 1050, requirements: "Modular kitchen, master bed wardrobe, study room furniture, pooja unit" },
         { name: "Arjun Nair", email: "arjun.n@example.com", phone: "+91 99887 66554", location: "Electronic City, Bangalore", budget: 2200000, area: 2400, requirements: "Luxury 4 BHK with imported marble, Italian kitchen, home theatre, smart lighting" }
       ];
-      await fetch('getApiBase()/leads/import', {
+      await fetch(apiUrl('/leads/import'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadList: demoList })

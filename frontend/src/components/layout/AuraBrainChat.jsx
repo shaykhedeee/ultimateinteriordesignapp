@@ -54,9 +54,7 @@ export default function AuraBrainChat({
     if (last && last.sender === 'aura' && last.actions && last.actions.length > 0 && !last.executedActions) {
       const safeActions = last.actions.filter(a => a.variant !== 'destructive');
       if (safeActions.length > 0 && onExecuteAction) {
-        setTimeout(() => {
-          onExecuteAction(safeActions[0].actionId, last.actionPreview);
-        }, 800);
+        onExecuteAction(safeActions[0].actionId, last.actionPreview);
       }
     }
   }, [messages, onExecuteAction]);
