@@ -393,8 +393,8 @@ function buildResponse(intent, reply, meta = {}) {
 }
 
 function buildOfflineResponse(message) {
-  const reply = `Understood: "${message}". AURA is currently in offline mode.`;
-  return buildResponse(INTENT.UNKNOWN, reply, { agentStatus: 'offline' });
+  const reply = `AURA is offline right now. Configured providers: Gemini=${getGeminiStatus().configured}, OpenRouter=${!!openRouterKey()}. Retry after setting API keys.`;
+  return buildResponse(INTENT.UNKNOWN, reply, { agentStatus: 'offline', providerMeta: { provider: 'offline', model: null, configured: { gemini: getGeminiStatus().configured, openrouter: !!openRouterKey() } } });
 }
 
 function buildValidationResponse() {
@@ -666,6 +666,13 @@ export async function chatAura({ message, history = [], context = '' }) {
   const actions = buildActions(actionPreview);
 
   const simulation = await simulateActionImpact({ intent, message: trimmed, indianContext, evidence });
+  const simulationMeta = {
+    simulated: true,
+    provider: providerMeta.provider,
+    model: providerMeta.model || null,
+    suppliers: simulation.suppliers.length,
+    recommendation: simulation.recommendation
+  };
 
   if (!Array.isArray(agentSteps)) agentSteps = [];
   agentSteps.push({ name: 'Self-Correction', status: selfCorrection.corrected ? 'applied' : 'skipped', detail: selfCorrection.corrections.join('; ') || 'none' });

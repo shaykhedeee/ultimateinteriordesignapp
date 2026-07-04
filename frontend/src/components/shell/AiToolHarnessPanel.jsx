@@ -191,3 +191,65 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
     </div>
   );
 }
+
+
+function RagAssistantPanel({ projectId = 'demo' }) {
+  const [title, setTitle] = useState('');
+  const [text, setText] = useState('');
+  const [query, setQuery] = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const ingest = async () => {
+    setBusy(true); setError(''); setResult(null);
+    try {
+      const res = await fetch(apiUrl('rag/ingest'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, title, mimeType: 'text/plain', text })
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const runQuery = async () => {
+    setBusy(true); setError(''); setResult(null);
+    try {
+      const res = await fetch(apiUrl('rag/query'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, query, collection: 'project-knowledge', maxResults: 6 })
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="space-y-2 border border-slate-800 bg-slate-950/60 p-3 rounded-xl">
+      <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">RAG Memory</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div>
+          <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Document title</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200" placeholder="Client brief" />
+        </div>
+        <div>
+          <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Query</label>
+          <input value={query} onChange={e => setQuery(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200" placeholder="Budget constraints for master bedroom" />
+        </div>
+      </div>
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={3} className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-200" placeholder="Paste text to ingest into project memory..." />
+      <div className="flex items-center gap-2">
+        <button onClick={ingest} disabled={busy} className="px-3 py-1.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-lg disabled:opacity-60">Ingest</button>
+        <button onClick={runQuery} disabled={busy} className="px-3 py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-200 font-bold uppercase tracking-wider text-[10px] rounded-lg disabled:opacity-60">Query</button>
+        <span className="text-[9px] text-slate-500 font-mono">project: {projectId}</span>
+      </div>
+      {Boolean(error) && <div className="text-[10px] text-red-400 font-mono">{error}</div>}
+      {result && (
+        <div className="text-[10px] font-mono text-slate-400 bg-slate-900/40 border border-slate-800 rounded-lg px-2 py-1.5 whitespace-pre wrap">{JSON.stringify(result, null, 2).slice(0, 1200)}</div>
+      )}
+    </div>
+  );
+}
