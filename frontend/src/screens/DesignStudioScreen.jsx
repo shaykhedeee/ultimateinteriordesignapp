@@ -1,9 +1,8 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import LeftNavigator from '../components/layout/LeftNavigator';
 import InspectorPanel from '../components/layout/InspectorPanel';
 import Canvas2D from '../components/design2d/Canvas2D';
-import Viewport3D from '../components/design3d/Viewport3D';
 import { useEditorStore } from '../stores/editorStore';
 import {
   Undo2, Redo2, Save, Sparkles, Image, Compass,
@@ -273,7 +272,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
           ) : (
             <div className="relative w-full h-full">
               <Canvas2D />
-              <Viewport3D />
+              <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] font-black uppercase tracking-wider text-slate-500">Loading 3D…</div>}><Viewport3DComponent /></Suspense>
 
               {/* Selection overlay */}
               {selectionBox && (
