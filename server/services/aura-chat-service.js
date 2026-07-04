@@ -2,8 +2,7 @@ import { geminiKeys, getGeminiStatus } from './gemini-service.js';
 import { openRouterKey } from './provider-config.js';
 import { getProfile, listProfiles } from './openrouter-profiles.js';
 import { auraMemory } from './aura-memory-service.js';
-import { loadKnowledgeCache } from './aura-service.js';
-import { injectIndianContext } from './aura-service.js';
+import { loadKnowledgeCache, injectIndianContext } from './aura-service.js';
 
 const INDIAN_KNOWLEDGE = (() => { try { return loadKnowledgeCache?.() || ''; } catch { return ''; } })();
 
