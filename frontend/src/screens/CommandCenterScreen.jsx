@@ -2332,7 +2332,9 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
         setToolResult({ success, text: resultJson?.text || resultJson?.reply || `Tool execution completed for ${toolKey}. Outputs saved to active project.`, result: resultJson });
       }
     } catch (err) {
-      setToolResult({ success: false, text: `Tool execution failed: ${err.message}` });
+      const providerLabel = defaultProvider || providerStatus?.activeLabel || 'default provider';
+      const modelLabel = defaultModel || providerStatus?.activeModel || 'default model';
+      setToolResult({ success: false, text: `Tool execution failed with ${providerLabel} / ${modelLabel}: ${err.message}`, provider: providerLabel, model: modelLabel });
     } finally {
       setIsRunning(false);
     }

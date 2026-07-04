@@ -394,7 +394,7 @@ function buildResponse(intent, reply, meta = {}) {
 }
 
 function buildOfflineResponse(message) {
-  const reply = `AURA is offline right now. Configured providers: Gemini=${getGeminiStatus().configured}, OpenRouter=${!!openRouterKey()}. Retry after setting API keys.`;
+  const reply = 'AURA is offline. Configure OPENROUTER_API_KEY or Gemini keys in server/.env to enable live generation.';
   return buildResponse(INTENT.UNKNOWN, reply, { agentStatus: 'offline', providerMeta: { provider: 'offline', model: null, configured: { gemini: getGeminiStatus().configured, openrouter: !!openRouterKey() } } });
 }
 
