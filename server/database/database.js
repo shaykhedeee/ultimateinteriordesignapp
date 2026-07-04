@@ -1353,6 +1353,42 @@ db.exec(`CREATE TABLE IF NOT EXISTS aura_chat_history (
   FOREIGN KEY (project_id) REFERENCES projects(id)
 );`);
 
+db.exec(`CREATE TABLE IF NOT EXISTS firm_project_templates (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  scope TEXT DEFAULT 'org',
+  name TEXT NOT NULL,
+  description TEXT,
+  thumbnail_url TEXT,
+  rooms_json TEXT DEFAULT '[]',
+  style_preset TEXT,
+  vendor_list_json TEXT DEFAULT '[]',
+  pricing_profile_json TEXT DEFAULT '{}',
+  is_system INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);`);
+
+db.exec(`CREATE TABLE IF NOT EXISTS firm_catalog_links (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  project_id TEXT,
+  room_id TEXT,
+  design_item_id TEXT,
+  markup_profile TEXT DEFAULT 'standard',
+  client_visible INTEGER DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);`);
+
+// Firm template/seeding hook
+try {
+  const { seedSystemTemplates } = require('./services/firm-templates-service.js');
+  seedSystemTemplates('global');
+} catch (e) {
+  console.warn('Firm template seed skipped:', e.message);
+}
+
 try { db.exec("ALTER TABLE render_edits ADD COLUMN room_style_context TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE render_edits ADD COLUMN geometry_context TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE render_edits ADD COLUMN preserve_camera INTEGER DEFAULT 1;"); } catch (e) {}
