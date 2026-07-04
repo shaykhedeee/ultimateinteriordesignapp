@@ -30,6 +30,7 @@ import { normalizeTaskType, validateCapability, availableTools, runTool, runBatc
 import { AURA_STATES, AURA_TRANSITIONS, AuraLoopService } from './services/aura-loop-service.js';
 import { ProjectMemory, INDIAN_INTERIOR_PROMPT_CORPUS } from './services/project-memory.js';
 import { runGenerationPipeline } from './services/ai-orchestrator.js';
+import { estimateCost, summarizeProjectCost, recordCost, DEFAULT_CAP, CURRENCY } from './services/cost-control-service.js';
 
 const auraLoop = new AuraLoopService();
 const projectMemory = new ProjectMemory();
@@ -3876,6 +3877,11 @@ app.get('/api/ai/harness/tools', (req, res) => {
 app.post('/api/ai/interiors/orchestrate', async (req, res) => {
   try {
     const payload = req.body || {};
+    const spendMode = String(payload.spendMode || process.env.AI_SPEND_MODE || 'smart-cost').toLowerCase();
+    const costEstimate = estimateCost({ sourceType: spendMode === 'free' ? 'pollinations' : 'mock-generated', count: 1 });
+    if (!costEstimate.withinCap) {
+      return res.status(402).json({ success: false, error: `Estimated cost ${costEstimate.totalCost} ${costEstimate.currency} exceeds cap ${DEFAULT_CAP}.`, estimate: costEstimate });
+    }
     const result = await runGenerationPipeline({
       projectId: payload.projectId || 'demo',
       floorPlanImageBase64: payload.floorPlanImageBase64 || '',
@@ -3886,12 +3892,22 @@ app.post('/api/ai/interiors/orchestrate', async (req, res) => {
       provider: payload.provider || null,
       model: payload.model || null
     });
+    if (result?.success && result?.render) {
+      recordCost({ projectId: payload.projectId || 'demo', assetId: result.sessionId, sourceType: spendMode === 'free' ? 'pollinations' : 'mock-generated', count: 1 }).catch(() => {});
+    }
     res.json(result);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message, sessionId: null, steps: [] });
   }
 });
 
+app.get('/api/projects/:projectId/costs', (req, res) => {
+  try {
+    res.json(summarizeProjectCost(req.params.projectId));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/render-edits/plan', (req, res) => {
   try {
     const { editType, instruction, roomStyleContext, geometryContext, referenceAssetId } = req.body || {};

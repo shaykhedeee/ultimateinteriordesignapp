@@ -260,24 +260,10 @@ export async function promptRefinerAgent({ roomPlan, ragContext, userCustomPromp
   const topRule = rules[0]?.snippet || '';
   const custom = String(userCustomPrompt || '').trim();
 
-  const styleTokens = [
-    `${style} interior design`,
-    'architectural photography',
-    'wide angle',
-    'natural lighting',
-    'realistic materials',
-    'clean composition'
-  ];
+  const preset = buildRoomPrompt({ roomType, style, userCustomPrompt: custom, floorPlanConstraints: topRule });
+  const styleTokens = preset.styleTokens;
 
-  const positive = [
-    `Design a ${style} ${roomType}.`,
-    custom ? `User direction: ${custom}` : '',
-    topRule ? `Style context: ${topRule}` : '',
-    'Room should feel balanced, functional, and spatially accurate.',
-    'Use realistic furniture scale and clear negative space around circulation paths.'
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const positive = preset.prompt;
 
   const negative = [
     'blurry',
