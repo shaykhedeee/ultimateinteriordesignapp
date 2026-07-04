@@ -2014,11 +2014,10 @@ app.get('/api/projects/:id/scenes/:versionId/render-3d', async (req, res) => {
     const rooms = level.rooms || [];
     const furniture = level.furniture || [];
 
-    // Construct image URL from mock or actual design renders table if exists
     const existing = db.prepare("SELECT image_url FROM design_renders WHERE project_id = ? ORDER BY created_at DESC LIMIT 1").get(projectId);
-    
-    // If no render exists, return a beautiful placeholder with size parameters automatically inputed
-    let imageUrl = existing ? existing.image_url : "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80";
+
+    const fallbackSvg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjgwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzFhMzgyRSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIHJlbmRlciBpbnN0ZWFkPC90ZXh0Pjwvc3ZnPg==';
+    const imageUrl = existing ? existing.image_url : fallbackSvg;
 
     res.json({
       success: true,
@@ -3052,9 +3051,9 @@ app.get('/api/projects/:id/pinterest/search', (req, res) => {
   const q = (req.query.q || 'interior').trim();
   const projectId = req.params.id;
   const seeded = [
-    { id: `${projectId}-pin-1`, title: `${q} modern lounge`, url: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=600&q=80', thumbnail: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=400&q=60', source: 'pinterest-demo', tags: [q] },
-    { id: `${projectId}-pin-2`, title: `${q} minimal palette`, url: 'https://images.unsplash.com/photo-1616137466211-f939a420be84?auto=format&fit=crop&w=600&q=80', thumbnail: 'https://images.unsplash.com/photo-1616137466211-f939a420be84?auto=format&fit=crop&w=400&q=60', source: 'pinterest-demo', tags: [q, 'minimal'] },
-    { id: `${projectId}-pin-3`, title: `${q} warm lighting`, url: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=600&q=80', thumbnail: 'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=400&q=60', source: 'pinterest-demo', tags: [q, 'lighting'] }
+    { id: `${projectId}-pin-1`, title: `${q} modern lounge`, url: '/storage/renders/pinterest-demo-1.jpg', thumbnail: '/storage/renders/pinterest-demo-1.jpg', source: 'generated', tags: [q] },
+    { id: `${projectId}-pin-2`, title: `${q} minimal palette`, url: '/storage/renders/pinterest-demo-2.jpg', thumbnail: '/storage/renders/pinterest-demo-2.jpg', source: 'generated', tags: [q, 'minimal'] },
+    { id: `${projectId}-pin-3`, title: `${q} warm lighting`, url: '/storage/renders/pinterest-demo-3.jpg', thumbnail: '/storage/renders/pinterest-demo-3.jpg', source: 'generated', tags: [q, 'lighting'] }
   ];
   res.json(seeded);
 });

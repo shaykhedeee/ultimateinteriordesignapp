@@ -182,9 +182,9 @@ const DEMO_MATERIALS = [
 ];
 
 const DEMO_RENDERS = [
-  { id: 'demo_ren_1', project_id: 'demo_proj_1', room: 'Living Room', prompt: 'Warm Japandi living with fluted panels and oak tablescape', image_url: 'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1600&q=80', review_status: 'approved' },
-  { id: 'demo_ren_2', project_id: 'demo_proj_1', room: 'Kitchen', prompt: 'High-gloss charcoal kitchen with quartz counter and under-cabinet lighting', image_url: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1600&q=80', review_status: 'approved' },
-  { id: 'demo_ren_3', project_id: 'demo_proj_2', room: 'Living Room', prompt: 'Luxury marble floor living room with layered lighting and lounge seating', image_url: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1600&q=80', review_status: 'approved' }
+  { id: 'demo_ren_1', project_id: 'demo_proj_1', room: 'Living Room', prompt: 'Warm Japandi living with fluted panels and oak tablescape', image_url: '/storage/assets/demo-render-1.jpg', review_status: 'approved' },
+  { id: 'demo_ren_2', project_id: 'demo_proj_1', room: 'Kitchen', prompt: 'High-gloss charcoal kitchen with quartz counter and under-cabinet lighting', image_url: '/storage/assets/demo-render-2.jpg', review_status: 'approved' },
+  { id: 'demo_ren_3', project_id: 'demo_proj_2', room: 'Living Room', prompt: 'Luxury marble floor living room with layered lighting and lounge seating', image_url: '/storage/assets/demo-render-3.jpg', review_status: 'approved' }
 ];
 
 const DEMO_INVOICES = [
