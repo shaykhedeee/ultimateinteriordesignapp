@@ -425,7 +425,6 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const setStatus = useCallback((message, type = 'success') => {
     setStatusMessage(message);
     setStatusType(type);
-    setTimeout(() => { setStatusMessage(null); setStatusType(null); }, 4000);
   }, []);
 
   // Generation state for clearer UX
