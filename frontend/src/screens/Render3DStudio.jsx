@@ -802,7 +802,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     } catch (err) {
       if (err?.name === 'AbortError') {
         setGenerationStatus('Generation cancelled');
-        setStatus('Generation cancelled.', 'error');
+        setStatus('Generation cancelled.', 'warning');
       } else {
         console.error("AI Generation failed:", err);
         setGenerationStatus('Generation failed');
@@ -857,7 +857,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     } catch (err) {
       if (err?.name === 'AbortError') {
         setGenerationStatus('Edit cancelled');
-        setStatus('Edit cancelled.', 'error');
+        setStatus('Edit cancelled.', 'warning');
       } else {
         console.error("AI Revision failed:", err);
         setGenerationStatus('Edit failed');
