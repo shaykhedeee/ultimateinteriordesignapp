@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0..\server"
+cd /d "%~dp0.."
 echo Starting ULTIDA backend on 5055...
-node index.js
+node server/index.js
 pause
