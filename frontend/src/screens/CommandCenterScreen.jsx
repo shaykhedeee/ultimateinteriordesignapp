@@ -2243,8 +2243,16 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       setIsRunning(false);
     } else if (jobPoll.status === 'failed' || jobPoll.status === 'cancelled' || jobPoll.status === 'timeout') {
       const job = jobPoll.job || {};
-      const reason = jobPoll.status === 'timeout' ? 'Polling timed out waiting for job result.' : (job?.error || `Tool ${activeTool?.key} failed.`);
-      setToolResult({ success: false, text: reason });
+      const isTimeout = jobPoll.status === 'timeout';
+      const reason = isTimeout ? 'Polling timed out waiting for job result.' : (job?.error || `Tool ${activeTool?.key} failed.`);
+      const recoverable = !isTimeout && activeTool?.key;
+      setToolResult({
+        success: false,
+        text: reason,
+        provider: providerStatus?.activeLabel || defaultProvider || null,
+        model: providerStatus?.activeModel || defaultModel || null,
+        recoverable: Boolean(recoverable)
+      });
       setIsRunning(false);
     }
   }, [jobPoll.status, jobPoll.job, project?.id, activeTool?.key]);
@@ -2318,7 +2326,13 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     } catch (err) {
       const providerLabel = defaultProvider || providerStatus?.activeLabel || 'default provider';
       const modelLabel = defaultModel || providerStatus?.activeModel || 'default model';
-      setToolResult({ success: false, text: `Tool execution failed with ${providerLabel} / ${modelLabel}: ${err.message}`, provider: providerLabel, model: modelLabel });
+      setToolResult({
+        success: false,
+        text: `Tool execution failed with ${providerLabel} / ${modelLabel}: ${err.message}`,
+        provider: providerLabel,
+        model: modelLabel,
+        recoverable: Boolean(toolKey)
+      });
     } finally {
       setIsRunning(false);
     }
