@@ -1,4 +1,4 @@
-const http = require('http');
+import http from 'http';
 const base = 'http://127.0.0.1:5055';
 
 function call(path, method = 'GET', body = {}) {

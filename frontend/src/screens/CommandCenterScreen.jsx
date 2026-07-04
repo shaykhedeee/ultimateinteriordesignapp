@@ -409,7 +409,7 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
     setWizardStep('loading');
     setLoaderMessage(stage);
     try {
-      await fetch(`${API_BASE}/tools/run`, {
+      await fetch(`${apiUrl('')}/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolSlug: stage.toLowerCase().replace(/\s+/g, '-'), projectId: selectedProjectId, params: payload })
@@ -480,7 +480,7 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
       };
       const nextTab = routeMap[actionKey] || 'dashboard';
       if (selectedProjectId) {
-        await fetch(`${API_BASE}/tools/run`, {
+        await fetch(`${apiUrl('')}/tools/run`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ toolSlug: actionKey.toLowerCase().replace(/\s+/g, '-'), projectId: selectedProjectId, params: { action: actionKey } })
@@ -1143,7 +1143,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
     setGenerating(true);
     setGeneratedResult(null);
     try {
-      const res = await fetch(`${API_BASE}/tools/run`, {
+      const res = await fetch(`${apiUrl('')}/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolKey: 'quick-render', projectId: project.id, params: { room: selectedRoom, style: selectedStyle, prompt } })
@@ -1295,7 +1295,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
     setEditing(true);
     setResult(null);
     try {
-      const res = await fetch(`${API_BASE}/tools/run`, {
+      const res = await fetch(`${apiUrl('')}/tools/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolKey: 'laminate-swapper', projectId: project.id, params: { componentType: 'region', newMaterial: instructions, coordinates } })

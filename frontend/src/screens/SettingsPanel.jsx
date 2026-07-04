@@ -19,7 +19,7 @@ import {
   IndianRupee
 } from 'lucide-react';
 
-const API_BASE = getApiBase();
+const API_BASE = apiUrl('');
 
 const STATUS_LABEL = {
   configured: 'Configured',
