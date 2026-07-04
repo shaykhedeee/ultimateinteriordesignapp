@@ -1,7 +1,7 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
 import { create } from 'zustand';
 
-const API_BASE = getApiBase();
+const API_BASE = apiUrl('');
 
 export const useAppStore = create((set, get) => ({
   activeTab: localStorage.getItem('spacetrace_active_tab') || 'dashboard',

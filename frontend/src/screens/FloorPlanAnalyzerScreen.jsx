@@ -245,7 +245,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
       aiDetectControllerRef.current = new AbortController();
       setIsAiDetecting(true);
       setToolkitMessage('Running AI room detection...', 'loading');
-      const res = await fetch(`/api/tools/execute`, {
+      const res = await fetch(`${apiUrl('')}/tools/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolSlug: 'floorplan-analyzer', projectId, params: { mode: 'detect' } }),
@@ -443,7 +443,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     setToolkitStatus('enhancing');
     setToolkitMessage('Submitting plan enhancement to free model executor...', 'loading');
     try {
-      const res = await fetch(`/api/tools/execute`, {
+      const res = await fetch(`${apiUrl('')}/tools/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolSlug: 'plan-enhancer', projectId, params: { interpretation } })
