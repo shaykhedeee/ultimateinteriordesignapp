@@ -1,10 +1,9 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
 import { useEditorStore } from '../stores/editorStore';
 import LeftNavigator from '../components/layout/LeftNavigator';
 import InspectorPanel from '../components/layout/InspectorPanel';
 import Canvas2D from '../components/design2d/Canvas2D';
-import Viewport3D from '../components/design3d/Viewport3D';
 import {
   Upload,
   Scan,
@@ -569,12 +568,12 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
             <div className="w-full h-full flex-1"><Canvas2D aria-label="2D floor plan canvas" /></div>
           )}
           {layoutMode === '3d' && (
-            <div className="w-full h-full flex-1"><Viewport3D aria-label="3D floor plan preview" /></div>
+            <div className="w-full h-full flex-1"><Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] font-black uppercase tracking-wider text-slate-500">Loading 3D preview…</div>}><Viewport3DComponent2 aria-label="3D floor plan preview" /></Suspense></div>
           )}
           {layoutMode === 'split' && (
             <>
               <div className="w-1/2 h-full flex-1"><Canvas2D aria-label="2D floor plan canvas" /></div>
-              <div className="w-1/2 h-full flex-1"><Viewport3D aria-label="3D floor plan preview" /></div>
+              <div className="w-1/2 h-full flex-1"><Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] font-black uppercase tracking-wider text-slate-500">Loading 3D preview…</div>}><Viewport3DComponent2 aria-label="3D floor plan preview" /></Suspense></div>
             </>
           )}
         </div>
