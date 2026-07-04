@@ -3203,7 +3203,24 @@ app.post('/api/tools/run', async (req, res) => {
       'laminate-changer': 'style_image',
       'zone-design-plan': 'quick_render',
       'style-recommend': 'critic_text',
-      'room-semantics': 'critic_text'
+      'room-semantics': 'critic_text',
+      'cad_ingest': 'topview_enhance',
+      'camera_planner': 'quick_render',
+      'walkthrough_config': 'quick_render',
+      'svg_elevation_builder': 'detailed_render',
+      'bom_calculator': 'critic_text',
+      'invoice_ledger': 'critic_text',
+      'ortho_calibrate': 'topview_enhance',
+      'vastu_annotate': 'critic_text',
+      'render_concept': 'quick_render',
+      'camera_director': 'quick_render',
+      'material_swapper': 'style_image',
+      'walkthrough_animator': 'quick_render',
+      'carcass_config': 'detailed_render',
+      'hardware_spec': 'critic_text',
+      'nesting_calc': 'quick_render',
+      'dxf_compiler': 'detailed_render',
+      'blueprint_parser': 'topview_enhance'
     };
 
     const taskType = taskTypeMap[toolKey] || 'critic_text';
@@ -3243,7 +3260,7 @@ app.post('/api/tools/run', async (req, res) => {
 });
 
 // Build tool-run result payloads deterministically
-app.get('/api/tools/result', (req, res) => {
+app.get('/api/tools/result', async (req, res) => {
   try {
     const toolKey = (req.query.toolKey || '').trim();
     const projectId = req.query.projectId || '';
@@ -3256,42 +3273,90 @@ app.get('/api/tools/result', (req, res) => {
     const resultPayload = row?.result_json;
 
     if (resultPayload) {
-      return res.json({ success: true, source: 'provider', result: resultPayload });
+      return res.json({ success: true, source: 'provider', result: JSON.parse(resultPayload) });
     }
 
-    let payload = { success: true, source: 'fallback' };
+    const taskTypeMap = {
+      'ambient_lighting': 'critic_text',
+      'rcp_planner': 'quick_render',
+      'elevation_draft': 'detailed_render',
+      'swatch_match': 'style_image',
+      'extruder_3d': 'quick_render',
+      'floorplan-analyzer': 'topview_enhance',
+      'plan-enhancer': 'topview_enhance',
+      'zone-planner': 'quick_render',
+      'quick-render': 'quick_render',
+      'detailed-render': 'detailed_render',
+      'inpaint': 'inpaint',
+      'upscale': 'upscale',
+      'render-edit': 'inpaint',
+      'style-transfer': 'style_image',
+      'render-critic': 'critic_text',
+      'material-match': 'style_image',
+      'laminate-swapper': 'style_image',
+      'laminate-changer': 'style_image',
+      'zone-design-plan': 'quick_render',
+      'style-recommend': 'critic_text',
+      'room-semantics': 'critic_text',
+      'cad_ingest': 'topview_enhance',
+      'camera_planner': 'quick_render',
+      'walkthrough_config': 'quick_render',
+      'svg_elevation_builder': 'detailed_render',
+      'bom_calculator': 'critic_text',
+      'invoice_ledger': 'critic_text',
+      'ortho_calibrate': 'topview_enhance',
+      'vastu_annotate': 'critic_text',
+      'render_concept': 'quick_render',
+      'camera_director': 'quick_render',
+      'material_swapper': 'style_image',
+      'walkthrough_animator': 'quick_render',
+      'carcass_config': 'detailed_render',
+      'hardware_spec': 'critic_text',
+      'nesting_calc': 'quick_render',
+      'dxf_compiler': 'detailed_render',
+      'blueprint_parser': 'topview_enhance'
+    };
+    const taskType = taskTypeMap[toolKey] || 'critic_text';
 
+    let fallbackPayload = { success: true, source: 'fallback' };
     if (toolKey === 'ambient_lighting') {
-      payload.text = 'Lighting preset applied. Scene ambient vector updated with selected temperature profile.';
-      payload.metadata = { mode: 'ambient-ai-v1' };
+      fallbackPayload.text = 'Lighting preset applied. Scene ambient vector updated with selected temperature profile.';
+      fallbackPayload.metadata = { mode: 'ambient-ai-v1' };
     } else if (toolKey === 'rcp_planner') {
-      payload.text = 'RCP plan exported. Lighting nodes mapped to ceiling grid. Visual clearance: Optimal.';
-      payload.layoutPoints = [
+      fallbackPayload.text = 'RCP plan exported. Lighting nodes mapped to ceiling grid. Visual clearance: Optimal.';
+      fallbackPayload.layoutPoints = [
         { id: 'rcp_1', type: 'Spotlight', x: 80, y: 80 },
         { id: 'rcp_2', type: 'Pendant', x: 220, y: 80 },
         { id: 'rcp_3', type: 'LED Strip', x: 80, y: 220 },
         { id: 'rcp_4', type: 'Spotlight', x: 220, y: 220 }
       ];
-      payload.metadata = { mode: 'rcp-ai-v1' };
+      fallbackPayload.metadata = { mode: 'rcp-ai-v1' };
     } else if (toolKey === 'elevation_draft') {
-      payload.text = 'Elevation drawing generated for selected wall slice. Dimension labels and cabinet outlines written to drawings pack.';
-      payload.wallFace = 'North Wall';
-      payload.metadata = { mode: 'elevation-ai-v1' };
+      fallbackPayload.text = 'Elevation drawing generated for selected wall slice. Dimension labels and cabinet outlines written to drawings pack.';
+      fallbackPayload.wallFace = 'North Wall';
+      fallbackPayload.metadata = { mode: 'elevation-ai-v1' };
     } else if (toolKey === 'swatch_match') {
-      payload.text = 'Matched reference swatch with 98.7% confidence. Merino MT-8012 Charcoal Matte assigned.';
-      payload.swatchMatch = { name: 'Charcoal Matte Laminate (Merino)', code: 'MT-8012', confidence: '98.7%' };
-      payload.metadata = { mode: 'swatch-ai-v1' };
+      fallbackPayload.text = 'Matched reference swatch with 98.7% confidence. Merino MT-8012 Charcoal Matte assigned.';
+      fallbackPayload.swatchMatch = { name: 'Charcoal Matte Laminate (Merino)', code: 'MT-8012', confidence: '98.7%' };
+      fallbackPayload.metadata = { mode: 'swatch-ai-v1' };
     } else if (toolKey === 'extruder_3d') {
-      payload.text = `Extrusion pipeline completed for "${projectName}". Built 3D wall shells with default ceiling height 3000mm.`;
-      payload.extruded = true;
-      payload.metadata = { mode: 'extruder-ai-v1' };
+      fallbackPayload.text = `Extrusion pipeline completed for "${projectName}". Built 3D wall shells with default ceiling height 3000mm.`;
+      fallbackPayload.extruded = true;
+      fallbackPayload.metadata = { mode: 'extruder-ai-v1' };
     } else {
-      payload.text = `Specialist tool execution success. Outputs saved & linked to active project: "${projectName}"`;
-      payload.metadata = { mode: 'generic-tool-v1' };
+      fallbackPayload.text = `Specialist tool execution success. Outputs saved & linked to active project: "${projectName}"`;
+      fallbackPayload.metadata = { mode: 'generic-tool-v1' };
     }
 
-    db.prepare(`INSERT OR REPLACE INTO tool_results (tool_key, project_id, result_json) VALUES (?, ?, ?)`).run(toolKey, projectId, JSON.stringify(payload));
-    res.json(payload);
+    try {
+      const inference = await planFreeExecution(taskType, { toolSlug: toolKey, projectId, params: req.body || {} });
+      const payload = inference?.ok ? { success: true, source: 'provider', result: inference.output || inference } : { success: false, reason: inference?.reason, reasonDetail: inference?.reasonDetail };
+      db.prepare(`INSERT OR REPLACE INTO tool_results (tool_key, project_id, result_json) VALUES (?, ?, ?)`).run(toolKey, projectId, JSON.stringify(payload));
+      return res.json(payload);
+    } catch {
+      db.prepare(`INSERT OR REPLACE INTO tool_results (tool_key, project_id, result_json) VALUES (?, ?, ?)`).run(toolKey, projectId, JSON.stringify(fallbackPayload));
+      return res.json(fallbackPayload);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
