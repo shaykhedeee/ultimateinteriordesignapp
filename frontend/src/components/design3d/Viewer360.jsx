@@ -139,9 +139,12 @@ export default function Viewer360({ equirectImage, onClose }) {
     };
   }, []);
 
+  const [loadError, setLoadError] = useState(false);
+
   useEffect(() => {
     if (!equirectImage || !sphereRef.current || !rendererRef.current) return;
     setLoading(true);
+    setLoadError(false);
     const loader = new THREE.TextureLoader();
     loader.load(
       equirectImage,
@@ -154,6 +157,7 @@ export default function Viewer360({ equirectImage, onClose }) {
       undefined,
       () => {
         setLoading(false);
+        setLoadError(true);
       }
     );
   }, [equirectImage]);
