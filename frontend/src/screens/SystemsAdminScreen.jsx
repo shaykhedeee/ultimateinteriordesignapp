@@ -28,8 +28,19 @@ export default function SystemsAdminScreen() {
 
   useEffect(() => {
     fetchKeys();
+    fetchReadiness();
     fetchAuraStatus();
   }, []);
+
+  const fetchReadiness = async () => {
+    try {
+      const res = await fetch(apiUrl('/ready'));
+      if (res.ok) {
+        const data = await res.json();
+        setKeys(prev => ({ ...prev, _readiness: data }));
+      }
+    } catch { /* legacy backend may not expose readiness */ }
+  };
 
   const fetchKeys = async () => {
     setLoading(true);
