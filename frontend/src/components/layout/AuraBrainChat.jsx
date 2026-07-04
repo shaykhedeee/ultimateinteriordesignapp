@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../../utils/api.js';
 import {
   Send, Mic, Sparkles, Lightbulb, ArrowUpRight,
   CheckCircle2, BrainCircuit, Wand2, FileCode2, RefreshCcw
@@ -10,10 +11,24 @@ export default function AuraBrainChat({
   onExecuteAction,
   onRetryMessage,
   project,
-  providerStatus,
+  providerStatus: externalProviderStatus,
   isOpen,
   onClose
 }) {
+  const [providerStatus, setProviderStatus] = useState(externalProviderStatus || null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const base = apiUrl('');
+        const res = await fetch(`${base}/api/ai/chat-status`);
+        const data = await res.json();
+        if (!cancelled) setProviderStatus(data);
+      } catch {}
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [showBrainTelemetry, setShowBrainTelemetry] = useState(false);
