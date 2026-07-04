@@ -61,13 +61,13 @@ export const useEditorStore = create((set, get) => ({
     set({ projectId, isSaving: true, branchName: branch });
     try {
       // Fetch materials catalog
-      const resMat = await fetch(`getApiBase()/material-catalog`);
+      const resMat = await fetch(apiUrl('/material-catalog'));
       if (resMat.ok) {
         const matData = await resMat.json();
         set({ materialsCatalog: matData });
       }
 
-      const res = await fetch(`getApiBase()/projects/${projectId}/scenes/current?branch=${branch}`);
+      const res = await fetch(apiUrl(`/projects/${projectId}/scenes/current?branch=${branch}`));
       if (res.ok) {
         const data = await res.json();
         const doc = data.scene || initialSceneDoc(projectId);
@@ -326,7 +326,7 @@ export const useEditorStore = create((set, get) => ({
 
     set({ isSaving: true });
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/scenes`, {
+      const res = await fetch(apiUrl(`/projects/${projectId}/scenes`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scene, reason, branch: branchName })
@@ -354,7 +354,7 @@ export const useEditorStore = create((set, get) => ({
     if (!sceneId || !projectId) return;
     
     try {
-      const res = await fetch(`getApiBase()/projects/${projectId}/scenes/${sceneId}/lock`, {
+      const res = await fetch(apiUrl(`/projects/${projectId}/scenes/${sceneId}/lock`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })

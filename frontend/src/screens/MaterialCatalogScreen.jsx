@@ -83,7 +83,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchCatalog = async () => {
     try {
-      const res = await fetch(`${getApiBase()}/material-catalog`);
+      const res = await fetch(apiUrl('/material-catalog'));
       if (res.ok) {
         const data = await res.json();
         setLaminateCatalog(data.filter(item => item.category === 'laminate'));
@@ -332,7 +332,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const handleAddHwSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${getApiBase()}/material-catalog`, {
+      const res = await fetch(apiUrl('/material-catalog'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

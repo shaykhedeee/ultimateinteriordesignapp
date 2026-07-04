@@ -3,6 +3,7 @@ import { openRouterKey } from './provider-config.js';
 import { getProfile, listProfiles } from './openrouter-profiles.js';
 import { auraMemory } from './aura-memory-service.js';
 import { loadKnowledgeCache, injectIndianContext } from './aura-service.js';
+import { queryCollection } from './rag-service.js';
 
 const INDIAN_KNOWLEDGE = (() => { try { return loadKnowledgeCache?.() || ''; } catch { return ''; } })();
 
@@ -666,6 +667,11 @@ export async function chatAura({ message, history = [], context = '' }) {
   const actions = buildActions(actionPreview);
 
   const simulation = await simulateActionImpact({ intent, message: trimmed, indianContext, evidence });
+  if (providerMeta && providerMeta.provider && !['offline','mock','local'].includes(providerMeta.provider)) {
+    simulation.simulated = false;
+    simulation.provider = providerMeta.provider;
+    simulation.model = providerMeta.model || simulation.model;
+  }
   const simulationMeta = {
     simulated: true,
     provider: providerMeta.provider,

@@ -34,7 +34,7 @@ export default function SystemsAdminScreen() {
   const fetchKeys = async () => {
     setLoading(true);
     try {
-      const res = await fetch('getApiBase()/diagnostics/api-keys');
+      const res = await fetch(apiUrl('/diagnostics/api-keys'));
       const data = await res.json();
       setKeys(data.keys || {});
       setLiveImageGen(Boolean(data.liveImageGen));
@@ -47,7 +47,7 @@ export default function SystemsAdminScreen() {
 
   const fetchAuraStatus = async () => {
     try {
-      const res = await fetch('getApiBase()/admin/aura-status');
+      const res = await fetch(apiUrl('/admin/aura-status'));
       if (res.ok) {
         const data = await res.json();
         setAuraStatus(data);
@@ -61,7 +61,7 @@ export default function SystemsAdminScreen() {
 
   const saveAuraConfig = async () => {
     try {
-      await fetch('getApiBase()/admin/aura-config', {
+      await fetch(apiUrl('/admin/aura-config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: auraProvider, model: auraModel })

@@ -51,8 +51,8 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
     setIsLoading(true);
     try {
       const [resProj, resLeads] = await Promise.all([
-        fetch('getApiBase()/projects'),
-        fetch('getApiBase()/leads')
+        fetch(apiUrl('/projects')),
+        fetch(apiUrl('/leads'))
       ]);
       const projs = await resProj.json();
       const leadsData = await resLeads.json();
