@@ -1,4 +1,4 @@
-import { apiUrl, getApiBase } from '../utils/api.js';
+import { apiUrl, getApiBase, backendAssetSrc } from '../utils/api.js';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { 
@@ -965,7 +965,8 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchCatalogMaterials = async () => {
     try {
-      const res = await fetch('getApiBase()/material-catalog');
+      const base = apiUrl('');
+      const res = await fetch(`${base}/material-catalog`);
       if (res.ok) {
         const data = await res.json();
         setCatalogMaterials(data);
@@ -980,9 +981,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setIsAnalyzingComponents(true);
     try {
       // Fetch render image from server and convert to blob
-      const imgUrl = selectedRender.image_url.startsWith('/storage') 
-        ? `http://127.0.0.1:5055${selectedRender.image_url}` 
-        : selectedRender.image_url;
+      const imgUrl = backendAssetSrc(selectedRender.image_url) || selectedRender.image_url;
 
       const imgRes = await fetch(imgUrl);
       const imgBlob = await imgRes.blob();
@@ -1027,9 +1026,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     try {
       setSwapperStepMessage('Downloading active render image...');
       setSwapperStepIndex(0);
-      const imageUrl = selectedRender.image_url.startsWith('/storage')
-        ? `http://127.0.0.1:5055${selectedRender.image_url}`
-        : selectedRender.image_url;
+      const imageUrl = backendAssetSrc(selectedRender.image_url) || selectedRender.image_url;
       const imageRes = await fetch(imageUrl);
       const imageBlob = await imageRes.blob();
 
@@ -1852,7 +1849,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-slate-800 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-slate-400">Before</span>
                           <img 
-                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
+                          src={backendAssetSrc(previousRenderForCompare.image_url) || previousRenderForCompare.image_url} 
                             alt="Original Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1860,7 +1857,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-[#D4AF37]/50 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-[#D4AF37]">After (Swapped)</span>
                           <img 
-                            src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                            src={backendAssetSrc(selectedRender.image_url) || selectedRender.image_url}
                             alt="Swapped Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1868,7 +1865,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       </div>
                     ) : (
                       <img 
-                        src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                        src={backendAssetSrc(selectedRender.image_url) || selectedRender.image_url}
                         alt="Design View"
                         className="w-full h-full object-cover"
                       />
@@ -2080,7 +2077,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
               <div className="flex-grow flex items-center justify-center relative min-w-0 h-full">
                 {selectedRender ? (
                   <img 
-                    src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : (selectedRender.image_url || '')} 
+                    src={backendAssetSrc(selectedRender.image_url) || selectedRender.image_url || ''} 
                     alt="Bespoke Design Render"
                     className="w-full h-full object-cover"
                   />
@@ -2396,7 +2393,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 }`}
               >
                 <img
-                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${ren.image_url}` : (ren.image_url || '')}
+                  src={backendAssetSrc(ren.image_url) || ren.image_url || ''}
                   alt="Variant swatch"
                   className="w-full h-full object-cover"
                 />
@@ -2568,4 +2565,4 @@ export default function Render3DStudio({ projectId, onComplete }) {
     </div>
     </div>
   );
-}
+};

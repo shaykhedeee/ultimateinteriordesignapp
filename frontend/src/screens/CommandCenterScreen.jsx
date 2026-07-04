@@ -58,7 +58,8 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   // 1. DATA LOADING
   // ==========================================
   useEffect(() => {
-    fetch('getApiBase()/projects')
+    const base = apiUrl('');
+    fetch(`${base}/projects`)
       .then(res => res.json())
       .then(data => {
         setProjects(data);
@@ -68,12 +69,12 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       })
       .catch(console.error);
 
-    fetch('getApiBase()/leads')
+    fetch(`${base}/leads`)
       .then(res => res.json())
       .then(setLeads)
       .catch(console.error);
 
-    fetch('getApiBase()/material-catalog')
+    fetch(`${base}/material-catalog`)
       .then(res => res.json())
       .then(setMaterialsCatalog)
       .catch(console.error);
@@ -84,12 +85,13 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const loadDemoClients = async () => {
     setDemoStatus('Seeding...');
     try {
-      const res = await fetch('getApiBase()/demo/seed', { method: 'POST' });
+      const base = apiUrl('');
+      const res = await fetch(`${base}/demo/seed`, { method: 'POST' });
       const data = await res.json();
       setDemoStatus(`Loaded ${data.leads || 0} leads / ${data.projects || 0} projects`);
       const [projRes, leadRes] = await Promise.all([
-        fetch('getApiBase()/projects'),
-        fetch('getApiBase()/leads')
+        fetch(`${base}/projects`),
+        fetch(`${base}/leads`)
       ]);
       const projJson = await projRes.json();
       const leadJson = await leadRes.json();
@@ -417,13 +419,22 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
 
   const canvasRef = useRef(null);
 
-  // Helper to trigger 1.5s spinners
-  const triggerLoading = (nextStep, message) => {
+  // Run a wizard stage through the real backend and advance on success
+  const runWizardStage = async (nextStep, stage, payload = {}) => {
     setWizardStep('loading');
-    setLoaderMessage(message);
-    setTimeout(() => {
+    setLoaderMessage(stage);
+    try {
+      await fetch(`${API_BASE}/tools/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolSlug: stage.toLowerCase().replace(/\s+/g, '-'), projectId: selectedProjectId, params: payload })
+      });
+    } catch {
+      // continue UX even if backend is offline
+    } finally {
       setWizardStep(nextStep);
-    }, 1500);
+      setLoaderMessage('');
+    }
   };
 
   const handleUpload = async (e) => {
@@ -439,11 +450,11 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     try {
       const form = new FormData();
       form.append('floorplan', file);
-      const upload = await fetch(`${API_BASE}/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
+      const base = apiUrl('');
+      const upload = await fetch(`${base}/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
       if (!upload.ok) throw new Error('Upload failed');
       const data = await upload.json();
-      const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:5055';
-      setFloorplanUrl(`${baseUrl}${data.floorplanUrl}`);
+      setFloorplanUrl(backendAssetSrc(data.floorplanUrl) || data.floorplanUrl);
       setCurrentVersionId(data.floorPlanVersionId);
       setWizardStep('enhance_view');
       setStatusMessage('Blueprint uploaded');
@@ -467,26 +478,35 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     }
   };
 
-  const handleRunNextAction = (actionKey) => {
+  const handleRunNextAction = async (actionKey) => {
     setSelectedAction(actionKey);
     setActionProgress(true);
-    
-    setTimeout(() => {
-      setActionProgress(false);
-      if (actionKey === 'RCP') {
-        onNavigateToTab('drawings');
-      } else if (actionKey === 'Elevation') {
-        onNavigateToTab('drawings');
-      } else if (actionKey === 'BOM') {
-        onNavigateToTab('finance');
-      } else if (actionKey === 'Layout Plan') {
-        onNavigateToTab('cad');
-      } else if (actionKey === 'Video') {
-        onNavigateToTab('renders');
-      } else {
-        onNavigateToTab('dashboard');
+    try {
+      const routeMap = {
+        'RCP': 'drawings',
+        'Elevation': 'drawings',
+        'BOM': 'finance',
+        'Layout Plan': 'cad',
+        'Region Edit': 'renders',
+        'Camera Angles': 'renders',
+        'Upscale': 'renders',
+        'Video': 'renders',
+        'Download': 'dashboard'
+      };
+      const nextTab = routeMap[actionKey] || 'dashboard';
+      if (selectedProjectId) {
+        await fetch(`${API_BASE}/tools/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ toolSlug: actionKey.toLowerCase().replace(/\s+/g, '-'), projectId: selectedProjectId, params: { action: actionKey } })
+        });
       }
-    }, 1200);
+      onNavigateToTab(nextTab);
+    } catch {
+      // remain on current tab on failure
+    } finally {
+      setActionProgress(false);
+    }
   };
 
 

@@ -1,4 +1,4 @@
-import { apiUrl, getApiBase } from '../utils/api.js';
+import { apiUrl, getApiBase, backendAssetSrc } from '../utils/api.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Square, DoorClosed, Ruler, Move, Compass, 
@@ -157,7 +157,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         if (projData.client_brief_json) {
           const briefData = JSON.parse(projData.client_brief_json);
           if (briefData.floorplanImageUrl) {
-            setSketchUrl(`http://127.0.0.1:5055${briefData.floorplanImageUrl}`);
+            setSketchUrl(backendAssetSrc(briefData.floorplanImageUrl) || briefData.floorplanImageUrl);
           }
         }
       } catch (errProj) {
@@ -1205,7 +1205,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   });
                   const data = await res.json();
                   if (data.success) {
-                    setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+                    setSketchUrl(backendAssetSrc(data.floorplanUrl) || data.floorplanUrl);
                     alert("Floorplan underlay permanently attached to project brief!");
                   }
                 } catch (err) {

@@ -583,7 +583,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <div className="md:col-span-2 grid grid-cols-4 gap-2 min-h-28 border border-slate-800 rounded-xl p-2.5 bg-slate-900/50 overflow-y-auto">
                   {(brief.styleReferences || []).map((url, idx) => (
                     <div key={idx} className="relative aspect-video border border-slate-800 rounded overflow-hidden group">
-                      <img src={`http://127.0.0.1:5055${url}`} alt="Pinterest reference" className="w-full h-full object-cover" />
+                      <img src={backendAssetSrc(url) || url} alt="Pinterest reference" className="w-full h-full object-cover" />
                       <button 
                         type="button"
                         onClick={() => handleRemoveStyleRef(url)}
