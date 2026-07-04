@@ -52,7 +52,8 @@ const NAV_SECTIONS = [
     items: [
       { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" /> },
       { id: 'render-edit', label: 'Render Edit Suite', icon: <Sparkles className="w-4 h-4" /> },
-      { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" /> }
+      { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" /> },
+      { id: 'orchestrator', label: 'Orchestrator Studio', icon: <BrainCircuit className="w-4 h-4" /> }
     ]
   },
   {

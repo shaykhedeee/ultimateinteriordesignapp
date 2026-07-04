@@ -17,6 +17,7 @@ const JobsScreen = React.lazy(() => import('../../screens/JobsScreen.jsx'));
 const CommandCenterScreen = React.lazy(() => import('../../screens/CommandCenterScreen.jsx'));
 const CeilingStudio = React.lazy(() => import('../../screens/CeilingStudio'));
 const TvUnitGenerator = React.lazy(() => import('../../screens/TvUnitGenerator'));
+const OrchestratorStudio = React.lazy(() => import('../../screens/OrchestratorStudio.jsx'));
 const SystemsAdminScreen = React.lazy(() => import('../../screens/SystemsAdminScreen'));
 const VendorIntelligence = React.lazy(() => import('../../screens/VendorIntelligence.jsx'));
 const PinterestLearning = React.lazy(() => import('../../screens/PinterestLearning.jsx'));
@@ -142,6 +143,8 @@ export default function AppRoutes() {
           return <SettingsPanel />;
         case 'tvunit':
           return <TvUnitGenerator projectId={selectedProjectId} />;
+        case 'orchestrator':
+          return <OrchestratorStudio projectId={selectedProjectId} />;
         default:
           return <CRMLeadDashboard onProjectClosed={(id) => useAppStore.getState().setSelectedProjectId(id)} />;
       }
