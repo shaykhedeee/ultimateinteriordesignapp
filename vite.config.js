@@ -20,6 +20,8 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (/three[\\/]/.test(id) || /three$/.test(id)) return 'three';
+          if (id.includes('react') || id.includes('react-dom')) return 'vendor';
+          if (id.includes('lucide-react')) return 'ui';
         }
       }
     }
