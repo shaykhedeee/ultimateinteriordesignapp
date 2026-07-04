@@ -739,7 +739,8 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                       setTimeout(() => setStatusMessage(''), 2200);
                     }
                   }
-                  triggerLoading('scale_calibrate', 'AI Top View Enhancement pipeline running...');
+                  setLoaderMessage('AI Top View Enhancement pipeline running...');
+                  setWizardStep('scale_calibrate');
                 }}
                 className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-md shadow-[#D4AF37]/10"
               >
@@ -881,7 +882,8 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   setTimeout(() => setStatusMessage(''), 2200);
                   return;
                 }
-                triggerLoading('rooms_ready', 'Saving room zonation...');
+                setLoaderMessage('Saving room zonation...');
+                setWizardStep('rooms_ready');
                 setStatusMessage('Saving rooms');
                 try {
                   await fetch(`${API_BASE}/projects/${project.id}/cad`, {
@@ -920,7 +922,8 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                 key={zone.id}
                 onClick={() => {
                   setSelectedZoneToRender(zone.label);
-                  triggerLoading('detection_done', 'Detecting objects in the layout — one moment.');
+                  setLoaderMessage('Detecting objects in the layout — one moment.');
+                  setWizardStep('detection_done');
                 }}
                 className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/5 transition cursor-pointer text-slate-300"
               >
@@ -1023,7 +1026,8 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
             <button 
               onClick={() => {
                 setCameraView('perspective');
-                triggerLoading('render_ready', 'Rendering photorealistic perspective viewpoint...');
+                setLoaderMessage('Rendering photorealistic perspective viewpoint...');
+                setWizardStep('render_ready');
               }}
               className="py-3 bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >
@@ -1033,7 +1037,8 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
             <button 
               onClick={() => {
                 setCameraView('isometric');
-                triggerLoading('render_ready', 'Rendering isometric 3D spatial viewpoint...');
+                setLoaderMessage('Rendering isometric 3D spatial viewpoint...');
+                setWizardStep('render_ready');
               }}
               className="py-3 bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >

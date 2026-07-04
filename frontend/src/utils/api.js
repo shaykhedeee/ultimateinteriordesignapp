@@ -16,7 +16,7 @@ export function getApiBase() {
   if (typeof window !== 'undefined' && window?.location?.origin) {
     return `${window.location.origin.replace(/\/$/, '')}/api`;
   }
-  return new URL('/api', 'http://127.0.0.1:5055').toString().replace(/\/$/, '');
+  throw new Error('Missing API base: set VITE_API_BASE or run in a browser with a valid origin.');
 }
 
 export function apiUrl(path) {

@@ -83,7 +83,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchCatalog = async () => {
     try {
-      const res = await fetch('getApiBase()/material-catalog');
+      const res = await fetch(`${getApiBase()}/material-catalog`);
       if (res.ok) {
         const data = await res.json();
         setLaminateCatalog(data.filter(item => item.category === 'laminate'));
@@ -279,10 +279,10 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
         const fd = new FormData();
         fd.append('laminateImage', newLaminate.image);
         Object.entries(basePayload).forEach(([k, v]) => fd.append(k, String(v ?? '')));
-        const res = await fetch('${API_BASE}/material-catalog/custom-laminate/upload', { method: 'POST', body: fd });
+        const res = await fetch(`${API_BASE}/material-catalog/custom-laminate/upload`, { method: 'POST', body: fd });
         if (!res.ok) throw new Error('Failed to upload laminate image');
       } else {
-        const res = await fetch('${API_BASE}/material-catalog/custom-laminate', {
+        const res = await fetch(`${API_BASE}/material-catalog/custom-laminate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(basePayload)
@@ -332,7 +332,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const handleAddHwSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('getApiBase()/material-catalog', {
+      const res = await fetch(`${getApiBase()}/material-catalog`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

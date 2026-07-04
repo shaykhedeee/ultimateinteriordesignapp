@@ -119,7 +119,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   const loadCatalog = async () => {
     setCatalogLoading(true);
     try {
-      const res = await fetch('${API_BASE}/furniture-catalog');
+      const res = await fetch(`${API_BASE}/furniture-catalog`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setCatalogItems(data);
