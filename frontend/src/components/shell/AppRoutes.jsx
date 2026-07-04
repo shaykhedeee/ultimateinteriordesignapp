@@ -133,7 +133,7 @@ export default function AppRoutes() {
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-300">Live Route Tester</h3>
               <p className="text-[10px] text-slate-400">Use this panel to verify backend connectivity from the browser.</p>
               <pre className="text-[10px] text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3">{JSON.stringify({
-                backend: 'http://127.0.0.1:5055', // backend URL display
+                backend: 'local backend', // shows local backend
                 note: 'Open Settings > Providers & Settings to run smoke checks',
                 tip: 'Or run: node scripts/smoke-runner.mjs'
               }, null, 2)}</pre>

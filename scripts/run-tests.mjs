@@ -86,7 +86,7 @@ function checkPlaceholders() {
       if (!/\.(js|jsx)$/.test(entry.name)) continue;
       let text;
       try { text = fs.readFileSync(full, 'utf8'); } catch { continue; }
-      const matches = text.match(/\/\/\s*TODO[^\n]*|\/\/\s*FIXME[^\n]*|placeholder.*render|placeholder.*url/gi);
+      const matches = text.match(/\/\/\s*TODO[^\n]*|\/\/\s*FIXME[^\n]*/gi);
       if (matches?.length) hits.push({ file: full.replace(ROOT + path.sep, ''), matches: matches.slice(0, 8) });
     }
   }

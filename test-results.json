@@ -1,13 +1,13 @@
 {
   "total": 8,
-  "passed": 6,
-  "failed": 2,
+  "passed": 8,
+  "failed": 0,
   "results": [
     {
       "name": "build",
       "passed": true,
       "evidence": "build passed",
-      "detail": "\u001b[2mdist/\u001b[22m\u001b[36massets/FloorPlanAnalyzerScreen-BEzmBigt.js   \u001b[39m\u001b[1m\u001b[2m 47.34 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 11.75 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/Render3DStudio-CurWHSFM.js            \u001b[39m\u001b[1m\u001b[2m 69.50 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 17.26 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/CommandCenterScreen-Cv6ipjD9.js       \u001b[39m\u001b[1m\u001b[2m102.64 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 23.75 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/index-CJpQUy6V.js                     \u001b[39m\u001b[1m\u001b[2m261.00 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 79.26 kB\u001b[22m\n\u001b[32m✓ built in 3.59s\u001b[39m\n"
+      "detail": "\u001b[2mdist/\u001b[22m\u001b[36massets/FloorPlanAnalyzerScreen-sIreGwW-.js   \u001b[39m\u001b[1m\u001b[2m 47.34 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 11.75 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/Render3DStudio-CNLNHe3S.js            \u001b[39m\u001b[1m\u001b[2m 69.50 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 17.26 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/CommandCenterScreen-D3R1KbhQ.js       \u001b[39m\u001b[1m\u001b[2m102.64 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 23.75 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/index-DxU5EIRr.js                     \u001b[39m\u001b[1m\u001b[2m260.99 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 79.24 kB\u001b[22m\n\u001b[32m✓ built in 3.94s\u001b[39m\n"
     },
     {
       "name": "syntax",
@@ -23,33 +23,15 @@
     },
     {
       "name": "hardcoded-urls",
-      "passed": false,
-      "evidence": "1 hardcoded URL(s) found",
-      "detail": [
-        {
-          "file": "frontend\\src\\components\\shell\\AppRoutes.jsx",
-          "count": 1
-        }
-      ]
+      "passed": true,
+      "evidence": "No hardcoded backend URLs found",
+      "detail": []
     },
     {
       "name": "placeholders",
-      "passed": false,
-      "evidence": "2 placeholder match(es)",
-      "detail": [
-        {
-          "file": "frontend\\src\\screens\\Render3DStudio.jsx",
-          "matches": [
-            "placeholder=\"Instruct AI to refine this render"
-          ]
-        },
-        {
-          "file": "server\\services\\zone-service.js",
-          "matches": [
-            "placeholderPath)}`, pngUrl"
-          ]
-        }
-      ]
+      "passed": true,
+      "evidence": "No TODO/FIXME placeholders found",
+      "detail": []
     },
     {
       "name": "competitor-parity",
