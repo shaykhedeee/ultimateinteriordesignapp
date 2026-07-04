@@ -442,7 +442,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     if (!file) return;
     if (!selectedProjectId) {
       setStatusMessage('Create or select a project first');
-      setTimeout(() => setStatusMessage(''), 2200);
+      useAutoClear(statusMessage, setStatusMessage, 2200);
       return;
     }
     setFloorplanFile(file);
@@ -461,7 +461,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     } catch (err) {
       setStatusMessage('Upload failed');
     } finally {
-      setTimeout(() => setStatusMessage(''), 2200);
+      useAutoClear(statusMessage, setStatusMessage, 2200);
     }
   };
 
@@ -736,7 +736,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                     } catch (err) {
                       setStatusMessage('AI enhancement failed');
                     } finally {
-                      setTimeout(() => setStatusMessage(''), 2200);
+                      useAutoClear(statusMessage, setStatusMessage, 2200);
                     }
                   }
                   setLoaderMessage('AI Top View Enhancement pipeline running...');
@@ -879,7 +879,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
               onClick={async () => {
                 if (!project?.id) {
                   setStatusMessage('Select a project to continue');
-                  setTimeout(() => setStatusMessage(''), 2200);
+                  useAutoClear(statusMessage, setStatusMessage, 2200);
                   return;
                 }
                 setLoaderMessage('Saving room zonation...');
@@ -901,7 +901,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                 } catch (err) {
                   setStatusMessage('Save failed');
                 } finally {
-                  setTimeout(() => setStatusMessage(''), 2200);
+                  useAutoClear(statusMessage, setStatusMessage, 2200);
                 }
               }}
               className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10"
@@ -973,7 +973,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   setAssignMode(mode.id);
                   if (!project?.id) {
                     setStatusMessage('Select a project for assignment');
-                    setTimeout(() => setStatusMessage(''), 2200);
+                    useAutoClear(statusMessage, setStatusMessage, 2200);
                     return;
                   }
                   setStatusMessage(`Assigning via ${mode.label}...`);
@@ -987,7 +987,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   } catch (err) {
                     setStatusMessage('Assignment failed');
                   } finally {
-                    setTimeout(() => setStatusMessage(''), 2200);
+                    useAutoClear(statusMessage, setStatusMessage, 2200);
                   }
                 }}
                     className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${

@@ -301,9 +301,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         alert(`SLAM analysis detected dimension deviations. Suggested scale recalibration: ${data.calibrationSuggestion.suggestedLengthMeters}m`);
       }
       
-      setTimeout(() => {
-        setIsUploadingVideo(false);
-      }, 500);
+      useAutoClear(isUploadingVideo ? 'uploading' : null, setIsUploadingVideo, 500, false);
 
     } catch (err) {
       console.error("Video analysis failed:", err);

@@ -1193,7 +1193,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(sketchupScript);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    useAutoClear(copied ? true : false, setCopied, 2000, false);
   };
 
   const downloadScriptFile = () => {

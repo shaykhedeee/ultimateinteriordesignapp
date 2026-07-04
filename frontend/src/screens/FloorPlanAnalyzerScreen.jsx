@@ -195,7 +195,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
       setUploadStatus('error');
       setQuickAction('error');
     } finally {
-      setTimeout(() => setQuickAction(null), 1200);
+      useAutoClear(uploadStatus === 'done' ? 'done' : uploadStatus === 'error' ? 'error' : null, setQuickAction, 1200);
     }
   };
 
@@ -213,13 +213,13 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
           jobStatusIntervalRef.current = null;
           await fetchVersions();
           setQuickAction('done');
-          setTimeout(() => setQuickAction(null), 1200);
+          useAutoClear(uploadStatus === 'done' ? 'done' : uploadStatus === 'error' ? 'error' : null, setQuickAction, 1200);
         } else if (planJob.status === 'failed') {
           clearInterval(jobStatusIntervalRef.current);
           jobStatusIntervalRef.current = null;
           setUploadStatus('error');
           setQuickAction('error');
-          setTimeout(() => setQuickAction(null), 1200);
+          useAutoClear(uploadStatus === 'done' ? 'done' : uploadStatus === 'error' ? 'error' : null, setQuickAction, 1200);
         }
       } catch (err) {
         console.error('poll error', err);
