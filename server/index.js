@@ -854,6 +854,40 @@ app.post('/api/admin/aura-config', (req, res) => {
   }
 });
 
+// RAG: document ingestion and retrieval for AURA/project memory
+import { ingestDocument, queryCollection, collectionsForProject } from './services/rag-service.js';
+
+app.post('/api/rag/ingest', async (req, res) => {
+  try {
+    const { projectId = 'demo', title = '', mimeType = 'text/plain', text = '', metadata = {} } = req.body || {};
+    if (!String(text || '').trim()) return res.status(400).json({ error: 'text is required' });
+    const result = await ingestDocument({ projectId, title, mimeType, text, metadata });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/rag/query', async (req, res) => {
+  try {
+    const { projectId = 'demo', query = '', collection = 'project-knowledge', maxResults = 6 } = req.body || {};
+    const result = await queryCollection({ projectId, query, collection, maxResults });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/rag/collections', (req, res) => {
+  try {
+    const projectId = String(req.query.projectId || 'demo');
+    const rows = collectionsForProject(projectId);
+    res.json({ success: true, projectId, collections: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/ai/chat-status', (req, res) => {
   try {
     const status = getAuraProviderStatus();
