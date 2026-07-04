@@ -209,10 +209,13 @@ export const useAppStore = create((set, get) => ({
       tab = 'renders';
       jobType = 'render_generation';
     } else if (actionId?.startsWith('aura:')) {
-      tab = actionId.includes('render') ? 'renders' :
-           actionId.includes('palette') || actionId.includes('budget') ? 'materials' :
-           actionId.includes('layout') || actionId.includes('restyle') ? 'studio' :
-           actionId.includes('drawing') || actionId.includes('export') ? 'drawings' : 'dashboard';
+      const isOrchestratorLaunch = actionId === 'aura:render' && preview?.source === 'orchestrator';
+      if (!isOrchestratorLaunch) {
+        tab = actionId.includes('render') ? 'renders' :
+             actionId.includes('palette') || actionId.includes('budget') ? 'materials' :
+             actionId.includes('layout') || actionId.includes('restyle') ? 'studio' :
+             actionId.includes('drawing') || actionId.includes('export') ? 'drawings' : 'dashboard';
+      }
     } else {
       tab = 'dashboard';
     }

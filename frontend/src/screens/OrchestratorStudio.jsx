@@ -144,6 +144,47 @@ export default function OrchestratorStudio({ projectId }) {
         </div>
       </div>
 
+      <div className="shrink-0 border-b border-slate-800/80 bg-slate-900/30 px-4 py-2.5">
+        <div className="flex items-center gap-2 overflow-auto">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 shrink-0">AURA quick actions</span>
+          {[
+            { id: 'aura:auto', label: 'Auto-optimize project' },
+            { id: 'aura:materials', label: 'Optimize materials' },
+            { id: 'aura:cutlist', label: 'Generate cutlist' },
+            { id: 'aura:elevation', label: 'Export elevations' },
+            { id: 'aura:budget', label: 'Optimize budget' }
+          ].map((cmd) => (
+            <button
+              key={cmd.id}
+              type="button"
+              onClick={async () => {
+                setRunning(true);
+                setResult(null);
+                setError(null);
+                setLogs((prev) => [...prev, { id: `log-${Date.now()}`, level: 'info', message: `AURA action: ${cmd.label}` , ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+                try {
+                  const projectId = await (await import('../stores/appStore.js')).useAppStore.getState().ensureProject();
+                  const res = await fetch(`${apiUrl('')}/api/ai/actions/execute`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ actionId: cmd.id, params: { room, style, budgetTier }, context: { projectId, organizationId: 'global' } })
+                  });
+                  const data = await res.json().catch(() => ({ success: false, error: 'Invalid response' }));
+                  setLogs((prev) => [...prev, { id: `log-${Date.now()}`, level: data.success ? 'success' : 'error', message: `${cmd.label}: ${data.success ? (data.message || 'Executed') : (data.error || 'Failed')}` , ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+                } catch (err) {
+                  setLogs((prev) => [...prev, { id: `log-${Date.now()}`, level: 'error', message: `${cmd.label} failed: ${err.message}` , ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
+                } finally {
+                  setRunning(false);
+                }
+              }}
+              className="shrink-0 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-[#D4AF37]/60 text-[10px] font-black uppercase tracking-wider text-slate-200 transition"
+            >
+              {cmd.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex-1 min-h-0 overflow-auto p-4 space-y-4">
         {/* Inputs */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
