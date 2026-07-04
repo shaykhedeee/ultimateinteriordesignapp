@@ -15,8 +15,9 @@ import { queryCollection } from './rag-service.js';
 import { resolveProviderForTask } from './provider-router-service.js';
 import { getProviderStatus } from './image-provider.js';
 import { normalizeTaskType } from './ai-harness-service.js';
-import { generateInteriorAsset } from './visualizer-engine.js';
+import { generateInteriorAsset } from './image-provider.js';
 import { refineRenderPromptWithGemini } from './gemini-service.js';
+import { buildRoomPrompt } from './render-prompt-presets.js';
 
 // ---------------------------------------------------------------------------
 // Types / contracts
