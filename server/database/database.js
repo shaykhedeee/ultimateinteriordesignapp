@@ -334,6 +334,16 @@ db.exec(`
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS tool_results (
+    id TEXT PRIMARY KEY,
+    tool_key TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    result_json TEXT,
+    error_json TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
   CREATE TABLE IF NOT EXISTS provider_routing_log (
     id TEXT PRIMARY KEY,
     organization_id TEXT,
