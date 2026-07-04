@@ -89,7 +89,7 @@ export default function CeilingStudio({ projectId }) {
     } catch (e) {
       setStatus('Save failed: network error.');
     }
-    setTimeout(() => setStatus(null), 2400);
+    
   };
 
   const exportEstimatePDF = () => {
@@ -120,7 +120,7 @@ export default function CeilingStudio({ projectId }) {
     a.click();
     URL.revokeObjectURL(url);
     setStatus('Estimate exported.');
-    setTimeout(() => setStatus(null), 2400);
+    
   };
 
   return (
