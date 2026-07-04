@@ -156,7 +156,7 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+    useAutoClear(toast?.msg || null, setToast, 3000);
   };
 
   const importDemoLeads = async () => {
@@ -193,14 +193,11 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
         body: JSON.stringify({ answer: simulatedAnswer })
       });
       const data = await res.json();
-      setTimeout(() => {
-        setIsCalling(false);
-        setTranscript(data.transcript);
-        setAudioWave(false);
-        fetchLeads();
-        setSelectedLead(prev => ({ ...prev, voice_status: data.status, call_transcript: data.transcript }));
-        showToast(data.status === 'qualified' ? '✅ Lead qualified! Moved to follow-up board.' : '❌ Lead disqualified.');
-      }, 2000);
+      setIsCalling(false);
+      setTranscript(data.transcript);
+      setAudioWave(false);
+      setSelectedLead(prev => ({ ...prev, voice_status: data.status, call_transcript: data.transcript }));
+      showToast(data.status === 'qualified' ? '✅ Lead qualified! Moved to follow-up board.' : '❌ Lead disqualified.');
     } catch (err) {
       console.error("Call failed:", err);
       setIsCalling(false);
@@ -219,7 +216,7 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
       fetchLeads();
       if (status === 'human_closed' && data.projectId) {
         showToast('🏠 Deal closed! Project workspace created.');
-        setTimeout(() => onProjectClosed(data.projectId), 1000);
+        onProjectClosed(data.projectId);
       } else {
         showToast('Deal marked as lost.');
       }
