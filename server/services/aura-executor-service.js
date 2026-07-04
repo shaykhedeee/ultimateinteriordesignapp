@@ -68,6 +68,7 @@ async function handleRender(projectId, params) {
   const room = params.room || 'living';
   const style = params.style || 'modern';
   const taskType = params.taskType || 'detailed_render';
+  const source = params.source || 'aura_chat';
   
   // Queue a render generation job
   const jobId = 'job_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);

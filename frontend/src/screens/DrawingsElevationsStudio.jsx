@@ -33,6 +33,10 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [aiPrompt, setAiPrompt] = useState('');
   const [isProcessingAi, setIsProcessingAi] = useState(false);
 
+  // Quick Vastu state
+  const [vastuResult, setVastuResult] = useState(null);
+  const [vastuWallId, setVastuWallId] = useState('');
+
   // Accurate measurements state for this elevation
   const [wallMeasurements, setWallMeasurements] = useState({
     wallLengthMm: 0,
@@ -127,6 +131,46 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
       fetchProjectDetails();
     }
   }, [projectId]);
+
+const VASTU_RULES = [
+  { id: 'pooja_ne', label: 'Pooja room in NE/East', zone: 'NE', type: 'pooja', severity: 'high', tip: 'Place pooja unit on NE/East wall; keep it elevated with warm LED.' },
+  { id: 'kitchen_se', label: 'Kitchen hob facing East in SE', zone: 'SE', type: 'kitchen', severity: 'high', tip: 'SE preferred for cooking; face East when possible.' },
+  { id: 'master_sw', label: 'Master bedroom in SW', zone: 'SW', type: 'bedroom', severity: 'medium', tip: 'SW preferred for headboard South/East.' },
+  { id: 'avoid_ne_toilet', label: 'Avoid toilets in NE/East', zone: 'NE', type: 'toilet', severity: 'high', tip: 'NE is sacred; avoid water/waste there.' }
+];
+
+function scoreVastuWall(wall, openings = [], furniture = []) {
+  const hits = [];
+  const di = (wall.direction || 'N').toUpperCase();
+  const rt = (wall.roomType || wall.type || '').toLowerCase();
+  for (const rule of VASTU_RULES) {
+    if (rule.type === 'pooja') {
+      if (rule.zone === di || rt.includes('pooja')) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'warn', note: `POOJA unit not on ${rule.zone}. NE/East preferred.` });
+      continue;
+    }
+    if (rule.type === 'kitchen') {
+      if (rule.zone === di) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'warn', note: `KITCHEN on ${di}. SE preferred for hob/cooking.` });
+      continue;
+    }
+    if (rule.type === 'bedroom') {
+      if (rule.zone === di) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'info', note: `BEDROOM on ${di}. SW master preferred.` });
+      continue;
+    }
+    if (rule.type === 'toilet') {
+      const hasToilet = /toilet|wc|bath/i.test(rt) || openings.some(o => /toilet|wc|bath/i.test(o.label || o.type || ''));
+      if (hasToilet && ['NE','E','N'].includes(di)) hits.push({ ...rule, status: 'fail', note: `TOILET on ${di} is discouraged.` });
+      else if (hasToilet) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'info' });
+      continue;
+    }
+    hits.push({ ...rule, status: 'info' });
+  }
+  const score = hits.reduce((acc, item) => acc + (item.status === 'pass' ? 20 : item.status === 'warn' ? 10 : item.status === 'fail' ? -15 : 5), 0);
+  return { score: Math.max(0, Math.min(100, 50 + score)), hits };
+}
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
