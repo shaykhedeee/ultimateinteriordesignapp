@@ -219,6 +219,31 @@ export const useAppStore = create((set, get) => ({
 
     if (tab) get().navigateTab(tab);
 
+    // Execute action in backend
+    try {
+      const actionResult = await fetch(`${API_BASE}/api/ai/actions/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actionId, params: preview || {}, context: { projectId, organizationId: 'global' } })
+      }).then(r => r.ok ? r.json() : { success: false, error: `HTTP ${r.status}` });
+
+      setOrchestrationChips((prev) => [
+        ...prev,
+        {
+          id: `chip-${Date.now()}`,
+          type: actionResult.success ? 'success' : 'error',
+          text: actionResult.success
+            ? `${preview?.title || actionId}: ${actionResult.message || 'Executed'}`
+            : `${preview?.title || actionId} failed: ${actionResult.error || 'Unknown error'}`
+        }
+      ]);
+    } catch (err) {
+      setOrchestrationChips((prev) => [
+        ...prev,
+        { id: `chip-${Date.now()}`, type: 'error', text: `Action failed: ${err.message}` }
+      ]);
+    }
+
     if (status && projectId) {
       try {
         await fetch(`${API_BASE}/api/projects/${projectId}/status`, {
@@ -258,7 +283,23 @@ export const useAppStore = create((set, get) => ({
 
     fetchStatsAndProjects();
   },
-  
+
+  ensureProject: async () => {
+    const { selectedProjectId, projectsList, setSelectedProjectId } = get();
+    if (selectedProjectId) return selectedProjectId;
+    if (!projectsList.length) {
+      try {
+        await get().fetchStatsAndProjects();
+      } catch {}
+    }
+    const first = get().projectsList[0];
+    if (first?.id) {
+      setSelectedProjectId(first.id);
+      return first.id;
+    }
+    return null;
+  },
+
   handleAuraAutoExecute: async (actionId, preview) => {
     await get().handleExecuteAction(actionId, preview);
   },

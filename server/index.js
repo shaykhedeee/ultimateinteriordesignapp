@@ -23,6 +23,7 @@ import ruleEngine from './services/rule-engine.js';
 import drawingGenerator from './services/drawing-generator.js';
 import dxfGenerator from './services/dxf-generator.js';
 import { chatAura, getAuraProviderStatus } from './services/aura-chat-service.js';
+import { executeAction } from './services/aura-executor-service.js';
 import { listProfiles } from './services/openrouter-profiles.js';
 import { registerTool, TOOL_REGISTRY } from './services/tool-registry.js';
 import { executeInference, listSupportedTaskTypes, listProvidersForTask } from './services/inference-gateway.js';
@@ -849,6 +850,17 @@ app.get('/api/admin/aura-status', (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/actions/execute', async (req, res) => {
+  try {
+    const { actionId, params = {}, context = {} } = (req.body && typeof req.body === 'object') ? req.body : {};
+    if (!actionId || typeof actionId !== 'string') return res.status(400).json({ success: false, error: 'actionId is required' });
+    const result = await executeAction(actionId, params, context);
+    res.json(result || { success: false, error: 'No result' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
