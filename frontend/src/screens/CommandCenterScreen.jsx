@@ -2282,7 +2282,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
       const API_BASE = apiUrl('');
       const toolKey = activeTool?.key || '';
-      let endpoint = `${API_BASE}/tools/execute`;
+      let endpoint = apiUrl('tools/execute');
       let body = { toolSlug: toolKey, projectId, provider: defaultProvider || providerStatus?.activeLabel || null, model: defaultModel || providerStatus?.activeModel || null, params: {} };
 
       if (toolKey === 'laminate_swapper' || toolKey === 'laminate-changer') {
@@ -2301,13 +2301,13 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
         endpoint = `${API_BASE}/projects/${projectId}/renders/generate`;
         body = { variantCount: 1, modelTier: 'draft', room: 'living', style: 'contemporary' };
       } else if (toolKey === 'cad_ingest' || toolKey === 'camera_planner' || toolKey === 'walkthrough_config' || toolKey === 'svg_elevation_builder' || toolKey === 'bom_calculator' || toolKey === 'invoice_ledger') {
-        endpoint = `${API_BASE}/tools/${encodeURIComponent(toolKey)}/run`;
+        endpoint = apiUrl(`tools/${encodeURIComponent(toolKey)}/run`);
         body = { projectId };
       } else if (toolKey === 'render_concept' || toolKey === 'ambient_lighting' || toolKey === 'camera_director' || toolKey === 'material_swapper' || toolKey === 'walkthrough_animator' || toolKey === 'carcass_config' || toolKey === 'hardware_spec' || toolKey === 'nesting_calc' || toolKey === 'swatch_match' || toolKey === 'dxf_compiler') {
-        endpoint = `${API_BASE}/tools/execute`;
+        endpoint = apiUrl('tools/execute');
         body = { toolSlug: toolKey, projectId, params: {} };
       } else {
-        endpoint = `${API_BASE}/tools/execute`;
+        endpoint = apiUrl('tools/execute');
         body = { toolSlug: toolKey, projectId, params: {} };
       }
 

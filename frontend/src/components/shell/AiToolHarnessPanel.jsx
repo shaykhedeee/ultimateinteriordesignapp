@@ -12,7 +12,6 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState('');
 
-  const base = apiUrl('');
   const addLog = (entry) => setLogs(prev => [{ ts: Date.now(), ...entry }, ...prev].slice(0, 80));
 
   useEffect(() => {
@@ -20,8 +19,8 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
     const load = async () => {
       try {
         const [statusRes, toolsRes] = await Promise.all([
-          fetch(`${base}/api/ai/harness/status`).then(r => r.json()),
-          fetch(`${base}/api/ai/harness/tools`).then(r => r.json())
+          fetch(apiUrl('ai/harness/status')).then(r => r.json()),
+          fetch(apiUrl('ai/harness/tools')).then(r => r.json())
         ]);
         if (!cancelled) {
           setStatus(statusRes);
@@ -35,7 +34,7 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
     };
     load();
     return () => { cancelled = true; };
-  }, [base]);
+  }, []);
 
   const options = useMemo(() => {
     if (!tools) return [];
@@ -47,11 +46,13 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
     setError('');
     addLog({ type: 'start', slug: selectedSlug, provider: provider || 'default' });
     try {
-      const body = params ? { ...JSON.parse(params) } : {};
-      const res = await fetch(`${base}/api/tools/execute`, {
+      let body = { toolSlug: selectedSlug, projectId, provider: provider || undefined, model: model || undefined, params: {} };
+      try { body = { toolSlug: selectedSlug, projectId, provider: provider || undefined, model: model || undefined, params: params ? JSON.parse(params) : {} }; } catch {}
+
+      const res = await fetch(apiUrl('tools/execute'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolSlug: selectedSlug, projectId, provider: provider || undefined, model: model || undefined, params: body })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       addLog({ type: res.ok ? 'success' : 'error', status: res.status, data });
@@ -68,16 +69,18 @@ export default function AiToolHarnessPanel({ projectId = 'demo' }) {
     setError('');
     addLog({ type: 'start', batch: true });
     try {
-      const body = params ? JSON.parse(params) : {};
-      const runs = Array.isArray(body.runs) ? body.runs : [body];
-      const bounded = runs.slice(0, 8).map(run => ({
+      let runs = { runs: [] };
+      try { runs = params ? JSON.parse(params) : { runs: [] }; } catch {}
+      const safeRuns = Array.isArray(runs.runs) ? runs.runs : [];
+      const bounded = safeRuns.slice(0, 8).map(run => ({
         toolSlug: run.toolSlug || selectedSlug,
         projectId: run.projectId || projectId,
         params: run.params || {},
         provider: run.provider || provider || undefined,
         model: run.model || model || undefined
       }));
-      const res = await fetch(`${base}/api/ai/harness/batch`, {
+
+      const res = await fetch(apiUrl('ai/harness/batch'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ runs: bounded })
