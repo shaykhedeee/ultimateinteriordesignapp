@@ -2226,9 +2226,51 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     }
   };
 
+  const [defaultProvider, setDefaultProvider] = useState(null);
+  const [defaultModel, setDefaultModel] = useState(null);
+  const [toolJobId, setToolJobId] = useState(null);
+
+  useEffect(() => {
+    const base = apiUrl('');
+    fetch(`${base}/api/settings/defaults`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        if (data?.success) {
+          setDefaultProvider(data.settings?.defaultProvider || null);
+          setDefaultModel(data.settings?.defaultModel || null);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!toolJobId || !project?.id) return;
+    const base = apiUrl('');
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`${base}/api/projects/${project.id}/jobs/${toolJobId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const job = data.job || data;
+        const status = job?.status || job?.state;
+        if (status === 'succeeded') {
+          setToolResult({ success: true, text: job?.result?.text || job?.result?.reply || `Tool ${activeTool?.key} finished.`, result: job?.result || job?.output || null });
+          clearInterval(timer);
+          setIsRunning(false);
+        } else if (status === 'failed' || status === 'cancelled') {
+          setToolResult({ success: false, text: job?.error || `Tool ${activeTool?.key} failed.` });
+          clearInterval(timer);
+          setIsRunning(false);
+        }
+      } catch {}
+    }, 1200);
+    return () => clearInterval(timer);
+  }, [toolJobId, project?.id, activeTool?.key]);
+
   const handleRunTool = async () => {
     setIsRunning(true);
     setToolResult(null);
+    setToolJobId(null);
     try {
       const projectId = project?.id;
       if (!projectId) throw new Error('No active project selected');
@@ -2236,7 +2278,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       const API_BASE = apiUrl('');
       const toolKey = activeTool?.key || '';
       let endpoint = `${API_BASE}/tools/execute`;
-      let body = { toolSlug: toolKey, projectId, provider: null, model: null, params: {} };
+      let body = { toolSlug: toolKey, projectId, provider: defaultProvider || providerStatus?.activeLabel || null, model: defaultModel || providerStatus?.activeModel || null, params: {} };
 
       if (toolKey === 'laminate_swapper' || toolKey === 'laminate-changer') {
         endpoint = `${API_BASE}/projects/${projectId}/renders/laminate-swap`;
