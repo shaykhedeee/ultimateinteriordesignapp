@@ -29,6 +29,7 @@ import { executeInference, listSupportedTaskTypes, listProvidersForTask } from '
 import { normalizeTaskType, validateCapability, availableTools, runTool, runBatch, getHarnessStatus } from './services/ai-harness-service.js';
 import { AURA_STATES, AURA_TRANSITIONS, AuraLoopService } from './services/aura-loop-service.js';
 import { ProjectMemory, INDIAN_INTERIOR_PROMPT_CORPUS } from './services/project-memory.js';
+import { runGenerationPipeline } from './services/ai-orchestrator.js';
 
 const auraLoop = new AuraLoopService();
 const projectMemory = new ProjectMemory();
@@ -3869,6 +3870,25 @@ app.get('/api/ai/harness/tools', (req, res) => {
     res.json(availableTools());
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/interiors/orchestrate', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const result = await runGenerationPipeline({
+      projectId: payload.projectId || 'demo',
+      floorPlanImageBase64: payload.floorPlanImageBase64 || '',
+      userStyle: payload.userStyle || 'modern',
+      userCustomPrompt: payload.userCustomPrompt || '',
+      rooms: payload.rooms,
+      maxRooms: payload.maxRooms,
+      provider: payload.provider || null,
+      model: payload.model || null
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message, sessionId: null, steps: [] });
   }
 });
 
