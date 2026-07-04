@@ -232,7 +232,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
       aiDetectControllerRef.current = null;
     }
     setIsAiDetecting(false);
-    setToolkitMessage('AI detection cancelled.', 'error');
+    setToolkitMessage('AI detection cancelled.', 'warning');
     setToolkitStatus('idle');
   };
 

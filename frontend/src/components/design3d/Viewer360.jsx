@@ -88,7 +88,6 @@ export default function Viewer360({ equirectImage, onClose }) {
       cancelAnimationFrame(frameRef.current);
       mountRef.current.innerHTML = '';
     }
-
     const width = mountRef.current.clientWidth || 1024;
     const height = mountRef.current.clientHeight || 800;
     const scene = new THREE.Scene();
