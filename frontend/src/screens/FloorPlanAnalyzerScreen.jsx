@@ -1,5 +1,5 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
-import React, { useEffect, useRef, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useRef, useState, Suspense, lazy, useCallback } from 'react';
 import { useEditorStore } from '../stores/editorStore';
 import LeftNavigator from '../components/layout/LeftNavigator';
 import InspectorPanel from '../components/layout/InspectorPanel';
@@ -438,6 +438,29 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
     const tags = (interpretation?.rooms || []).map((r, idx) => `${r.name || `Zone ${idx + 1}`} → ${r.orientation || r.vastu || 'UNKNOWN'}`).join(', ');
     setToolkitMessage(tags ? `Vastu orientation draft: ${tags}` : 'No spatial orientations available', 'success');
   };
+
+  const handleAutoFurnish = async () => {
+    if (!projectId) { setToolkitMessage('Open a project first.', 'error'); return; }
+    setToolkitStatus('loading');
+    setToolkitMessage('Auto-furnishing rooms from catalog...', 'loading');
+    try {
+      const roomTypes = (interpretation?.rooms || []).map(r => r.type).filter(Boolean);
+      const res = await fetch(`${API_BASE}/auto-furnish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, roomTypes: roomTypes.length ? roomTypes : ['living', 'bedroom', 'kitchen'], budgetBand: 'standard' })
+      });
+      if (!res.ok) throw new Error('Auto-furnish failed');
+      const data = await res.json();
+      const roomCount = Object.keys(data.recommendations || {}).length;
+      setToolkitMessage(`Auto-furnish ready for ${roomCount} room type(s). Review catalog recommendations.`, 'success');
+    } catch (err) {
+      console.error(err);
+      setToolkitMessage('Auto-furnish failed. Try again.', 'error');
+    } finally {
+      setToolkitStatus('idle');
+    }
+  };
   const handleToolkitEnhance = async () => {
     if (!interpretation) { setToolkitMessage('Run AI detect first, then use enhance plan for refinements.', 'error'); return; }
     setToolkitStatus('enhancing');
@@ -704,6 +727,7 @@ export default function FloorPlanAnalyzerScreen({ projectId, onComplete }) {
             <ToolButton label="Openings Review" icon={<DoorOpen className="w-3 h-3" />} onClick={handleToolkitOpenings} ariaLabel="Review detected doors and windows" />
             <ToolButton label="Vastu Check" icon={<Layout className="w-3 h-3" />} onClick={handleToolkitVastu} ariaLabel="Check Vastu orientation for each zone" />
             <ToolButton label="Enhance Plan" icon={<Sparkles className="w-3 h-3" />} onClick={handleToolkitEnhance} ariaLabel="AI-assisted plan refinement" />
+            <ToolButton label="Auto-Furnish" icon={<Sparkles className="w-3 h-3" />} onClick={handleAutoFurnish} ariaLabel="Auto-furnish rooms from catalog" />
             <ToolButton label="Export DXF" icon={<Download className="w-3 h-3" />} onClick={handleToolkitExportDxf} ariaLabel="Export floor plan to DXF format" />
           </div>
           <div

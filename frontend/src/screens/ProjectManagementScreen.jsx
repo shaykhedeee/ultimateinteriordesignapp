@@ -34,9 +34,13 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
   const [showKanban, setShowKanban] = useState(true);
   const [readinessData, setReadinessData] = useState(null);
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [templateApplying, setTemplateApplying] = useState(false);
 
   useEffect(() => {
     fetchData();
+    fetchTemplates();
   }, []);
 
   useEffect(() => {
@@ -75,6 +79,35 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
       console.error(err);
     } finally {
       setIsReadinessLoading(false);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch(apiUrl('/firm/templates'));
+      const data = await res.json();
+      if (Array.isArray(data)) setTemplates(data);
+    } catch (e) {
+      console.warn('Failed to load firm templates', e);
+    }
+  };
+
+  const applyTemplate = async () => {
+    if (!selectedTemplateId || !selectedProject?.id) return;
+    setTemplateApplying(true);
+    try {
+      await fetch(`${API_BASE}/projects/${selectedProject.id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: selectedTemplateId, applyTemplate: true })
+      });
+      fetchData();
+      fetchReadiness(selectedProject.id);
+    } catch (e) {
+      console.warn('Apply template failed', e);
+    } finally {
+      setTemplateApplying(false);
+      setSelectedTemplateId('');
     }
   };
 
@@ -367,6 +400,28 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
               <span className="text-[9px] font-bold text-[#D4AF37] uppercase tracking-wider block mb-1">Project Command Panel</span>
               <h3 className="text-sm font-extrabold text-slate-100 truncate">{selectedProject.name}</h3>
               <p className="text-[10px] text-slate-500 mt-0.5">ID: {selectedProject.id}</p>
+            </div>
+
+            {/* Firm Template Picker */}
+            <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-xl space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Start from Firm Template</label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 font-semibold cursor-pointer outline-none focus:border-[#D4AF37]/50"
+              >
+                <option value="">Select template...</option>
+                {templates.map(tpl => (
+                  <option key={tpl.id} value={tpl.id}>{tpl.name || tpl.title || tpl.id}</option>
+                ))}
+              </select>
+              <button
+                onClick={applyTemplate}
+                disabled={!selectedTemplateId || templateApplying}
+                className="w-full py-2 rounded-xl border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-black uppercase tracking-wider hover:bg-[#D4AF37]/10 disabled:opacity-50 transition"
+              >
+                {templateApplying ? 'Applying...' : 'Apply Template'}
+              </button>
             </div>
 
             {/* Quick CTAs */}
