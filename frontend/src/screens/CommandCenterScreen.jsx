@@ -296,17 +296,17 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
             </h3>
             <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Last 7 days</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {[
               { label: 'Render Jobs', value: '12', delta: '+3', positive: true },
-              { label: 'Avg Lead Time', value: '4.2d', delta: '-0.8d', positive: true },
+              { label: 'Avg Lead Time', value: '4.2d', delta: '0.0d', positive: true },
               { label: 'Client Reviews', value: '8', delta: '+2', positive: true },
-              { label: 'Pending BOM', value: '3', delta: '-1', positive: true },
+              { label: 'Pending BOM', value: '3', delta: '-1', positive: false },
             ].map((item, idx) => (
-              <div key={idx} className="p-3 rounded-2xl bg-slate-950/40 border border-slate-850">
+              <div key={idx} className="p-4 rounded-2xl bg-slate-950/40 border border-slate-800">
                 <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider block">{item.label}</span>
-                <div className="flex items-end justify-between mt-1">
-                  <strong className="text-xl font-black text-slate-100">{item.value}</strong>
+                <div className="flex items-end justify-between mt-2">
+                  <strong className="text-2xl font-black text-slate-100">{item.value}</strong>
                   <span className={`text-[10px] font-black ${item.positive ? 'text-emerald-400' : 'text-rose-400'}`}>{item.delta}</span>
                 </div>
               </div>
@@ -320,17 +320,20 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
           </h3>
           <div className="grid grid-cols-2 gap-2.5">
             {[
-              { label: 'New Project', icon: Plus, action: () => onNavigateToTab && onNavigateToTab('smart') },
+              { label: 'New Project', icon: Plus, action: () => onNavigateToTab && onNavigateToTab('projects') },
               { label: 'Upload Files', icon: Upload, action: () => onNavigateToTab && onNavigateToTab('brief') },
-              { label: 'Run Diagnostics', icon: Activity, action: () => onNavigateToTab && onNavigateToTab('cad') },
+              { label: 'Run Diagnostics', icon: Activity, action: () => onNavigateToTab && onNavigateToTab('system-routes') },
               { label: 'Export Pack', icon: FileText, action: () => onNavigateToTab && onNavigateToTab('finance') },
-              { label: 'Load Demo Clients', icon: RefreshCw, action: loadDemoClients }
             ].map((item, idx) => (
-              <button key={idx} onClick={item.action} className="p-3 rounded-2xl bg-slate-950/40 border border-slate-850 hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/5 transition flex flex-col items-center justify-center gap-1.5 text-slate-300">
-                <item.icon className="w-4 h-4 text-[#C9A84C]" />
-                <span className="text-[10px] font-black uppercase tracking-wider">{item.label}</span>
+              <button key={idx} onClick={item.action} className="p-3 rounded-2xl bg-slate-950/40 border border-slate-850 hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/5 transition flex flex-col items-center justify-center gap-2 text-slate-300">
+                <item.icon className="w-5 h-5 text-slate-100" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-center leading-tight">{item.label}</span>
               </button>
             ))}
+            <button key="demo" onClick={loadDemoClients} className="col-span-2 p-3 rounded-2xl bg-slate-950/40 border border-slate-850 hover:border-[#C9A84C]/40 hover:bg-[#C9A84C]/5 transition flex flex-col items-center justify-center gap-2 text-slate-300">
+              <RefreshCw className="w-5 h-5 text-slate-100" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-center leading-tight">Load Demo Clients</span>
+            </button>
           </div>
           {demoStatus && (
             <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400" aria-live="polite">
