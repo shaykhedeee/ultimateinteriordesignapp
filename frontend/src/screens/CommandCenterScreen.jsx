@@ -2656,21 +2656,27 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
               </div>
             )}
 
-            {toolResult && (
-              <div className="bg-slate-950 border border-slate-850/60 p-4 rounded-2xl space-y-4 animate-in slide-in-from-bottom-2">
-                <div className="flex items-center gap-2 text-xs text-slate-350">
-                  {toolResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
-                  <span>{toolResult.text}</span>
-                </div>
-                {!toolResult.success && toolResult.recoverable && (
-                  <button
-                    onClick={handleRunTool}
-                    disabled={!project?.id || !activeTool?.key}
-                    className="px-3 py-1.5 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-black uppercase tracking-wider hover:bg-[#D4AF37]/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Retry
-                  </button>
-                )}
+        {/* Tool Runner Result Block */}
+        {toolResult && (
+          <div className="bg-slate-950 border border-slate-850/60 p-4 rounded-2xl space-y-3 animate-in slide-in-from-bottom-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+              {toolResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
+              <span className="font-semibold">{toolResult.text}</span>
+              {(toolResult.provider || toolResult.model) && (
+                <span className="text-[9px] font-mono text-slate-500 border border-slate-800 rounded-lg px-2 py-1 ml-auto">
+                  {toolResult.provider ? `${toolResult.provider}` : ''}{toolResult.provider && toolResult.model ? ' / ' : ''}{toolResult.model ? `${toolResult.model}` : ''}
+                </span>
+              )}
+            </div>
+            {!toolResult.success && toolResult.recoverable && (
+              <button
+                onClick={handleRunTool}
+                disabled={!project?.id || !activeTool?.key}
+                className="px-3 py-1.5 rounded-lg bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-black uppercase tracking-wider hover:bg-[#D4AF37]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Retry
+              </button>
+            )}
 
                 {/* Case 1 Result: Ambient lighting shade display */}
                 {activeTool.key === 'ambient_lighting' && toolResult.visualSim && (
