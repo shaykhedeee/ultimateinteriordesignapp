@@ -18,6 +18,7 @@ const CommandCenterScreen = React.lazy(() => import('../../screens/CommandCenter
 const CeilingStudio = React.lazy(() => import('../../screens/CeilingStudio'));
 const TvUnitGenerator = React.lazy(() => import('../../screens/TvUnitGenerator'));
 const OrchestratorStudio = React.lazy(() => import('../../screens/OrchestratorStudio.jsx'));
+const ConsumerOnboarding = React.lazy(() => import('../../screens/ConsumerOnboarding.jsx'));
 const SystemsAdminScreen = React.lazy(() => import('../../screens/SystemsAdminScreen'));
 const VendorIntelligence = React.lazy(() => import('../../screens/VendorIntelligence.jsx'));
 const PinterestLearning = React.lazy(() => import('../../screens/PinterestLearning.jsx'));
