@@ -62,7 +62,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   useEffect(() => {
     const base = apiUrl('');
     fetch(`${base}/projects`).then(r => r.json()).then(data => { setProjects(data); if (data.length > 0 && !selectedProjectId) setSelectedProjectId(data[0].id); }).catch(console.error);
-    apiJson(`${base}/leads`).then(setLeads).catch(console.error);
+    fetch(`${base}/leads`).then(r => r.json()).then(setLeads).catch(console.error);
     fetch(`${base}/material-catalog`).then(r => r.json()).then(setMaterialsCatalog).catch(console.error);
   }, [projectId]);
 
@@ -76,8 +76,8 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       const data = await res.json();
       setDemoStatus(`Loaded ${data.leads || 0} leads / ${data.projects || 0} projects`);
       const [projData, leadData] = await Promise.all([
-        apiJson(`${base}/projects`),
-        apiJson(`${base}/leads`).catch(() => ({ leads: [] }))
+        fetch(`${base}/projects`).then(r => r.json()),
+        fetch(`${base}/leads`).then(r => r.json()).catch(() => ({ leads: [] }))
       ]);
       setProjects(projData);
       setLeads(leadData.leads || []);
