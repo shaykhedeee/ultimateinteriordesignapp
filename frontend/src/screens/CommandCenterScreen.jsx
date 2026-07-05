@@ -426,9 +426,11 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
   };
 
   const handleUpload = async (e) => {
+    e.preventDefault();
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!selectedProjectId) {
+    const projectId = selectedProjectId || await get().ensureProject();
+    if (!projectId) {
       setStatusMessage('Create or select a project first');
       useAutoClear(statusMessage, setStatusMessage, 2200);
       return;
@@ -439,7 +441,7 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
       const form = new FormData();
       form.append('floorplan', file);
       const base = apiUrl('');
-      const upload = await fetch(`${base}/projects/${selectedProjectId}/floorplan`, { method: 'POST', body: form });
+      const upload = await fetch(`${base}/projects/${projectId}/floorplan`, { method: 'POST', body: form });
       if (!upload.ok) throw new Error('Upload failed');
       const data = await upload.json();
       setFloorplanUrl(backendAssetSrc(data.floorplanUrl) || data.floorplanUrl);
@@ -451,6 +453,7 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
     } finally {
       useAutoClear(statusMessage, setStatusMessage, 2200);
     }
+    e.target.value = '';
   };
 
   const handleCanvasClick = (e) => {
@@ -1287,10 +1290,12 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
   const [coordinates, setCoordinates] = useState({ x1: 100, y1: 150, x2: 400, y2: 280 });
 
   const handleUpload = (e) => {
-    const f = e.target.files[0];
+    e.preventDefault();
+    const f = e.target.files?.[0];
     if (f) {
       setPhoto(URL.createObjectURL(f));
     }
+    e.target.value = '';
   };
 
   const handleSubmitPatch = async () => {
