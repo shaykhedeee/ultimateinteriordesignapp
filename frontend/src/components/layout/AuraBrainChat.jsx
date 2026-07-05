@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiUrl } from '../../utils/api.js';
 import {
   Send, Mic, Sparkles, Lightbulb, ArrowUpRight,
-  CheckCircle2, BrainCircuit, Wand2, FileCode2, RefreshCcw
+  CheckCircle2, BrainCircuit, Wand2, FileCode2, RefreshCcw, AlertTriangle
 } from 'lucide-react';
 
 export default function AuraBrainChat({
@@ -79,15 +79,22 @@ export default function AuraBrainChat({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, isAiTyping]);
 
-  const proactiveSuggestions = [
-    "💡 Add a warm pendant light above the dining table (+350 Lux, CRI 98)",
-    "💡 This east wall looks empty. I suggest backlit fluted wood rafters",
-    "💡 The living rug is slightly small. Upgrade to 8x10 Berber?",
-    "🎨 Extract a cohesive 5-color Japandi palette from the current mood board",
-    "📊 The kitchen work triangle score is 96%. Optimize layout?",
-    "🪴 Add 3 more Monstera plants for biophilic balance score +12 points"
-  ];
-
+  const deriveSuggestions = () => {
+    const last = messages[messages.length - 1];
+    const base = [
+      "💡 Add a pendant light above dining (+350 Lux, CRI 98)",
+      "📊 Optimize kitchen work triangle for faster prep movement",
+      "🪴 Add 3 plants for biophilic balance and perceived space +12%"
+    ];
+    const text = (last?.text || '').toLowerCase();
+    if (text.includes("wardrobe") || text.includes("storage")) return [...base, "🚪 Upgrade to soft-close wardrobes with mirror + LED pullout"];
+    if (text.includes("kitchen") || text.includes("cabinet")) return [...base, "🍳 Choose anti-scratch laminates + Blum InnoTech organizers"];
+    if (text.includes("vastu") || text.includes("pooja")) return [...base, "🪔 Relocate mandir to NE corner with East-facing deity"];
+    if (text.includes("living") || text.includes("sofa")) return [...base, "🛋️ Upgrade rug to 8x10 and add fluted feature wall"];
+    if (text.includes("render") || text.includes("3d") || text.includes("ai")) return [...base, "🎨 Generate Japandi palette with stone + oak + matte black"];
+    return base;
+  };
+  const proactiveSuggestions = deriveSuggestions();
   if (!isOpen) return null;
 
   const renderStatusPill = (status) => {
