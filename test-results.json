@@ -7,7 +7,7 @@
       "name": "build",
       "passed": true,
       "evidence": "build passed",
-      "detail": "\u001b[2mdist/\u001b[22m\u001b[36massets/FloorPlanAnalyzerScreen-DTOqJ7so.js   \u001b[39m\u001b[1m\u001b[2m 48.19 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 11.95 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/Render3DStudio-Cu8xB28b.js            \u001b[39m\u001b[1m\u001b[2m 69.50 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 17.26 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/CommandCenterScreen-BHBPLYrr.js       \u001b[39m\u001b[1m\u001b[2m102.69 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 23.75 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/index-B_wE4IQO.js                     \u001b[39m\u001b[1m\u001b[2m261.63 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 79.43 kB\u001b[22m\n\u001b[32m✓ built in 3.82s\u001b[39m\n"
+      "detail": "\u001b[2mdist/\u001b[22m\u001b[36massets/FloorPlanAnalyzerScreen-do1j1KAh.js   \u001b[39m\u001b[1m\u001b[2m 48.19 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 11.95 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/Render3DStudio-WVjV5Ryc.js            \u001b[39m\u001b[1m\u001b[2m 69.50 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 17.26 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/CommandCenterScreen-BhA75D7G.js       \u001b[39m\u001b[1m\u001b[2m107.02 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 24.22 kB\u001b[22m\n\u001b[2mdist/\u001b[22m\u001b[36massets/index-Kyq4xH9O.js                     \u001b[39m\u001b[1m\u001b[2m261.63 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 79.42 kB\u001b[22m\n\u001b[32m✓ built in 4.15s\u001b[39m\n"
     },
     {
       "name": "syntax",
