@@ -6,7 +6,7 @@ import TutorialOverlay from './components/tutorial/TutorialOverlay';
 import { LayoutDashboard } from 'lucide-react';
 
 export default function App() {
-  const [showTutorial, setShowTutorial] = useState(false);
+  const [showTutorial, setShowTutorial] = useState('manual'); // manual only
   const [loading, setLoading] = useState(true);
   const [connectivity, setConnectivity] = useState('checking');
   const [bootError, setBootError] = useState(null);

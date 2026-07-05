@@ -181,7 +181,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                 project={activeProject}
                 materialsCatalog={materialsCatalog}
                 onAddToProject={(item) => {
-                  alert(`Added to project: ${item.name}`);
+                  useAppStore.getState().setStatusMessage ? useAppStore.getState().setStatusMessage(`Added ${item.name} to project`) : useAppStore.getState().navigateTab('studio');
                 }}
                 onConfigure={(item) => {
                   useAppStore.getState().navigateTab('studio');
