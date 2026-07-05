@@ -2036,74 +2036,8 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
               ))}
           </div>
         </div>
-      ) : selectedSubTab === 'catalog' ? (
-        /* Curated Searchable Catalog Grid */
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              value={catalogQuery}
-              onChange={e => setCatalogQuery(e.target.value)}
-              placeholder="Search catalog items..."
-              className="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-[#D4AF37]"
-            />
-            <select
-              value={catalogCategory}
-              onChange={e => setCatalogCategory(e.target.value)}
-              className="bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-[#D4AF37]"
-            >
-              <option value="all">All Categories</option>
-              <option value="laminate">Laminates</option>
-              <option value="hardware">Hardware</option>
-              <option value="accessory">Accessories</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-[360px] overflow-y-auto pr-1">
-            {TRENDY_MODULAR_FURNITURE
-              .filter(item => {
-                if (catalogCategory !== 'all') {
-                  const catLower = catalogCategory.toLowerCase();
-                  const itemCatLower = item.category.toLowerCase();
-                  if (!itemCatLower.includes(catLower)) return false;
-                }
-                if (catalogQuery) {
-                  const q = catalogQuery.toLowerCase();
-                  return item.name.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q);
-                }
-                return true;
-              })
-              .map((item, idx) => (
-                <div key={idx} className="bg-slate-900/40 border border-slate-850 rounded-2xl p-3 flex flex-col justify-between hover:border-[#D4AF37]/50 transition">
-                  <div className="space-y-2">
-                    <div className="w-full h-28 rounded-xl overflow-hidden bg-slate-950 border border-slate-850">
-                      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MDAiIGhlaWdodD0iNjAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWEzOTJFIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE0IiBmaWxsPSIjRkZGRkZGIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Q2F0YWxvZzwvdGV4dD48L3N2Zz4=" alt={item.name} className="w-full h-full object-cover opacity-85" />
-                    </div>
-                    <div>
-                      <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">{item.category}</span>
-                      <strong className="text-xs text-slate-200 block truncate mt-0.5">{item.name}</strong>
-                      <span className="text-[10px] text-slate-400 block line-clamp-2 mt-1">{item.desc}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center border-t border-slate-850 pt-2.5 mt-3">
-                    <span className="text-[10px] font-mono text-[#D4AF37] font-bold">{item.w} × {item.h} × {item.d} mm</span>
-                    <button
-                      onClick={() => {
-                        setSelectedModule(item);
-                        setSelectedSubTab('parametric');
-                      }}
-                      className="bg-[#D4AF37]/10 border border-[#D4AF37]/35 text-[#D4AF37] hover:bg-[#D4AF37]/20 text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded transition"
-                    >
-                      Configure
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      ) : selectedSubTab === 'catalog' ? (
-        /* Curated Searchable Catalog Grid */
-        <div className="text-xs text-slate-500">Catalog items will appear here.</div>
+      ) : selectedSubTab === 'tools' ? (
+        <SpecialistToolsWorkspace project={project} materialsCatalog={TRENDY_MODULAR_FURNITURE} />
       ) : (
         <div className="text-xs text-slate-500">Select a module to configure dimensions, finishes, and BOM estimate.</div>
       )}
