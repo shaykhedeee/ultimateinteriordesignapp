@@ -608,6 +608,10 @@ try { db.exec("ALTER TABLE design_renders ADD COLUMN room TEXT;"); } catch (e) {
 try { db.exec("ALTER TABLE design_renders ADD COLUMN prompt TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE design_renders ADD COLUMN review_status TEXT DEFAULT 'unreviewed';"); } catch (e) {}
 try { db.exec("ALTER TABLE design_renders ADD COLUMN review_note TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE design_renders ADD COLUMN render_mode TEXT DEFAULT 'new-interior';"); } catch (e) {}
+try { db.exec("ALTER TABLE design_renders ADD COLUMN source_type TEXT DEFAULT 'generative';"); } catch (e) {}
+try { db.exec("ALTER TABLE design_renders ADD COLUMN provider_used TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE design_renders ADD COLUMN variant_index INTEGER DEFAULT 0;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN quotation_json TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN stale_renders INTEGER DEFAULT 0;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN stale_drawings INTEGER DEFAULT 0;"); } catch (e) {}
