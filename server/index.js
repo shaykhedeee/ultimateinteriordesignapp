@@ -785,7 +785,7 @@ app.post('/api/projects/:id/ai/chat', async (req, res) => {
     });
   } catch (err) {
     console.error('[ai/chat] Unexpected error:', err);
-    res.status(500).json({ reply: 'AURA encountered a processing error. Please retry.', provider: 'error', actionPreview: null, actions: [] });
+    res.status(500).json({ reply: 'AURA encountered a processing error. Please retry.', provider: 'error', actionPreview: null, actions: [], providerMeta: null });
   }
 });
 
