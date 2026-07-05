@@ -88,6 +88,26 @@ export default function AppShell({ activeTab, onNavigate, currentTime, children 
     setIsAuraFloatingOpen,
     setIsAuraOpen
   } = useAppStore();
+  const [connectivity, setConnectivity] = React.useState('checking');
+  const [apiBase, setApiBase] = React.useState(() => apiUrl(''));
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/health`, { method: 'GET', cache: 'no-store' });
+        if (!cancelled) setConnectivity(res.ok ? 'online' : 'error');
+      } catch {
+        if (!cancelled) setConnectivity('offline');
+      }
+    };
+    check();
+    const id = setInterval(check, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [apiBase]);
 
   const statusOrder = ['brief', 'cad_approved', 'materials_selected', 'renders_approved', 'production', 'billing'];
   const projectStepIndex = selectedProject
@@ -352,10 +372,14 @@ export default function AppShell({ activeTab, onNavigate, currentTime, children 
               onClose={() => setIsAuraFloatingOpen(false)}
             />
             <span className="w-px h-4 bg-slate-800" />
-            <div className="flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-400 font-semibold">API Online</span>
-            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className={`flex items-center gap-1.5 text-[11px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] ${connectivity === 'online' ? 'text-emerald-400' : 'text-red-400'}`}
+              aria-label="Retry backend connection"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>{connectivity === 'online' ? 'API Online' : connectivity === 'offline' ? 'Offline' : 'API Error'}</span>
+            </button>
             <span className="w-px h-4 bg-slate-800" />
             <span>{currentTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
             <span className="w-px h-4 bg-slate-800" />
