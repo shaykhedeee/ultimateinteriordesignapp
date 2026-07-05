@@ -2109,6 +2109,23 @@ app.post('/api/projects/:id/auto-furnish', async (req, res) => {
   }
 });
 
+app.post('/api/projects/:id/auto-furnish', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const body = req.body || {};
+    const roomTypes = Array.isArray(body.roomTypes) ? body.roomTypes : ['living', 'bedroom', 'kitchen', 'dining', 'study', 'pooja'];
+    const recommendations = {};
+    for (const roomType of roomTypes) {
+      const sql = 'SELECT * FROM furniture_catalog WHERE 1=1 AND room_types LIKE ?';
+      const rows = db.prepare(sql).all([`%${roomType}%`]);
+      recommendations[roomType] = rows.slice(0, 8);
+    }
+    res.json({ success: true, projectId, roomTypes, recommendations });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/projects/:id/zones/:zoneId/design-plan', async (req, res) => {
   try {
     const projectId = req.params.id;
