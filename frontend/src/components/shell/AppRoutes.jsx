@@ -26,24 +26,7 @@ const FloorPlanAnalyzerScreen = React.lazy(() => import('../../screens/FloorPlan
 const SettingsPanel = React.lazy(() => import('../../screens/SettingsPanel.jsx'));
 import AuraBrainChat from '../layout/AuraBrainChat';
 
-const PROJECT_LOCKED_ROUTES = new Set([
-  'brief',
-  'cad',
-  'studio',
-  'drawings',
-  'materials',
-  'renders',
-  'render-edit',
-  'cutlist',
-  'ceiling',
-  'tvunit',
-  'finance',
-  'timeline',
-  'jobs',
-  'vendor',
-  'pinterest',
-  'floorplan'
-]);
+const PROJECT_LOCKED_ROUTES = new Set([]);
 
 export default function AppRoutes() {
   const activeTab = useAppStore((state) => state.activeTab);

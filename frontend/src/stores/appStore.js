@@ -82,12 +82,26 @@ export const useAppStore = create((set, get) => ({
   },
 
   ensureProject: async () => {
-    const { selectedProjectId, projectsList, setSelectedProjectId } = get();
-    if (!selectedProjectId && projectsList.length > 0) {
-      setSelectedProjectId(projectsList[0].id);
-      return projectsList[0].id;
+    const { selectedProjectId, projectsList, setSelectedProjectId, setSelectedProject } = get();
+    if (selectedProjectId) return selectedProjectId;
+    if (projectsList.length > 0) {
+      const first = projectsList[0];
+      setSelectedProjectId(first.id);
+      setSelectedProject(first);
+      return first.id;
     }
-    return selectedProjectId;
+    try {
+      const res = await fetch(`${API_BASE}/api/system/demo-project`);
+      if (res.ok) {
+        const project = await res.json();
+        setSelectedProjectId(project.id);
+        setSelectedProject(project);
+        return project.id;
+      }
+    } catch (e) {
+      console.warn('demo project fallback failed', e);
+    }
+    return null;
   },
 
   // Port of existing App.jsx AURA behavior into the store so the shell/routes can reuse it.

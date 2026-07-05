@@ -2,11 +2,12 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import { getApiBase } from '../config/runtime.js';
 const ROOT = process.cwd();
 const REPORT_PATH = path.join(ROOT, 'scripts', 'ai-harness-report.json');
 
 const sleep = (ms)=> new Promise(r=>setTimeout(r,ms));
-function request({hostname='127.0.0.1',port=5055,method='GET',path:reqPath='/',body=null,headers={}}){
+function request({hostname,port,method='GET',path:reqPath='/',body=null,headers={}}){
   return new Promise((resolve, reject)=>{
     const data = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
     const opts={hostname,port:Number(port),path:reqPath,method,headers:{

@@ -1,22 +1,19 @@
-export const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8787';
+const API_BASE = (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_API_BASE)
+  ? String(import.meta.env.VITE_API_BASE).replace(/\/$/, '')
+  : (typeof process !== 'undefined' && process.env && process.env.VITE_API_BASE
+    ? String(process.env.VITE_API_BASE).replace(/\/$/, '')
+    : (typeof window !== 'undefined' && window.location && window.location.origin
+      ? `${String(window.location.origin).replace(/\/$/, '')}/api`
+      : ''));
 
-export async function api(path, options = {}) {
+export async function api(path, options) {
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: options.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
-    ...options
+    method: options && options.method ? options.method : 'GET',
+    headers: options && options.headers ? options.headers : {},
+    body: options && options.body ? options.body : undefined
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  return contentType.includes('application/json') ? response.json() : response.blob();
-}
-
-export function assetUrl(path) {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `${API_BASE}${path}`;
+  const text = await response.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch (_) { data = text; }
+  return { ok: response.ok, status: response.status, data };
 }
