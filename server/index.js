@@ -91,6 +91,23 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/api/system/env-check', (req, res) => {
+  res.json({
+    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+    FREEPIK_API_KEY: !!process.env.FREEPIK_API_KEY,
+    PEXELS_API_KEY: !!process.env.PEXELS_API_KEY,
+    OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
+    HUGGINGFACE_API_KEY: !!process.env.HUGGINGFACE_API_KEY,
+    IMAGINE_ART_API_KEY: !!process.env.IMAGINE_ART_API_KEY,
+    GOOGLE_AI_STUDIO_KEY_1: !!process.env.GOOGLE_AI_STUDIO_KEY_1,
+    LIVE_IMAGE_GEN: process.env.LIVE_IMAGE_GEN,
+    IMAGE_PROVIDER: process.env.IMAGE_PROVIDER,
+    AI_SPEND_MODE: process.env.AI_SPEND_MODE,
+    cwd: process.cwd(),
+    nodeEnv: process.env.NODE_ENV,
+  });
+});
+
 app.use('/api/projects/:id', (req, res, next) => {
   const projectId = req.params.id;
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId);
