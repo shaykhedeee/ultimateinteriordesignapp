@@ -8,6 +8,7 @@ import {
   Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
+import FurniturePicker from '../components/catalog/FurniturePicker.jsx';
 
 export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [projects, setProjects] = useState([]);
@@ -200,9 +201,15 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
               />
             )}
             {activeWorkflowTab === 'product' && (
-              <DesignProductWorkspace 
+              <FurniturePicker
                 project={activeProject}
                 materialsCatalog={materialsCatalog}
+                onAddToProject={(item) => {
+                  alert(`Added to project: ${item.name}`);
+                }}
+                onConfigure={(item) => {
+                  useAppStore.getState().navigateTab('studio');
+                }}
               />
             )}
             {activeWorkflowTab === 'tools' && (
@@ -1702,14 +1709,14 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
     const ax = -Math.cos(Math.PI / 6);
     const ay = Math.sin(Math.PI / 6);
     const bx = Math.cos(Math.PI / 6);
-    const by = Math.sin(Math.PI / 6);
+    const by_isom = Math.sin(Math.PI / 6);
     const cx_v = 0;
     const cy_v = -1;
 
     // Core vertices mapping
     const getPt = (dx, dy, dz) => ({
       x: cx + dx * ax + dy * bx + dz * cx_v,
-      y: cy + dx * ay + dy * by + dz * cy_v
+      y: cy + dx * ay + dy * by_isom + dz * cy_v
     });
 
     const p0 = getPt(0, 0, 0);       // Back Bottom Left
