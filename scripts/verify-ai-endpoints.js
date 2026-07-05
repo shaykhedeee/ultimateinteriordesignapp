@@ -1,5 +1,6 @@
 import http from 'http';
-const base = 'http://127.0.0.1:5055';
+import { getApiBase } from '../config/runtime.js';
+const base = process.env.ULTIDA_API_BASE || getApiBase();
 
 function call(path, method = 'GET', body = {}) {
   return new Promise((resolve, reject) => {

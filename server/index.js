@@ -108,6 +108,26 @@ app.get('/api/system/env-check', (req, res) => {
   });
 });
 
+app.get('/api/system/demo-project', (req, res) => {
+  const row = db.prepare("SELECT * FROM projects WHERE id = 'demo_proj_1'").get();
+  if (row) return res.json(row);
+  const projectId = 'demo_proj_1';
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO projects (id, name, client_name, email, phone, budget, unit_system, status, current_step, advance_paid_amount, total_cost, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(projectId, 'Demo Project', 'Demo Client', 'demo@example.com', '+91 99999 99999', 1000000, 'metric', 'brief_complete', 'brief', 0, 0, now);
+  const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+  res.json(project);
+});
+
+app.post('/api/system/demo-project/brief', (req, res) => {
+  const projectId = 'demo_proj_1';
+  const brief = req.body && req.body.briefData ? req.body.briefData : { rooms: [{ name: 'Living Room', type: 'living' }], lifestyle: 'standard' };
+  db.prepare("UPDATE projects SET client_brief_json = ?, current_step = 'brief' WHERE id = ?").run(JSON.stringify(brief), projectId);
+  if (req.body?.workspaceMode) {
+    db.prepare("UPDATE projects SET status = 'brief_complete', current_step = 'cad' WHERE id = ?").run(projectId);
+  }
+  res.json({ success: true, projectId, mode: 'demo', brief });
+});
+
 app.use('/api/projects/:id', (req, res, next) => {
   const projectId = req.params.id;
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(projectId);
