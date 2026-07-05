@@ -318,11 +318,6 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
               <span className="text-[10px] font-black uppercase tracking-wider text-center leading-tight">Load Demo Clients</span>
             </button>
           </div>
-          {demoStatus && (
-            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400" aria-live="polite">
-              {demoStatus}
-            </div>
-          )}
         </div>
       </div>
 

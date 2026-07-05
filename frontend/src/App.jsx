@@ -6,29 +6,11 @@ import TutorialOverlay from './components/tutorial/TutorialOverlay';
 import { LayoutDashboard } from 'lucide-react';
 
 export default function App() {
-  const [showTutorial, setShowTutorial] = useState('manual'); // manual only
-  const [loading, setLoading] = useState(true);
-  const [connectivity, setConnectivity] = useState('checking');
-  const [bootError, setBootError] = useState(null);
-  const [renderError, setRenderError] = useState(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   React.useEffect(() => {
-    const onErr = (event) => {
-      const msg = event?.error?.message || event?.message || String(event);
-      setRenderError(msg);
-    };
-    window.addEventListener('error', onErr);
-    window.addEventListener('unhandledrejection', (e) => {
-      const reason = e?.reason?.message || String(e?.reason);
-      setRenderError(reason);
-    });
-    return () => {
-      window.removeEventListener('error', onErr);
-    };
-  }, []);
-  React.useEffect(() => {
     const seen = localStorage.getItem('tutorialSeen');
-    if (!seen) setShowTutorial(true);
+    if (!seen) localStorage.setItem('tutorialSeen', 'true');
   }, []);
 
   const fetchStatsAndProjects = useAppStore((state) => state.fetchStatsAndProjects);
