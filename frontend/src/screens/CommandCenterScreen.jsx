@@ -113,30 +113,6 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       </div>
       </div>
 
-      {/* ── KPI Metrics Ribbon ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {[
-          { label: 'Leads In Queue', val: totalLeads, sub: 'Intake and brief', border: 'border-slate-800' },
-          { label: 'Active Projects', val: activeProjectsCount, sub: 'In design pipeline', border: 'border-slate-850' },
-          { label: 'Pending Approvals', val: pendingApprovalsCount, sub: 'Awaiting client signoff', border: 'border-slate-850' },
-          { label: 'Production Ready', val: productionCount, sub: 'BOM & drawings frozen', border: 'border-slate-850' },
-          { label: 'Pipeline Valuation', val: `₹${pipelineValue}L`, sub: 'Estimated yield basis', border: 'border-[#D4AF37]/30', glow: true },
-        ].map((kpi, idx) => (
-          <div 
-            key={idx} 
-            className={`glass-card p-4 rounded-2xl relative overflow-hidden flex flex-col justify-between ${kpi.border} ${
-              kpi.glow ? 'gold-border gold-glow-sm' : ''
-            }`}
-          >
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">{kpi.label}</span>
-              <strong className={`text-2xl font-black ${kpi.glow ? 'text-[#D4AF37]' : 'text-slate-100'}`}>{kpi.val}</strong>
-            </div>
-            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mt-2">{kpi.sub}</span>
-          </div>
-        ))}
-      </div>
-
       {/* ── Main Layout: Tabs + Left column & Sidebar right column ── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
