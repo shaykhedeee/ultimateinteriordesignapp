@@ -3,7 +3,7 @@ import {
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
   BarChart3, Users, CheckSquare, LayoutDashboard, Scan,
   FolderOpen, ChevronDown, Activity, TrendingUp, Zap,
-  CheckCircle2, Circle, Clock, AlertCircle, Kanban, Layers, IndianRupee, Monitor, Store, Shield
+  CheckCircle2, Circle, Clock, AlertCircle, Kanban, Layers, IndianRupee, Monitor, Store, Shield, BrainCircuit
 } from 'lucide-react';
 import AuraBrainChat from '../layout/AuraBrainChat';
 import { useAppStore } from '../../stores/appStore';
