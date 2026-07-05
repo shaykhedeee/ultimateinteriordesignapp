@@ -1,7 +1,22 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
 import { create } from 'zustand';
 
-const API_BASE = apiUrl('');
+const API_BASE = apiUrl('').replace(/\/api$/, '');
+
+async function safeJson(response) {
+  const text = await response.text().catch(() => '');
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed.items)) return parsed.items;
+    if (Array.isArray(parsed.projects)) return parsed.projects;
+    if (Array.isArray(parsed.leads)) return parsed.leads;
+    return [];
+  } catch {
+    return [];
+  }
+}
 
 export const useAppStore = create((set, get) => ({
   activeTab: localStorage.getItem('spacetrace_active_tab') || 'dashboard',
@@ -49,8 +64,8 @@ export const useAppStore = create((set, get) => ({
         fetch(`${API_BASE}/api/leads`),
         fetch(`${API_BASE}/api/projects`)
       ]);
-      const leads = leadsRes.ok ? await leadsRes.json() : [];
-      const projects = projectsRes.ok ? await projectsRes.json() : [];
+      const leads = await safeJson(leadsRes);
+      const projects = await safeJson(projectsRes);
       const qualified = leads.filter(l => l.voice_status === 'qualified' || l.voice_status === 'human_closed').length;
       const closed = leads.filter(l => l.voice_status === 'human_closed').length;
       const rate = leads.length > 0 ? ((closed / leads.length) * 100).toFixed(0) : 0;
