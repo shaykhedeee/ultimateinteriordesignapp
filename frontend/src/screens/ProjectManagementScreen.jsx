@@ -93,16 +93,22 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
   };
 
   const applyTemplate = async () => {
-    if (!selectedTemplateId || !selectedProject?.id) return;
+    if (!selectedTemplateId) return;
     setTemplateApplying(true);
     try {
-      await fetch(`${API_BASE}/projects/${selectedProject.id}/status`, {
+      const res = await fetch(`${API_BASE}/firm/templates/${encodeURIComponent(selectedTemplateId)}/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId: selectedTemplateId, applyTemplate: true })
+        body: JSON.stringify({ projectId: selectedProject?.id || '' })
       });
+      const data = await res.json();
+      if (data.success) {
+        alert('Template applied: ' + (data.projectName || data.templateId));
+      } else {
+        alert(data.error || 'Failed to apply template');
+      }
       fetchData();
-      fetchReadiness(selectedProject.id);
+      if (selectedProject?.id) fetchReadiness(selectedProject.id);
     } catch (e) {
       console.warn('Apply template failed', e);
     } finally {
