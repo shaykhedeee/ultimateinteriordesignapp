@@ -48,7 +48,6 @@ export async function apiFetch(path, options = {}) {
   const id = setTimeout(() => controller.abort(), options.timeoutMs || 60000);
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       throw new Error(`API ${response.status}: ${text || response.statusText}`);
@@ -58,6 +57,9 @@ export async function apiFetch(path, options = {}) {
     clearTimeout(id);
     if (err.name === 'AbortError') {
       throw new Error('Request timed out');
+    }
+    if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+      throw new Error('Cannot reach server. Check your connection.');
     }
     throw err;
   }

@@ -228,7 +228,7 @@ function pollinationsImageController(taskType, payload) {
 }
 
 function localComfyController(taskType, payload) {
-  const base = process.env.COMFYUI_BASE || 'http://127.0.0.1:8188';
+  const base = process.env.COMFYUI_BASE || process.env.LOCAL_COMFYUI_BASE || 'http://127.0.0.1:8188';
   const endpoint = `${base}/prompt`;
   const body = { prompt: { ...(payload || {}) } };
   return safeFetchJson(endpoint, { method: 'POST', body: JSON.stringify(body) });

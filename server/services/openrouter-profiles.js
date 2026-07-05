@@ -15,8 +15,8 @@ const PROFILES = {
     temperature: 0.4,
     maxTokens: 1200,
     headers: {
-      'HTTP-Referer': 'http://localhost:3000',
-      'X-Title': 'Ultimate Interior Design App'
+      'HTTP-Referer': String(process.env.PUBLIC_APP_BASE_URL || 'http://localhost:3000'),
+      'X-Title': String(process.env.PUBLIC_APP_TITLE || 'Ultimate Interior Design App')
     }
   },
   aura_primary: {
@@ -26,8 +26,8 @@ const PROFILES = {
     temperature: 0.35,
     maxTokens: 1400,
     headers: {
-      'HTTP-Referer': 'http://localhost:3000',
-      'X-Title': 'Ultimate Interior Design App'
+      'HTTP-Referer': String(process.env.PUBLIC_APP_BASE_URL || 'http://localhost:3000'),
+      'X-Title': String(process.env.PUBLIC_APP_TITLE || 'Ultimate Interior Design App')
     }
   },
   aura_secondary: {
@@ -37,8 +37,8 @@ const PROFILES = {
     temperature: 0.5,
     maxTokens: 1000,
     headers: {
-      'HTTP-Referer': 'http://localhost:3000',
-      'X-Title': 'Ultimate Interior Design App'
+      'HTTP-Referer': String(process.env.PUBLIC_APP_BASE_URL || 'http://localhost:3000'),
+      'X-Title': String(process.env.PUBLIC_APP_TITLE || 'Ultimate Interior Design App')
     }
   }
 };
