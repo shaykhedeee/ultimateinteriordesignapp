@@ -87,7 +87,7 @@ export default function SystemsAdminScreen() {
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
-    useAutoClear(message?.text || null, setMessage, 2500);
+    setTimeout(() => setToast(null), 2500);
   };
 
   return (
