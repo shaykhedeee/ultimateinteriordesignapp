@@ -120,7 +120,7 @@ export default function LeftNavigator() {
                     }`}
                   >
                     <div className="truncate">
-                      <span>🚪 {room.name}</span>
+                      <span>{room.name}</span>
                       <span className="text-[9px] text-slate-500 ml-1.5 block font-medium uppercase tracking-wider">{room.roomType.replace('_', ' ')}</span>
                     </div>
                     {room.constraints?.vastuZone && (

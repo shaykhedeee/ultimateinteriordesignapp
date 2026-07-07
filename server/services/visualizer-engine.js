@@ -2055,3 +2055,42 @@ export async function performLaminateSwap(projectId, renderBase64, laminateBase6
   };
 }
 
+/**
+ * STYLE_PRESETS — the "best-ever" variant grid catalog.
+ * Each preset is a real, named interior style the render engine understands.
+ */
+export const STYLE_PRESETS = [
+  { id: 'indian-contemporary', label: 'Indian Contemporary', accent: '#C9A84C', notes: 'Warm woodgrain + gold accents, Vastu-aware' },
+  { id: 'scandinavian',       label: 'Scandinavian',        accent: '#E8E2D6', notes: 'Light oak, muted pastels, minimal' },
+  { id: 'japandi',            label: 'Japandi',             accent: '#9CA98B', notes: 'Wabi-sabi meets Nordic calm' },
+  { id: 'industrial-loft',    label: 'Industrial Loft',     accent: '#8A8F98', notes: 'Black steel, exposed concrete' },
+  { id: 'modern-luxe',        label: 'Modern Luxe',         accent: '#D4AF37', notes: 'Marble, brass, deep velvet' },
+  { id: 'minimal-white',      label: 'Minimal White',       accent: '#F2F2F2', notes: 'Gallery-clean, hidden storage' },
+  { id: 'earthy-boho',        label: 'Earthy Boho',         accent: '#B07D56', notes: 'Rattan, terracotta, layered texture' },
+  { id: 'coastal',            label: 'Coastal',             accent: '#7FB5C4', notes: 'Breezy blues, bleached wood' }
+];
+
+/**
+ * compileVariantGrid — REAL offline grid.
+ * Compiles one render plan per style preset (using the same real prompt
+ * compiler as the live renderer) so the UI can present a style × room grid
+ * without burning a paid generation call. Triggers a paid render only on pick.
+ */
+export function compileVariantGrid(projectId, params = {}) {
+  const project = getProject(projectId);
+  if (!project) throw new Error('Project not found');
+  const corrections = getVisualizerCorrections(projectId, params.room);
+  return STYLE_PRESETS.map((preset) => {
+    const plan = compileFastRenderPlan(project, { ...params, style: preset.id }, corrections);
+    return {
+      styleId: preset.id,
+      label: preset.label,
+      accent: preset.accent,
+      notes: preset.notes,
+      room: plan.room,
+      budgetTier: plan.budgetTier,
+      promptPreview: plan.prompt.slice(0, 280)
+    };
+  });
+}
+

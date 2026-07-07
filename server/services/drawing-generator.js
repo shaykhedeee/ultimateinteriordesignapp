@@ -1,184 +1,120 @@
-class DrawingGenerator {
-  /**
-   * Generates full automated 2D drawings from a scene document
-   * @param {object} sceneDoc 
-   */
-  generateDrawings(sceneDoc) {
-    const level = sceneDoc.levels?.[0] || {};
-    const rooms = level.rooms || [];
-    const walls = level.walls || [];
-    const openings = level.openings || [];
-    const furniture = level.furniture || [];
-    const lights = level.lights || [];
+/**
+ * drawing-generator.js  (rewrite — projection v2)
+ * --------------------------------------------------------------------------
+ * Consumes the AUTHORITATIVE scene graph (cad drawing: walls in plan px,
+ * openings with openingType/offsetFromStartMm/widthMm/sillHeightMm/
+ * headHeightMm, furniture with type/width/height/depth/xOffsetWall/zOffset/
+ * libraryId) and emits:
+ *   - per-wall elevations (via elevation-analyzer, single source of truth)
+ *   - a Reflected Ceiling Plan (RCP) derived from ceiling-mounted fixtures
+ *   - a cabinet schedule (BOM)
+ *
+ * No invented geometry. Pure + deterministic => unit-testable.
+ */
+import { analyzeWallElevation, analyzeProjectElevations } from './elevation-analyzer.js';
 
-    const scale = 40.0; // 40px = 1000mm
+const DEFAULT_PPM = 40.0;
+const DEFAULT_CEILING = 2700;
 
-    // --- 1. ANNOTATED FLOOR PLAN ---
-    const floorPlan = {
-      title: "Annotated 2D Layout Plan",
-      scaleText: "1:50",
-      rooms: rooms.map(r => {
-        // Calculate center and area
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        r.points.forEach(p => {
-          if (p.x < minX) minX = p.x;
-          if (p.x > maxX) maxX = p.x;
-          if (p.y < minY) minY = p.y;
-          if (p.y > maxY) maxY = p.y;
-        });
+function num(v, fb = 0) { const n = typeof v === 'string' ? parseFloat(v) : v; return Number.isFinite(n) ? n : fb; }
 
-        const widthM = (maxX - minX) / scale;
-        const heightM = (maxY - minY) / scale;
-        const areaSqM = widthM * heightM;
-        const areaSqFt = areaSqM * 10.7639;
+/**
+ * @param {object} cad  { walls_json, openings_json, furniture_json, pixels_per_meter, lights_json? }
+ * @param {object} opts  { projectId, wallHeightMm }
+ */
+export function generateDrawings(cad, opts = {}) {
+  const walls = JSON.parse(cad.walls_json || '[]');
+  const openings = JSON.parse(cad.openings_json || '[]');
+  const furniture = JSON.parse(cad.furniture_json || '[]');
+  const lights = JSON.parse(cad.lights_json || '[]');
+  const ppm = num(cad.pixels_per_meter, DEFAULT_PPM);
+  const wallHeight = opts.wallHeightMm || DEFAULT_CEILING;
+  const projectId = opts.projectId || '';
 
-        return {
-          id: r.id,
-          name: r.name,
-          type: r.type,
-          centroid: { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
-          areaSqM: parseFloat(areaSqM.toFixed(2)),
-          areaSqFt: parseFloat(areaSqFt.toFixed(1)),
-          dimensionsText: `${(widthM).toFixed(2)}m x ${(heightM).toFixed(2)}m`
-        };
-      }),
-      walls: walls.map(w => {
-        const dx = w.x2 - w.x1;
-        const dy = w.y2 - w.y1;
-        const lenM = Math.sqrt(dx * dx + dy * dy) / scale;
-        return {
-          ...w,
-          lengthMm: Math.round(lenM * 1000),
-          lengthText: `${(lenM).toFixed(2)}m`
-        };
-      }),
-      openings: openings.map(o => ({
-        ...o,
-        labelText: `${o.type.toUpperCase()} (${o.width}mm)`
+  // --- 1. PER-WALL ELEVATIONS (real analyzer) ---
+  const elevations = walls.map((w, i) =>
+    analyzeWallElevation({
+      wall: w,
+      openings,
+      furniture,
+      pixelsPerMeter: ppm,
+      wallHeightMm: wallHeight,
+      projectId,
+      sheetName: `ELEVATION ${String.fromCharCode(65 + i)}`
+    })
+  );
+
+  // --- 2. REFLECTED CEILING PLAN (RCP) ---
+  // Fixtures = lights + any furniture flagged ceiling-mounted (loft/tall w/ lighting)
+  const fixtures = [
+    ...lights.map(l => ({
+      id: l.id,
+      type: l.type || 'downlight',
+      x: num(l.x), y: num(l.y),
+      room: l.room || null
+    })),
+    ...furniture
+      .filter(f => /loft|tall/i.test(f.type || '') && f.lighting)
+      .map(f => ({
+        id: f.id,
+        type: 'cove-light',
+        x: num(f.xOffsetWall || f.x), y: num(f.zOffset || wallHeight),
+        room: null
       }))
-    };
+  ];
+  const rcp = {
+    title: 'Reflected Ceiling Plan (RCP)',
+    ceilingHeightMm: wallHeight,
+    fixtureCount: fixtures.length,
+    fixtures,
+    // ceiling grid bounds
+    bounds: walls.reduce((b, w) => ({
+      minX: Math.min(b.minX, w.x1, w.x2), minY: Math.min(b.minY, w.y1, w.y2),
+      maxX: Math.max(b.maxX, w.x1, w.x2), maxY: Math.max(b.maxY, w.y1, w.y2)
+    }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity })
+  };
 
-    // --- 2. AUTOMATED WALL ELEVATIONS ---
-    const elevations = [];
-    rooms.forEach(room => {
-      // Find room bounds
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      room.points.forEach(p => {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      });
-
-      const roomWidthMm = ((maxX - minX) / scale) * 1000;
-      const roomHeightMm = ((maxY - minY) / scale) * 1000;
-
-      // Generate 4 standard elevations (A, B, C, D) corresponding to room wall faces
-      const wallFaces = [
-        { face: 'Elevation A (North)', length: roomWidthMm, yMin: minY, isHorizontal: true, isMin: true },
-        { face: 'Elevation B (East)', length: roomHeightMm, xMin: maxX, isHorizontal: false, isMin: false },
-        { face: 'Elevation C (South)', length: roomWidthMm, yMin: maxY, isHorizontal: true, isMin: false },
-        { face: 'Elevation D (West)', length: roomHeightMm, xMin: minX, isHorizontal: false, isMin: true }
-      ];
-
-      wallFaces.forEach((face, index) => {
-        const projectionHeightMm = 2700; // Standard ceiling height: 2.7m
-        const viewBoxes = [];
-        
-        // Find furniture units belonging to this room and close to this wall face
-        const roomFurniture = furniture.filter(f => {
-          // Bounding check if inside room coordinates
-          const isInsideX = f.x >= minX - 10 && f.x <= maxX + 10;
-          const isInsideY = f.y >= minY - 10 && f.y <= maxY + 10;
-          if (!isInsideX || !isInsideY) return false;
-
-          // Proximity to wall face
-          if (face.isHorizontal) {
-            const dist = Math.abs(f.y - face.yMin);
-            return dist < 80; // close to wall
-          } else {
-            const dist = Math.abs(f.x - face.xMin);
-            return dist < 80;
-          }
-        });
-
-        // Project 3D modules onto 2D elevation coordinate space
-        roomFurniture.forEach(item => {
-          let elevationX = 0;
-          
-          if (face.isHorizontal) {
-            elevationX = (item.x - minX) * (1000 / scale);
-          } else {
-            elevationX = (item.y - minY) * (1000 / scale);
-          }
-
-          // Cabinet metrics
-          const width = item.width || 900;
-          const height = item.height || 720;
-          const depth = item.depth || 600;
-
-          // Compute cabinet elevation bounding box (base units on floor, wall units higher)
-          const elevationY = item.libraryId.includes('wall') ? 1400 : 0; // standard kitchen wall height
-
-          viewBoxes.push({
-            id: item.id,
-            name: item.name,
-            x: Math.round(elevationX - width / 2),
-            y: elevationY,
-            width,
-            height,
-            depth,
-            labelText: `${item.name} (${width}x${height})`
-          });
-        });
-
-        elevations.push({
-          id: `elev_${room.id}_${index}`,
-          roomName: room.name,
-          viewName: face.face,
-          wallLengthMm: Math.round(face.length),
-          ceilingHeightMm: projectionHeightMm,
-          projectionElements: viewBoxes,
-          dimensions: [
-            { id: 'dim_h', type: 'horizontal', valueMm: Math.round(face.length) },
-            { id: 'dim_v', type: 'vertical', valueMm: projectionHeightMm }
-          ]
-        });
-      });
-    });
-
-    // --- 3. REFLECTED CEILING PLAN (RCP) ---
-    const rcp = {
-      title: "Reflected Ceiling Plan (RCP)",
-      lightingFixtureCount: lights.length,
-      fixtures: lights.map(light => ({
-        id: light.id,
-        type: light.type,
-        x: light.x,
-        y: light.y,
-        intensityText: `${light.intensity} lumens`
-      }))
-    };
-
-    // --- 4. SCHEDULES & BILL OF MATERIALS (BOM) LIST ---
-    const schedule = furniture.map((item, idx) => ({
-      serialNo: idx + 1,
-      id: item.id,
-      name: item.name,
-      category: item.libraryId.includes('kitchen') ? 'Modular Kitchen' : (item.libraryId.includes('wardrobe') ? 'Bedroom Wardrobe' : 'Living Console'),
-      dimensionsText: `${item.width || 900}w x ${item.height || 720}h x ${item.depth || 600}d`,
-      materialFinish: item.customization?.shutterFinish || 'Suede Laminate'
-    }));
-
+  // --- 3. CABINET SCHEDULE (BOM) ---
+  const schedule = furniture.map((f, idx) => {
+    const width = num(f.widthMm ?? f.width ?? 600);
+    const height = num(f.heightMm ?? f.height ?? 720);
+    const depth = num(f.depthMm ?? f.depth ?? 560);
+    const category = (f.libraryId || f.type || 'CAB').toString().toUpperCase();
     return {
-      success: true,
-      projectId: sceneDoc.projectId,
-      floorPlan,
-      elevations,
-      rcp,
-      schedule
+      serialNo: idx + 1,
+      id: f.id,
+      name: f.name || `${category} unit`,
+      category,
+      widthMm: width,
+      heightMm: height,
+      depthMm: depth,
+      finish: f.customization?.shutterFinish || f.finish || 'Laminate'
     };
-  }
+  });
+
+  // --- 4. FLOOR PLAN (annotated, from real geometry) ---
+  const floorPlan = {
+    title: 'Annotated 2D Layout Plan',
+    scaleText: '1:50',
+    walls: walls.map(w => {
+      const lenMm = Math.round((Math.hypot(w.x2 - w.x1, w.y2 - w.y1) / ppm) * 1000);
+      return { ...w, lengthMm: lenMm, lengthText: `${(lenMm / 1000).toFixed(2)}m`, thicknessMm: num(w.thicknessMm, 75) };
+    }),
+    openings: openings.map(o => ({
+      ...o,
+      labelText: `${(o.openingType || o.type || '').toUpperCase()} (${num(o.widthMm ?? o.width)}mm)`
+    }))
+  };
+
+  return {
+    success: true,
+    projectId,
+    floorPlan,
+    elevations,
+    rcp,
+    schedule,
+    generatedAt: new Date().toISOString()
+  };
 }
 
-export default new DrawingGenerator();
+export default { generateDrawings };
