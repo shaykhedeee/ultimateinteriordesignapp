@@ -6,6 +6,7 @@ import db from '../database/database.js';
 import { findReusableAssets, getProject, matchLaminates } from './design-engine.js';
 import { generateInteriorAsset, isNativeOpenAiKey, recordGenerationCost } from './image-provider.js';
 import { refineRenderPromptWithGemini } from './gemini-service.js';
+import { buildRoomStylePayload, buildVisionPayload } from './prompt-harness.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
