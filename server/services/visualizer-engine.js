@@ -1376,6 +1376,7 @@ export function compileFastRenderPlan(project, params, corrections) {
   const room = params.room || project.selectedSpaces?.[0] || 'living';
   const style = params.style || project.primaryStyle || 'indian-contemporary';
   const budgetTier = params.budgetTier || project.budgetTier || 'premium';
+  const roomStylePayload = buildRoomStylePayload({ roomType: room, style, budgetTier, provider:'pollinations', aspectRatio:'16:9' });
   const roomProfile = roomProfiles[room] || {
     label: roomLabels(room),
     anchor: 'room-specific furniture, storage, circulation and lighting',
@@ -1425,6 +1426,7 @@ export function compileFastRenderPlan(project, params, corrections) {
   ].filter(Boolean);
 
   const prompt = [
+    (roomStylePayload?.payload?.prompt || ''),
     `Create a Lumion-like professional 3D architectural Indian residential interior render for Spacious Venture onboarding.`,
     `Project: ${project.clientName}, ${project.homeType?.toUpperCase() || 'home'} in ${project.city || 'India'}.`,
     `Room: ${roomProfile.label}. Functional anchor: ${roomProfile.anchor}.`,

@@ -288,10 +288,37 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
       {/* Column 1: Wall List & Properties */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh]">
         <div>
-          <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] mb-1 flex items-center gap-2">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] flex items-center gap-2">
+              <Layers className="w-4.5 h-4.5" /> Plan Intelligence Filters
+            </h2>
+            <div className="flex gap-1">
+              {['walls','openings','furniture','rugs'].map(k=>filters[k]?null:null)}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {[ ['walls','Walls'], ['openings','Openings'], ['furniture','Furniture'], ['rugs','Rugs'], ['cabinets','Cabinets'] ].map(([k,label])=>(
+              <button key={k} onClick={()=>setFilters(f=>({...f,[k]:!f[k]}))} className={`px-2 py-1 rounded-md border text-[9px] font-bold uppercase transition ${filters[k]?'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]':'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{label}</button>
+            ))}
+          </div>
+          <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] mb-1 flex items-center gap-2 mt-3">
             <Layers className="w-4.5 h-4.5" /> Wall Layouts
           </h2>
           <p className="text-[10px] text-slate-400">Select a partition wall to view its 2D elevation</p>
+        </div>
+
+        {/* Detection toolbox */}
+        <div className="space-y-2">
+          <div className="text-[10px] font-black text-[#D4AF37] uppercase tracking-widest">Detection</div>
+          <button onClick={async () => {
+            try {
+              const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/plan/detect-furniture`, { method:'POST', headers:{'Content-Type':'application/json'} });
+              const d = await r.json();
+              setFurniture(d?.detected || []);
+              showToast((d?.detected?.length ? `Detected ${d.detected.length} items` : 'No furniture detected'), d?.detected?.length ? 'success' : 'error');
+            } catch (err) { showToast('Detection failed', 'error'); }
+          }} className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-[10px] font-bold uppercase flex items-center justify-center gap-2 transition">Detect Furniture + Rug</button>
+          <div className="text-[9px] text-slate-500 leading-tight">Detects furniture footprints and rugs from the traced plan. Uses heuristics + CV when enabled.</div>
         </div>
 
         {/* Walls Dropdown List */}
