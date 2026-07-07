@@ -173,7 +173,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   const triggerCvDetect = async () => {
     if (!sketchUrl) {
-      alert("Attach a floorplan / sketch image first (Floorplan Underlay), then run wall detection.");
+      window.__toast?.show("Attach a floorplan / sketch image first (Floorplan Underlay), then run wall detection.");
       return;
     }
     setIsDetectingLayout(true);
@@ -206,7 +206,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       const result = CVProcessor.detectWallsAndOpenings(binCanvas, { lineThicknessGap: 15, snapTolerance: 25 });
 
       if (!result.walls || result.walls.length === 0) {
-        alert("No walls detected in the image. Try a higher-contrast sketch, or trace manually.");
+        window.__toast?.show("No walls detected in the image. Try a higher-contrast sketch, or trace manually.");
         return;
       }
 
@@ -235,10 +235,10 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
       // 5. Persist to server so AI layout interpretation can run on traced walls
       await saveCADToServer();
-      alert(`Detected ${newWalls.length} wall segment(s) from the image. Review and refine in the editor, then run AI Auto-Detect Layout.`);
+      window.__toast?.show(`Detected ${newWalls.length} wall segment(s) from the image. Review and refine in the editor, then run AI Auto-Detect Layout.`);
     } catch (err) {
       console.error(err);
-      alert("Wall detection failed: " + err.message);
+      window.__toast?.show("Wall detection failed: " + err.message);
     } finally {
       setIsDetectingLayout(false);
     }
@@ -253,16 +253,16 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("Floorplan interpreted from your traced walls: rooms detected and cabinet modules placed. Review the result in the CAD editor.");
+        window.__toast?.show("Floorplan interpreted from your traced walls: rooms detected and cabinet modules placed. Review the result in the CAD editor.");
         loadCADData();
       } else if (res.status === 422) {
-        alert(data.message || "Trace the walls and openings in the CAD editor first, then run interpretation.");
+        window.__toast?.show(data.message || "Trace the walls and openings in the CAD editor first, then run interpretation.");
       } else {
-        alert(data.error || "Floorplan interpretation failed.");
+        window.__toast?.show(data.error || "Floorplan interpretation failed.");
       }
     } catch (err) {
       console.error(err);
-      alert("Error contacting AI layout engine.");
+      window.__toast?.show("Error contacting AI layout engine.");
     } finally {
       setIsDetectingLayout(false);
     }
@@ -329,7 +329,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("Floorplan drawing saved successfully!");
+        window.__toast?.show("Floorplan drawing saved successfully!");
         if (onComplete) onComplete();
       }
     } catch (err) {
@@ -375,7 +375,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       }
       if (data.calibrationSuggestion) {
         // Automatically place suggested measurements or alert
-        alert(`SLAM analysis detected dimension deviations. Suggested scale recalibration: ${data.calibrationSuggestion.suggestedLengthMeters}m`);
+        window.__toast?.show(`SLAM analysis detected dimension deviations. Suggested scale recalibration: ${data.calibrationSuggestion.suggestedLengthMeters}m`);
       }
       
       setTimeout(() => {
@@ -1294,11 +1294,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   const data = await res.json();
                   if (data.success) {
                     setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
-                    window.__toast?.success("Floorplan underlay attached.");
+                    __toast?.success("Floorplan underlay attached.");
                   }
                 } catch (err) {
                   console.error("Error uploading floorplan from CAD screen:", err);
-                  window.__toast?.error("Failed to save floorplan to server.");
+                  __toast?.error("Failed to save floorplan to server.");
                 }
               }
             }}
@@ -1495,11 +1495,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               const file = document.getElementById('rtp-image-input')?.files?.[0];
               const w = Number(document.getElementById('rtp-width')?.value);
               const h = Number(document.getElementById('rtp-height')?.value);
-              if (!file || !w || !h) { window.__toast?.warn('Upload photo + enter width/height'); return; }
+              if (!file || !w || !h) { __toast?.warn('Upload photo + enter width/height'); return; }
               const fd = new FormData(); fd.append('image', file); fd.append('widthMm', String(w)); fd.append('heightMm', String(h)); fd.append('projectId', String(projectId));
               const r = await fetch(`http://127.0.0.1:5055/api/elevation/from-photo/dxf`, { method:'POST', body: fd });
               const d = await r.json();
-              if (d?.success) { window.__toast?.success('Elevation DXF generated'); } else { window.__toast?.error(d?.error || 'failed'); }
+              if (d?.success) { __toast?.success('Elevation DXF generated'); } else { __toast?.error(d?.error || 'failed'); }
             }} className="w-full py-2 bg-[#C9A84C] text-slate-950 font-black uppercase text-[10px] rounded-lg">Generate Elevation</button>
           </div>
           <button

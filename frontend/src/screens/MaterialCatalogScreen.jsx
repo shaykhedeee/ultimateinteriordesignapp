@@ -138,7 +138,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
         })
       });
 
-      alert("BOQ estimate and quotation saved successfully!");
+      window.__toast?.show("BOQ estimate and quotation saved successfully!");
     } catch (err) {
       console.error("Error saving quotation:", err);
     }
@@ -338,7 +338,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
         body: JSON.stringify({ jobType: 'pricing_generation' })
       });
       setStalePricing(false);
-      alert("Pricing regeneration job spawned successfully! Check Background Jobs tab.");
+      window.__toast?.show("Pricing regeneration job spawned successfully! Check Background Jobs tab.");
     } catch (err) {
       console.error(err);
     }
