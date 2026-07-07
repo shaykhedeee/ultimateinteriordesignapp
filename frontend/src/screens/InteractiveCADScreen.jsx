@@ -1487,6 +1487,19 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
           </div>
 
           <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl space-y-2">
+            <div className="text-[9px] font-black text-[#C9A84C] uppercase tracking-widest">Render + Dims → DXF</div>
+            <textarea id="render-dims-text" placeholder="Paste dimensions from render..." className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-[10px] text-slate-200 h-16"></textarea>
+            <button onClick={async ()=> {
+              const txt = document.getElementById('render-dims-text')?.value || '';
+              const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/render-to-dxf`, {
+                method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dimsText: txt })
+              });
+              const d = await r.json();
+              if (d?.success) { window.__toast?.success('Render DXF generated'); } else { window.__toast?.error(d?.error || 'failed'); }
+            }} className="w-full py-2 bg-[#C9A84C] text-slate-950 font-black uppercase text-[10px] rounded-lg">Generate from Render Dims</button>
+          </div>
+
+          <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl space-y-2">
             <div className="text-[9px] font-black text-[#C9A84C] uppercase tracking-widest">Photo → Elevation → DXF</div>
             <input id="rtp-image-input" type="file" accept="image/*" className="block w-full text-[9px] text-slate-400" />
             <input id="rtp-width" placeholder="real width (mm)" inputMode="numeric" className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-[10px] text-slate-200" />
