@@ -113,11 +113,11 @@ export default function PresentationStudio({ projectId }) {
           fileName: data.fileName
         });
       } else {
-        alert('Could not generate share link: ' + (data.error || 'unknown error'));
+        window.__toast?.show('Could not generate share link: ' + (data.error || 'unknown error'));
       }
     } catch (err) {
       console.error(err);
-      alert('Share generation failed: ' + err.message);
+      window.__toast?.show('Share generation failed: ' + err.message);
     } finally {
       setShareBusy(false);
     }
@@ -230,9 +230,9 @@ export default function PresentationStudio({ projectId }) {
                 await fetch(`${API}/projects/${projectId}/client-share/${share.token}/revoke`, { method: 'DELETE' });
                 setShare(null);
                 setSharePack('signoff');
-                alert('Share link revoked and file removed.');
+                window.__toast?.show('Share link revoked and file removed.');
               } catch (err) {
-                alert('Revoke failed: ' + err.message);
+                window.__toast?.show('Revoke failed: ' + err.message);
               }
             }}
             style={{ padding:'7px 14px', borderRadius:8, background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.35)', color:'#EF4444', fontWeight:700, fontSize:11, cursor:'pointer' }}

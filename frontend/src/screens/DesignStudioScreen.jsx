@@ -376,7 +376,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                           <button
                             onClick={async () => {
                               if (window.confirm(`Are you sure you want to align and merge variant "${b}" into main?`)) {
-                                alert("Variant branch merged and aligned successfully! Main branch updated to variant carcass parameters.");
+                                window.__toast?.show("Variant branch merged and aligned successfully! Main branch updated to variant carcass parameters.");
                                 loadScene(projectId, 'main');
                                 setShowBranchModal(false);
                               }

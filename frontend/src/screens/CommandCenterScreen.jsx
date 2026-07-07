@@ -363,22 +363,22 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     setTimeout(() => {
       setActionProgress(false);
       if (actionKey === 'RCP') {
-        window.__toast?.success("RCP Planner activated.");
+        __toast?.success("RCP Planner activated.");
         onNavigateToTab('drawings');
       } else if (actionKey === 'Elevation') {
-        window.__toast?.success("2D Elevation Drafter initialized.");
+        __toast?.success("2D Elevation Drafter initialized.");
         onNavigateToTab('drawings');
       } else if (actionKey === 'BOM') {
-        window.__toast?.success("BOM takeoff compiled.");
+        __toast?.success("BOM takeoff compiled.");
         onNavigateToTab('finance');
       } else if (actionKey === 'Layout Plan') {
 
         onNavigateToTab('cad');
       } else if (actionKey === 'Video') {
-        window.__toast?.success("Walkthrough path serialized.");
+        __toast?.success("Walkthrough path serialized.");
         onNavigateToTab('renders');
       } else {
-        window.__toast?.success(`Executed ${actionKey}`);
+        __toast?.success(`Executed ${actionKey}`);
       }
     }, 1200);
   };
@@ -816,7 +816,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     key={mode.id}
                     onClick={() => {
                       setAssignMode(mode.id);
-                      window.__toast?.success(`Product assignments: ${mode.label}`);
+                      __toast?.success(`Product assignments: ${mode.label}`);
                     }}
                     className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
                       assignMode === mode.id 
@@ -1275,7 +1275,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
   };
 
   const handleLockAndPromote = () => {
-    window.__toast?.success("Quick Layout promoted.");
+    __toast?.success("Quick Layout promoted.");
     onNavigateToTab('cad');
   };
 

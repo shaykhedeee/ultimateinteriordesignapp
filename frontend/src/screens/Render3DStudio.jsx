@@ -505,7 +505,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert(`Instant Recolor: ${componentType} changed to ${colorName}. SAM component mask recolored in 3.5 seconds!`);
+        window.__toast?.show(`Instant Recolor: ${componentType} changed to ${colorName}. SAM component mask recolored in 3.5 seconds!`);
         if (data.suggestions) {
           setColorSuggestions(data.suggestions);
         }
@@ -636,7 +636,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         })
       });
       setProject(prev => prev ? { ...prev, stale_renders: 0 } : null);
-      alert("Render regeneration job spawned successfully! Check Background Jobs tab.");
+      window.__toast?.show("Render regeneration job spawned successfully! Check Background Jobs tab.");
     } catch (err) {
       console.error(err);
     }
@@ -776,7 +776,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       if (data.success) {
         setReviewNote('');
         await fetchRenders();
-        alert(`Render marked as ${status}!`);
+        window.__toast?.show(`Render marked as ${status}!`);
       }
     } catch (err) {
       console.error("Error submitting review:", err);
@@ -801,7 +801,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         setMistakeCorrection('');
         setIsMistakeModalOpen(false);
         await loadCorrections();
-        alert("Layout correction logged. SpaceTrace visualizer adjusted for future generations.");
+        window.__toast?.show("Layout correction logged. SpaceTrace visualizer adjusted for future generations.");
       }
     } catch (err) {
       console.error("Error saving correction:", err);
@@ -894,7 +894,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         formData.append('newMaterial', 'Uploaded custom swatch');
         formData.append('laminateImage', customLaminateFile);
       } else {
-        alert('Please select a material from catalog or upload a custom swatch image.');
+        window.__toast?.show('Please select a material from catalog or upload a custom swatch image.');
         setIsSwappingLaminate(false);
         return;
       }
@@ -927,11 +927,11 @@ export default function Render3DStudio({ projectId, onComplete }) {
         setCustomLaminatePreview(null);
         setSelectedCatalogMaterial(null);
       } else {
-        alert(`Error: ${data.error || 'Failed to complete material swap'}`);
+        window.__toast?.show(`Error: ${data.error || 'Failed to complete material swap'}`);
       }
     } catch (err) {
       console.error("Laminate swap failed:", err);
-      alert(`Error during material swap: ${err.message}`);
+      window.__toast?.show(`Error during material swap: ${err.message}`);
     } finally {
       setIsSwappingLaminate(false);
       setSwapperStepMessage('');
@@ -1021,7 +1021,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("3D Renders and SketchUp layout approved!");
+        window.__toast?.show("3D Renders and SketchUp layout approved!");
         if (onComplete) onComplete();
       }
     } catch (err) {
