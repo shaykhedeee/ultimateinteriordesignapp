@@ -1,544 +1,531 @@
-import React, { useState, useEffect } from 'react';
-import { 
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import {
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
-  BarChart3, Users, CheckSquare, LayoutDashboard,
-  FolderOpen, ChevronDown, Activity, TrendingUp, Zap,
-  CheckCircle2, Circle, Clock, Kanban, Layers, IndianRupee
+  BarChart3, CheckSquare, LayoutDashboard,
+  FolderOpen, ChevronDown, Activity, Zap,
+  CheckCircle2, Clock, Layers, IndianRupee,
+  TrendingUp, ArrowRight, Bell, Award
 } from 'lucide-react';
 
 // Import Screens
-import CRMLeadDashboard from './screens/CRMLeadDashboard.jsx';
-import ClientBriefStudio from './screens/ClientBriefStudio.jsx';
-import InteractiveCADScreen from './screens/InteractiveCADScreen.jsx';
-import DrawingsElevationsStudio from './screens/DrawingsElevationsStudio.jsx';
-import MaterialCatalogScreen from './screens/MaterialCatalogScreen.jsx';
-import Render3DStudio from './screens/Render3DStudio.jsx';
-import CutlistNestingScreen from './screens/CutlistNestingScreen.jsx';
+import CRMLeadDashboard       from './screens/CRMLeadDashboard.jsx';
+import ClientBriefStudio      from './screens/ClientBriefStudio.jsx';
+import InteractiveCADScreen   from './screens/InteractiveCADScreen.jsx';
 import ProjectManagementScreen from './screens/ProjectManagementScreen.jsx';
-import DesignStudioScreen from './screens/DesignStudioScreen.jsx';
-import FinanceScreen from './screens/FinanceScreen.jsx';
-import TimelineScreen from './screens/TimelineScreen.jsx';
-import JobsScreen from './screens/JobsScreen.jsx';
-import CommandCenterScreen from './screens/CommandCenterScreen.jsx';
-import AuraBrainChat from './components/layout/AuraBrainChat.jsx';
+import FinanceScreen          from './screens/FinanceScreen.jsx';
+import TimelineScreen         from './screens/TimelineScreen.jsx';
+import JobsScreen             from './screens/JobsScreen.jsx';
+import CommandCenterScreen    from './screens/CommandCenterScreen.jsx';
+import AuraBrainChat          from './components/layout/AuraBrainChat.jsx';
 
-const WORKFLOW_STEPS = [
-  { id: 'crm', label: 'Lead CRM', icon: <Inbox className="w-3.5 h-3.5" />, statusField: null },
-  { id: 'brief', label: 'Client Brief', icon: <FileText className="w-3.5 h-3.5" />, statusField: 'brief' },
-  { id: 'cad', label: '2D CAD', icon: <Compass className="w-3.5 h-3.5" />, statusField: 'cad_approved' },
-  { id: 'studio', label: '3D Studio', icon: <Layers className="w-3.5 h-3.5" />, statusField: 'cad_approved' },
-  { id: 'materials', label: 'Materials', icon: <Palette className="w-3.5 h-3.5" />, statusField: 'materials_selected' },
-  { id: 'renders', label: '3D Renders', icon: <Sparkles className="w-3.5 h-3.5" />, statusField: 'renders_approved' },
-  { id: 'cutlist', label: 'Cutlist', icon: <Scissors className="w-3.5 h-3.5" />, statusField: 'production' },
+// Heavy screens are code-split (lazy) so the initial bundle stays small and fast.
+const DrawingsElevationsStudio = lazy(() => import('./screens/DrawingsElevationsStudio.jsx'));
+const MaterialCatalogScreen    = lazy(() => import('./screens/MaterialCatalogScreen.jsx'));
+const Render3DStudio           = lazy(() => import('./screens/Render3DStudio.jsx'));
+const CutlistNestingScreen     = lazy(() => import('./screens/CutlistNestingScreen.jsx'));
+const DesignStudioScreen       = lazy(() => import('./screens/DesignStudioScreen.jsx'));
+const PresentationStudio       = lazy(() => import('./screens/PresentationStudio.jsx'));
+
+const STATUS_ORDER = ['brief','cad_approved','scene_ready','materials_selected','renders_approved','production','billing'];
+
+const NAV_CONFIG = [
+  {
+    title: 'Studio Control',
+    items: [
+      { id: 'dashboard', label: 'Command Center', icon: LayoutDashboard, shortcut: '⌘1', alwaysOn: true }
+    ]
+  },
+  {
+    title: 'Client Acquisition',
+    items: [
+      { id: 'crm',      label: 'CRM & Call Board',    icon: Inbox,     shortcut: '⌘2', alwaysOn: true },
+      { id: 'projects', label: 'Project Pipeline',     icon: BarChart3, shortcut: '⌘3', alwaysOn: true }
+    ]
+  },
+  {
+    title: 'Spatial Design',
+    items: [
+      { id: 'brief',    label: 'Client Intake',        icon: FileText,    shortcut: null },
+      { id: 'cad',      label: 'Plan Intelligence',    icon: Compass,     shortcut: null },
+      { id: 'studio',   label: 'Editable 3D Scene',    icon: Layers,      shortcut: null },
+      { id: 'drawings', label: 'Drawings & Elevations', icon: CheckSquare, shortcut: null, staleFlag: 'stale_drawings' }
+    ]
+  },
+  {
+    title: 'Visualization',
+    items: [
+      { id: 'renders',  label: 'Render Studio',        icon: Sparkles,    shortcut: null, staleFlag: 'stale_renders' },
+      { id: 'jobs',     label: 'Background Jobs',      icon: Clock,       shortcut: null }
+    ]
+  },
+  {
+    title: 'Production & Commerce',
+    items: [
+      { id: 'materials',     label: 'Materials Catalog',   icon: Palette,      shortcut: null, staleFlag: 'stale_pricing' },
+      { id: 'cutlist',       label: 'Cutlist & Nesting',   icon: Scissors,     shortcut: null },
+      { id: 'finance',       label: 'Commerce & Quotes',   icon: IndianRupee,  shortcut: null },
+      { id: 'timeline',      label: 'Project Timeline',    icon: Activity,     shortcut: null }
+    ]
+  },
+  {
+    title: 'Client Delivery',
+    items: [
+      { id: 'presentation',  label: 'Presentation Pack',   icon: Award,        shortcut: null }
+    ]
+  }
 ];
 
-const STATUS_ORDER = ['brief', 'cad_approved', 'materials_selected', 'renders_approved', 'production', 'billing'];
+const ALL_NAV_ITEMS = NAV_CONFIG.flatMap(s => s.items);
+
+const WORKFLOW_SPINE = [
+  { id: 'brief', label: 'Intake', detail: 'Client questions' },
+  { id: 'cad', label: 'Plan', detail: 'Floor plan model' },
+  { id: 'studio', label: 'Scene', detail: 'Editable 3D truth' },
+  { id: 'drawings', label: 'Docs', detail: 'Elevations' },
+  { id: 'renders', label: 'Renders', detail: 'Client visuals' },
+  { id: 'materials', label: 'Budget', detail: 'Materials + quote' },
+  { id: 'cutlist', label: 'Production', detail: 'Cutlist + nesting' }
+];
+
+const TAB_META = {
+  dashboard: { title: 'Command Center',    sub: 'Workspace overview & AI orchestration hub' },
+  crm:       { title: 'CRM & Call Board',  sub: 'Manage leads, qualify via AI calling, close deals' },
+  projects:  { title: 'Project Pipeline',  sub: 'Active projects, kanban workflow & status tracking' },
+  brief:     { title: 'Client Intake',      sub: 'Capture lifestyle, budget, rooms, references and floor plan uploads' },
+  cad:       { title: 'Plan Intelligence', sub: 'Review rooms, walls, openings, scale, services and confidence' },
+  studio:    { title: 'Editable 3D Scene',  sub: 'Place parametric modules from one spatial source of truth' },
+  drawings:  { title: 'Drawings & Elevations', sub: 'Annotated wall drawings, cabinet elevations and DXF exports' },
+  materials: { title: 'Materials Catalog', sub: 'Select laminates, hardware fittings & estimate costs' },
+  renders:   { title: '3D AI Render Studio', sub: 'Generate photorealistic renders with Vastu insights' },
+  cutlist:   { title: 'Cutlist & Nesting', sub: 'Calculate precise panel cuts & optimise sheet nesting' },
+  finance:   { title: 'Commerce & Quotes', sub: 'Proposals, GST invoices, payment tracking' },
+  timeline:  { title: 'Project Timeline',  sub: 'Activity log, milestone events & audit trail' },
+  jobs:      { title: 'Background Jobs',   sub: 'Rendering pipeline monitor & async job queue' }
+};
+
+// ── Status color map ──
+const STATUS_COLOR = {
+  brief:             '#60A5FA',
+  cad_approved:      '#34D399',
+  materials_selected:'#A78BFA',
+  renders_approved:  '#F59E0B',
+  production:        '#F97316',
+  billing:           '#C9A84C'
+};
 
 export function App() {
-  const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem('spacetrace_active_tab') || 'dashboard';
-  });
-  const [selectedProjectId, setSelectedProjectId] = useState(() => {
-    return localStorage.getItem('spacetrace_project_id') || null;
-  });
-  const [projectsList, setProjectsList] = useState([]);
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('ultida_tab') || 'dashboard');
+  const [selectedProjectId, setSelectedProjectId] = useState(() => localStorage.getItem('ultida_project') || null);
+  const [projectsList, setProjectsList]   = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [isAuraOpen, setIsAuraOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { id: '1', sender: 'aura', text: "Hello! I am AURA. I have loaded your workspace and stand ready to assist. You can ask me to Restyle rooms, suggest lighting configurations, or optimize your modular cabinet budget.", timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-  ]);
-  const [stats, setStats] = useState({
-    totalLeads: 0,
-    qualifiedLeads: 0,
-    activeProjects: 0,
-    conversionPct: 0
-  });
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [activeJobs, setActiveJobs] = useState([]);
-  const [prevActiveJobsCount, setPrevActiveJobsCount] = useState(0);
+  const [isAuraOpen, setIsAuraOpen]       = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [currentTime, setCurrentTime]     = useState(new Date());
+  const [activeJobs, setActiveJobs]       = useState([]);
+  const [prevJobCount, setPrevJobCount]   = useState(0);
+  const [apiOnline, setApiOnline]         = useState(true);
+  const [stats, setStats] = useState({ totalLeads:0, qualifiedLeads:0, activeProjects:0, conversionPct:0 });
+  const [chatMessages, setChatMessages] = useState([{
+    id:'1', sender:'aura',
+    text:"Hello! I am AURA — your AI design co-pilot. Ask me to restyle rooms, suggest lighting configurations, or optimise your modular cabinet budget.",
+    timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
+  }]);
+  const [toasts, setToasts] = useState([]);
 
+  // ── Lightweight toast (replaces 100+ native alert/confirm calls) ─────────
+  const toast = useRef(null);
+  const showToast = (text, kind = 'info') => {
+    if (!toast.current) {
+      toast.current = document.createElement('div');
+      toast.current.style.cssText = 'position:fixed;bottom:18px;right:18px;z-index:99999;min-width:240px;max-width:420px;';
+      const inner = document.createElement('div');
+      inner.style.cssText = `margin-top:8px;padding:10px 14px;border-radius:12px;font:12px/1.45 system-ui,-apple-system,sans-serif;color:#fff;background:rgba(17,24,39,0.95);border:1px solid rgba(255,255,255,0.12);backdrop-filter:blur(8px);box-shadow:0 12px 30px rgba(0,0,0,0.35);display:flex;align-items:center;gap:10px;`;
+      toast.current.appendChild(inner);
+      document.body.appendChild(toast.current);
+      toast.current._inner = inner;
+    }
+    const colors = {error:'#EF4444', warn:'#F59E0B', info:'#6366f1', success:'#10B981'};
+    const dot = document.createElement('span'); dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:'+(colors[kind]||colors.info)+';flex-shrink:0;';
+    const msg = document.createElement('span'); msg.style.cssText = 'flex:1;';
+    const btn = document.createElement('button'); btn.textContent='✕'; btn.style.cssText='opacity:.7;background:none;border:none;color:#fff;cursor:pointer;font-size:12px;padding:0 2px;';
+    btn.onclick = () => {(toast.current._inner.innerHTML=''); toast.current._inner.style.opacity='0'; setTimeout(()=>toast.current?.remove(),240);};
+    const w = toast.current._inner; w.innerHTML=''; w.appendChild(dot); w.appendChild(msg); w.appendChild(btn);
+    msg.textContent = text;
+    toast.current._inner.style.opacity='1';
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => {(toast.current._inner.innerHTML=''); toast.current._inner.style.opacity='0'; setTimeout(()=>toast.current?.remove(),240);}, 3800);
+  };
+
+  // Tear down helper
+  const mixer = { info: showToast, error: (m)=>showToast(m,'error'), warn: (m)=>showToast(m,'warn'), success: (m)=>showToast(m,'success') };
+
+  // Inject global listeners so legacy code can still call native helpers but get non-blocking UI
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(timer);
+    const originalAlert = window.alert;
+    window.alert = (msg) => { mixer.error(typeof msg === 'string' ? msg : String(msg)); };
+    // Never override confirm: security prompts need real user choice
+    window.__toast = mixer;
+    return () => { window.alert = originalAlert; delete window.__toast; };
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('spacetrace_active_tab', activeTab);
-  }, [activeTab]);
+  const pickerRef = useRef(null);
 
+  // ── Clock ──
   useEffect(() => {
-    if (selectedProjectId) {
-      localStorage.setItem('spacetrace_project_id', selectedProjectId);
-    } else {
-      localStorage.removeItem('spacetrace_project_id');
-    }
+    const t = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  // ── Persist tab / project ──
+  useEffect(() => { localStorage.setItem('ultida_tab', activeTab); }, [activeTab]);
+  useEffect(() => {
+    if (selectedProjectId) localStorage.setItem('ultida_project', selectedProjectId);
+    else localStorage.removeItem('ultida_project');
   }, [selectedProjectId]);
 
+  // ── Global nav event ──
   useEffect(() => {
-    fetchStatsAndProjects();
-  }, [activeTab, selectedProjectId]);
-
-  useEffect(() => {
-    const handleNav = (e) => {
-      if (e.detail) {
-        setActiveTab(e.detail);
-      }
-    };
-    window.addEventListener('navigate-to-tab', handleNav);
-    return () => window.removeEventListener('navigate-to-tab', handleNav);
+    const fn = e => e.detail && setActiveTab(e.detail);
+    window.addEventListener('navigate-to-tab', fn);
+    return () => window.removeEventListener('navigate-to-tab', fn);
   }, []);
 
+  // ── Close picker on outside click ──
+  useEffect(() => {
+    const fn = e => { if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowProjectPicker(false); };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  // ── Resolve selectedProject from list ──
   useEffect(() => {
     if (selectedProjectId && projectsList.length > 0) {
-      const proj = projectsList.find(p => p.id === selectedProjectId);
-      setSelectedProject(proj || null);
+      setSelectedProject(projectsList.find(p => p.id === selectedProjectId) || null);
     } else {
       setSelectedProject(null);
     }
   }, [selectedProjectId, projectsList]);
 
+  // ── Data fetch ──
+  useEffect(() => { fetchData(); }, [activeTab, selectedProjectId]);
+
+  // ── Background jobs poll ──
   useEffect(() => {
-    let interval;
-    if (selectedProjectId) {
-      const fetchActiveJobs = async () => {
-        try {
-          const res = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/jobs`);
-          if (res.ok) {
-            const data = await res.json();
-            const running = data.filter(j => j.status === 'running');
-            setActiveJobs(running);
-          }
-        } catch (e) {
-          console.error("Failed to fetch running jobs:", e);
-        }
-      };
-      fetchActiveJobs();
-      interval = setInterval(fetchActiveJobs, 3000);
-    } else {
-      setActiveJobs([]);
-    }
-    return () => clearInterval(interval);
+    if (!selectedProjectId) { setActiveJobs([]); return; }
+    const fetchJobs = async () => {
+      try {
+        const res = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/jobs`);
+        if (res.ok) { const d = await res.json(); setActiveJobs(d.filter(j => j.status === 'running')); }
+      } catch {}
+    };
+    fetchJobs();
+    const id = setInterval(fetchJobs, 3500);
+    return () => clearInterval(id);
   }, [selectedProjectId]);
 
   useEffect(() => {
-    if (activeJobs.length === 0 && prevActiveJobsCount > 0) {
-      fetchStatsAndProjects();
-    }
-    setPrevActiveJobsCount(activeJobs.length);
+    if (activeJobs.length === 0 && prevJobCount > 0) fetchData();
+    setPrevJobCount(activeJobs.length);
   }, [activeJobs]);
 
-  const fetchStatsAndProjects = async () => {
+  const fetchData = async () => {
     try {
-      const resLeads = await fetch('http://127.0.0.1:5055/api/leads');
-      const leads = await resLeads.json();
-      
-      const resProj = await fetch('http://127.0.0.1:5055/api/projects');
-      const projects = await resProj.json();
+      const [leadsRes, projRes] = await Promise.all([
+        fetch('http://127.0.0.1:5055/api/leads'),
+        fetch('http://127.0.0.1:5055/api/projects')
+      ]);
+      setApiOnline(leadsRes.ok);
+      const leads    = leadsRes.ok ? await leadsRes.json() : [];
+      const projects = projRes.ok  ? await projRes.json()  : [];
       setProjectsList(projects);
-
-      if (projects.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projects[0].id);
-      }
-
-      const qualified = leads.filter(l => l.voice_status === 'qualified' || l.voice_status === 'human_closed').length;
+      if (projects.length > 0 && !selectedProjectId) setSelectedProjectId(projects[0].id);
       const closed = leads.filter(l => l.voice_status === 'human_closed').length;
-      const rate = leads.length > 0 ? ((closed / leads.length) * 100).toFixed(0) : 0;
-
       setStats({
-        totalLeads: leads.length,
-        qualifiedLeads: qualified,
+        totalLeads:     leads.length,
+        qualifiedLeads: leads.filter(l => ['qualified','human_closed'].includes(l.voice_status)).length,
         activeProjects: projects.length,
-        conversionPct: rate
+        conversionPct:  leads.length > 0 ? ((closed / leads.length)*100).toFixed(0) : 0
       });
+    } catch { setApiOnline(false); }
+  };
+
+  // ── Project progress ──
+  const getStepIndex = (proj) => {
+    if (!proj) return 0;
+    const idx = STATUS_ORDER.indexOf(proj.status || '');
+    return idx >= 0 ? idx + 2 : 1;
+  };
+  const stepIndex = getStepIndex(selectedProject);
+  const stepPct   = Math.round(Math.min((stepIndex / 7) * 100, 100));
+
+  // ── AURA chat ──
+  const AURA_API = 'http://127.0.0.1:5055/api/aura/chat';
+  const handleSendMessage = async (text) => {
+    const userMsg = { id:`u-${Date.now()}`, sender:'user', text, timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) };
+    setChatMessages(p => [...p, userMsg]);
+    try {
+      const res = await fetch(AURA_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: text, projectId: selectedProjectId }) });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'AURA request failed');
+      const reply = data.reply || { text: 'No response', toolCalls: [] };
+      setChatMessages(p => [...p, { id: reply.id || `a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text: reply.text, toolCalls: reply.toolCalls || [], intent: reply.intent || null }]);
     } catch (err) {
-      console.error("Error loading dashboard statistics:", err);
+      setChatMessages(p => [...p, { id:`a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text:`AURA is temporarily unreachable: ${err.message}. Using offline mode.`, toolCalls:[], intent:null }]);
+      window.__toast?.warn(err.message || 'AURA offline');
     }
   };
 
-  const handleSendMessage = (text) => {
-    const userMsg = {
-      id: `msg-${Date.now()}`,
-      sender: 'user',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text
+  const handleExecuteAction = async (actionId, preview) => {
+    if (preview?.costImpact && selectedProject) setSelectedProject(p => ({...p, total_cost: Math.max(0,(p.total_cost||0)+preview.costImpact)}));
+    try { window.__toast?.success(`AURA → ${preview?.title || actionId}`); } catch {}
+    const navMap = { openElevationGenerator:'drawings', generateFromLastWall:'drawings', openRenderStudio:'renders', regenerateLastRender:'renders', renderFromAngle:'renders', runAiDetect:'cad', runCvTrace:'cad', refreshCutlist:'cutlist', openCutlist:'cutlist', openPresentation:'presentation', generateQuotation:'presentation', openMaterials:'materials', optimizeCutlist:'cutlist', openJobs:'jobs' };
+    const target = navMap[actionId];
+    if (['generateFromLastWall','runAiDetect','runCvTrace','refreshCutlist','generateQuotation','optimizeCutlist'].includes(actionId)) {
+      const routeMap = { generateFromLastWall: `/api/projects/${selectedProjectId}/drawings/elevations/auto/dxf`, runAiDetect: `/api/projects/${selectedProjectId}/cad/ai-detect`, runCvTrace: `/api/projects/${selectedProjectId}/cad/cv-trace`, refreshCutlist: `/api/projects/${selectedProjectId}/cutlist/recalc`, generateQuotation: `/api/projects/${selectedProjectId}/client-share?pack=quotation`, optimizeCutlist: `/api/projects/${selectedProjectId}/cutlist/optimize` };
+      const route = routeMap[actionId];
+      if (!route) { if (target) setActiveTab(target); return; }
+      const opts = { method: route.includes('client-share') ? 'POST' : 'POST', headers:{'Content-Type':'application/json'} };
+      try { await fetch(`http://127.0.0.1:5055${route}`, opts); if (target) setActiveTab(target); } catch (e) { window.__toast?.error(e.message || 'AURA action failed'); }
+      return;
+    }
+    if (target) setActiveTab(target);
+    window.dispatchEvent(new CustomEvent('aura-execute-action', { detail: { actionId, preview } }));
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      const { actionId } = e.detail || {};
+      handleExecuteAction(actionId, {});
     };
-    setChatMessages(prev => [...prev, userMsg]);
-
-    setTimeout(() => {
-      const lower = text.toLowerCase();
-      let auraMsg;
-
-      if (lower.includes('color') || lower.includes('palette') || lower.includes('paint') || lower.includes('floor') || lower.includes('wood') || lower.includes('chevron')) {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: 'I suggest a warm Japandi scheme for this bedroom: Chevron Herringbone Oak flooring combined with Warm Alabaster walls and Brushed Antique Brass hardware accents.',
-          actionPreview: {
-            title: 'Apply Warm Chevron Flooring',
-            changes: ['Flooring → Chevron Herringbone Oak (+₹16/sqft)', 'Walls → Warm Wabi Alabaster paint', 'Style Cohesion score: 98/100'],
-            costImpact: 6500,
-            visualQualityImpact: 5.0
-          },
-          actions: [{ label: 'Apply Finishes Globally', actionId: 'act-palette-apply', variant: 'primary' }]
-        };
-      } else if (lower.includes('budget') || lower.includes('cost') || lower.includes('optimize') || lower.includes('cheap') || lower.includes('save')) {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: 'Optimizing carcass and hardware specs. Swapping high gloss acrylic to premium textured matte laminates and Blum Aventos lift systems to soft-close hinges, saving ₹42,000.',
-          actionPreview: {
-            title: 'Optimize Wardrobe & Cabinet Budget',
-            changes: ['Acrylic shutters → Suede Matte Laminate (-₹18,000)', 'Aventos horizontal lift-up → Clip-Top standard hinges (-₹24,000)'],
-            costImpact: -42000,
-            visualQualityImpact: 4.8
-          },
-          actions: [{ label: 'Apply Optimization', actionId: 'act-budget-cut', variant: 'primary' }]
-        };
-      } else if (lower.includes('layout') || lower.includes('sofa') || lower.includes('rotate')) {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: 'Repositioning sofa block to clear 38" walkways and aligning it 45 degrees towards the main morning lighting vector.',
-          actionPreview: {
-            title: 'Align Sofa to Morning Vector',
-            changes: ['Sofa rotated 45°', 'Spatial planning GNN clearance: 97%'],
-            costImpact: 0,
-            visualQualityImpact: 4.9
-          },
-          actions: [{ label: 'Execute Move', actionId: 'act-restyle', variant: 'primary' }]
-        };
-      } else {
-        auraMsg = {
-          id: `msg-${Date.now() + 1}`,
-          sender: 'aura',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `Understood: "${text}". I have mapped this prompt to the active design agent. Let me know if you would like me to generate renders or optimize the budget.`,
-        };
-      }
-      setChatMessages(prev => [...prev, auraMsg]);
-    }, 1200);
-  };
-
-  const handleExecuteAction = (actionId, preview) => {
-    if (preview && preview.costImpact) {
-      if (selectedProject) {
-        const updatedCost = Math.max(0, (selectedProject.total_cost || 0) + preview.costImpact);
-        setSelectedProject(prev => ({ ...prev, total_cost: updatedCost }));
-      }
-    }
-    alert(`AURA Action Executed: ${preview?.title || actionId}`);
-  };
+    window.addEventListener('aura-execute-action', handler);
+    return () => window.removeEventListener('aura-execute-action', handler);
+  }, []);
 
   const handleProjectClosed = (projectId) => {
     setSelectedProjectId(projectId);
-    fetchStatsAndProjects();
-    setTimeout(() => setActiveTab('brief'), 800);
+    fetchData();
+    setTimeout(() => setActiveTab('brief'), 700);
   };
 
-  // Compute project workflow step index
-  const getProjectStepIndex = (project) => {
-    if (!project) return 0;
-    const status = project.status || '';
-    const idx = STATUS_ORDER.indexOf(status);
-    return idx >= 0 ? idx + 2 : 1; // offset: step 0 = CRM, step 1 = brief, etc.
-  };
-
-  const projectStepIndex = getProjectStepIndex(selectedProject);
-
-  const renderActiveScreen = () => {
+  // ── Screen router ──
+  const renderScreen = () => {
     switch (activeTab) {
-      case 'dashboard':
-        return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => setActiveTab(tab)} />;
-      case 'crm':
-        return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
-      case 'projects':
-        return <ProjectManagementScreen onNavigateToProject={(projId) => { setSelectedProjectId(projId); setActiveTab('brief'); }} />;
-      case 'brief':
-        return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
-      case 'cad':
-        return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
-      case 'studio':
-        return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
-      case 'drawings':
-        return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
-      case 'materials':
-        return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => setActiveTab('renders')} />;
-      case 'renders':
-        return <Render3DStudio projectId={selectedProjectId} onComplete={() => setActiveTab('cutlist')} />;
-      case 'cutlist':
-        return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => setActiveTab('crm')} />;
-      case 'finance':
-        return <FinanceScreen projectId={selectedProjectId} />;
-      case 'timeline':
-        return <TimelineScreen projectId={selectedProjectId} />;
-      case 'jobs':
-        return <JobsScreen projectId={selectedProjectId} />;
-      default:
-        return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
+      case 'dashboard': return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={setActiveTab} />;
+      case 'crm':       return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
+      case 'projects':  return <ProjectManagementScreen onNavigateToProject={(id) => { setSelectedProjectId(id); setActiveTab('brief'); }} />;
+      case 'brief':     return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
+      case 'cad':       return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
+      case 'studio':    return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
+      case 'drawings':  return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
+      case 'materials': return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => setActiveTab('renders')} />;
+      case 'renders':   return <Render3DStudio projectId={selectedProjectId} onComplete={() => setActiveTab('cutlist')} />;
+      case 'cutlist':   return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => setActiveTab('crm')} />;
+      case 'finance':       return <FinanceScreen projectId={selectedProjectId} />;
+      case 'timeline':      return <TimelineScreen projectId={selectedProjectId} />;
+      case 'jobs':          return <JobsScreen projectId={selectedProjectId} />;
+      case 'presentation':  return <PresentationStudio projectId={selectedProjectId} />;
+      default:              return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
     }
   };
 
-  const NAV_SECTIONS = [
-    {
-      title: "Workspace Hub",
-      items: [
-        { id: 'dashboard', label: 'Command Center', icon: <LayoutDashboard className="w-4 h-4" /> }
-      ]
-    },
-    {
-      title: "Client Acquisition",
-      items: [
-        { id: 'crm', label: 'CRM & Call Board', icon: <Inbox className="w-4 h-4" /> },
-        { id: 'projects', label: 'Project Pipeline', icon: <BarChart3 className="w-4 h-4" /> }
-      ]
-    },
-    {
-      title: "Design Studio",
-      items: [
-        { id: 'brief', label: 'Client Brief Intake', icon: <FileText className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'cad', label: '2D Blueprint Drafting', icon: <Compass className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'studio', label: '3D Furnishing Studio', icon: <Layers className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'drawings', label: 'Wall Elevations', icon: <CheckSquare className="w-4 h-4" />, disabled: !selectedProjectId }
-      ]
-    },
-    {
-      title: "AI Visualization",
-      items: [
-        { id: 'renders', label: '3D Render Studio', icon: <Sparkles className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'jobs', label: 'Background Jobs', icon: <Clock className="w-4 h-4" />, disabled: !selectedProjectId }
-      ]
-    },
-    {
-      title: "Production & Commerce",
-      items: [
-        { id: 'materials', label: 'Materials Catalog', icon: <Palette className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'cutlist', label: 'Cutlist & Nesting', icon: <Scissors className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'finance', label: 'Commerce & Quotes', icon: <IndianRupee className="w-4 h-4" />, disabled: !selectedProjectId },
-        { id: 'timeline', label: 'Project Timeline', icon: <Activity className="w-4 h-4" />, disabled: !selectedProjectId }
-      ]
-    }
+  const meta = TAB_META[activeTab] || {};
+
+  // ── STAT CONFIG ──
+  const statConfig = [
+    { label:'Leads',     value: stats.totalLeads,     color:'#9896A8' },
+    { label:'Projects',  value: stats.activeProjects,  color:'#C9A84C' },
+    { label:'Qualified', value: stats.qualifiedLeads,  color:'#2DD4AA' },
+    { label:'Win %',     value:`${stats.conversionPct}%`, color:'#60A5FA' }
   ];
 
-  const NAV_ITEMS = NAV_SECTIONS.flatMap(sec => sec.items);
-
-  const TAB_TITLES = {
-    dashboard: 'Command Center & Workspace Hub',
-    crm: 'CRM & Outbound Calling System',
-    projects: 'Project Pipeline & Kanban Board',
-    brief: 'Client Onboarding Brief Studio',
-    cad: '2D Blueprint Drafting Workspace',
-    studio: '3D Linked Furnishing Studio',
-    drawings: 'Wall Elevations & Architectural Drafting',
-    materials: 'Finishes, Swatches & Hardware Catalog',
-    renders: '3D AI Render Extrusion Engine',
-    cutlist: 'Precision Slicing Cutlist Nesting',
-    finance: 'Commerce, Estimates & Quotations',
-    timeline: 'Project Activity & Event Log',
-    jobs: 'Background Jobs & Rendering Pipeline Monitor'
-  };
-
   return (
-    <div className="h-screen w-screen bg-[#020617] text-slate-100 flex overflow-hidden font-sans">
-      
-      {/* ── Left Sidebar ── */}
-      <aside className="w-60 bg-[#080d18] border-r border-slate-800/60 flex flex-col justify-between shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }}>
-        <div className="flex flex-col gap-4 p-4">
-          
-          {/* Logo Branding */}
-          <div className="flex items-center gap-2.5 px-1 py-1">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#AA8C2C] flex items-center justify-center shadow-lg shadow-[#D4AF37]/20">
-              <LayoutDashboard className="w-4 h-4 text-slate-900" />
-            </div>
-            <div>
-              <h1 className="text-xs font-black tracking-widest text-slate-100 uppercase">ULTIDA</h1>
-              <span className="text-[8px] font-bold text-[#D4AF37]/60 uppercase tracking-widest block">Ultimate Interior Design OS</span>
-            </div>
+    <div className="h-screen w-screen text-slate-100 flex overflow-hidden font-sans" style={{ background:'var(--base-100)' }}>
+
+      {/* ══════════════════════════════════════════
+          SIDEBAR
+      ══════════════════════════════════════════ */}
+      <aside className="sidebar-chrome">
+
+        {/* ── Logo ── */}
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(8,8,8,0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+              <polyline points="9,22 9,12 15,12 15,22"/>
+            </svg>
           </div>
-
-          {/* Quick Metrics Panel */}
-          <div className="bg-slate-900/60 border border-slate-800/60 p-3 rounded-2xl grid grid-cols-2 gap-2 text-xs">
-            {[
-              { label: 'Leads', value: stats.totalLeads, color: 'text-slate-300' },
-              { label: 'Projects', value: stats.activeProjects, color: 'text-[#D4AF37]' },
-              { label: 'Qualified', value: stats.qualifiedLeads, color: 'text-emerald-400' },
-              { label: 'Win %', value: `${stats.conversionPct}%`, color: 'text-blue-400' },
-            ].map((s, i) => (
-              <div key={i} className="bg-slate-950/50 px-2 py-1.5 rounded-xl text-center">
-                <span className="text-[8px] text-slate-600 block font-bold uppercase tracking-wider">{s.label}</span>
-                <strong className={`text-sm ${s.color}`}>{s.value}</strong>
-              </div>
-            ))}
+          <div className="sidebar-logo-wordmark">
+            <span className="sidebar-logo-title">ULTIDA</span>
+            <span className="sidebar-logo-sub">Interior Design OS</span>
           </div>
-
-          {/* Navigation Sections */}
-          <div className="space-y-4 flex-grow overflow-y-auto pr-1 scrollbar-thin">
-            {NAV_SECTIONS.map((sec, idx) => (
-              <div key={idx} className="space-y-1">
-                <h3 className="text-[8.5px] font-extrabold uppercase tracking-widest text-[#8A8899]/70 px-3 py-0.5">
-                  {sec.title}
-                </h3>
-                <nav className="space-y-0.5">
-                  {sec.items.map(tab => (
-                    <button
-                      key={tab.id}
-                      disabled={tab.disabled}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`w-full py-2 px-3 rounded-xl text-[10.5px] font-semibold flex items-center gap-2.5 transition text-left ${
-                        activeTab === tab.id
-                          ? 'bg-[#1E1E24] text-[#F0EEE8] border border-[#C9A84C]/30 shadow-md shadow-[#C9A84C]/5'
-                          : tab.disabled
-                            ? 'text-slate-700 cursor-not-allowed opacity-35'
-                            : 'text-[#8A8899] hover:bg-[#1E1E24]/30 hover:text-slate-200'
-                      }`}
-                    >
-                      <span className={activeTab === tab.id ? 'text-[#C9A84C]' : 'text-slate-600'}>
-                        {tab.icon}
-                      </span>
-                      <span className="truncate">{tab.label}</span>
-                      
-                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                        {tab.id === 'renders' && selectedProject?.stale_renders === 1 && (
-                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                        )}
-                        {tab.id === 'drawings' && selectedProject?.stale_drawings === 1 && (
-                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                        )}
-                        {tab.id === 'materials' && selectedProject?.stale_pricing === 1 && (
-                          <span className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md animate-pulse">Stale</span>
-                        )}
-
-                        {tab.id !== 'crm' && tab.id !== 'dashboard' && selectedProjectId && projectStepIndex >= NAV_ITEMS.findIndex(n => n.id === tab.id) && (
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </nav>
-              </div>
-            ))}
-          </div>
-
-          {/* Project Workflow Progress (if project selected) */}
-          {selectedProject && (
-            <div className="bg-[#1E1E24]/50 border border-slate-800/60 rounded-2xl p-3 space-y-2 shrink-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-[#8A8899] uppercase tracking-wider">Project Progress</span>
-                <span className="text-[9px] font-bold text-[#C9A84C]">{Math.round(Math.min((projectStepIndex / 7) * 100, 100))}%</span>
-              </div>
-              {/* Progress Bar */}
-              <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#E8C97A] transition-all duration-700"
-                  style={{ width: `${Math.min((projectStepIndex / 7) * 100, 100)}%` }}
-                />
-              </div>
-              <div className="text-[9px] text-[#F0EEE8]/80 font-medium truncate">
-                📁 {selectedProject.name}
-              </div>
-              <div className="text-[9px] text-[#8A8899]">
-                Status: <span className="text-[#C9A84C] font-bold capitalize">{selectedProject.status?.replace('_', ' ') || 'Onboarding'}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Live Workshop Queue Widget */}
-          {selectedProject && activeJobs.length > 0 && (
-            <div className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-ping" />
-                  Live Workshop Queue
-                </span>
-                <span className="text-[8px] font-mono text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded">{activeJobs.length} Job(s)</span>
-              </div>
-              <div className="space-y-2.5">
-                {activeJobs.map(job => (
-                  <div key={job.id} className="space-y-1">
-                    <div className="flex justify-between items-center text-[9px]">
-                      <span className="text-slate-300 truncate font-semibold uppercase tracking-wider">
-                        {job.job_type?.replace('_', ' ')}
-                      </span>
-                      <span className="text-slate-450 font-bold font-mono">{job.progress}%</span>
-                    </div>
-                    <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-[#D4AF37] to-[#AA8C2C] transition-all duration-300"
-                        style={{ width: `${job.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-800/50">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[9px] text-slate-400 font-semibold">Sharma Workshop · Online</span>
+        {/* ── Quick Stats ── */}
+        <div className="sidebar-stats">
+          {statConfig.map((s, i) => (
+            <div key={i} className="sidebar-stat-cell">
+              <span className="sidebar-stat-label">{s.label}</span>
+              <strong className="sidebar-stat-value" style={{ color: s.color }}>{s.value}</strong>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Navigation ── */}
+        <nav className="sidebar-nav">
+          {NAV_CONFIG.map((section, si) => {
+            const needsProject = section.items.some(item => !item.alwaysOn);
+            return (
+              <div key={si}>
+                <div className="nav-section-title">{section.title}</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+                  {section.items.map(item => {
+                    const Icon     = item.icon;
+                    const disabled = !item.alwaysOn && !selectedProjectId;
+                    const isActive = activeTab === item.id;
+                    const isStale  = item.staleFlag && selectedProject?.[item.staleFlag] === 1;
+                    const navIdx   = ALL_NAV_ITEMS.findIndex(n => n.id === item.id);
+                    const isDone   = !disabled && item.id !== 'crm' && item.id !== 'dashboard' && stepIndex > navIdx;
+
+                    return (
+                      <button
+                        key={item.id}
+                        disabled={disabled}
+                        onClick={() => !disabled && setActiveTab(item.id)}
+                        className={`nav-item${isActive ? ' active' : ''}`}
+                      >
+                        <Icon className="nav-icon" style={{ width:13, height:13 }} />
+                        <span style={{ flex:1, textAlign:'left', fontSize:'11px', fontWeight: isActive ? 700 : 600 }}>
+                          {item.label}
+                        </span>
+                        <div style={{ display:'flex', alignItems:'center', gap:'4px', flexShrink:0 }}>
+                          {isStale && (
+                            <span className="badge-stale">Stale</span>
+                          )}
+                          {isDone && !isStale && (
+                            <CheckCircle2 style={{ width:11, height:11, color:'var(--emerald)', opacity:0.8 }} />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* ── Project Progress ── */}
+        {selectedProject && (
+          <div className="sidebar-project-card">
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px' }}>
+              <span style={{ fontSize:'8px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-muted)' }}>
+                Active Project
+              </span>
+              <span style={{ fontSize:'10px', fontWeight:800, color:'var(--gold)' }}>{stepPct}%</span>
+            </div>
+            <div className="progress-bar-track" style={{ marginBottom:'8px' }}>
+              <div className="progress-bar-fill" style={{ width:`${stepPct}%` }} />
+            </div>
+            <div style={{ fontSize:'11px', fontWeight:700, color:'var(--text-primary)', marginBottom:'2px' }} className="truncate">
+              {selectedProject.name}
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+              <span style={{ width:'6px', height:'6px', borderRadius:'50%', background: STATUS_COLOR[selectedProject.status] || 'var(--gold)', display:'inline-block', flexShrink:0 }} />
+              <span style={{ fontSize:'9.5px', color:'var(--text-muted)', fontWeight:600, textTransform:'capitalize' }}>
+                {(selectedProject.status||'Onboarding').replace(/_/g,' ')}
+              </span>
+            </div>
           </div>
-          <div className="text-[8px] font-mono text-[#D4AF37]/40 uppercase tracking-widest">
-            Antigravity Core v2.0
+        )}
+
+        {/* ── Live Jobs ── */}
+        {activeJobs.length > 0 && (
+          <div className="sidebar-project-card" style={{ marginTop:0, background:'rgba(201,168,76,0.04)', borderColor:'rgba(201,168,76,0.15)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'8px' }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--gold)', animation:'pulse 1.5s infinite', display:'inline-block' }} />
+              <span style={{ fontSize:'8px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--gold)' }}>
+                Live Jobs
+              </span>
+              <span style={{ marginLeft:'auto', fontSize:'9px', fontWeight:800, color:'var(--text-muted)' }}>{activeJobs.length}</span>
+            </div>
+            {activeJobs.slice(0,3).map(job => (
+              <div key={job.id} style={{ marginBottom:'6px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'9px', fontWeight:700, color:'var(--text-secondary)', marginBottom:'3px' }}>
+                  <span className="truncate" style={{ maxWidth:'80%' }}>{(job.job_type||'').replace(/_/g,' ')}</span>
+                  <span style={{ color:'var(--gold)', fontFamily:'monospace' }}>{job.progress}%</span>
+                </div>
+                <div className="progress-bar-track" style={{ height:'2px' }}>
+                  <div className="progress-bar-fill" style={{ width:`${job.progress}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Footer ── */}
+        <div className="sidebar-footer">
+          <div style={{ display:'flex', alignItems:'center', gap:'6px', marginBottom:'4px' }}>
+            <div style={{ width:'6px', height:'6px', borderRadius:'50%', background: apiOnline ? 'var(--emerald)' : '#f87171', flexShrink:0 }} />
+            <span style={{ fontSize:'9.5px', fontWeight:600, color:'var(--text-muted)' }}>
+              {apiOnline ? 'Sharma Workshop · Online' : 'API Offline'}
+            </span>
+          </div>
+          <div style={{ fontSize:'8px', fontFamily:'monospace', color:'rgba(201,168,76,0.3)', letterSpacing:'0.15em', textTransform:'uppercase' }}>
+            ULTIDA Core v3.0
           </div>
         </div>
       </aside>
 
-      {/* ── Main Content Area ── */}
-      <main className="flex-grow flex flex-col overflow-hidden">
-        
-        {/* Top Header */}
-        <header className="bg-[#080d18] border-b border-slate-800/60 px-6 py-3.5 flex justify-between items-center flex-shrink-0" style={{ background: 'linear-gradient(90deg, #070c17, #06090f)' }}>
-          <div className="flex items-center gap-4">
+      {/* ══════════════════════════════════════════
+          MAIN CONTENT
+      ══════════════════════════════════════════ */}
+      <main style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}>
+
+        {/* ── Top Header ── */}
+        <header className="app-header">
+          {/* Left: Title + Project Picker */}
+          <div className="app-header-left" style={{ display:'flex', alignItems:'center', gap:'16px', minWidth:0 }}>
             <div>
-              <h2 className="text-sm font-extrabold text-slate-100 tracking-wide">
-                {TAB_TITLES[activeTab] || ''}
-              </h2>
-              <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                {activeTab === 'crm' ? 'Manage leads, qualify via AI calling, and close deals' :
-                 activeTab === 'brief' ? 'Capture client design preferences and floor plan upload' :
-                 activeTab === 'cad' ? 'Draw walls, openings, and furniture on the 2D canvas' :
-                 activeTab === 'materials' ? 'Select laminates, hardware fittings, and estimate costs' :
-                 activeTab === 'renders' ? 'Generate AI-powered 3D interior renders with Vastu insights' :
-                 activeTab === 'cutlist' ? 'Calculate precise panel cuts and optimize sheet nesting' : ''}
-              </p>
+              <div className="header-title">{meta.title || ''}</div>
+              {meta.sub && <div className="header-subtitle">{meta.sub}</div>}
             </div>
-            
-            {/* Active Project Selector */}
+
             {projectsList.length > 0 && (
-              <div className="relative">
+              <div style={{ position:'relative' }} ref={pickerRef}>
                 <button
-                  onClick={() => setShowProjectDropdown(!showProjectDropdown)}
-                  className="flex items-center gap-2 bg-slate-900/70 border border-slate-800 hover:border-[#D4AF37]/30 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 transition"
+                  onClick={() => setShowProjectPicker(v => !v)}
+                  className="project-selector-btn"
                 >
-                  <FolderOpen className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span className="max-w-[140px] truncate">
+                  <FolderOpen style={{ width:13, height:13, color:'var(--gold)', flexShrink:0 }} />
+                  <span style={{ maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                     {selectedProject?.name || 'Select Project'}
                   </span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showProjectDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDown style={{ width:12, height:12, flexShrink:0, transition:'transform 0.2s', transform: showProjectPicker ? 'rotate(180deg)' : 'rotate(0)' }} />
                 </button>
-                {showProjectDropdown && (
-                  <div className="absolute top-full left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl min-w-[220px] overflow-hidden">
+
+                {showProjectPicker && (
+                  <div className="project-dropdown">
+                    <div style={{ padding:'8px 14px 6px', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ fontSize:'9px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--text-muted)' }}>
+                        {projectsList.length} Projects
+                      </span>
+                    </div>
                     {projectsList.map(proj => (
                       <button
                         key={proj.id}
-                        onClick={() => { setSelectedProjectId(proj.id); setShowProjectDropdown(false); }}
-                        className={`w-full text-left px-3 py-2.5 text-xs font-semibold transition flex items-center gap-2 ${
-                          proj.id === selectedProjectId
-                            ? 'bg-[#D4AF37]/10 text-[#D4AF37]'
-                            : 'text-slate-300 hover:bg-slate-800'
-                        }`}
+                        onClick={() => { setSelectedProjectId(proj.id); setShowProjectPicker(false); }}
+                        className={`project-dropdown-item${proj.id === selectedProjectId ? ' selected' : ''}`}
                       >
-                        <FolderOpen className="w-3 h-3 shrink-0 opacity-50" />
-                        <div className="min-w-0">
-                          <div className="truncate">{proj.name}</div>
-                          <div className="text-[9px] text-slate-500 font-normal">{proj.id}</div>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background: STATUS_COLOR[proj.status] || '#5C5C72', flexShrink:0 }} />
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{proj.name}</div>
+                          <div style={{ fontSize:'9px', color:'var(--text-muted)', fontWeight:500, marginTop:'1px', textTransform:'capitalize' }}>
+                            {(proj.status||'onboarding').replace(/_/g,' ')}
+                          </div>
                         </div>
+                        {proj.id === selectedProjectId && (
+                          <CheckCircle2 style={{ width:12, height:12, color:'var(--gold)', marginLeft:'auto', flexShrink:0 }} />
+                        )}
                       </button>
                     ))}
                   </div>
@@ -546,36 +533,88 @@ export function App() {
               </div>
             )}
           </div>
-          
-          <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500">
+
+          {/* Right: Controls */}
+          <div className="app-header-actions" style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+            {/* AURA toggle */}
             <button
-              onClick={() => setIsAuraOpen(prev => !prev)}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                isAuraOpen 
-                  ? 'bg-indigo-650 text-white shadow-md' 
-                  : 'bg-slate-900 border border-slate-800 text-indigo-400 hover:text-indigo-300'
-              }`}
+              onClick={() => setIsAuraOpen(v => !v)}
+              aria-label="Open AURA AI assistant"
+              title="AURA AI assistant"
+              className={`aura-btn ${isAuraOpen ? 'aura-btn-active' : 'aura-btn-idle'}`}
             >
-              <Zap className="w-3.5 h-3.5" />
+              <Zap style={{ width:14, height:14 }} />
               <span>AURA AI</span>
+              {isAuraOpen && <span style={{ width:6, height:6, borderRadius:'50%', background:'rgba(255,255,255,0.6)', display:'inline-block' }} />}
             </button>
-            <span className="w-px h-4 bg-slate-800" />
-            <div className="flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-400 font-semibold">API Online</span>
+
+            <div style={{ width:1, height:20, background:'rgba(255,255,255,0.07)' }} />
+
+            {/* API status */}
+            <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
+              <Activity style={{ width:13, height:13, color: apiOnline ? 'var(--emerald)' : '#f87171' }} />
+              <span style={{ fontSize:'11px', fontWeight:600, color: apiOnline ? 'var(--emerald)' : '#f87171' }}>
+                {apiOnline ? 'Online' : 'Offline'}
+              </span>
             </div>
-            <span className="w-px h-4 bg-slate-800" />
-            <span>{currentTime.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-            <span className="w-px h-4 bg-slate-800" />
-            <span>Admin</span>
+
+            <div style={{ width:1, height:20, background:'rgba(255,255,255,0.07)' }} />
+
+            {/* Date / time */}
+            <span style={{ fontSize:'11px', fontWeight:500, color:'var(--text-muted)', fontVariantNumeric:'tabular-nums' }}>
+              {currentTime.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
+            </span>
+
+            <div style={{ width:1, height:20, background:'rgba(255,255,255,0.07)' }} />
+
+            {/* Avatar */}
+            <div style={{
+              width:28, height:28, borderRadius:'50%',
+              background:'linear-gradient(135deg, var(--gold) 0%, var(--gold-deep) 100%)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'11px', fontWeight:900, color:'#060609',
+              boxShadow:'0 0 0 2px rgba(201,168,76,0.25)',
+              cursor:'pointer', flexShrink:0
+            }}>
+              A
+            </div>
           </div>
         </header>
 
-        {/* Screen Area & Collapsible AURA Chat Panel */}
-        <div className="flex-grow flex overflow-hidden bg-[#020617]" onClick={() => showProjectDropdown && setShowProjectDropdown(false)}>
-          <div className="flex-grow overflow-hidden relative">
-            {renderActiveScreen()}
+        {/* ── Screen + AURA Panel ── */}
+        <div
+          style={{ flex:1, display:'flex', overflow:'hidden', background:'var(--base-100)' }}
+          onClick={() => showProjectPicker && setShowProjectPicker(false)}
+        >
+          <div style={{ flex:1, overflow:'hidden', position:'relative', display:'flex', flexDirection:'column' }}>
+            <div className="workflow-spine">
+              {WORKFLOW_SPINE.map((step, index) => {
+                const active = activeTab === step.id;
+                const visited = WORKFLOW_SPINE.findIndex(s => s.id === activeTab) >= index;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    disabled={!selectedProjectId}
+                    onClick={() => selectedProjectId && setActiveTab(step.id)}
+                    className={`workflow-spine-step${active ? ' active' : ''}${visited ? ' visited' : ''}`}
+                  >
+                    <span className="workflow-spine-index">{index + 1}</span>
+                    <span className="workflow-spine-copy">
+                      <strong>{step.label}</strong>
+                      <small>{step.detail}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="workflow-screen">
+              <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-secondary)' }}>Loading…</div>}>
+                {renderScreen()}
+              </Suspense>
+            </div>
           </div>
+
           <AuraBrainChat
             messages={chatMessages}
             onSendMessage={handleSendMessage}
@@ -585,7 +624,6 @@ export function App() {
             onClose={() => setIsAuraOpen(false)}
           />
         </div>
-
       </main>
     </div>
   );

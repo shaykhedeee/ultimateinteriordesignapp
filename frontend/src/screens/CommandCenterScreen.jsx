@@ -15,12 +15,13 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'brand' | 'realestate'
 
   const allWorkflowTabs = [
-    { id: 'smart', label: '🚀 Smart Project', desc: 'Plan to Scene', roles: ['designer', 'realestate'] },
-    { id: 'generate', label: '🎨 Quick Generate', desc: 'Style to Concept', roles: ['realestate'] },
-    { id: 'photo', label: '📸 Photo Edit', desc: 'Reference Swapping', roles: ['brand', 'realestate'] },
-    { id: 'layout', label: '📐 Quick Layout', desc: 'Fast 2D Sketcher', roles: ['designer'] },
-    { id: 'product', label: '⚙️ Design Product', desc: 'Modular Config', roles: ['designer', 'brand'] },
-    { id: 'tools', label: '⚡ AI Tool Hub', desc: 'Specialist Suite', roles: ['designer', 'brand', 'realestate'] }
+    { id: 'smart', label: 'Smart Project', desc: 'Brief to scene', roles: ['designer', 'realestate'] },
+    { id: 'generate', label: 'Concept Generator', desc: 'Style to visual', roles: ['realestate'] },
+    { id: 'photo', label: 'Reference Editor', desc: 'Photo and finish swaps', roles: ['brand', 'realestate'] },
+    { id: 'layout', label: 'Plan Sketcher', desc: 'Fast 2D zoning', roles: ['designer'] },
+    { id: 'product', label: 'Modular Config', desc: 'Cabinet products', roles: ['designer', 'brand'] },
+    { id: 'tools', label: 'Specialist Suite', desc: 'One-shot agents', roles: ['designer', 'brand', 'realestate'] },
+    { id: 'settings', label: 'Settings', desc: 'Studio, keys, branding', roles: ['designer', 'brand', 'realestate'] }
   ];
 
   const workflowTabs = allWorkflowTabs.filter(tab => tab.roles.includes(workspaceMode));
@@ -81,57 +82,62 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const pipelineValue = ((totalLeads * 3.5) + (activeProjectsCount * 12.5)).toFixed(1);
 
   return (
-    <div className="h-full w-full overflow-y-auto p-6 space-y-6 bg-slate-950 text-slate-100 font-sans">
+    <div className="h-full w-full overflow-y-auto p-6 space-y-5 font-sans" style={{ background:'var(--base-100)', color:'var(--text-primary)' }}>
       
       {/* ── Workspace Mode / Role Switcher Header ── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#1E1E24] border border-slate-800 p-4 rounded-2xl shadow-lg shrink-0">
+      <div style={{ display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between', gap:'12px', background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', padding:'14px 18px', borderRadius:'18px', boxShadow:'var(--shadow-card)' }}>
         <div>
-          <h2 className="text-sm font-extrabold uppercase tracking-widest text-[#C9A84C] flex items-center gap-1.5">
-            <Sliders className="w-4 h-4 text-[#C9A84C]" /> Workspace Operating Mode
-          </h2>
-          <p className="text-[10px] text-[#8A8899] mt-0.5">Adapt visualizer pipelines and tool suites to your professional role context.</p>
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'2px' }}>
+            <Sliders style={{ width:14, height:14, color:'var(--gold)' }} />
+            <span style={{ fontSize:'11px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--gold)' }}>Operating Mode</span>
+          </div>
+          <p style={{ fontSize:'10px', color:'var(--text-muted)', fontWeight:500 }}>Adapt pipelines and tool suites to your professional role.</p>
         </div>
-        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-850 gap-1.5 text-[10px] font-black uppercase">
+        <div style={{ display:'flex', background:'rgba(0,0,0,0.4)', padding:'4px', borderRadius:'12px', border:'1px solid rgba(255,255,255,0.05)', gap:'3px' }}>
           {[
-            { id: 'designer', label: '🛠️ Designer Mode' },
-            { id: 'brand', label: '🏬 Brand Mode' },
-            { id: 'realestate', label: '🏡 Real Estate' }
+            { id: 'designer',   label: 'DS', full:'Designer' },
+            { id: 'brand',      label: 'BR', full:'Brand' },
+            { id: 'realestate', label: 'RE', full:'Real Estate' }
           ].map(mode => (
             <button
               key={mode.id}
               onClick={() => setWorkspaceMode(mode.id)}
-              className={`px-3 py-1.5 rounded-lg transition-all border ${
-                workspaceMode === mode.id
-                  ? 'bg-slate-900 border-slate-800 text-[#C9A84C] shadow-sm shadow-[#C9A84C]/5'
-                  : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'
-              }`}
+              style={{
+                padding:'6px 14px', borderRadius:'9px', fontSize:'10px', fontWeight:800, letterSpacing:'0.06em',
+                cursor:'pointer', transition:'all 0.18s', border:'1px solid transparent',
+                ...(workspaceMode === mode.id
+                  ? { background:'var(--surface-3)', borderColor:'var(--gold-border)', color:'var(--gold-bright)', boxShadow:'0 0 12px rgba(201,168,76,0.1)' }
+                  : { background:'transparent', borderColor:'transparent', color:'var(--text-muted)' }
+                )
+              }}
             >
-              {mode.label}
+              {mode.label} {mode.full}
             </button>
           ))}
         </div>
       </div>
 
       {/* ── KPI Metrics Ribbon ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:'14px' }}>
         {[
-          { label: 'Leads In Queue', val: totalLeads, sub: 'Intake and brief', border: 'border-slate-800' },
-          { label: 'Active Projects', val: activeProjectsCount, sub: 'In design pipeline', border: 'border-slate-850' },
-          { label: 'Pending Approvals', val: pendingApprovalsCount, sub: 'Awaiting client signoff', border: 'border-slate-850' },
-          { label: 'Production Ready', val: productionCount, sub: 'BOM & drawings frozen', border: 'border-slate-850' },
-          { label: 'Pipeline Valuation', val: `₹${pipelineValue}L`, sub: 'Estimated yield basis', border: 'border-[#D4AF37]/30', glow: true },
+          { label:'Leads In Queue',    val:totalLeads,         sub:'Intake & brief',       accent:'var(--text-secondary)', glow:false },
+          { label:'Active Projects',   val:activeProjectsCount, sub:'In design pipeline',  accent:'var(--gold)',           glow:false },
+          { label:'Pending Approvals', val:pendingApprovalsCount, sub:'Awaiting signoff',  accent:'var(--blue-soft)',      glow:false },
+          { label:'Production Ready',  val:productionCount,    sub:'BOM & drawings frozen', accent:'var(--emerald)',       glow:false },
+          { label:'Pipeline Value',    val:`INR ${pipelineValue}L`, sub:'Estimated yield', accent:'var(--gold)',           glow:true  },
         ].map((kpi, idx) => (
-          <div 
-            key={idx} 
-            className={`glass-card p-4 rounded-2xl relative overflow-hidden flex flex-col justify-between ${kpi.border} ${
-              kpi.glow ? 'gold-border gold-glow-sm' : ''
-            }`}
+          <div
+            key={idx}
+            style={{
+              background: kpi.glow ? 'linear-gradient(135deg,rgba(201,168,76,0.08) 0%,rgba(201,168,76,0.03) 100%)' : 'var(--surface-1)',
+              border: kpi.glow ? '1px solid var(--gold-border)' : '1px solid rgba(255,255,255,0.05)',
+              borderRadius:'16px', padding:'16px', display:'flex', flexDirection:'column', justifyContent:'space-between',
+              boxShadow: kpi.glow ? 'var(--shadow-gold)' : 'var(--shadow-card)', minHeight:'90px'
+            }}
           >
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">{kpi.label}</span>
-              <strong className={`text-2xl font-black ${kpi.glow ? 'text-[#D4AF37]' : 'text-slate-100'}`}>{kpi.val}</strong>
-            </div>
-            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block mt-2">{kpi.sub}</span>
+            <span style={{ fontSize:'9px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--text-muted)', display:'block', marginBottom:'6px' }}>{kpi.label}</span>
+            <strong style={{ fontSize:'26px', fontWeight:900, color:kpi.accent, lineHeight:1, display:'block', letterSpacing:'-0.02em' }}>{kpi.val}</strong>
+            <span style={{ fontSize:'9px', color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', display:'block', marginTop:'6px' }}>{kpi.sub}</span>
           </div>
         ))}
       </div>
@@ -143,25 +149,29 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
         <div className="xl:col-span-2 space-y-6">
           
           {/* Tab Navigation */}
-          <div className="bg-slate-900/60 border border-slate-850 p-1.5 rounded-2xl flex gap-1 text-xs font-bold overflow-x-auto">
+          <div style={{ background:'rgba(0,0,0,0.35)', border:'1px solid rgba(255,255,255,0.05)', padding:'5px', borderRadius:'16px', display:'flex', gap:'3px', overflowX:'auto' }}>
             {workflowTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveWorkflowTab(tab.id)}
-                className={`flex-1 py-2 px-3 rounded-xl flex flex-col items-center justify-center transition min-w-[120px] ${
-                  activeWorkflowTab === tab.id
-                    ? 'bg-slate-950 text-[#C9A84C] border border-slate-850 shadow-md shadow-[#C9A84C]/5'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
+                style={{
+                  flex:1, padding:'8px 12px', borderRadius:'11px',
+                  display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                  minWidth:'110px', cursor:'pointer', transition:'all 0.18s', border:'1px solid transparent',
+                  ...(activeWorkflowTab === tab.id
+                    ? { background:'var(--surface-2)', borderColor:'var(--gold-border)', boxShadow:'0 0 14px rgba(201,168,76,0.08)' }
+                    : { background:'transparent' }
+                  )
+                }}
               >
-                <span>{tab.label}</span>
-                <span className="text-[9px] text-slate-500 font-medium mt-0.5">{tab.desc}</span>
+                <span style={{ fontSize:'11px', fontWeight:700, color: activeWorkflowTab === tab.id ? 'var(--gold-bright)' : 'var(--text-secondary)', lineHeight:1.3 }}>{tab.label}</span>
+                <span style={{ fontSize:'9px', color:'var(--text-muted)', fontWeight:500, marginTop:'2px' }}>{tab.desc}</span>
               </button>
             ))}
           </div>
 
           {/* Workflow Tab Workspace */}
-          <div className="glass-card border border-slate-850 rounded-3xl p-6 min-h-[460px]">
+          <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'24px', minHeight:'460px', boxShadow:'var(--shadow-card)' }}>
             {activeWorkflowTab === 'smart' && (
               <SmartProjectWorkspace 
                 project={activeProject} 
@@ -201,6 +211,9 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                 onNavigateToTab={onNavigateToTab}
               />
             )}
+            {activeWorkflowTab === 'settings' && (
+              <SettingsWorkspace />
+            )}
           </div>
 
         </div>
@@ -209,62 +222,68 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
         <div className="space-y-6">
           
           {/* AI Specialist Tools Hub */}
-          <div className="glass-card border border-slate-850 rounded-3xl p-5 space-y-4">
-            <div>
-              <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider flex items-center gap-1.5">
-                <Sliders className="w-4 h-4 text-[#C9A84C]" />
-                AI Specialist Tools Hub
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-1">Expose specialist tools directly into operational stages</p>
+          <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'18px', boxShadow:'var(--shadow-card)' }}>
+            <div style={{ marginBottom:'14px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'7px', marginBottom:'3px' }}>
+                <Sliders style={{ width:13, height:13, color:'var(--gold)' }} />
+                <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>AI Specialist Tools</span>
+              </div>
+              <p style={{ fontSize:'10px', color:'var(--text-muted)', fontWeight:500 }}>Jump directly into operational tool stages</p>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
               {specialistTools.map((tool, idx) => (
                 <button
                   key={idx}
                   onClick={() => onNavigateToTab(tool.tab)}
-                  className="bg-slate-900/40 border border-slate-850 rounded-xl p-3 text-left hover:border-[#C9A84C]/50 hover:bg-[#C9A84C]/5 transition flex flex-col gap-1 cursor-pointer"
+                  style={{
+                    background:'rgba(0,0,0,0.25)', border:'1px solid rgba(255,255,255,0.05)',
+                    borderRadius:'12px', padding:'10px 12px', textAlign:'left',
+                    cursor:'pointer', transition:'all 0.18s', display:'flex', flexDirection:'column', gap:'3px'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gold-border)'; e.currentTarget.style.background='rgba(201,168,76,0.05)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(255,255,255,0.05)'; e.currentTarget.style.background='rgba(0,0,0,0.25)'; }}
                 >
-                  <span className="text-[11px] font-bold text-slate-200">{tool.title}</span>
-                  <span className="text-[9px] text-slate-500">{tool.desc}</span>
+                  <span style={{ fontSize:'11px', fontWeight:700, color:'var(--text-primary)' }}>{tool.title}</span>
+                  <span style={{ fontSize:'9px', color:'var(--text-muted)', fontWeight:500 }}>{tool.desc}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Active Projects List */}
-          <div className="glass-card border border-slate-850 rounded-3xl p-5 space-y-4">
-            <h3 className="text-xs font-black uppercase text-slate-350 tracking-wider flex items-center gap-1.5">
-              <FolderOpen className="w-4 h-4 text-[#C9A84C]" />
-              Active Project Pipeline
-            </h3>
+          <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'18px', boxShadow:'var(--shadow-card)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'7px', marginBottom:'14px' }}>
+              <FolderOpen style={{ width:13, height:13, color:'var(--gold)' }} />
+              <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Project Pipeline</span>
+            </div>
             
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'280px', overflowY:'auto' }}>
               {projects.map(p => {
                 const isActive = p.id === selectedProjectId;
                 return (
-                  <div 
-                    key={p.id} 
+                  <div
+                    key={p.id}
                     onClick={() => setSelectedProjectId(p.id)}
-                    className={`p-3 rounded-xl border transition cursor-pointer text-left ${
-                      isActive 
-                        ? 'bg-[#D4AF37]/10 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5' 
-                        : 'bg-slate-900/30 border-slate-850 hover:border-slate-800'
-                    }`}
+                    style={{
+                      padding:'10px 12px', borderRadius:'12px', cursor:'pointer',
+                      border: isActive ? '1px solid var(--gold-border)' : '1px solid rgba(255,255,255,0.04)',
+                      background: isActive ? 'rgba(201,168,76,0.07)' : 'rgba(255,255,255,0.02)',
+                      transition:'all 0.15s',
+                      boxShadow: isActive ? 'var(--shadow-gold)' : 'none'
+                    }}
+                    onMouseEnter={e => { if(!isActive){ e.currentTarget.style.background='rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; }}}
+                    onMouseLeave={e => { if(!isActive){ e.currentTarget.style.background='rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.04)'; }}}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-200 truncate max-w-[140px]">{p.name}</span>
-                      <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                        p.status === 'production' 
-                          ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/40' 
-                          : 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/25'
-                      }`}>
-                        {p.status?.replace('_', ' ') || 'onboarding'}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
+                      <span style={{ fontSize:'11.5px', fontWeight:700, color: isActive ? 'var(--gold-bright)' : 'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'130px' }}>{p.name}</span>
+                      <span style={{ fontSize:'8px', fontWeight:900, textTransform:'uppercase', letterSpacing:'0.08em', padding:'2px 7px', borderRadius:'5px', background:'rgba(201,168,76,0.1)', color:'var(--gold)', border:'1px solid var(--gold-border)' }}>
+                        {(p.status||'onboarding').replace(/_/g,' ')}
                       </span>
                     </div>
-                    <div className="text-[9px] text-slate-500 mt-1 flex items-center justify-between">
-                      <span>Client: {p.client_name}</span>
-                      <span>₹{p.budget ? `${(p.budget / 100000).toFixed(1)}L` : '0L'}</span>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'9.5px', color:'var(--text-muted)', fontWeight:500 }}>
+                      <span>{p.client_name || '—'}</span>
+                      <span style={{ fontFamily:'monospace', color: isActive ? 'var(--gold)' : 'var(--text-muted)' }}>₹{p.budget ? `${(p.budget/100000).toFixed(1)}L` : '0L'}</span>
                     </div>
                   </div>
                 );
@@ -344,22 +363,22 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     setTimeout(() => {
       setActionProgress(false);
       if (actionKey === 'RCP') {
-        alert("RCP Planner Tool activated! Redirecting to specialist suite.");
+        window.__toast?.success("RCP Planner activated.");
         onNavigateToTab('drawings');
       } else if (actionKey === 'Elevation') {
-        alert("2D Elevation CAD Drafter initialized.");
+        window.__toast?.success("2D Elevation Drafter initialized.");
         onNavigateToTab('drawings');
       } else if (actionKey === 'BOM') {
-        alert("BOM takeoff schedule compiled successfully.");
+        window.__toast?.success("BOM takeoff compiled.");
         onNavigateToTab('finance');
       } else if (actionKey === 'Layout Plan') {
-        alert("Redirecting to Interactive CAD viewport.");
+
         onNavigateToTab('cad');
       } else if (actionKey === 'Video') {
-        alert("Walkthrough path nodes serialized. Animation ready.");
+        window.__toast?.success("Walkthrough path serialized.");
         onNavigateToTab('renders');
       } else {
-        alert(`Action "${actionKey}" executed simulation successfully!`);
+        window.__toast?.success(`Executed ${actionKey}`);
       }
     }, 1200);
   };
@@ -370,7 +389,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       {/* Step Progress Tracker */}
       <div className="flex items-center justify-between border-b border-slate-850 pb-4">
         <div>
-          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">🚀 Smart Project Pipeline</h3>
+          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">Smart Project Pipeline</h3>
           <p className="text-[10px] text-slate-500 mt-0.5">End-to-end plan to design to render to drawings to BOM</p>
         </div>
         <div className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 border border-slate-850 px-3 py-1 rounded-xl">
@@ -466,7 +485,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           <div className="lg:col-span-2 space-y-2">
             <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase px-1">
               <span>Click two points on a known wall to set scale</span>
-              <span className="text-[#D4AF37] font-mono">{calibrationPoints.length} / 2 Points Selected</span>
+              <span className="text-[#C9A84C] font-mono">{calibrationPoints.length} / 2 Points Selected</span>
             </div>
             <div 
               ref={canvasRef}
@@ -483,7 +502,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               {calibrationPoints.map((pt, i) => (
                 <div 
                   key={i} 
-                  className="absolute w-3 h-3 bg-[#D4AF37] border border-slate-950 rounded-full cursor-pointer z-10"
+                  className="absolute w-3 h-3 bg-[#C9A84C] border border-slate-950 rounded-full cursor-pointer z-10"
                   style={{ left: pt.x - 6, top: pt.y - 6 }}
                 />
               ))}
@@ -494,7 +513,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     y1={calibrationPoints[0].y} 
                     x2={calibrationPoints[1].x} 
                     y2={calibrationPoints[1].y} 
-                    stroke="#D4AF37" 
+                    stroke="#C9A84C" 
                     strokeWidth="2" 
                     strokeDasharray="4,4"
                   />
@@ -511,16 +530,58 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   type="number" 
                   value={scaleDistance} 
                   onChange={e => setScaleDistance(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
+                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#C9A84C]"
                 />
               </div>
-              <span className="text-[9px] text-slate-550 block">Click on two points (e.g. kitchen rear wall) and enter distance in millimetres.</span>
+              {calibrationPoints.length > 0 && (
+                <div className="space-y-2 border-t border-slate-800 pt-3">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase block">Manual Coordinate Adjustments</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {calibrationPoints.map((pt, idx) => (
+                      <div key={idx} className="space-y-1">
+                        <label className="text-[8px] text-slate-500 uppercase block">Point {idx + 1} (X, Y)</label>
+                        <div className="flex gap-1">
+                          <input 
+                            type="number" 
+                            value={pt.x} 
+                            onChange={e => {
+                              const pts = [...calibrationPoints];
+                              pts[idx].x = Number(e.target.value);
+                              setCalibrationPoints(pts);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-850 rounded-lg px-1.5 py-1 text-[9px] font-mono text-slate-200 outline-none"
+                          />
+                          <input 
+                            type="number" 
+                            value={pt.y} 
+                            onChange={e => {
+                              const pts = [...calibrationPoints];
+                              pts[idx].y = Number(e.target.value);
+                              setCalibrationPoints(pts);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-850 rounded-lg px-1.5 py-1 text-[9px] font-mono text-slate-200 outline-none"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {calibrationPoints.length === 2 && (
+                    <button
+                      onClick={() => setCalibrationPoints([])}
+                      className="text-[8px] font-bold uppercase text-red-400 hover:text-red-305 block transition"
+                    >
+                      Clear Points
+                    </button>
+                  )}
+                </div>
+              )}
+              <span className="text-[9px] text-slate-500 block">Click on two points (e.g. kitchen rear wall) and enter distance in millimetres.</span>
             </div>
             
             <button 
               onClick={() => setWizardStep('draw_rooms')}
               disabled={calibrationPoints.length < 2}
-              className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] disabled:bg-slate-800 disabled:text-slate-550 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10"
+              className="w-full py-2.5 bg-[#C9A84C] hover:bg-[#e6c045] disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#C9A84C]/10"
             >
               Set Scale & Continue
             </button>
@@ -534,7 +595,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           <div className="lg:col-span-2 space-y-2">
             <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase px-1">
               <span>Drag rectangles over each room on the canvas, then continue</span>
-              <span className="text-[#D4AF37] font-mono">Zones Mapped</span>
+              <span className="text-[#C9A84C] font-mono">Zones Mapped</span>
             </div>
             <div className="w-full h-[320px] bg-slate-900 border border-slate-850 rounded-2xl relative overflow-hidden flex items-center justify-center">
               <img 
@@ -547,7 +608,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               {markedRooms.map(rm => (
                 <div 
                   key={rm.id}
-                  className="absolute border border-[#D4AF37] bg-[#D4AF37]/10 flex items-center justify-center rounded"
+                  className="absolute border border-[#C9A84C] bg-[#C9A84C]/10 flex items-center justify-center rounded"
                   style={{
                     left: `${rm.bounds.x}%`,
                     top: `${rm.bounds.y}%`,
@@ -555,7 +616,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     height: `${rm.bounds.h}px`
                   }}
                 >
-                  <span className="bg-slate-950/80 border border-slate-800 text-[#D4AF37] text-[8px] font-bold px-1.5 py-0.5 rounded">
+                  <span className="bg-slate-950/80 border border-slate-800 text-[#C9A84C] text-[8px] font-bold px-1.5 py-0.5 rounded">
                     {rm.label}
                   </span>
                 </div>
@@ -566,10 +627,124 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             <div className="space-y-2">
               <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block font-bold">Room Zonation Boundary</span>
               <p className="text-[11px] text-slate-450 leading-relaxed">Draw room bounds by dragging boxes or click Save Rooms below to auto-interpret the layout zonation vectors.</p>
+              
+              <div className="space-y-2 border-t border-slate-800 pt-3">
+                <span className="text-[9px] font-bold text-slate-450 uppercase block">Refine Room Boundaries</span>
+                <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                  {markedRooms.map((rm, idx) => (
+                    <div key={rm.id} className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-850 space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <input 
+                          type="text" 
+                          value={rm.label} 
+                          onChange={e => {
+                            const rms = [...markedRooms];
+                            rms[idx].label = e.target.value;
+                            setMarkedRooms(rms);
+                          }}
+                          className="bg-transparent border-none text-[10px] font-bold text-slate-200 focus:outline-none w-2/3"
+                        />
+                        <button
+                          onClick={() => {
+                            setMarkedRooms(markedRooms.filter(r => r.id !== rm.id));
+                          }}
+                          className="text-[8px] font-black uppercase text-red-500 hover:text-red-400"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1 text-[8px] font-mono text-slate-450">
+                        <div>
+                          <span>X (%)</span>
+                          <input 
+                            type="number" 
+                            value={rm.bounds.x} 
+                            onChange={e => {
+                              const rms = [...markedRooms];
+                              rms[idx].bounds.x = Number(e.target.value);
+                              setMarkedRooms(rms);
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <span>Y (%)</span>
+                          <input 
+                            type="number" 
+                            value={rm.bounds.y} 
+                            onChange={e => {
+                              const rms = [...markedRooms];
+                              rms[idx].bounds.y = Number(e.target.value);
+                              setMarkedRooms(rms);
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <span>W (px)</span>
+                          <input 
+                            type="number" 
+                            value={rm.bounds.w} 
+                            onChange={e => {
+                              const rms = [...markedRooms];
+                              rms[idx].bounds.w = Number(e.target.value);
+                              setMarkedRooms(rms);
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <span>H (px)</span>
+                          <input 
+                            type="number" 
+                            value={rm.bounds.h} 
+                            onChange={e => {
+                              const rms = [...markedRooms];
+                              rms[idx].bounds.h = Number(e.target.value);
+                              setMarkedRooms(rms);
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const newId = `z${Date.now()}`;
+                      setMarkedRooms([...markedRooms, { id: newId, label: `New Zone ${markedRooms.length + 1}`, bounds: { x: 30, y: 30, w: 100, h: 80 } }]);
+                    }}
+                    className="w-full py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-[#C9A84C] font-bold uppercase text-[8px] rounded-lg transition"
+                  >
+                    + Add Custom Zone
+                  </button>
+                </div>
+              </div>
             </div>
             <button 
-              onClick={() => triggerLoading('rooms_ready', 'Rooms are being saved. Once they appear, pick one to render.')}
-              className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10"
+              onClick={() => {
+                fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/cad`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    rooms: markedRooms,
+                    walls: [],
+                    openings: [],
+                    furniture: [],
+                    measures: [],
+                    pixelsPerMeter: 40
+                  })
+                })
+                .then(res => res.json())
+                .then(() => {
+                  triggerLoading('rooms_ready', 'Rooms have been persisted to CAD database zonation graph.');
+                })
+                .catch(err => {
+                  console.error(err);
+                  triggerLoading('rooms_ready', 'Rooms saved in local session state.');
+                });
+              }}
+              className="w-full py-2.5 bg-[#C9A84C] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#C9A84C]/10"
             >
               Save Rooms & Continue
             </button>
@@ -641,7 +816,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     key={mode.id}
                     onClick={() => {
                       setAssignMode(mode.id);
-                      alert(`Product Assignments completed via ${mode.label}!`);
+                      window.__toast?.success(`Product assignments: ${mode.label}`);
                     }}
                     className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
                       assignMode === mode.id 
@@ -808,7 +983,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
   return (
     <div className="space-y-6 text-left">
       <div className="border-b border-slate-850 pb-4">
-        <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">🎨 Quick Generate Concept Render</h3>
+        <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">Quick Generate Concept Render</h3>
         <p className="text-[10px] text-slate-500 mt-0.5">Combine room geometry + mood board style preset to generate AI concepts</p>
       </div>
 
@@ -943,7 +1118,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
   return (
     <div className="space-y-6 text-left">
       <div className="border-b border-slate-850 pb-4">
-        <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">📸 Photo Edit & Reference Swapping</h3>
+        <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">Photo Edit & Reference Swapping</h3>
         <p className="text-[10px] text-slate-500 mt-0.5">Upload a photo of an existing room or rendering, select a region, and swap finishes/materials</p>
       </div>
 
@@ -1100,7 +1275,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
   };
 
   const handleLockAndPromote = () => {
-    alert("Quick Layout Promoted! Scene node initialized inside projects.");
+    window.__toast?.success("Quick Layout promoted.");
     onNavigateToTab('cad');
   };
 
@@ -1108,7 +1283,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
     <div className="space-y-6 text-left">
       <div className="flex items-center justify-between border-b border-slate-850 pb-4">
         <div>
-          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">📐 Quick Layout 2D Sketcher</h3>
+          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">Quick Layout 2D Sketcher</h3>
           <p className="text-[10px] text-slate-500 mt-0.5">Draw wall vertices and openings, place furniture blocks, and promote to design editor</p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -1383,7 +1558,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
     <div className="space-y-6 text-left">
       <div className="flex justify-between items-center border-b border-slate-850 pb-4">
         <div>
-          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">⚙️ Design Product & Modular Catalog</h3>
+          <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">Design Product & Modular Catalog</h3>
           <p className="text-[10px] text-slate-500 mt-0.5">Parametric modular catalog. Configure dimensions, materials and compute BOM takeoff</p>
         </div>
         <div className="bg-slate-900/60 p-1 rounded-xl border border-slate-850 flex gap-1 text-[10px] font-bold">
@@ -1909,7 +2084,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
   return (
     <div className="space-y-6 text-left">
       <div className="border-b border-slate-850 pb-4">
-        <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">⚡ AI Specialist Tool Hub</h3>
+        <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">AI Specialist Tool Hub</h3>
         <p className="text-[10px] text-slate-500 mt-0.5">Pick a tool — each one is a single-shot generator. Want a suggestion? Just describe what you need.</p>
       </div>
 
@@ -2317,3 +2492,128 @@ function getImageDimensions(dataUrl) {
   });
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   SETTINGS WORKSPACE — BYOK + Whitelabel + advanced studio guardrails
+   ════════════════════════════════════════════════════════════════════════ */
+function SettingsWorkspace() {
+  const [keys, setKeys] = React.useState([]);
+  const [busy, setBusy] = React.useState(false);
+  const [provider, setProvider] = React.useState('openai');
+  const [keyValue, setKeyValue] = React.useState('');
+  const [showKey, setShowKey] = React.useState(false);
+  const [brand, setBrand] = React.useState({
+    studioName: '', tagline: '', designerName: '', phone: '', email: '', logoColor:'#C9A84C'
+  });
+  const API = 'http://127.0.0.1:5055/api/settings/api-keys';
+  const APP_API = 'http://127.0.0.1:5055/api/settings/app-settings';
+
+  const loadKeys = async () => {
+    try {
+      const r = await fetch(API);
+      const d = await r.json();
+      setKeys(d.keys || []);
+    } catch (err) { console.error(err); }
+  };
+  const loadBrand = async () => {
+    try {
+      const r = await fetch(APP_API);
+      const d = await r.json();
+      if (d?.settings) setBrand({
+        studioName: d.settings.studio_name || '',
+        tagline: d.settings.tagline || '',
+        designerName: '',
+        phone: '',
+        email: '',
+        logoColor: d.settings.accent_color || '#C9A84C'
+      });
+    } catch (e) { console.error('load brand failed', e); }
+  };
+  React.useEffect(() => { loadKeys(); }, []);
+  React.useEffect(() => { loadBrand(); }, []);
+
+  const saveKey = async () => {
+    if (!keyValue.trim() || !provider.trim()) return;
+    setBusy(true);
+    try {
+      const r = await fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider, key_value: keyValue.trim() }) });
+      const d = await r.json();
+      if (d.success) { setKeyValue(''); await loadKeys(); }
+    } finally { setBusy(false); }
+  };
+  const deleteKey = async (id) => {
+    setBusy(true);
+    try {
+      await fetch(`${API}/${id}`, { method:'DELETE' });
+      await loadKeys();
+    } finally { setBusy(false); }
+  };
+  const saveBrand = async () => {
+    try {
+      await fetch(APP_API, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ studio_name: brand.studioName, tagline: brand.tagline, logo_text: brand.logoText || brand.logoColor, accent_color: brand.accentColor }),
+      });
+    } catch (e) { console.error('save brand failed', e); }
+    localStorage.setItem('ultida_whitelabel', JSON.stringify(brand));
+    window.dispatchEvent(new CustomEvent('ultida-update-branding', { detail: brand }));
+  };
+
+  const inputStyle = { background:'rgba(0,0,0,0.35)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'9px 12px', fontSize:12, color:'#F8FAFC', width:'100%', outline:'none' };
+
+  return (
+    <div className="space-y-6 text-left">
+      <div className="border-b border-slate-850 pb-4">
+        <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">Firm Settings</h3>
+        <p className="text-[10px] text-slate-500 mt-0.5">BYOK API keys, studio whitelabel, provider toggles, session timeout.</p>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-4">
+          <div className="text-[10px] font-black text-[#C9A84C] uppercase tracking-widest">Provider API Keys</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input className="sm:col-span-1" value={provider} onChange={e=>setProvider(e.target.value)} placeholder="provider" style={inputStyle} />
+            <input className="sm:col-span-2" value={keyValue} onChange={e=>setKeyValue(e.target.value)} placeholder="sk-..." style={inputStyle} />
+          </div>
+          <button onClick={saveKey} disabled={busy} className="px-4 py-2 rounded-xl bg-[#C9A84C] text-slate-950 text-[10px] font-black uppercase tracking-wider disabled:opacity-50">{busy ? 'Saving…' : 'Save Key'}</button>
+          <div className="space-y-2">
+            {keys.map(k => (
+              <div key={k.id} className="flex items-center justify-between bg-slate-950/60 border border-slate-850 rounded-xl px-3 py-2">
+                <div>
+                  <div className="text-[11px] font-bold text-slate-200">{k.provider}</div>
+                  <div className="text-[9px] text-slate-500 font-mono">••••••••••••{String(k.id || '').slice(-4)}</div>
+                </div>
+                <button onClick={() => deleteKey(k.id)} className="text-red-400 text-[10px] font-bold hover:text-red-300">Revoke</button>
+              </div>
+            ))}
+            {keys.length === 0 && <div className="text-[10px] text-slate-500">No stored keys yet.</div>}
+          </div>
+        </div>
+
+        <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-4">
+          <div className="text-[10px] font-black text-[#C9A84C] uppercase tracking-widest">Whitelabel Studio</div>
+          {[
+            ['Studio Name', brand.studioName, v=>setBrand(p=>({...p,studioName:v}))],
+            ['Tagline', brand.tagline, v=>setBrand(p=>({...p,tagline:v}))],
+            ['Designer Name', brand.designerName, v=>setBrand(p=>({...p,designerName:v}))],
+            ['Phone', brand.phone, v=>setBrand(p=>({...p,phone:v}))],
+            ['Email', brand.email, v=>setBrand(p=>({...p,email:v}))],
+          ].map(([label,val,setter]) => (
+            <div key={label}>
+              <span className="text-[9px] font-bold text-slate-500 uppercase block mb-1">{label}</span>
+              <input value={val} onChange={e=>setter(e.target.value)} style={inputStyle} />
+            </div>
+          ))}
+          <div>
+            <span className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Accent Color</span>
+            <div className="flex items-center gap-3">
+              <input type="color" value={brand.logoColor} onChange={e=>setBrand(p=>({...p,logoColor:e.target.value}))} style={{ width:44, height:36, borderRadius:10, border:'none', background:'transparent', cursor:'pointer' }} />
+              <span className="text-[11px] font-mono text-slate-300">{brand.logoColor}</span>
+            </div>
+          </div>
+          <button onClick={saveBrand} className="px-4 py-2 rounded-xl bg-[#C9A84C] text-slate-950 text-[10px] font-black uppercase tracking-wider">Save Branding</button>
+        </div>
+      </div>
+    </div>
+  );
+}

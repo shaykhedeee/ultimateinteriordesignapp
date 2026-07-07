@@ -658,5 +658,40 @@ try {
 
 console.log("Ultimate Interior Design SQLite Database initialized at:", dbPath);
 
+// ── Idempotent schema additions for: app_settings, shared_links, api_keys ──
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS app_settings (
+    id TEXT PRIMARY KEY,
+    studio_name TEXT,
+    tagline TEXT,
+    logo_text TEXT,
+    accent_color TEXT DEFAULT '#C9A84C',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );`).run();
+} catch (e) { console.warn("app_settings schema warn:", e.message); }
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS shared_links (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    token TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'presentation',
+    pdf_path TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );`).run();
+} catch (e) { console.warn("shared_links schema warn:", e.message); }
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS api_keys (
+    id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    key_enc TEXT NOT NULL,
+    label TEXT,
+    last_error TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP
+  );`).run();
+} catch (e) { console.warn("api_keys schema warn:", e.message); }
+
 export default db;
 

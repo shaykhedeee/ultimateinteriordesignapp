@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Layers, Download, Save, RefreshCw, AlertTriangle, 
-  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2
+  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2, FileText
 } from 'lucide-react';
+
+// Analyzer: SAME engine that drives the professional DXF export, so the
+// on-screen view is never out of sync with the CAD file. Pure + browser-safe.
+import { analyzeWallElevation } from '../../../server/services/elevation-analyzer.js';
 
 export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [walls, setWalls] = useState([]);
@@ -134,8 +138,18 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const wallOpenings = openings.filter(op => op.wallId === selectedWallId);
 
   // Filter cabinet items placed against this wall
-  // Cabinets will have wallId and xOffset, or we can check proximity
   const wallCabinets = furniture.filter(f => f.wallId === selectedWallId || f.cabinetId === selectedWallId);
+
+  // === REAL ElevationModel (single source of truth, shared with DXF export) ===
+  const model = selectedWall ? analyzeWallElevation({
+    wall: selectedWall,
+    openings,
+    furniture,
+    pixelsPerMeter,
+    wallHeightMm: wallHeight,
+    projectId,
+    sheetName: `ELEVATION ${selectedWallId}`
+  }) : null;
 
   // Add cabinet to active wall
   const handleAddCabinet = () => {
@@ -207,6 +221,13 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     }
   };
 
+  // Download PDF (print-ready sheet, rendered server-side via pdfkit)
+  const downloadPDF = () => {
+    if (!selectedWallId) return;
+    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedWallId}/pdf`, '_blank');
+    showToast("PDF sheet generated!");
+  };
+
   // Download SVG
   const downloadSVG = () => {
     const svgElement = document.getElementById('elevation-svg');
@@ -229,9 +250,13 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const marginX = 80;
   const marginY = 50;
 
-  // Scale calculations for SVG rendering
-  const scaleX = (svgW - 2 * marginX) / (wallLength || 3000);
-  const scaleY = (svgH - 2 * marginY) / wallHeight;
+  // Scale-aware sizing: true mm->px ratio driven by the chosen drawing scale.
+  // At 1:25 the wall fits the canvas width; at 1:50 it is exactly half (true ratio).
+  const scaleNum = scale === '1:50' ? 50 : 25;
+  const fitPxPerMm = (svgW - 2 * marginX) / (wallLength || 3000); // 1:25 reference
+  const pxPerMm = fitPxPerMm * (25 / scaleNum);
+  const scaleX = pxPerMm;
+  const scaleY = pxPerMm;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -336,6 +361,12 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
               <Download className="w-3.5 h-3.5" /> SVG
             </button>
             <button
+              onClick={downloadPDF}
+              className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 transition flex items-center gap-1"
+            >
+              <FileText className="w-3.5 h-3.5" /> PDF
+            </button>
+            <button
               onClick={() => {
                 if (selectedWallId) {
                   window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedWallId}/dxf`, '_blank');
@@ -393,374 +424,165 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
                 <text x="10" y="65" fill="#D4AF37" fontSize="6" fontWeight="bold">REV 1.0 (PRODUCTION SIGN-OFF)</text>
               </g>
 
-              {/* The Wall Elevation Projection */}
+              {/* The Wall Elevation Projection — driven by the SAME analyzer as the DXF */}
               {(() => {
-                const wallW = wallLength * scaleX;
-                const wallH = wallHeight * scaleY;
+                if (!model) return null;
+                const wallW = model.lengthMm * scaleX;
+                const wallH = model.heightMm * scaleY;
                 const startX = marginX;
                 const startY = svgH - marginY - wallH;
+                const RED = '#ef4444';      // dimension/annotation color (benchmark)
+                const YEL = '#eab308';      // reference lines
+                const BLK = '#e2e8f0';      // object lines
+
+                const toX = mm => startX + mm * scaleX;
+                const toY = mm => svgH - marginY - mm * scaleY;
+                // filled arrowhead polygon pointing along (x1,y1)->(x2,y2)
+                const Arrow = ({ x, y, ang, color = RED, size = 5 }) => {
+                  const a1 = ang + Math.PI - 0.5, a2 = ang + Math.PI + 0.5;
+                  const p1x = x + size * Math.cos(a1), p1y = y + size * Math.sin(a1);
+                  const p2x = x + size * Math.cos(a2), p2y = y + size * Math.sin(a2);
+                  return <polygon points={`${x},${y} ${p1x},${p1y} ${p2x},${p2y}`} fill={color} />;
+                };
 
                 return (
                   <g>
-                    {/* Bold Outer Wall Outline */}
-                    <rect 
-                      x={startX} 
-                      y={startY} 
-                      width={wallW} 
-                      height={wallH} 
-                      fill="rgba(30, 41, 59, 0.05)" 
-                      stroke="#9ca3af" 
-                      strokeWidth="2.5" 
+                    {/* Bold Outer Wall Outline (object line) */}
+                    <rect
+                      x={startX}
+                      y={startY}
+                      width={wallW}
+                      height={wallH}
+                      fill="rgba(30, 41, 59, 0.05)"
+                      stroke={BLK}
+                      strokeWidth="2.5"
                     />
+                    {/* Concrete BEAM hatch at top (benchmark: aggregate) */}
+                    <rect x={startX} y={startY - 18} width={wallW} height={18} fill="url(#backsplash-tile)" opacity="0.8" />
+                    <text x={toX(model.lengthMm) - 6} y={startY - 22} fill={BLK} fontSize="5.5" textAnchor="end" fontFamily="monospace">BEAM</text>
+                    {/* Floor / plinth datum */}
+                    <line x1={startX - 18} y1={svgH - marginY} x2={startX + wallW + 18} y2={svgH - marginY} stroke="#475569" strokeWidth="1.5" strokeDasharray="4,4" />
+                    <text x={startX - 22} y={svgH - marginY + 3} fill="#64748b" fontSize="6" textAnchor="end">PLINTH LVL (100)</text>
 
-                    {/* Subtle Tile Backsplash Area (dado zone between 850mm counter and 1450mm wall unit) */}
-                    <rect 
-                      x={startX} 
-                      y={svgH - marginY - 1450 * scaleY} 
-                      width={wallW} 
-                      height={600 * scaleY} 
-                      fill="url(#backsplash-tile)" 
-                      opacity="0.4"
-                    />
-
-                    {/* Standard Horizontal Reference Guidelines */}
+                    {/* Reference level guidelines */}
                     {[
-                      { h: 100, label: 'PLINTH SKIRTING (100)' },
                       { h: 850, label: 'BASE COUNTERTOP (850)' },
-                      { h: 1450, label: 'WALL CABINET BOTTOM / DADO (1450)' },
-                      { h: 2100, label: 'LINTEL LEVEL (2100)' }
-                    ].map((lvl, index) => {
-                      const lvlY = svgH - marginY - lvl.h * scaleY;
-                      return (
-                        <g key={`grid-line-${index}`}>
-                          <line 
-                            x1={startX - 15} 
-                            y1={lvlY} 
-                            x2={startX + wallW + 15} 
-                            y2={lvlY} 
-                            stroke="rgba(148, 163, 184, 0.25)" 
-                            strokeWidth="0.5" 
-                            strokeDasharray="3,3"
-                          />
-                          <text 
-                            x={startX - 20} 
-                            y={lvlY + 2.5} 
-                            fill="#64748b" 
-                            fontSize="5.5" 
-                            textAnchor="end"
-                            fontFamily="monospace"
-                          >
-                            {lvl.label}
-                          </text>
-                        </g>
-                      );
-                    })}
+                      { h: 1450, label: 'WALL CAB BOTTOM (1450)' },
+                      { h: 2100, label: 'LINTEL (2100)' }
+                    ].map((lvl, i) => (
+                      <g key={`rl-${i}`}>
+                        <line x1={startX - 15} y1={toY(lvl.h)} x2={startX + wallW + 15} y2={toY(lvl.h)} stroke="rgba(148,163,184,0.22)" strokeWidth="0.5" strokeDasharray="3,3" />
+                        <text x={startX - 20} y={toY(lvl.h) + 2.5} fill="#64748b" fontSize="5.5" textAnchor="end" fontFamily="monospace">{lvl.label}</text>
+                      </g>
+                    ))}
 
-                    {/* Plinth Floor Level line */}
-                    <line 
-                      x1={startX - 20} 
-                      y1={svgH - marginY} 
-                      x2={startX + wallW + 20} 
-                      y2={svgH - marginY} 
-                      stroke="#475569" 
-                      strokeWidth="1.5" 
-                      strokeDasharray="4,4"
-                    />
-
-                    {/* Plinth Height level label */}
-                    <text x={startX - 25} y={svgH - marginY + 3} fill="#64748b" fontSize="6.5" textAnchor="end">PLINTH LVL (100)</text>
-
-                    {/* Doors & Windows Openings */}
-                    {wallOpenings.map(op => {
-                      // Project position
-                      const opX = startX + ((Math.max(0, op.x - selectedWall.x1) / pixelsPerMeter) * 1000) * scaleX;
-                      const opW = (op.width || 50) * 10 * scaleX;
-                      const opH = op.type === 'door' ? 2100 * scaleY : 1200 * scaleY;
-                      const opY = op.type === 'door' ? (svgH - marginY - opH) : (svgH - marginY - 1000 * scaleY - opH); // window starts at 1000mm sill height
-
+                    {/* Doors & Windows — REAL geometry from analyzer */}
+                    {model.openings.map(op => {
+                      const ox = toX(op.offsetMm);
+                      const oy = toY(op.headMm);
+                      const ow = op.widthMm * scaleX;
+                      const oh = (op.headMm - op.sillMm) * scaleY;
+                      const label = op.type === 'door' ? 'DOOR' : 'WINDOW';
+                      const callout = op.type === 'door' ? 'DOOR' : 'BLACK PROFILE SHUTTER WITH GREY TINTED GLASS';
                       return (
                         <g key={op.id}>
-                          {/* Main Opening frame */}
-                          <rect 
-                            x={opX} 
-                            y={opY} 
-                            width={opW} 
-                            height={opH} 
-                            fill="#0d0f1b" 
-                            stroke="#38bdf8" 
-                            strokeWidth="1.5" 
-                          />
-                          
-                          {/* Micro-detailing for door/window frame outlines */}
-                          {op.type === 'door' ? (
-                            <>
-                              {/* Inner door frame outline */}
-                              <rect 
-                                x={opX + 5} 
-                                y={opY + 5} 
-                                width={opW - 10} 
-                                height={opH - 5} 
-                                fill="none" 
-                                stroke="#38bdf8" 
-                                strokeWidth="0.8" 
-                                opacity="0.6" 
-                              />
-                              {/* Door handle / lever */}
-                              <rect 
-                                x={opX + opW - 12} 
-                                y={opY + opH / 2 - 6} 
-                                width={4} 
-                                height={12} 
-                                rx={1} 
-                                fill="#ffffff" 
-                                stroke="#38bdf8" 
-                                strokeWidth="0.5" 
-                              />
-                            </>
-                          ) : (
-                            <>
-                              {/* Inner window frame */}
-                              <rect 
-                                x={opX + 4} 
-                                y={opY + 4} 
-                                width={opW - 8} 
-                                height={opH - 8} 
-                                fill="none" 
-                                stroke="#38bdf8" 
-                                strokeWidth="0.8" 
-                                opacity="0.6" 
-                              />
-                              {/* Pane divisions */}
-                              <line 
-                                x1={opX + opW / 2} 
-                                y1={opY} 
-                                x2={opX + opW / 2} 
-                                y2={opY + opH} 
-                                stroke="#38bdf8" 
-                                strokeWidth="1" 
-                                opacity="0.7" 
-                              />
-                              <line 
-                                x1={opX} 
-                                y1={opY + opH / 2} 
-                                x2={opX + opW} 
-                                y2={opY + opH / 2} 
-                                stroke="#38bdf8" 
-                                strokeWidth="0.6" 
-                                opacity="0.5" 
-                              />
-                            </>
-                          )}
-
-                          <text 
-                            x={opX + opW/2} 
-                            y={opY + opH/2} 
-                            fill="#38bdf8" 
-                            fontSize="8" 
-                            textAnchor="middle"
-                            fontWeight="bold"
-                            opacity="0.85"
-                          >
-                            {op.type === 'door' ? 'DOOR' : 'WINDOW'}
-                          </text>
+                          {/* TRUE CUT-OUT: void drawn as background, then jamb/sill/head lines */}
+                          <rect x={ox} y={oy} width={ow} height={oh} fill="#0d0f1b" />
+                          {/* jamb / sill / head (object lines) */}
+                          <line x1={ox} y1={oy} x2={ox} y2={oy + oh} stroke={BLK} strokeWidth="1.5" />
+                          <line x1={ox + ow} y1={oy} x2={ox + ow} y2={oy + oh} stroke={BLK} strokeWidth="1.5" />
+                          <line x1={ox} y1={oy} x2={ox + ow} y2={oy} stroke={BLK} strokeWidth="1.5" />
+                          <line x1={ox} y1={oy + oh} x2={ox + ow} y2={oy + oh} stroke={BLK} strokeWidth="1.5" />
+                          {/* break marks at corners */}
+                          <line x1={ox} y1={oy} x2={ox + 5} y2={oy - 5} stroke={BLK} strokeWidth="0.5" />
+                          <line x1={ox + ow} y1={oy} x2={ox + ow - 5} y2={oy - 5} stroke={BLK} strokeWidth="0.5" />
+                          <line x1={ox} y1={oy + oh} x2={ox + 5} y2={oy + oh + 5} stroke={BLK} strokeWidth="0.5" />
+                          <line x1={ox + ow} y1={oy + oh} x2={ox + ow - 5} y2={oy + oh + 5} stroke={BLK} strokeWidth="0.5" />
+                          {/* glazing diagonal lines for windows */}
+                          {op.type === 'window' && Array.from({ length: Math.floor(op.widthMm / 100) }).map((_, i) => (
+                            <line key={i} x1={ox + i * 100 * scaleX} y1={oy} x2={ox + i * 100 * scaleX + oh} y2={oy + oh} stroke={BLK} strokeWidth="0.4" opacity="0.5" />
+                          ))}
+                          <text x={ox + ow / 2} y={oy + oh / 2} fill={BLK} fontSize="8" textAnchor="middle" fontWeight="bold" opacity="0.85">{label}</text>
+                          {/* red leader + callout */}
+                          <line x1={ox + ow / 2} y1={oy + oh / 2} x2={ox + ow + 40} y2={oy - 6} stroke={RED} strokeWidth="0.5" />
+                          <text x={ox + ow + 44} y={oy - 6} fill={RED} fontSize="5" fontFamily="monospace">{callout}</text>
+                          {/* dimension with extension lines + arrows (red) */}
+                          <line x1={ox} y1={oy - 14} x2={ox} y2={oy - 26} stroke={RED} strokeWidth="0.5" />
+                          <line x1={ox + ow} y1={oy - 14} x2={ox + ow} y2={oy - 26} stroke={RED} strokeWidth="0.5" />
+                          <line x1={ox} y1={oy - 22} x2={ox + ow} y2={oy - 22} stroke={RED} strokeWidth="0.6" />
+                          <Arrow x={ox} y={oy - 22} ang={0} />
+                          <Arrow x={ox + ow} y={oy - 22} ang={Math.PI} />
+                          <text x={ox + ow / 2} y={oy - 28} fill={RED} fontSize="5.5" textAnchor="middle" fontFamily="monospace">{Math.round(op.widthMm)}</text>
                         </g>
                       );
                     })}
 
-                    {/* Placed Parametric Cabinets */}
-                    {wallCabinets.map(cab => {
-                      const cabW = (cab.width || 600) * scaleX;
-                      const cabH = (cab.height || 720) * scaleY;
-                      const cabX = startX + (cab.xOffsetWall || 0) * scaleX;
-                      const cabZ = (cab.zOffset || 0) * scaleY;
-                      const cabY = svgH - marginY - cabZ - cabH;
-
-                      const colors = cab.type === 'base' ? '#AA8C2C' 
-                                   : cab.type === 'wall' ? '#3b82f6' 
-                                   : cab.type === 'loft' ? '#a855f7' 
-                                   : '#10b981';
-
-                      const isDrawer = cab.name.toLowerCase().includes('drawer') || cab.name.toLowerCase().includes('pullout');
-                      const isDoubleDoor = (cab.width || 600) > 500 && !isDrawer;
-
+                    {/* Cabinets — REAL geometry from analyzer */}
+                    {model.cabinets.map(cab => {
+                      const cx = toX(cab.xOffsetMm);
+                      const cy = toY(cab.zOffsetMm + cab.heightMm);
+                      const cw = cab.widthMm * scaleX;
+                      const ch = cab.heightMm * scaleY;
+                      const isDrawer = cab.tag === 'DRAWER' || /drawer/i.test(cab.name);
+                      const isDouble = cab.widthMm > 500 && !isDrawer;
+                      const matCallout = cab.material?.callout;
                       return (
-                        <g key={cab.id} className="group">
-                          {/* Cabinet frame */}
-                          <rect 
-                            x={cabX} 
-                            y={cabY} 
-                            width={cabW} 
-                            height={cabH} 
-                            fill={`${colors}12`} 
-                            stroke={colors} 
-                            strokeWidth="1.5" 
-                          />
-                          
-                          {/* Cabinet door swing guidelines and handles */}
+                        <g key={cab.id}>
+                          <rect x={cx} y={cy} width={cw} height={ch} fill="rgba(212,175,55,0.07)" stroke={BLK} strokeWidth="1.5" />
                           {isDrawer ? (
+                            Array.from({ length: Math.max(2, Math.round(cab.heightMm / 250)) - 1 }).map((_, i) => (
+                              <line key={i} x1={cx} y1={cy + (ch * (i + 1)) / (Math.max(2, Math.round(cab.heightMm / 250)))} x2={cx + cw} y2={cy + (ch * (i + 1)) / (Math.max(2, Math.round(cab.heightMm / 250)))} stroke={BLK} strokeWidth="0.7" />
+                            ))
+                          ) : isDouble ? (
                             <>
-                              {/* Drawers: 3 horizontal drawer subdivisions */}
-                              <line 
-                                x1={cabX} 
-                                y1={cabY + cabH / 3} 
-                                x2={cabX + cabW} 
-                                y2={cabY + cabH / 3} 
-                                stroke={colors} 
-                                strokeWidth="0.8" 
-                              />
-                              <line 
-                                x1={cabX} 
-                                y1={cabY + (2 * cabH) / 3} 
-                                x2={cabX + cabW} 
-                                y2={cabY + (2 * cabH) / 3} 
-                                stroke={colors} 
-                                strokeWidth="0.8" 
-                              />
-                              {/* Drawers handles (3 horizontal pull handles) */}
-                              <rect 
-                                x={cabX + cabW / 2 - 15} 
-                                y={cabY + cabH / 6 - 1.5} 
-                                width={30} 
-                                height={3} 
-                                rx={1} 
-                                fill="#ffffff" 
-                                opacity="0.9" 
-                              />
-                              <rect 
-                                x={cabX + cabW / 2 - 15} 
-                                y={cabY + cabH / 2 - 1.5} 
-                                width={30} 
-                                height={3} 
-                                rx={1} 
-                                fill="#ffffff" 
-                                opacity="0.9" 
-                              />
-                              <rect 
-                                x={cabX + cabW / 2 - 15} 
-                                y={cabY + (5 * cabH) / 6 - 1.5} 
-                                width={30} 
-                                height={3} 
-                                rx={1} 
-                                fill="#ffffff" 
-                                opacity="0.9" 
-                              />
-                            </>
-                          ) : isDoubleDoor ? (
-                            <>
-                              {/* Double door vertical center partition line */}
-                              <line 
-                                x1={cabX + cabW / 2} 
-                                y1={cabY} 
-                                x2={cabX + cabW / 2} 
-                                y2={cabY + cabH} 
-                                stroke={colors} 
-                                strokeWidth="0.8" 
-                              />
-                              {/* Symmetrical Left/Right Hinge swing dashed lines meeting at center */}
-                              <polyline 
-                                points={`${cabX},${cabY} ${cabX + cabW / 2},${cabY + cabH / 2} ${cabX},${cabY + cabH}`} 
-                                fill="none" 
-                                stroke={colors} 
-                                strokeWidth="0.5" 
-                                strokeDasharray="2,2" 
-                                opacity="0.65" 
-                              />
-                              <polyline 
-                                points={`${cabX + cabW},${cabY} ${cabX + cabW / 2},${cabY + cabH / 2} ${cabX + cabW},${cabY + cabH}`} 
-                                fill="none" 
-                                stroke={colors} 
-                                strokeWidth="0.5" 
-                                strokeDasharray="2,2" 
-                                opacity="0.65" 
-                              />
-                              {/* Double door handles */}
-                              <rect 
-                                x={cabX + cabW / 2 - 7} 
-                                y={cabY + cabH / 2 - 10} 
-                                width={1.5} 
-                                height={20} 
-                                rx={0.5} 
-                                fill="#ffffff" 
-                                opacity="0.9" 
-                              />
-                              <rect 
-                                x={cabX + cabW / 2 + 5.5} 
-                                y={cabY + cabH / 2 - 10} 
-                                width={1.5} 
-                                height={20} 
-                                rx={0.5} 
-                                fill="#ffffff" 
-                                opacity="0.9" 
-                              />
+                              <line x1={cx + cw / 2} y1={cy} x2={cx + cw / 2} y2={cy + ch} stroke={BLK} strokeWidth="0.7" />
+                              <path d={`M ${cx} ${cy} A ${cw / 2} ${cw / 2} 0 0 1 ${cx + cw / 2} ${cy + ch / 2}`} fill="none" stroke={BLK} strokeWidth="0.4" strokeDasharray="2,2" opacity="0.6" />
                             </>
                           ) : (
+                            <path d={`M ${cx} ${cy} A ${cw} ${cw} 0 0 1 ${cx + cw} ${cy + ch / 2}`} fill="none" stroke={BLK} strokeWidth="0.4" strokeDasharray="2,2" opacity="0.6" />
+                          )}
+                          {/* glass hatch */}
+                          {cab.material?.glass && Array.from({ length: Math.floor(cab.widthMm / 80) }).map((_, i) => (
+                            <line key={i} x1={cx + i * 80 * scaleX} y1={cy} x2={cx + i * 80 * scaleX + ch} y2={cy + ch} stroke={BLK} strokeWidth="0.3" opacity="0.4" />
+                          ))}
+                          {/* component tag */}
+                          <text x={cx + cw / 2} y={cy + ch / 2} fill={BLK} fontSize="6.5" textAnchor="middle" fontWeight="bold">{cab.tag}</text>
+                          <text x={cx + cw / 2} y={cy + ch - 4} fill="#9ca3af" fontSize="4.5" textAnchor="middle" fontFamily="monospace">{Math.round(cab.widthMm)}x{Math.round(cab.heightMm)}</text>
+                          {/* material callout (red leader) */}
+                          {matCallout && (
                             <>
-                              {/* Single Door: Left hinged swing dashed lines meeting at right edge */}
-                              <polyline 
-                                points={`${cabX},${cabY} ${cabX + cabW},${cabY + cabH / 2} ${cabX},${cabY + cabH}`} 
-                                fill="none" 
-                                stroke={colors} 
-                                strokeWidth="0.5" 
-                                strokeDasharray="2,2" 
-                                opacity="0.65" 
-                              />
-                              {/* Single door handle near right edge */}
-                              <rect 
-                                x={cabX + cabW - 7} 
-                                y={cabY + cabH / 2 - 10} 
-                                width={1.5} 
-                                height={20} 
-                                rx={0.5} 
-                                fill="#ffffff" 
-                                opacity="0.9" 
-                              />
+                              <line x1={cx + cw / 2} y1={cy + 6} x2={cx + cw + 30} y2={cy - 4} stroke={RED} strokeWidth="0.5" />
+                              <text x={cx + cw + 34} y={cy - 4} fill={RED} fontSize="4.5" fontFamily="monospace">{matCallout}</text>
                             </>
                           )}
-
-                          {/* Module Label */}
-                          <text 
-                            x={cabX + cabW/2} 
-                            y={cabY + cabH/2 + 2} 
-                            fill="#ffffff" 
-                            fontSize="7" 
-                            fontWeight="bold" 
-                            textAnchor="middle"
-                            fillOpacity="0.8"
-                          >
-                            {cab.name}
-                          </text>
-
-                          {/* Dimensions label below */}
-                          <text 
-                            x={cabX + cabW/2} 
-                            y={cabY + cabH - 5} 
-                            fill={colors} 
-                            fontSize="5.5" 
-                            textAnchor="middle"
-                            fontFamily="monospace"
-                          >
-                            {cab.width} x {cab.height}
-                          </text>
                         </g>
                       );
                     })}
 
-                    {/* Overall Dimension Annotations */}
-                    {/* Top Wall Width Dimension */}
-                    <line x1={startX} y1={startY - 15} x2={startX + wallW} y2={startY - 15} stroke="#d4c5b2" strokeWidth="0.8" />
-                    <line x1={startX} y1={startY - 20} x2={startX} y2={startY - 10} stroke="#d4c5b2" strokeWidth="0.8" />
-                    <line x1={startX + wallW} y1={startY - 20} x2={startX + wallW} y2={startY - 10} stroke="#d4c5b2" strokeWidth="0.8" />
-                    <text x={startX + wallW/2} y={startY - 20} fill="#d4c5b2" fontSize="7.5" textAnchor="middle" fontFamily="monospace" fontWeight="bold">
-                      {wallLength} mm
-                    </text>
+                    {/* Overall Dimension — red, extension lines + arrows */}
+                    <line x1={startX} y1={startY - 14} x2={startX} y2={startY - 34} stroke={RED} strokeWidth="0.5" />
+                    <line x1={startX + wallW} y1={startY - 14} x2={startX + wallW} y2={startY - 34} stroke={RED} strokeWidth="0.5" />
+                    <line x1={startX} y1={startY - 28} x2={startX + wallW} y2={startY - 28} stroke={RED} strokeWidth="0.8" />
+                    <Arrow x={startX} y={startY - 28} ang={0} />
+                    <Arrow x={startX + wallW} y={startY - 28} ang={Math.PI} />
+                    <text x={startX + wallW / 2} y={startY - 34} fill={RED} fontSize="7.5" textAnchor="middle" fontFamily="monospace" fontWeight="bold">{model.lengthMm} MM</text>
+                    <line x1={startX + wallW + 14} y1={startY} x2={startX + wallW + 34} y2={startY} stroke={RED} strokeWidth="0.5" />
+                    <line x1={startX + wallW + 14} y1={svgH - marginY} x2={startX + wallW + 34} y2={svgH - marginY} stroke={RED} strokeWidth="0.5" />
+                    <line x1={startX + wallW + 28} y1={startY} x2={startX + wallW + 28} y2={svgH - marginY} stroke={RED} strokeWidth="0.8" />
+                    <Arrow x={startX + wallW + 28} y={startY} ang={-Math.PI / 2} />
+                    <Arrow x={startX + wallW + 28} y={svgH - marginY} ang={Math.PI / 2} />
+                    <text x={startX + wallW + 40} y={startY + wallH / 2 + 2.5} fill={RED} fontSize="7.5" textAnchor="start" fontFamily="monospace" fontWeight="bold">{model.heightMm} MM</text>
 
-                    {/* Right Side Wall Height Dimension */}
-                    <line x1={startX + wallW + 15} y1={startY} x2={startX + wallW + 15} y2={svgH - marginY} stroke="#d4c5b2" strokeWidth="0.8" />
-                    <line x1={startX + wallW + 10} y1={startY} x2={startX + wallW + 20} y2={startY} stroke="#d4c5b2" strokeWidth="0.8" />
-                    <line x1={startX + wallW + 10} y1={svgH - marginY} x2={startX + wallW + 20} y2={svgH - marginY} stroke="#d4c5b2" strokeWidth="0.8" />
-                    <text x={startX + wallW + 25} y={startY + wallH/2 + 2.5} fill="#d4c5b2" fontSize="7.5" textAnchor="start" fontFamily="monospace" fontWeight="bold">
-                      {wallHeight} mm
-                    </text>
+                    {/* Drawing border + title block */}
+                    <rect x={10} y={10} width={svgW - 20} height={svgH - 20} fill="none" stroke="#2563eb" strokeWidth="1" />
+                    <g transform={`translate(${svgW - 200}, ${svgH - 90})`}>
+                      <rect x={0} y={0} width={190} height={80} fill="rgba(15,23,42,0.9)" stroke="#2563eb" strokeWidth="0.8" />
+                      <line x1={0} y1={26} x2={190} y2={26} stroke="#2563eb" strokeWidth="0.4" />
+                      <line x1={0} y1={52} x2={190} y2={52} stroke="#2563eb" strokeWidth="0.4" />
+                      <text x={6} y={17} fill="#D4AF37" fontSize="7" fontWeight="bold" fontFamily="monospace">SHEET: {model.wallName}</text>
+                      <text x={6} y={43} fill="#e2e8f0" fontSize="6" fontFamily="monospace">SCALE: {scale}   REV: 1.0</text>
+                      <text x={6} y={69} fill="#94a3b8" fontSize="5.5" fontFamily="monospace">AURABRAIN  {new Date().toISOString().slice(0,10)}</text>
+                    </g>
                   </g>
                 );
               })()}

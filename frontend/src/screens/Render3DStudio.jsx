@@ -401,8 +401,11 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [modelTier, setModelTier] = useState('precision');
   const [spendMode, setSpendMode] = useState('smart-cost');
   const [cameraAngle, setCameraAngle] = useState('diagonal');
+  const [activeProvider, setActiveProvider] = useState('auto');
+  const [renderStyle, setRenderStyle] = useState('photoreal');
   const [variantCount, setVariantCount] = useState(1);
   const [removePeople, setRemovePeople] = useState(true);
+  const [aspectRatio, setAspectRatio] = useState('16:9'); // '16:9' | '9:16' | '1:1'
   const [furnitureRequirement, setFurnitureRequirement] = useState('');
   const [customInstruction, setCustomInstruction] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -624,7 +627,13 @@ export default function Render3DStudio({ projectId, onComplete }) {
       await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobType: 'render_generation' })
+        body: JSON.stringify({
+          jobType: 'render_generation',
+          cameraAngle,
+          provider: activeProvider,
+          renderStyle,
+          variantCount
+        })
       });
       setProject(prev => prev ? { ...prev, stale_renders: 0 } : null);
       alert("Render regeneration job spawned successfully! Check Background Jobs tab.");
@@ -684,8 +693,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('cameraAngle', cameraAngle);
       formData.append('variantCount', variantCount);
       formData.append('removePeople', String(removePeople));
+      formData.append('aspectRatio', aspectRatio);
       formData.append('furnitureRequirement', furnitureRequirement);
       formData.append('customInstruction', customInstruction);
+      formData.append('cameraAngle', cameraAngle);
+      formData.append('activeProvider', activeProvider);
+      formData.append('renderStyle', renderStyle);
       
       // Append kitchen rules
       formData.append('hobSinkSwapped', String(kitchenRules.hobSinkSwapped));
@@ -1285,18 +1298,33 @@ export default function Render3DStudio({ projectId, onComplete }) {
               </select>
             </div>
           </div>
+ 
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-400 font-semibold block">Aspect Ratio</label>
+              <select
+                value={aspectRatio}
+                onChange={(e) => setAspectRatio(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-[#C9A84C]"
+              >
+                <option value="16:9">16:9 Landscape</option>
+                <option value="9:16">9:16 Portrait</option>
+                <option value="1:1">1:1 Square</option>
+              </select>
+            </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] text-slate-400 font-semibold block">Spend Mode</label>
-            <select
-              value={spendMode}
-              onChange={(e) => setSpendMode(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none"
-            >
-              <option value="smart-cost">Smart Cost (Balance Reuse)</option>
-              <option value="demo-saver">Demo Saver (Copied assets)</option>
-              <option value="premium-quality">Premium Quality (New Renders)</option>
-            </select>
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-400 font-semibold block">Spend Mode</label>
+              <select
+                value={spendMode}
+                onChange={(e) => setSpendMode(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none"
+              >
+                <option value="smart-cost">Smart Cost</option>
+                <option value="demo-saver">Demo Saver</option>
+                <option value="premium-quality">Premium</option>
+              </select>
+            </div>
           </div>
 
           <label className="flex items-center gap-2 text-[10px] text-slate-400 cursor-pointer">

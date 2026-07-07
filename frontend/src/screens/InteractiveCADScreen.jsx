@@ -3,9 +3,10 @@ import {
   Square, DoorClosed, Ruler, Move, Compass, 
   Video, Play, Save, ChevronRight, Maximize2, 
   Trash2, RefreshCw, ZoomIn, ZoomOut, Layers,
-  CheckCircle, AlertTriangle, Eye, Palette, Download, Sparkles
+  CheckCircle, AlertTriangle, Eye, Palette, Download, Sparkles, Image
 } from 'lucide-react';
 import { exportToDXF, exportToSCR } from '../utils/dxf-exporter';
+import CVProcessor from '../lib/cv/cv-processor';
 
 export default function InteractiveCADScreen({ projectId, onComplete }) {
   // --- Workspace Vector State ---
@@ -55,6 +56,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   // --- AI Layout State ---
   const [isDetectingLayout, setIsDetectingLayout] = useState(false);
+  const [cvStatus, setCvStatus] = useState(null); // { kind:'ok'|'warn'|'error', text:string }
 
   // --- Undo/Redo Stacks ---
   const [history, setHistory] = useState([]);
@@ -64,6 +66,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const svgRef = useRef(null);
   const isDraggingCanvasRef = useRef(false);
   const canvasDragStartRef = useRef({ x: 0, y: 0 });
+  const hiddenCanvasRef = useRef(null);
 
   // Theme Colors dictionary
   const themeColors = {
@@ -168,6 +171,79 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     }
   };
 
+  const triggerCvDetect = async () => {
+    if (!sketchUrl) {
+      alert("Attach a floorplan / sketch image first (Floorplan Underlay), then run wall detection.");
+      return;
+    }
+    setIsDetectingLayout(true);
+    try {
+      // 1. Load the underlay image into an offscreen canvas
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = sketchUrl;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error('Could not load underlay image'));
+      });
+
+      const MAX = 1400;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+
+      const srcCanvas = hiddenCanvasRef.current || document.createElement('canvas');
+      srcCanvas.width = w; srcCanvas.height = h;
+      const sctx = srcCanvas.getContext('2d');
+      sctx.drawImage(img, 0, 0, w, h);
+
+      // 2. Binarize (real CV line-detection preprocessing)
+      const binCanvas = document.createElement('canvas');
+      binCanvas.width = w; binCanvas.height = h;
+      CVProcessor.processImage(srcCanvas, binCanvas, 0, 1.2, 140, false);
+
+      // 3. Detect walls + openings from the binarized image
+      const result = CVProcessor.detectWallsAndOpenings(binCanvas, { lineThicknessGap: 15, snapTolerance: 25 });
+
+      if (!result.walls || result.walls.length === 0) {
+        alert("No walls detected in the image. Try a higher-contrast sketch, or trace manually.");
+        return;
+      }
+
+      // 4. Map detected segments -> CAD wall state (convert px coords directly)
+      const newWalls = result.walls.map(seg => ({
+        id: 'wall_' + Math.random().toString(36).substr(2, 6),
+        x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2,
+        thickness: (wallThicknessMm / 1000) * pixelsPerMeter,
+        material: 'drywall'
+      }));
+
+      // Map detected openings -> opening state on the nearest new wall
+      const newOpenings = (result.openings || []).map(op => ({
+        id: 'op_' + Math.random().toString(36).substr(2, 6),
+        type: op.type || 'door',
+        x: op.x != null ? op.x : ((op.x1 || 0) + (op.x2 || 0)) / 2,
+        y: op.y != null ? op.y : ((op.y1 || 0) + (op.y2 || 0)) / 2,
+        width: op.width || 40,
+        angle: op.angle || 0,
+        wallId: ''
+      })).filter(o => o.x || o.y);
+
+      setWalls(newWalls);
+      setOpenings(newOpenings.length ? newOpenings : openings);
+      saveToHistory(newWalls, newOpenings.length ? newOpenings : openings, furniture, rooms, measures);
+
+      // 5. Persist to server so AI layout interpretation can run on traced walls
+      await saveCADToServer();
+      alert(`Detected ${newWalls.length} wall segment(s) from the image. Review and refine in the editor, then run AI Auto-Detect Layout.`);
+    } catch (err) {
+      console.error(err);
+      alert("Wall detection failed: " + err.message);
+    } finally {
+      setIsDetectingLayout(false);
+    }
+  };
+
   const triggerAiDetect = async () => {
     setIsDetectingLayout(true);
     try {
@@ -177,10 +253,12 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("AI Floorplan analysis complete: partition walls traced, room zones marked, and cabinet modules placed!");
+        alert("Floorplan interpreted from your traced walls: rooms detected and cabinet modules placed. Review the result in the CAD editor.");
         loadCADData();
+      } else if (res.status === 422) {
+        alert(data.message || "Trace the walls and openings in the CAD editor first, then run interpretation.");
       } else {
-        alert(data.error || "AI floorplan analysis failed.");
+        alert(data.error || "Floorplan interpretation failed.");
       }
     } catch (err) {
       console.error(err);
@@ -726,7 +804,9 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   return (
     <div className="flex flex-col xl:flex-row h-[85vh] text-slate-200 select-none bg-slate-950 p-4 gap-4">
-      
+      {/* Hidden offscreen canvas for CV wall detection from underlay image */}
+      <canvas ref={hiddenCanvasRef} style={{ display: 'none' }} />
+
       {/* 1. Left CAD Controls Palette */}
       <div className="w-full xl:w-72 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0">
         <div>
@@ -835,6 +915,15 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
           >
             {isDetectingLayout ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             AI Auto-Detect Layout
+          </button>
+          <button
+            onClick={triggerCvDetect}
+            disabled={isDetectingLayout || !sketchUrl}
+            title={sketchUrl ? 'Detect walls from the attached floorplan image' : 'Attach a floorplan underlay first'}
+            className="w-full py-2 bg-[#2DD4AA]/10 hover:bg-[#2DD4AA]/20 border border-[#2DD4AA]/45 text-[#2DD4AA] text-xs font-bold rounded-lg uppercase tracking-wider transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Image className="w-3.5 h-3.5" />
+            Detect Walls From Image
           </button>
         </div>
 
@@ -1205,11 +1294,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   const data = await res.json();
                   if (data.success) {
                     setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
-                    alert("Floorplan underlay permanently attached to project brief!");
+                    window.__toast?.success("Floorplan underlay attached.");
                   }
                 } catch (err) {
                   console.error("Error uploading floorplan from CAD screen:", err);
-                  alert("Failed to save floorplan to server.");
+                  window.__toast?.error("Failed to save floorplan to server.");
                 }
               }
             }}
@@ -1395,6 +1484,23 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               <Download className="w-3.5 h-3.5" />
               Export SCR
             </button>
+          </div>
+
+          <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl space-y-2">
+            <div className="text-[9px] font-black text-[#C9A84C] uppercase tracking-widest">Photo → Elevation → DXF</div>
+            <input id="rtp-image-input" type="file" accept="image/*" className="block w-full text-[9px] text-slate-400" />
+            <input id="rtp-width" placeholder="real width (mm)" inputMode="numeric" className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-[10px] text-slate-200" />
+            <input id="rtp-height" placeholder="real height (mm)" inputMode="numeric" className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-[10px] text-slate-200" />
+            <button onClick={async () => {
+              const file = document.getElementById('rtp-image-input')?.files?.[0];
+              const w = Number(document.getElementById('rtp-width')?.value);
+              const h = Number(document.getElementById('rtp-height')?.value);
+              if (!file || !w || !h) { window.__toast?.warn('Upload photo + enter width/height'); return; }
+              const fd = new FormData(); fd.append('image', file); fd.append('widthMm', String(w)); fd.append('heightMm', String(h)); fd.append('projectId', String(projectId));
+              const r = await fetch(`http://127.0.0.1:5055/api/elevation/from-photo/dxf`, { method:'POST', body: fd });
+              const d = await r.json();
+              if (d?.success) { window.__toast?.success('Elevation DXF generated'); } else { window.__toast?.error(d?.error || 'failed'); }
+            }} className="w-full py-2 bg-[#C9A84C] text-slate-950 font-black uppercase text-[10px] rounded-lg">Generate Elevation</button>
           </div>
           <button
             onClick={saveCADToServer}

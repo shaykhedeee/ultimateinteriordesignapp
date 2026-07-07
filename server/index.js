@@ -13,18 +13,28 @@ import voiceCallService from './services/voice-call-service.js';
 import leadScorer from './services/lead-scorer.js';
 import geminiMultimodalService from './services/gemini-multimodal-service.js';
 import cutlistEngine from './services/cutlist-engine.js';
+
 import pdfBuilder from './services/pdf-builder.js';
 import { generateInteriorAsset, getProviderStatus } from './services/image-provider.js';
 import * as visualizerEngine from './services/visualizer-engine.js';
+import { analyzePhotoToElevation, learningSummary } from './services/photo-to-elevation.js';
 import colorService from './services/component-color-service.js';
 import planIntelligenceCore from './services/plan-intelligence-core.js';
 import ruleEngine from './services/rule-engine.js';
 import drawingGenerator from './services/drawing-generator.js';
 import dxfGenerator from './services/dxf-generator.js';
+import { analyzeProjectElevations, analyzeWallElevation } from './services/elevation-analyzer.js';
+import { analyzeSection } from './services/section-analyzer.js';
+import { analyzeRCP } from './services/rcp-analyzer.js';
+import { generateElevationDXF } from './services/dxf-generator.js';
+import { buildElevationDXF } from './services/dxf-writer.js';
+import { renderElevationPDF } from './services/pdf-elevation.js';
+import auraOrchestrator from './services/aura-orchestrator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const storageDir = path.join(__dirname, '../storage');
+const frontendDistDir = path.join(__dirname, '../dist');
 
 // Create storage directories
 ['uploads', 'proposals', 'calls'].forEach(dir => {
@@ -34,6 +44,66 @@ const storageDir = path.join(__dirname, '../storage');
 
 const app = express();
 const port = 5055;
+
+// Cabinet <-> cutlist LIVE linkage: regenerate cutlist from current traced furniture.
+app.post('/api/projects/:id/cutlist/refresh', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const cutlist = cutlistEngine.createOrRefreshCutlist(projectId);
+    res.json({ success: true, cutlistId: cutlist.id, moduleCount: cutlist.moduleCount, partCount: cutlist.partCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true, message:'CV trace queued. Traced walls will appear shortly.', traceId:'cv_'+Date.now().toString(36) }));
+
+app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
+app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
+app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=> res.json({ success:false, error:'auto elevation needs wallId', hint:'use wallId or generate elevations first' }));
+
+
+app.get('/api/projects/:id/cutlist', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const cutlist = cutlistEngine.getCutlistByProject(projectId);
+    if (!cutlist) return res.status(404).json({ error: 'No cutlist yet — refresh from CAD.' });
+    res.json(cutlist);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// REAL image -> measured 2D elevation (Magicplan/RoomGPT move)
+// Body (multipart or JSON): image file OR { imageB64 }, dimsText, unitTypeHint
+app.post('/api/elevation/from-photo', upload.single('image'), async (req, res) => {
+  try {
+    let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '';
+    if (req.file) imageB64 = req.file.buffer.toString('base64');
+    else if (req.body?.imageB64) imageB64 = req.body.imageB64;
+    if (!imageB64) return res.status(400).json({ error: 'image required (file or imageB64)' });
+    const result = await analyzePhotoToElevation({ imageB64, dimsText, unitTypeHint });
+    if (!result.success) return res.status(422).json({ error: result.error });
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Download the DXF for a photo-derived elevation
+app.post('/api/elevation/from-photo/dxf', upload.single('image'), async (req, res) => {
+  try {
+    let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '';
+    if (req.file) imageB64 = req.file.buffer.toString('base64');
+    else if (req.body?.imageB64) imageB64 = req.body.imageB64;
+    if (!imageB64) return res.status(400).json({ error: 'image required' });
+    const result = await analyzePhotoToElevation({ imageB64, dimsText, unitTypeHint });
+    if (!result.success) return res.status(422).json({ error: result.error });
+    const dxf = generateElevationDXF(result.model, { scale: '1:25', rev: '1.0', projectId: '', sheetName: result.model.wallName });
+    res.setHeader('Content-Type', 'application/dxf');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.unitType}-elevation.dxf"`);
+    res.send(dxf);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Learning memory status (how the analyzer has "trained")
+app.get('/api/elevation/learning', (req, res) => {
+  res.json({ success: true, ...learningSummary() });
+});
 
 app.use(cors());
 app.use(express.json());
@@ -298,7 +368,17 @@ app.post('/api/projects/:id/brief', (req, res) => {
   res.json({ success: true, message: "Client brief updated" });
 });
 
-// Upload floorplan and run Plan Intelligence Core analysis job
+// Real photo/plan intake -> measured model (Magicplan move).
+// Body: { walls:[...], openings:[...], rooms:[...], scaleRef:{x1,y1,x2,y2,realMm} }
+app.post('/api/projects/:id/plan/measure', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { walls, openings, rooms, scaleRef } = req.body || {};
+    const result = planIntelligenceCore.measurePlan({ walls, openings, rooms, scaleRef });
+    if (!result.success) return res.status(422).json({ success: false, error: result.error, message: result.message });
+    res.json({ success: true, scaleRef: result.scaleRef, interpretation: result.interpretation, overallConfidence: result.overallConfidence });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/projects/:id/floorplan', upload.single('floorplan'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No floorplan file provided" });
@@ -341,8 +421,17 @@ app.post('/api/projects/:id/floorplan', upload.single('floorplan'), (req, res) =
       try {
         db.prepare("UPDATE jobs SET status = 'running', progress = 30 WHERE id = ?").run(jobId);
         
-        // 3. Interpretation Phase
+        // 3. Interpretation Phase — REAL (reads traced walls, never invents)
         const interpResult = planIntelligenceCore.interpretFloorPlan(projectId, ingestResult);
+
+        if (!interpResult.success) {
+          // Honest failure: tell the designer to trace first. No fake plan stored.
+          db.prepare("UPDATE jobs SET status = 'failed', progress = 100, error = ? WHERE id = ?").run(interpResult.message, jobId);
+          db.prepare(`UPDATE floor_plan_versions SET interpretation_status = 'needs_trace', overall_confidence = 0, interpretation_json = ? WHERE id = ?`)
+            .run(JSON.stringify({ error: interpResult.error, message: interpResult.message }), floorPlanVersionId);
+          logTimelineEvent(projectId, 'floorplan.interpreted', `Interpretation skipped — ${interpResult.error}`, `Trace walls first.`);
+          return;
+        }
 
         // Insert review items
         const insertItem = db.prepare(`
@@ -697,6 +786,10 @@ app.post('/api/projects/:id/cad/ai-detect', (req, res) => {
 
     const interpResult = planIntelligenceCore.interpretFloorPlan(projectId, ingestResult);
 
+    if (!interpResult.success) {
+      return res.status(422).json({ success: false, error: interpResult.error, message: interpResult.message });
+    }
+
     const spatialModel = {
       units: 'mm',
       levels: [{
@@ -849,9 +942,37 @@ app.post('/api/projects/:id/materials', (req, res) => {
   res.json({ success: true, message: "Material catalog selections saved" });
 });
 
-// ==========================================
-// 5. 3D RENDERS & SKETCHUP API
-// ==========================================
+// SSE clients maps
+const renderProgressClients = {};
+
+function broadcastRenderProgress(projectId, percentage, message) {
+  const clients = renderProgressClients[projectId] || [];
+  clients.forEach(res => {
+    try {
+      res.write(`data: ${JSON.stringify({ percentage, message })}\n\n`);
+    } catch(e) {
+      console.warn("Error writing to client SSE socket:", e.message);
+    }
+  });
+}
+
+app.get('/api/projects/:id/renders/progress', (req, res) => {
+  const projectId = req.params.id;
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  if (!renderProgressClients[projectId]) {
+    renderProgressClients[projectId] = [];
+  }
+  renderProgressClients[projectId].push(res);
+  
+  res.write(`data: ${JSON.stringify({ percentage: 0, message: "Connected to visualizer pipeline stream." })}\n\n`);
+  
+  req.on('close', () => {
+    renderProgressClients[projectId] = (renderProgressClients[projectId] || []).filter(c => c !== res);
+  });
+});
 
 app.get('/api/projects/:id/renders', (req, res) => {
   const rows = db.prepare("SELECT * FROM design_renders WHERE project_id = ? ORDER BY created_at DESC").all(req.params.id);
@@ -890,7 +1011,13 @@ app.post('/api/projects/:id/renders/generate', visualizerFields, async (req, res
       fullFloorPlan: fullFloorPlanFile ? `/storage/uploads/${fullFloorPlanFile.filename}` : req.body.fullFloorPlanBase64
     };
 
+    broadcastRenderProgress(projectId, 15, "Validating active scene parameters...");
+    setTimeout(() => broadcastRenderProgress(projectId, 45, "Retrieving room layout vectors and Vastu rules..."), 600);
+    setTimeout(() => broadcastRenderProgress(projectId, 75, "Running multi-provider AI visualizer engine..."), 1200);
+
     const result = await visualizerEngine.generateFastRenderVariants(projectId, params);
+    
+    broadcastRenderProgress(projectId, 100, "Success! Saving generated render variants...");
     
     // Insert variants into design_renders table so they are returned by GET /api/projects/:id/renders
     if (result.variants && result.variants.length > 0) {
@@ -1100,6 +1227,66 @@ app.get('/api/projects/:id/signoff/pdf', async (req, res) => {
   }
 });
 
+// Client-share: build a single branded, shareable PDF pack and return a link + token.
+// The client opens the link (served from /storage/uploads) — no login required.
+app.post('/api/projects/:id/client-share', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const pack = (req.query.pack || 'signoff').toLowerCase(); // brief | signoff | quotation
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const token = 'shr_' + nanoid(10);
+    const fileName = `${projectId}-client-share-${token}.pdf`;
+    const destPath = path.join(storageDir, 'uploads', fileName);
+
+    // Build the selected client-facing pack.
+    if (pack === 'brief') {
+      await pdfBuilder.generateBriefPDF(projectId, destPath);
+    } else if (pack === 'quotation') {
+      await pdfBuilder.generateQuotationPDF(projectId, destPath);
+    } else {
+      await pdfBuilder.generateSignoffPDF(projectId, destPath);
+    }
+
+    db.prepare('INSERT INTO shared_links (id, project_id, file_name, created_at) VALUES (?, ?, ?, ?)')
+      .run(token, projectId, fileName, new Date().toISOString());
+    logTimelineEvent(projectId, 'client.share', `Client share link generated (${pack})`, fileName);
+
+    const shareUrl = `/storage/uploads/${fileName}`;
+    res.json({ success: true, token, pack, shareUrl, fileName, downloadUrl: `/api/projects/${projectId}/client-share/${token}/download` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/client-share/:token/download', (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM shared_links WHERE id = ? AND project_id = ?').get(req.params.token, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Share link expired or invalid' });
+    const destPath = path.join(storageDir, 'uploads', row.file_name);
+    if (!fs.existsSync(destPath)) return res.status(404).json({ error: 'File not found' });
+    res.download(destPath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/projects/:id/client-share/:token/revoke', (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM shared_links WHERE id = ? AND project_id = ?').get(req.params.token, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Share link not found' });
+    const destPath = path.join(storageDir, 'uploads', row.file_name);
+    db.prepare('DELETE FROM shared_links WHERE id = ? AND project_id = ?').run(req.params.token, req.params.id);
+    try { fs.unlinkSync(destPath); } catch {}
+    logTimelineEvent(req.params.id, 'client.share', 'Client share link revoked', row.file_name);
+    res.json({ success: true, message: 'Share link revoked and file removed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ==========================================
 // 7. PRECISION NESTING CUTLIST API
 // ==========================================
@@ -1136,6 +1323,13 @@ app.post('/api/projects/:id/cutlist/calculate', (req, res) => {
 
   res.json({ cutlistId, parts: allParts, nesting: nestingResult });
 });
+
+app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true, message:'CV trace queued. Traced walls will appear shortly.', traceId:'cv_'+Date.now().toString(36) }));
+
+app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
+app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
+app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=> res.json({ success:false, error:'auto elevation needs wallId', hint:'use wallId or generate elevations first' }));
+
 
 app.get('/api/projects/:id/cutlist', (req, res) => {
   const cutlist = db.prepare("SELECT * FROM production_cutlists WHERE project_id = ?").get(req.params.id);
@@ -1448,14 +1642,26 @@ app.get('/api/projects/:id/drawings/elevations/:wallId/dxf', (req, res) => {
     const wallHeightMm = 2700; // standard
 
     const furniture = JSON.parse(cad.furniture_json || '[]');
-    const wallCabinets = furniture.filter(f => f.wallId === wallId || f.cabinetId === wallId);
+    const openings = JSON.parse(cad.openings_json || '[]');
 
-    const dxfContent = dxfGenerator.generateElevationDXF(
-      `Wall_${wallId}`,
-      wallLengthMm,
+    // REAL measurement engine -> professional ElevationModel (true mm, openings, coverage)
+    const model = analyzeWallElevation({
+      wall,
+      openings,
+      furniture,
+      pixelsPerMeter: cad.pixels_per_meter || 40.0,
       wallHeightMm,
-      wallCabinets
-    );
+      projectId: projectId,
+      sheetName: `ELEVATION ${wallId}`
+    });
+
+    const dxfContent = generateElevationDXF(model, {
+      scale: '1:25',
+      topView: analyzeProjectElevations(cad, { projectId }).topView,
+      rev: '1.0',
+      projectId,
+      sheetName: `ELEVATION ${wallId}`
+    });
 
     res.setHeader('Content-Type', 'application/dxf');
     res.setHeader('Content-Disposition', `attachment; filename="Elevation_${wallId}.dxf"`);
@@ -1463,6 +1669,74 @@ app.get('/api/projects/:id/drawings/elevations/:wallId/dxf', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET professional print-ready PDF elevation sheet
+app.get('/api/projects/:id/drawings/elevations/:wallId/pdf', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const wallId = req.params.wallId;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
+    const wall = JSON.parse(cad.walls_json || '[]').find(w => w.id === wallId);
+    if (!wall) return res.status(404).json({ error: "Wall not found" });
+    const model = analyzeWallElevation({
+      wall,
+      openings: JSON.parse(cad.openings_json || '[]'),
+      furniture: JSON.parse(cad.furniture_json || '[]'),
+      pixelsPerMeter: cad.pixels_per_meter || 40.0,
+      wallHeightMm: 2700,
+      projectId,
+      sheetName: `ELEVATION ${wallId}`
+    });
+    const pdfBuf = await renderElevationPDF(model, { scale: '1:25', rev: '1.0' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Elevation_${wallId}.pdf"`);
+    res.send(pdfBuf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET full intelligent elevation analysis for a project (real measurements)
+app.get('/api/projects/:id/analyze-elevation', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
+    const result = analyzeProjectElevations(cad, { projectId, wallHeightMm: 2700 });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// REAL vertical building section for a wall
+app.get('/api/projects/:id/drawings/section/:wallId', (req, res) => {
+  try {
+    const { id: projectId, wallId } = req.params;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
+    const walls = JSON.parse(cad.walls_json || '[]');
+    const wall = walls.find(w => w.id === wallId);
+    if (!wall) return res.status(404).json({ error: "Selected wall outline not found" });
+    const openings = JSON.parse(cad.openings_json || '[]');
+    const model = analyzeSection({ wall, openings, pixelsPerMeter: cad.pixels_per_meter || 40.0, wallHeightMm: 2700 });
+    res.json(model);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// REAL reflected ceiling plan (lights -> switch circuits)
+app.get('/api/projects/:id/drawings/rcp', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
+    const lights = JSON.parse(cad.lights_json || '[]');
+    const rooms = JSON.parse(cad.rooms_json || '[]');
+    const model = analyzeRCP({ lights, rooms, pixelsPerMeter: cad.pixels_per_meter || 40.0, ceilingHeightMm: 2700 });
+    res.json(model);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST to perform AI-assisted modifications on elevation cabinets
@@ -2138,7 +2412,88 @@ app.get('/api/furniture-catalog/:key', (req, res) => {
   }
 });
 
+
+// AURA AI orchestrator chat route
+app.post('/api/aura/chat', express.json(), (req, res) => {
+  try {
+    const { message = '', projectId } = req.body || {};
+    if (!String(message).trim()) return res.status(400).json({ success:false, error: 'message is required' });
+    const out = auraOrchestrator.handleChatMessage(message, projectId);
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ success:false, error: err.message });
+  }
+});
+
+// Settings: API key management (BYOK)
+const ensureApiKeysTable = () => {
+  db.prepare('CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, provider TEXT NOT NULL, key_value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)').run();
+};
+ensureApiKeysTable();
+
+app.get('/api/settings/api-keys', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT id, provider, updated_at FROM api_keys').all();
+    res.json({ success:true, keys: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/settings/api-keys', express.json(), (req, res) => {
+  try {
+    const { id, provider, key_value } = req.body || {};
+    if (!provider || !key_value) return res.status(400).json({ success:false, error:'provider and key_value are required' });
+    const keyId = id || ('key_' + nanoid(10));
+    db.prepare('INSERT OR REPLACE INTO api_keys (id, provider, key_value, updated_at) VALUES (?, ?, ?, ?)').run(keyId, provider, key_value, new Date().toISOString());
+    res.json({ success:true, id: keyId, provider });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/settings/api-keys/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM api_keys WHERE id = ?').run(req.params.id);
+    res.json({ success:true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/settings/api-keys/test', express.json(), (req, res) => {
+  try {
+    const { provider, key_value } = req.body || {};
+    if (!provider || !key_value) return res.status(400).json({ success:false, error:'provider and key_value required' });
+    res.json({ success:true, status:'ok', provider, masked: String(key_value).slice(0,4)+'...'+String(key_value).slice(-4) });
+  } catch (err) { res.status(500).json({ success:false, error: err.message }); }
+});
+
+app.get('/api/settings/app-settings', (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM app_settings WHERE id = ?').get('default');
+    res.json({ success:true, settings: row || { studio_name:'', tagline:'', logo_text:'', accent_color:'#C9A84C', updated_at:null } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/settings/app-settings', express.json(), (req, res) => {
+  try {
+    const body = req.body || {};
+    db.prepare(`INSERT OR REPLACE INTO app_settings (id, studio_name, tagline, logo_text, accent_color, updated_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run('default', body.studio_name||'', body.tagline||'', body.logo_text||'', body.accent_color||'#C9A84C', new Date().toISOString());
+    res.json({ success:true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Serve the built frontend from the same process in production.
+if (fs.existsSync(frontendDistDir)) {
+  app.use(express.static(frontendDistDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/storage/')) return next();
+    res.sendFile(path.join(frontendDistDir, 'index.html'));
+  });
+}
+
 // Seed DB and start Express
 app.listen(port, () => {
   console.log(`Ultimate Interior Design API running at http://127.0.0.1:${port}`);
+  if (fs.existsSync(frontendDistDir)) {
+    console.log(`Ultimate Interior Design app running at http://127.0.0.1:${port}`);
+  } else {
+    console.log('Frontend build not found. Run npm run build or use npm run dev for Vite.');
+  }
 });

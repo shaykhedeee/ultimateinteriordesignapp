@@ -1,25 +1,35 @@
-import React, { useState } from 'react';
-import { 
-  Send, Mic, Sparkles, Lightbulb, ArrowUpRight, 
-  CheckCircle2, BrainCircuit, Wand2, FileCode2 
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Send, Mic, Sparkles, CheckCircle2, BrainCircuit,
+  Wand2, FileCode2, X, ArrowRight
 } from 'lucide-react';
 
-export default function AuraBrainChat({ 
-  messages, 
-  onSendMessage, 
-  onExecuteAction, 
-  project,
-  isOpen,
-  onClose
+const SUGGESTIONS = [
+  "💡 Add pendant light above dining table (+350 Lux, CRI 98)",
+  "💡 East wall looks empty. Suggest backlit fluted wood rafters",
+  "💡 Living rug slightly small. Upgrade to 8×10 Berber?",
+  "🎨 Extract 5-color Japandi palette from mood board",
+  "📊 Kitchen work triangle 96%. Optimise layout?",
+  "🪴 Add 3 Monstera plants for biophilic +12 pts"
+];
+
+export default function AuraBrainChat({
+  messages, onSendMessage, onExecuteAction,
+  project, isOpen, onClose
 }) {
-  const [inputText, setInputText] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [showBrainTelemetry, setShowBrainTelemetry] = useState(false);
+  const [inputText, setInputText]         = useState('');
+  const [isListening, setIsListening]     = useState(false);
+  const [showTelemetry, setShowTelemetry] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior:'smooth' });
+  }, [messages]);
 
   const handleSend = (e) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
-    onSendMessage(inputText);
+    onSendMessage(inputText.trim());
     setInputText('');
   };
 
@@ -27,186 +37,243 @@ export default function AuraBrainChat({
     setIsListening(true);
     setTimeout(() => {
       setIsListening(false);
-      onSendMessage("Add a warm Chevron Herringbone oak floor material to this bedroom.");
+      onSendMessage("Add a warm Chevron Herringbone oak floor to this bedroom.");
     }, 2500);
   };
 
-  const proactiveSuggestions = [
-    "💡 Add a warm pendant light above the dining table (+350 Lux, CRI 98)",
-    "💡 This east wall looks empty. I suggest backlit fluted wood rafters",
-    "💡 The living rug is slightly small. Upgrade to 8x10 Berber?",
-    "🎨 Extract a cohesive 5-color Japandi palette from the current mood board",
-    "📊 The kitchen work triangle score is 96%. Optimize layout?",
-    "🪴 Add 3 more Monstera plants for biophilic balance score +12 points"
-  ];
-
   if (!isOpen) return null;
 
+  /* ── Styles ── */
+  const S = {
+    panel: {
+      width: '340px',
+      borderLeft: '1px solid rgba(255,255,255,0.05)',
+      display: 'flex', flexDirection: 'column', height: '100%',
+      background: 'linear-gradient(180deg, #09090F 0%, #06060C 100%)',
+      flexShrink: 0,
+      position: 'relative'
+    },
+    header: {
+      padding: '12px 14px',
+      borderBottom: '1px solid rgba(255,255,255,0.05)',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      background: 'rgba(255,255,255,0.02)', flexShrink: 0
+    },
+    iconWrap: {
+      width: 34, height: 34, borderRadius: 10,
+      background: 'rgba(99,102,241,0.15)',
+      border: '1px solid rgba(99,102,241,0.3)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 0 14px rgba(99,102,241,0.15)', flexShrink: 0
+    },
+    msgArea: {
+      flex: 1, overflowY: 'auto', padding: '16px 14px',
+      display: 'flex', flexDirection: 'column', gap: '16px'
+    },
+    suggestionsBar: {
+      padding: '10px 14px 6px',
+      borderTop: '1px solid rgba(255,255,255,0.04)',
+      background: 'rgba(0,0,0,0.2)',
+      flexShrink: 0
+    },
+    inputRow: {
+      padding: '10px 12px 14px',
+      borderTop: '1px solid rgba(255,255,255,0.04)',
+      background: 'rgba(0,0,0,0.3)',
+      display: 'flex', gap: '8px', flexShrink: 0
+    }
+  };
+
+  const renderBubble = (m) => {
+    if (m.sender === 'system') {
+      return (
+        <div key={m.id} style={{ textAlign:'center', fontSize:'10px', color:'var(--text-muted)', fontFamily:'monospace', padding:'6px 12px', background:'rgba(255,255,255,0.03)', borderRadius:'8px', border:'1px solid rgba(255,255,255,0.04)' }}>
+          {m.text}
+        </div>
+      );
+    }
+    const isUser = m.sender === 'user';
+    return (
+      <div key={m.id} style={{ display:'flex', flexDirection:'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 4 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:'9px', color:'var(--text-muted)', paddingInline:'4px' }}>
+          <span>{isUser ? (project?.clientName || 'You') : 'AURA AI'}</span>
+          <span>·</span>
+          <span>{m.timestamp}</span>
+        </div>
+
+        <div style={{
+          padding: '10px 13px',
+          borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          maxWidth: '90%', fontSize: '11.5px', lineHeight: 1.6,
+          ...(isUser
+            ? { background: 'linear-gradient(135deg, #4f46e5, #6366f1)', color: 'white' }
+            : { background: 'var(--surface-2)', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-primary)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }
+          )
+        }}>
+          <p>{m.text}</p>
+
+          {/* Action Preview */}
+          {m.actionPreview && (
+            <div style={{ marginTop:'12px', padding:'12px', borderRadius:'10px', background:'rgba(0,0,0,0.4)', border:'1px solid rgba(99,102,241,0.25)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'8px', paddingBottom:'6px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize:'10px', fontWeight:700, color:'#a5b4fc', display:'flex', alignItems:'center', gap:4 }}>
+                  <Wand2 style={{ width:11, height:11 }} />
+                  {m.actionPreview.title}
+                </span>
+                {m.actionPreview.costImpact !== 0 && (
+                  <span style={{ fontSize:'10px', fontFamily:'monospace', fontWeight:800, color: m.actionPreview.costImpact < 0 ? 'var(--emerald)' : '#F59E0B' }}>
+                    {m.actionPreview.costImpact < 0 ? `-₹${Math.abs(m.actionPreview.costImpact).toLocaleString()}` : `+₹${m.actionPreview.costImpact.toLocaleString()}`}
+                  </span>
+                )}
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:5, marginBottom:'8px' }}>
+                {m.actionPreview.changes?.map((c, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:6, fontSize:'10px', color:'rgba(255,255,255,0.7)' }}>
+                    <CheckCircle2 style={{ width:11, height:11, color:'var(--emerald)', flexShrink:0, marginTop:1 }} />
+                    <span>{c}</span>
+                  </div>
+                ))}
+              </div>
+              {m.actionPreview.visualQualityImpact && (
+                <div style={{ fontSize:'9px', color:'var(--text-muted)', display:'flex', justifyContent:'space-between', paddingTop:'6px', borderTop:'1px solid rgba(255,255,255,0.05)' }}>
+                  <span>Visual Impact</span>
+                  <span style={{ color:'#F59E0B', letterSpacing:'0.05em' }}>
+                    {'★'.repeat(Math.round(m.actionPreview.visualQualityImpact))}
+                    <span style={{ color:'rgba(255,255,255,0.1)' }}>{'★'.repeat(5-Math.round(m.actionPreview.visualQualityImpact))}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          {m.actions && m.actions.length > 0 && (
+            <div style={{ marginTop:'10px', display:'flex', flexWrap:'wrap', gap:'6px' }}>
+              {m.actions.map(act => (
+                <button
+                  key={act.actionId}
+                  onClick={() => onExecuteAction?.(act.actionId, act.preview || {})}
+                  style={{
+                    padding:'5px 12px',
+                    borderRadius:'8px',
+                    fontSize:'10px',
+                    fontWeight:700,
+                    cursor:'pointer',
+                    display:'inline-flex',
+                    alignItems:'center',
+                    gap:'5px',
+                    transition:'all 0.18s',
+                    background: act.primary ? '#6366f1' : 'rgba(255,255,255,0.08)',
+                    color: act.primary ? '#fff' : 'rgba(255,255,255,0.85)',
+                    border: act.primary ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                    boxShadow: act.primary ? '0 4px 12px rgba(99,102,241,0.35)' : 'none'
+                  }}
+                >
+                  <Sparkles style={{ width:10, height:10 }} />
+                  {act.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="w-80 xl:w-96 border-l border-slate-800/80 flex flex-col h-full bg-[#080d18] shrink-0" style={{ background: 'linear-gradient(180deg, #070c17 0%, #040810 100%)' }}>
-      {/* Sidebar Header */}
-      <div className="p-3.5 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/40">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-md shadow-indigo-500/10">
-            <BrainCircuit className="w-4 h-4 animate-pulse" />
+    <div style={S.panel}>
+
+      {/* ── Header ── */}
+      <div style={S.header}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={S.iconWrap}>
+            <BrainCircuit style={{ width:16, height:16, color:'#a5b4fc' }} className="animate-pulse" />
           </div>
           <div>
-            <h3 className="font-bold text-xs text-slate-100 flex items-center gap-1.5 uppercase tracking-wider">
-              AURA BRAIN <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">ONLINE</span>
-            </h3>
-            <p className="text-[9px] text-slate-500">LLaMA 3.1 70B Orchestrator</p>
+            <div style={{ fontSize:'11px', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-primary)', display:'flex', alignItems:'center', gap:6 }}>
+              AURA BRAIN
+              <span style={{ fontSize:'8px', fontFamily:'monospace', fontWeight:700, padding:'2px 7px', borderRadius:'5px', background:'rgba(45,212,170,0.12)', color:'var(--emerald)', border:'1px solid rgba(45,212,170,0.2)' }}>ONLINE</span>
+            </div>
+            <div style={{ fontSize:'9.5px', color:'var(--text-muted)', marginTop:'1px' }}>LLaMA 3.1 70B Orchestrator</div>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
           <button
-            onClick={() => setShowBrainTelemetry(!showBrainTelemetry)}
-            className={`p-1.5 rounded-lg text-xs font-mono transition flex items-center gap-1 ${
-              showBrainTelemetry ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-            title="Toggle Sub-Agent Telemetry Logs"
+            onClick={() => setShowTelemetry(v => !v)}
+            style={{
+              padding:'5px', borderRadius:'8px', cursor:'pointer', transition:'all 0.18s',
+              background: showTelemetry ? '#6366f1' : 'rgba(255,255,255,0.05)',
+              border: '1px solid ' + (showTelemetry ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.07)'),
+              color: showTelemetry ? 'white' : 'var(--text-muted)'
+            }}
+            title="Sub-Agent Telemetry"
           >
-            <FileCode2 className="w-3.5 h-3.5" />
+            <FileCode2 style={{ width:13, height:13 }} />
           </button>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-100 text-xs font-semibold px-2 transition"
+            style={{ padding:'5px 10px', borderRadius:'8px', fontSize:'10px', fontWeight:700, cursor:'pointer', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', color:'var(--text-muted)', transition:'all 0.18s' }}
           >
             Hide
           </button>
         </div>
       </div>
 
-      {/* Telemetry drawer if open */}
-      {showBrainTelemetry && (
-        <div className="bg-slate-900/90 border-b border-slate-800 p-3 font-mono text-[9px] text-slate-350 space-y-1.5 animate-in slide-in-from-top-2">
-          <div className="flex items-center justify-between text-[8px] text-indigo-400 font-semibold border-b border-slate-800 pb-1">
+      {/* ── Telemetry Drawer ── */}
+      {showTelemetry && (
+        <div style={{ background:'rgba(0,0,0,0.5)', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'12px 14px', fontFamily:'monospace', fontSize:'9.5px', color:'var(--text-secondary)', display:'flex', flexDirection:'column', gap:'6px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:'8px', color:'#a5b4fc', fontWeight:700, paddingBottom:'6px', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
             <span>ACTIVE SUB-AGENTS</span>
-            <span>LATENCY: 42ms</span>
+            <span>LATENCY 42ms</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-emerald-400">● DesignAgent</span>
-            <span className="text-slate-400">Style & Layout GNN</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-cyan-400">● SpatialAgent</span>
-            <span className="text-slate-400">Traffic Pathfinding</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-purple-400">● CommerceAgent</span>
-            <span className="text-slate-400">Live API Pricing</span>
-          </div>
-          <div className="text-[8px] text-slate-500 pt-1 border-t border-slate-800/60 flex items-center justify-between">
-            <span>Pinecone Vector RAG:</span>
-            <span className="text-slate-400">50M+ Embeddings</span>
+          {[
+            ['● DesignAgent',   'Style & Layout GNN',   '#2DD4AA'],
+            ['● SpatialAgent',  'Traffic Pathfinding',   '#67E8F9'],
+            ['● CommerceAgent', 'Live API Pricing',      '#C084FC']
+          ].map(([name, desc, color]) => (
+            <div key={name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ color }}>{name}</span>
+              <span style={{ color:'var(--text-muted)' }}>{desc}</span>
+            </div>
+          ))}
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:'8.5px', color:'var(--text-muted)', paddingTop:'6px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+            <span>Pinecone Vector RAG</span>
+            <span>50M+ Embeddings</span>
           </div>
         </div>
       )}
 
-      {/* Chat Messages Area */}
-      <div className="flex-grow overflow-y-auto p-4 space-y-4 font-sans">
-        {messages.map((m) => {
-          if (m.sender === 'system') {
-            return (
-              <div key={m.id} className="text-[10px] text-slate-400 bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/60 font-mono text-center">
-                {m.text}
-              </div>
-            );
-          }
-
-          const isUser = m.sender === 'user';
-          return (
-            <div key={m.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} space-y-1`}>
-              <div className="flex items-center gap-1.5 text-[9px] text-slate-500 px-1">
-                <span>{isUser ? (project?.clientName || 'Designer') : 'AURA AI Agent'}</span>
-                <span>•</span>
-                <span>{m.timestamp}</span>
-              </div>
-              
-              <div className={`p-3 rounded-2xl max-w-[90%] text-xs leading-relaxed ${
-                isUser 
-                  ? 'bg-gradient-to-r from-indigo-650 to-indigo-755 text-white rounded-br-none shadow-md' 
-                  : 'bg-slate-900 border border-slate-800 text-slate-250 rounded-bl-none shadow-lg'
-              }`}>
-                <p>{m.text}</p>
-
-                {/* Executable AI Action Preview Box */}
-                {m.actionPreview && (
-                  <div className="mt-3 p-3 rounded-xl bg-slate-950/85 border border-indigo-500/30 text-slate-200 space-y-2">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
-                      <span className="font-bold text-[10px] text-indigo-300 flex items-center gap-1">
-                        <Wand2 className="w-3.5 h-3.5 text-indigo-400" />
-                        {m.actionPreview.title}
-                      </span>
-                      {m.actionPreview.costImpact !== 0 && (
-                        <span className={`text-[10px] font-mono font-bold ${m.actionPreview.costImpact < 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                          {m.actionPreview.costImpact < 0 ? `-$${Math.abs(m.actionPreview.costImpact)}` : `+$${m.actionPreview.costImpact}`}
-                        </span>
-                      )}
-                    </div>
-
-                    <ul className="space-y-1 py-1 text-[10px]">
-                      {m.actionPreview.changes.map((change, idx) => (
-                        <li key={idx} className="flex items-start gap-1.5 text-slate-350 font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                          <span>{change}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 border-t border-slate-800/80">
-                      <span>Visual Impact:</span>
-                      <span className="text-amber-400 font-bold">
-                        {'★'.repeat(Math.round(m.actionPreview.visualQualityImpact))}
-                        <span className="text-slate-700">{'★'.repeat(5 - Math.round(m.actionPreview.visualQualityImpact))}</span>
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Buttons to accept / modify */}
-                {m.actions && (
-                  <div className="mt-3 flex flex-wrap gap-2 pt-1">
-                    {m.actions.map((act) => (
-                      <button
-                        key={act.actionId}
-                        onClick={() => onExecuteAction(act.actionId, m.actionPreview)}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition ${
-                          act.variant === 'primary'
-                            ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-md shadow-indigo-500/20'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                        }`}
-                      >
-                        <Sparkles className="w-3 h-3" />
-                        {act.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
+      {/* ── Messages ── */}
+      <div style={S.msgArea}>
+        {messages.map(renderBubble)}
         {isListening && (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/40 text-indigo-300 text-[11px] animate-pulse">
-            <Mic className="w-4 h-4 text-indigo-400 animate-ping" />
-            <span>Listening to voice command... "Add wood floors..."</span>
+          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:'12px', background:'rgba(99,102,241,0.1)', border:'1px solid rgba(99,102,241,0.25)', color:'#a5b4fc', fontSize:'11px', animation:'pulse 1s infinite' }}>
+            <Mic style={{ width:14, height:14, color:'#818cf8' }} />
+            <span>Listening... "Add wood floors..."</span>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Proactive Suggestions Drawer */}
-      <div className="p-3 bg-slate-900/50 border-t border-slate-850/80 space-y-1.5">
-        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">AURA Proactive Insights</span>
-        <div className="max-h-24 overflow-y-auto space-y-1 text-[10px] text-slate-350 pr-1">
-          {proactiveSuggestions.map((sug, i) => (
+      {/* ── Proactive Suggestions ── */}
+      <div style={S.suggestionsBar}>
+        <span style={{ fontSize:'8.5px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--text-muted)', display:'block', marginBottom:'6px' }}>
+          AURA Insights
+        </span>
+        <div style={{ maxHeight:'80px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'3px' }}>
+          {SUGGESTIONS.map((sug, i) => (
             <button
               key={i}
-              onClick={() => {
-                const text = sug.replace(/^💡\s*|^🎨\s*|^📊\s*|^🪴\s*/, '');
-                setInputText(text);
+              onClick={() => setInputText(sug.replace(/^[^\s]*\s*/, ''))}
+              style={{
+                textAlign:'left', fontSize:'10px', color:'var(--text-secondary)', fontWeight:500,
+                padding:'5px 8px', borderRadius:'7px', cursor:'pointer',
+                background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.04)',
+                overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                transition:'all 0.15s'
               }}
-              className="w-full text-left p-1.5 bg-slate-950/40 border border-slate-850/60 rounded-lg hover:border-indigo-500/40 hover:text-indigo-200 transition text-ellipsis truncate block"
+              onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(99,102,241,0.3)'; e.currentTarget.style.color='#c7d2fe'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(255,255,255,0.04)'; e.currentTarget.style.color='var(--text-secondary)'; }}
             >
               {sug}
             </button>
@@ -214,38 +281,51 @@ export default function AuraBrainChat({
         </div>
       </div>
 
-      {/* Input bar */}
-      <form onSubmit={handleSend} className="p-3 border-t border-slate-850 bg-slate-950 flex gap-2">
+      {/* ── Input Bar ── */}
+      <form onSubmit={handleSend} style={S.inputRow}>
         <button
           type="button"
           onClick={simulateVoice}
-          className={`p-2 rounded-xl border transition ${
-            isListening 
-              ? 'bg-indigo-600 border-indigo-500 text-white animate-pulse animate-duration-500' 
-              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-          }`}
-          title="Click to dictate design instructions"
+          style={{
+            width:34, height:34, flexShrink:0, borderRadius:'10px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+            background: isListening ? '#6366f1' : 'rgba(255,255,255,0.04)',
+            border: '1px solid ' + (isListening ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'),
+            color: isListening ? 'white' : 'var(--text-muted)',
+            transition:'all 0.18s',
+            animation: isListening ? 'pulse 0.8s infinite' : 'none'
+          }}
+          title="Voice input"
         >
-          <Mic className="w-4 h-4" />
+          <Mic style={{ width:14, height:14 }} />
         </button>
-        
+
         <input
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="Ask AURA to paint, place, or configure..."
-          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-250 placeholder-slate-550 outline-none focus:border-[#D4AF37]"
+          onChange={e => setInputText(e.target.value)}
+          onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          placeholder="Ask AURA to paint, place, or optimise..."
+          style={{
+            flex:1, background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.07)',
+            borderRadius:'10px', padding:'7px 12px', fontSize:'11.5px', color:'var(--text-primary)',
+            outline:'none', fontFamily:'inherit', transition:'border-color 0.2s'
+          }}
+          onFocus={e => { e.target.style.borderColor = 'rgba(99,102,241,0.4)'; }}
+          onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.07)'; }}
         />
 
         <button
           type="submit"
           disabled={!inputText.trim()}
-          className={`p-2 rounded-xl transition ${
-            inputText.trim()
-              ? 'bg-[#D4AF37] text-slate-950 hover:bg-[#e6c045]'
-              : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
-          }`}
+          style={{
+            width:34, height:34, flexShrink:0, borderRadius:'10px', cursor: inputText.trim() ? 'pointer' : 'not-allowed',
+            display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.18s',
+            background: inputText.trim() ? 'var(--gold)' : 'rgba(255,255,255,0.04)',
+            border: '1px solid ' + (inputText.trim() ? 'transparent' : 'rgba(255,255,255,0.07)'),
+            color: inputText.trim() ? '#060609' : 'var(--text-muted)',
+            boxShadow: inputText.trim() ? '0 4px 12px rgba(201,168,76,0.3)' : 'none'
+          }}
         >
-          <Send className="w-4 h-4" />
+          <Send style={{ width:13, height:13 }} />
         </button>
       </form>
     </div>
