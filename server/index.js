@@ -2436,11 +2436,20 @@ app.get('/api/furniture-catalog/:key', (req, res) => {
 
 
 // AURA AI orchestrator chat route
+app.get('/api/aura/memory', (req, res) => {
+  try {
+    const projectId = req.query.projectId;
+    if (!projectId) return res.status(400).json({ success:false, error:'projectId required' });
+    const rows = (require('../services/aura-orchestrator.js')).getMemory(String(projectId), 24);
+    res.json({ success:true, memory: rows });
+  } catch (err) { res.status(500).json({ success:false, error: err.message }); }
+});
+
 app.post('/api/aura/chat', express.json(), (req, res) => {
   try {
     const { message = '', projectId } = req.body || {};
     if (!String(message).trim()) return res.status(400).json({ success:false, error: 'message is required' });
-    const out = auraOrchestrator.handleChatMessage(message, projectId);
+    const out = await auraOrchestrator.handleChatMessage(message, projectId);
     res.json(out);
   } catch (err) {
     res.status(500).json({ success:false, error: err.message });
