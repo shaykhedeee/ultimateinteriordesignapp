@@ -117,4 +117,4 @@ export function generateDrawings(cad, opts = {}) {
   };
 }
 
-export default { generateDrawings };
+export default { generateDrawings, componentLayers: { useGlassLayers:true, useCaneLayers:true, useHandleLayers:true, useFrameLayers:true } };

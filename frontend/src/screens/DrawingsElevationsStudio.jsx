@@ -12,6 +12,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [walls, setWalls] = useState([]);
   const [openings, setOpenings] = useState([]);
   const [furniture, setFurniture] = useState([]);
+  const [filters, setFilters] = useState({ walls:true, openings:true, furniture:true, rugs:true, cabinets:true });
   const [pixelsPerMeter, setPixelsPerMeter] = useState(40);
   const [selectedWallId, setSelectedWallId] = useState(null);
   
@@ -35,6 +36,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [staleDrawings, setStaleDrawings] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isProcessingAi, setIsProcessingAi] = useState(false);
+  const [auraConfirm, setAuraConfirm] = useState({ open:false, title:'', message:'', onConfirm:null });
 
   const handleAiEdit = async () => {
     if (!aiPrompt.trim() || !selectedWallId) return;
@@ -75,6 +77,8 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const handleRegenerateDrawings = async () => {
     try {
+      const yes = await window.__auraConfirm?.confirm('Regenerate Drawings', 'This will overwrite current elevations. Continue?');
+      if (!yes) return;
       await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -138,7 +142,8 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const wallOpenings = openings.filter(op => op.wallId === selectedWallId);
 
   // Filter cabinet items placed against this wall
-  const wallCabinets = furniture.filter(f => f.wallId === selectedWallId || f.cabinetId === selectedWallId);
+  const visibleFilters = filters || {};
+const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selectedWallId || f.cabinetId === selectedWallId; if (!onWall) return false; if (f.type === 'rug' && !visibleFilters.rugs) return false; if (f.type === 'furniture' && !visibleFilters.furniture) return false; if (!f.type && !visibleFilters.cabinets) return false; return true; });
 
   // === REAL ElevationModel (single source of truth, shared with DXF export) ===
   const model = selectedWall ? analyzeWallElevation({

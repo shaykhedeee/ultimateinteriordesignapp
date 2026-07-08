@@ -624,6 +624,8 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const handleRegenerateRenders = async () => {
     try {
+      const yes = await window.__auraConfirm?.confirm('Regenerate Renders', 'Regenerating all renders may consume API credits. Continue?');
+      if (!yes) return;
       await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -636,7 +638,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         })
       });
       setProject(prev => prev ? { ...prev, stale_renders: 0 } : null);
-      window.__toast?.show("Render regeneration job spawned successfully! Check Background Jobs tab.");
+      window.__toast?.success("Render regeneration job spawned successfully! Check Background Jobs tab.");
     } catch (err) {
       console.error(err);
     }
