@@ -739,6 +739,28 @@ export default function Render3DStudio({ projectId, onComplete }) {
     }
   };
 
+  const downloadSelectedRender = async () => {
+    if (!selectedRender) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/download`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `project_${projectId}_render_${selectedRender.id}.jpg`;
+      link.click();
+      URL.revokeObjectURL(url);
+      getAppToast().success?.('Render download started.');
+    } catch (e) {
+      console.error("Download render failed:", e);
+      getAppToast?.()?.error?.(e.message || 'Download failed');
+    }
+  };
+
   const handleEditRender = async () => {
     if (!selectedRender || !revisionRequest.trim()) return;
     setIsGenerating(true);
@@ -1959,6 +1981,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
             </button>
             <button onClick={downloadScriptFile} className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-center transition">
               Download rb
+            </button>
+            <button onClick={downloadSelectedRender} disabled={!selectedRender} className="flex-1 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] rounded text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
+              Download Render
             </button>
           </div>
           <button
