@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-08T17:57:12.850Z",
+  "generatedAt": "2026-07-08T18:23:24.572Z",
   "projectId": "proj-nambia-25bhk",
   "files": [
     {
@@ -68,7 +68,7 @@
     },
     {
       "file": "manifest.json",
-      "bytes": 4972
+      "bytes": 4988
     },
     {
       "file": "Master_Bedroom_3D.dxf",
@@ -137,6 +137,10 @@
     {
       "file": "Nambia_NORTH_Elevation.pdf",
       "bytes": 2841
+    },
+    {
+      "file": "Nambia_sample_generated.skp",
+      "bytes": 398
     },
     {
       "file": "Nambia_SOUTH_Elevation.dxf",
