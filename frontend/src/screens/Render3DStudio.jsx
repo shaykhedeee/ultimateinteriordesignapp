@@ -827,8 +827,8 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setIsAnalyzingComponents(true);
     try {
       // Fetch render image from server and convert to blob
-      const imgUrl = selectedRender.image_url.startsWith('/storage') 
-        ? `http://127.0.0.1:5055${selectedRender.image_url}` 
+      const imgUrl = selectedRender.image_url?.startsWith('/storage')
+        ? `http://127.0.0.1:5055${selectedRender.image_url}`
         : selectedRender.image_url;
 
       const imgRes = await fetch(imgUrl);

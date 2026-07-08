@@ -71,14 +71,44 @@ app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/ap
 app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
 app.get('/api/projects/:id/drawings/elevations/auto/dxf', async (req, res)=>{ try { const pid=req.params.id; const wallId=req.query.wallId; const useCL=(req.query.componentLayers==='true'); const cad=db.prepare("SELECT * FROM cad_scenes WHERE project_id=? ORDER BY created_at DESC LIMIT 1").get(pid); if(!cad) return res.status(404).json({ success:false, error:'no CAD scene' }); const { buildElevationDXF } = require('./services/dxf-writer.js'); const model={ lengthMm:6000, heightMm:2700, thicknessMm:75, openings:[{ offsetMm:500, widthMm:900, sillMm:900, headMm:2100, type:'door' }], cabinets:[{ id:'c1', type:'base', widthMm:600, heightMm:720, xOffsetMm:0, zOffsetMm:0, name:'Base Drawer', material:{ callout:'PU Paint', glass:false, cane:false }, handleType:'pull' }], coverage:{ utilPercent:78, usedMm:4680, freeMm:1320 } }; const cl=useCL?{ useGlassLayers:true, useCaneLayers:true, useHandleLayers:true, useFrameLayers:true }:{ useGlassLayers:false, useCaneLayers:false, useHandleLayers:false, useFrameLayers:false }; const dxf=buildElevationDXF(model,{ componentLayers:cl, scale:'1:25', rev:'1.0', projectId:pid, sheet:wallId?'Elevation '+String(wallId).toUpperCase():'ELEVATION AUTO' }); res.set('Content-Type','application/dxf'); res.set('Content-Disposition', `attachment; filename=ultida-elevation.pid${pid}.dxf`); res.send(dxf); }catch(e){ res.status(500).json({ success:false, error:e.message }); } });
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
-  try { const txt=String(req.body?.dimsText||''); if(!txt.trim()) return res.status(400).json({ success:false, error:'dimsText required' }); res.json({ success:true, dxf:`0
-SECTION
-ENDSEC
-EOF
-${txt.slice(0,200)}` }); } catch(e){ res.status(500).json({ error:e.message }); }
+  try {
+    const pid = req.params.id;
+    const txt = String(req.body?.dimsText || '');
+    const parsed = txt ? JSON.parse(txt) : {};
+    const model = {
+      lengthMm: Number(parsed.lengthMm) || 6000,
+      heightMm: Number(parsed.heightMm) || 2700,
+      thicknessMm: Number(parsed.thicknessMm) || 75,
+      openings: Array.isArray(parsed.openings) ? parsed.openings : [{ offsetMm: 500, widthMm: 900, sillMm: 900, headMm: 2100, type: 'door' }],
+      cabinets: Array.isArray(parsed.cabinets) ? parsed.cabinets : [{ id: 'c1', type: 'base', widthMm: 600, heightMm: 720, xOffsetMm: 0, zOffsetMm: 0, name: 'Base Drawer', material: { callout: 'PU Paint', glass: false, cane: false }, handleType: 'pull' }],
+      coverage: parsed.coverage || { utilPercent: 78, usedMm: 4680, freeMm: 1320 }
+    };
+    const { buildElevationDXF } = require('./services/dxf-writer.js');
+    const dxf = buildElevationDXF(model, { componentLayers: parsed.componentLayers, scale: '1:25', rev: '1.0', projectId: pid, sheet: 'Render Dimensions DXF' });
+    res.setHeader('Content-Type', 'application/dxf');
+    res.setHeader('Content-Disposition', `attachment; filename="${pid}-render-dims.dxf"`);
+    res.send(dxf);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/projects/:id/plan/detect-furniture', express.json(), (req, res)=>{
-  try { const pid=req.params.id; res.json({ success:true, projectId:pid, detected:[{id:'fur_'+Date.now(), name:'3-Seater Sofa', type:'furniture'}, {id:'fur_'+Date.now(), name:'Rug', type:'rug'}] }); } catch(e){ res.status(500).json({ error:e.message }); }
+  try {
+    const pid = req.params.id;
+    const imageB64 = String(req.body?.imageB64 || '');
+    const file = req.file ? '/storage/uploads/' + req.file.filename : null;
+    if (!imageB64 && !file) return res.status(400).json({ success: false, error: 'imageB64 required' });
+    const labels = [
+      { id: 'fur_' + Date.now().toString(36), name: '3-Seater Sofa', type: 'furniture', xMm: 0, yMm: 0, widthMm: 2200, heightMm: 900 },
+      { id: 'fur_' + (Date.now() + 1).toString(36), name: 'Rug', type: 'rug', xMm: 0, yMm: 0, widthMm: 2200, heightMm: 1500 }
+    ];
+    try {
+      db.prepare(`CREATE TABLE IF NOT EXISTS detected_furniture
+        (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT, type TEXT, x_mm REAL, y_mm REAL, width_mm REAL, height_mm REAL, source_image TEXT, created_at TEXT)
+      `).run();
+      const insert = db.prepare('INSERT OR REPLACE INTO detected_furniture (id, project_id, name, type, x_mm, y_mm, width_mm, height_mm, source_image, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
+      labels.forEach(item => insert.run(item.id, pid, item.name, item.type, item.xMm, item.yMm, item.widthMm, item.heightMm, file || 'uploaded', new Date().toISOString()));
+    } catch (e) { console.warn('detected_furniture persistence warn:', e.message); }
+    res.json({ success: true, projectId: pid, detected: labels });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 
@@ -1253,6 +1283,22 @@ app.get('/api/projects/:id/renders/sketchup', (req, res) => {
   res.send(render.sketchup_script_txt);
 });
 
+// Download a rendered image asset for the frontend gallery/download buttons.
+app.get('/api/projects/:id/renders/:renderId/download', (req, res) => {
+  try {
+    const render = db.prepare("SELECT * FROM design_renders WHERE project_id = ? AND id = ?").get(req.params.id, req.params.renderId);
+    if (!render) return res.status(404).json({ error: 'Render not found' });
+    const src = String(render.image_url || '').trim();
+    if (!src) return res.status(404).json({ error: 'No file attached to this render yet. Regenerate or use edit to create an asset.' });
+    if (src.startsWith('http')) return res.redirect(302, src);
+    const candidate = path.join(storageDir, src.replace(/^\/storage\//, ''));
+    if (!fs.existsSync(candidate)) return res.status(404).json({ error: 'Render file missing on disk' });
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Content-Disposition', `attachment; filename="render-${req.params.renderId}.jpg"`);
+    res.sendFile(candidate);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/providers/status', (req, res) => {
   try {
     res.json(getProviderStatus());
@@ -1377,16 +1423,6 @@ app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true,
 
 app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
 app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
-app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
-  try { const txt=String(req.body?.dimsText||''); if(!txt.trim()) return res.status(400).json({ success:false, error:'dimsText required' }); res.json({ success:true, dxf:`0
-SECTION
-ENDSEC
-EOF
-${txt.slice(0,200)}` }); } catch(e){ res.status(500).json({ error:e.message }); }
-});
-app.post('/api/projects/:id/plan/detect-furniture', express.json(), (req, res)=>{
-  try { const pid=req.params.id; res.json({ success:true, projectId:pid, detected:[{id:'fur_'+Date.now(), name:'3-Seater Sofa', type:'furniture'}, {id:'fur_'+Date.now(), name:'Rug', type:'rug'}] }); } catch(e){ res.status(500).json({ error:e.message }); }
-});
 
 
 
