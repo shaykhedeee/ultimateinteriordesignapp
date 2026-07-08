@@ -357,6 +357,25 @@ app.get('/api/projects', (req, res) => {
   res.json(rows);
 });
 
+// Create a project (used by New Project wizard + smoke test)
+app.post('/api/projects', express.json(), (req, res) => {
+  try {
+    const b = req.body || {};
+    const name = (b.name || 'Untitled Project').toString().trim();
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    const projectId = 'proj_' + nanoid(10);
+    const defaultBrief = { rooms: [], style: '', budgetTier: '', notes: '' };
+    db.prepare(`INSERT INTO projects (id, lead_id, name, client_name, email, phone, budget, client_brief_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(projectId, null, name, b.client_name || '', b.email || '', b.phone || '', b.budget || '',
+           JSON.stringify(defaultBrief), new Date().toISOString());
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    res.status(201).json(project);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/projects/:id', (req, res) => {
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id);
   if (!project) return res.status(404).json({ error: "Project not found" });
@@ -2657,24 +2676,32 @@ app.post('/api/aura/chat', express.json(), async (req, res) => {
 });
 
 // Settings: API key management (BYOK)
+// Canonical schema lives in database.js (columns: id, provider, key_enc, label,
+// last_error, created_at, last_used_at). The routes below also reference
+// key_value + updated_at, so we add those idempotently for backward-compat.
 const ensureApiKeysTable = () => {
-  db.prepare('CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, provider TEXT NOT NULL, key_value TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)').run();
+  try {
+    db.prepare('CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, provider TEXT NOT NULL, key_enc TEXT NOT NULL, label TEXT, last_error TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, last_used_at TIMESTAMP)').run();
+    db.prepare('ALTER TABLE api_keys ADD COLUMN key_value TEXT').run();
+  } catch (e) { /* column already exists */ }
+  try { db.prepare('ALTER TABLE api_keys ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP').run(); } catch (e) {}
 };
 ensureApiKeysTable();
 
 app.get('/api/settings/api-keys', (req, res) => {
   try {
-    const rows = db.prepare('SELECT id, provider, updated_at FROM api_keys').all();
+    const rows = db.prepare('SELECT id, provider, label, created_at, last_used_at FROM api_keys').all();
     res.json({ success:true, keys: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/settings/api-keys', express.json(), (req, res) => {
   try {
-    const { id, provider, key_value } = req.body || {};
+    const { id, provider, key_value, label } = req.body || {};
     if (!provider || !key_value) return res.status(400).json({ success:false, error:'provider and key_value are required' });
     const keyId = id || ('key_' + nanoid(10));
-    db.prepare('INSERT OR REPLACE INTO api_keys (id, provider, key_value, updated_at) VALUES (?, ?, ?, ?)').run(keyId, provider, key_value, new Date().toISOString());
+    db.prepare('INSERT OR REPLACE INTO api_keys (id, provider, key_enc, key_value, label, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(keyId, provider, key_value, key_value, label || provider, new Date().toISOString());
     res.json({ success:true, id: keyId, provider });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -29,7 +29,7 @@ const TOOLS = [
 function resolveIntent(message) {
   const text = String(message || '').trim();
   if (!text) return { tool: null, confidence: 0 };
-  const candidates = TOOLS.map(t => ({ tool: t, confidence: (text.match(t.tool.intent) || []).length }));
+  const candidates = TOOLS.map(t => ({ tool: t, confidence: (text.match(t.intent) || []).length }));
   candidates.sort((a, b) => b.confidence - a.confidence);
   const best = candidates[0];
   return { tool: best?.tool || null, confidence: best?.confidence || 0 };

@@ -10,7 +10,13 @@ const projectId = 'proj_smoke_001';
 function req(opt, body) {
   return new Promise((resolve, reject) => {
     const u = new URL(BASE);
-    const r = http.request({ hostname: u.hostname, port: u.port, path: opt.path, method: opt.method, headers: { ...(opt.headers || {}) } }, (res) => {
+    const payload = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
+    const headers = { ...(opt.headers || {}) };
+    if (payload) {
+      headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(payload);
+    }
+    const r = http.request({ hostname: u.hostname, port: u.port, path: opt.path, method: opt.method, headers }, (res) => {
       const chunks = [];
       res.on('data', c => chunks.push(c));
       res.on('end', () => {
@@ -21,7 +27,7 @@ function req(opt, body) {
       });
     });
     r.on('error', reject);
-    if (body) r.write(typeof body === 'string' ? body : JSON.stringify(body));
+    if (payload) r.write(payload);
     r.end();
   });
 }
@@ -71,7 +77,6 @@ async function createProject() {
   if (r.status === 201 || r.status === 200) {
     const id = r.body && (r.body.id || r.body.project?.id);
     if (id) {
-      window.__smokeProjectId = id;
       return id;
     }
   }
