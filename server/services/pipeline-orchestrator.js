@@ -84,11 +84,19 @@ function roomPrompt(room){
 
 async function aiRenderRoom(room){
   const prompt = roomPrompt(room);
+  const tags = Array.isArray(room.furniture) ? room.furniture.map(f => f.type || f.name) : [];
   try {
-    const blob = await generateInteriorAsset({ prompt, room: room.name, style:'indian-contemporary', model:'auto', reuseFirst:true });
-    if (blob && (blob.path || blob.url || blob.buffer)) {
-      const img = blob.path ? fs.readFileSync(blob.path) : (blob.buffer || (blob.url && (await (await fetch(blob.url)).arrayBuffer())).buffer);
-      return Buffer.from(img);
+    const blob = await generateInteriorAsset({ prompt, room: room.name, style:'indian-contemporary', model:'auto', reuseFirst:false, tags });
+    if (blob && blob.filePath) {
+      // generateInteriorAsset returns a virtual /storage/assets/... path; resolve to disk.
+      const onDisk = path.resolve(projectRoot, 'storage', blob.filePath.replace(/^\/?storage\//, ''));
+      if (fs.existsSync(onDisk)) return fs.readFileSync(onDisk);
+    }
+    if (blob && blob.path && fs.existsSync(blob.path)) return fs.readFileSync(blob.path);
+    if (blob && blob.buffer) return Buffer.isBuffer(blob.buffer) ? blob.buffer : Buffer.from(blob.buffer);
+    if (blob && blob.url) {
+      const res = await fetch(blob.url);
+      if (res.ok) return Buffer.from(await res.arrayBuffer());
     }
   } catch (e) { console.warn('AI render fallback:', e.message); }
   return null;

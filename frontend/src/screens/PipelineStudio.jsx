@@ -146,8 +146,8 @@ export default function PipelineStudio({ projectId: projectIdProp }){
   const roomArtifacts = (name) => {
     const base = `${API_BASE}/api/deliverables/${pid}/rooms/${encodeURIComponent(name)}`;
     return {
-      render: `${base}/${encodeURIComponent(name)}_render.png`,
-      renderJpg: `${base}/${encodeURIComponent(name)}_render.jpg`,
+      render: `${base}/${encodeURIComponent(name)}_render.jpg`,
+      renderPng: `${base}/${encodeURIComponent(name)}_render.png`,
       skp: `${base}/${encodeURIComponent(name)}_model.skp`,
       northDxf: `${base}/${encodeURIComponent(name)}_north.dxf`,
       northPdf: `${base}/${encodeURIComponent(name)}_north.pdf`,
@@ -363,7 +363,7 @@ export default function PipelineStudio({ projectId: projectIdProp }){
                     return (
                       <div key={r.name} className="rounded-lg border border-white/10 bg-white/5 p-3">
                         <div className="text-xs font-medium text-white mb-2">{r.name}</div>
-                        <img src={a.render} alt={r.name} onError={e=>{ if(e.currentTarget.src!==a.renderJpg) e.currentTarget.src=a.renderJpg; else e.currentTarget.style.opacity=0.2; }} className="h-40 w-full object-cover rounded-md border border-white/10 bg-black/40" />
+                        <img src={a.render} alt={r.name} onError={e=>{ if(e.currentTarget.src!==a.renderPng) e.currentTarget.src=a.renderPng; else e.currentTarget.style.opacity=0.2; }} className="h-40 w-full object-cover rounded-md border border-white/10 bg-black/40" />
                         <div className="mt-2 flex flex-wrap gap-2">
                           <a className="rounded-md bg-white/10 px-2 py-1 text-xs" href={a.skp}>SKP</a>
                           <a className="rounded-md bg-white/10 px-2 py-1 text-xs" href={a.northDxf}>DXF</a>
@@ -380,7 +380,7 @@ export default function PipelineStudio({ projectId: projectIdProp }){
                     return (
                       <div key={r.name} className="w-44 rounded-lg border border-white/10 bg-white/5 p-2">
                         <div className="text-xs font-medium text-white mb-1">{r.name}</div>
-                        <img src={a.render} alt={r.name} onError={e=>{ if(e.currentTarget.src!==a.renderJpg) e.currentTarget.src=a.renderJpg; else e.currentTarget.style.opacity=0.2; }} className="h-24 w-full object-cover rounded-md border border-white/10 bg-black/40" />
+                        <img src={a.render} alt={r.name} onError={e=>{ if(e.currentTarget.src!==a.renderPng) e.currentTarget.src=a.renderPng; else e.currentTarget.style.opacity=0.2; }} className="h-24 w-full object-cover rounded-md border border-white/10 bg-black/40" />
                         <div className="mt-2 flex flex-wrap gap-1">
                           <a className="rounded-md bg-white/10 px-2 py-1 text-[10px]" href={a.skp}>SKP</a>
                           <a className="rounded-md bg-white/10 px-2 py-1 text-[10px]" href={a.northDxf}>DXF</a>
