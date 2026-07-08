@@ -1290,10 +1290,17 @@ app.post('/api/projects/:id/skp/analyze', upload.single('skpFile'), async (req, 
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
-app.post('/api/projects/:id/skp/generate', express.json(), async (req, res) => {
+app.post('/api/projects/:id/pipeline/run', express.json(), async (req, res) => {
   try {
-    const result = await skpReader.generateSkpDirect(req.body.payload || req.body, { fileName: req.body.fileName || `ultida-${req.params.id}.skp`, units: req.body.units || 4 });
-    res.json({ success:true, fileName:result.fileName, bytes:result.bytes, source:result.source, bufferB64: result.buffer.toString('base64'), mime:'application/octet-stream' });
+    const projectId = req.params.id;
+    const body = req.body || {};
+    const rooms = Array.isArray(body.rooms) ? body.rooms : [
+      { name:'Living Dining', w:5600, h:4200, openings:[{offsetMm:500,widthMm:900,sillMm:900,headMm:2100,type:'door'}], cabinets:[{id:'c1',type:'base',widthMm:600,heightMm:720,xOffsetMm:0,zOffsetMm:0,name:'Base Drawer'}] },
+      { name:'Master Bedroom', w:4200, h:3600, openings:[], cabinets:[] },
+    ];
+    const { runPipeline } = await import('./services/pipeline-orchestrator.js');
+    const result = await runPipeline({ projectId, rooms, walls:body.walls, openings:body.openings, projectName:body.projectName||'ULTIDA Project' });
+    res.json({ success:true, ...result });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 

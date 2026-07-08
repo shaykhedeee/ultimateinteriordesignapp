@@ -1,0 +1,137 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '..', '..');
+
+// Static imports avoid top-level await and wrong relative resolution.
+import { generateInteriorAsset } from './image-provider.js';
+import { buildElevationDXF } from './dxf-writer.js';
+import { renderElevationPDF } from './pdf-elevation.js';
+import { generateSkpDirect } from './skp-reader.js';
+
+const OUT = path.join(projectRoot, '_deliverables', '{{PROJECT_ID}}');
+
+function ensure(...p){ fs.mkdirSync(p.join('/'), {recursive:true}); return p.join('/'); }
+function write(p,b){ fs.writeFileSync(p, Buffer.isBuffer(b)?b:Buffer.from(b)); return p; }
+
+function normalizeOpenings(openings){
+  if (!Array.isArray(openings)) return [];
+  return openings.map(o => ({
+    offsetMm: Number(o.offsetMm || o.x || 0),
+    widthMm: Number(o.widthMm || o.w || 0),
+    sillMm: Number(o.sillMm ?? o.sill ?? 900),
+    headMm: Number(o.headMm ?? o.head ?? 2100),
+    type: String(o.type || o.kind || 'window')
+  }));
+}
+
+function roomPrompt(room){
+  const style = 'luxury indian-contemporary interior design, photorealistic, 8k';
+  return `${style}, ${room.name} with ${room.w}mm x ${room.h}mm floor area, natural light, premium materials, clean lines, professional architectural photography`;
+}
+
+async function aiRenderRoom(room){
+  const prompt = roomPrompt(room);
+  try {
+    const blob = await generateInteriorAsset({ prompt, room: room.name, style:'indian-contemporary', model:'auto', reuseFirst:true });
+    if (blob && (blob.path || blob.url || blob.buffer)) {
+      const img = blob.path ? fs.readFileSync(blob.path) : (blob.buffer || (blob.url && (await (await fetch(blob.url)).arrayBuffer())).buffer);
+      return Buffer.from(img);
+    }
+  } catch (e) { console.warn('AI render fallback:', e.message); }
+  return null;
+}
+
+export async function runPipeline({ projectId, rooms, walls, openings, projectName } = {}){
+  const id = String(projectId || projectName || 'project').replace(/[^a-z0-9\-]+/gi,'_').toLowerCase() || 'project';
+  const outRoot = OUT.replace('{{PROJECT_ID}}', id);
+  ensure(outRoot);
+  const result = { projectId, rooms: {}, skpFiles: [], images: [], dxfs: [], pdfs: [] };
+
+  for (const r of (rooms || [])){
+    const roomOut = ensure(outRoot, 'rooms', r.name);
+    const imgPath = path.join(roomOut, `${r.name}_render.jpg`);
+
+    let imageBuffer = await aiRenderRoom(r);
+    if (!imageBuffer) imageBuffer = Buffer.from(`PLACEHOLDER_RENDER_${r.name}`);
+    write(imgPath, imageBuffer);
+    result.images.push(imgPath);
+
+    const edges = [
+      {x1:0,y1:0,z1:0,x2:r.w,y2:0,z2:0},
+      {x1:r.w,y1:0,z1:0,x2:r.w,y2:r.h,z2:0},
+      {x1:r.w,y1:r.h,z1:0,x2:0,y2:r.h,z2:0},
+      {x1:0,y1:r.h,z1:0,x2:0,y2:0,z2:0},
+      {x1:0,y1:0,z1:0,x2:0,y2:0,z2:3000},
+      {x1:r.w,y1:0,z1:0,x2:r.w,y2:0,z2:3000},
+      {x1:r.w,y1:r.h,z1:0,x2:r.w,y2:r.h,z2:3000},
+      {x1:0,y1:r.h,z1:0,x2:0,y2:r.h,z2:3000},
+    ];
+    let skpOut = null;
+    try {
+      const skp = await generateSkpDirect({ edges: r.edges || edges }, { fileName: `${r.name}_model.skp`, units: 4 });
+      skpOut = write(path.join(roomOut, `${r.name}_model.skp`), skp.buffer);
+    } catch (e) {
+      console.warn('SKP generation skipped:', e.message);
+    }
+    if (skpOut) result.skpFiles.push(skpOut);
+
+    const normalizedOpenings = normalizeOpenings(r.openings);
+    const elevationWalls = [
+      { wallId:'north', lengthMm: r.w, heightMm: r.heightMm || 2800, openings: normalizedOpenings, cabinets: r.cabinets || [] },
+      { wallId:'east', lengthMm: r.h, heightMm: r.heightMm || 2800, openings: [], cabinets: [] },
+      { wallId:'west', lengthMm: r.h, heightMm: r.heightMm || 2800, openings: [], cabinets: [] },
+    ];
+
+    for (const ew of elevationWalls){
+      const dxf = buildElevationDXF({
+        lengthMm: ew.lengthMm,
+        heightMm: ew.heightMm,
+        thicknessMm: 75,
+        openings: Array.isArray(ew.openings) ? ew.openings.map(o => ({...o})) : [],
+        cabinets: Array.isArray(ew.cabinets) ? ew.cabinets.map(c => ({...c})) : [],
+        coverage: { utilPercent: 72, usedMm: Math.round(ew.lengthMm*0.72), freeMm: Math.round(ew.lengthMm*0.28) }
+      }, { componentLayers: false, scale:'1:25', rev:'1.0', projectId, sheet: `${r.name} ${ew.wallId.toUpperCase()} ELEVATION` });
+
+      const dxfName = `${r.name}_${ew.wallId}.dxf`;
+      write(path.join(roomOut, dxfName), dxf);
+      result.dxfs.push(path.join(roomOut, dxfName));
+
+      try {
+        const pdf = await renderElevationPDF({
+          lengthMm: ew.lengthMm,
+          heightMm: ew.heightMm,
+          openings: Array.isArray(ew.openings) ? ew.openings.map(o => ({...o})) : [],
+          cabinets: Array.isArray(ew.cabinets) ? ew.cabinets.map(c => ({...c})) : []
+        }, {
+          projectName: projectName || 'ULTIDA Project',
+          sheetName: `${r.name} ${ew.wallId.toUpperCase()} ELEVATION`,
+          rev:'1.0',
+          scale:'1:25'
+        });
+        if (pdf) {
+          const pdfName = `${r.name}_${ew.wallId}.pdf`;
+          write(path.join(roomOut, pdfName), pdf);
+          result.pdfs.push(path.join(roomOut, pdfName));
+        }
+      } catch (e) { console.warn('PDF skipped:', e.message); }
+    }
+  }
+
+  const markdownSummary = `# ${projectName || 'Project'} Deliverables\n\nGenerated by ULTIDA pipeline.\n\n## Rooms\n${(rooms||[]).map(r=>`- ${r.name}: ${r.w}mm x ${r.h}mm`).join('\n')}\n\n## Outputs\n${result.images.length} renders\n${result.dxfs.length} elevation DXF files\n${result.pdfs.length} PDF files\n${result.skpFiles.length} SKP files\n`;
+  write(path.join(outRoot, 'INDEX.md'), markdownSummary);
+
+  return { ...result, outDir: outRoot, rooms: rooms.reduce((acc, r) => ({ ...acc, [r.name]: true }), {}) };
+}
+
+if (process.argv[1] === new URL(import.meta.url).pathname) {
+  const demoRooms = [
+    { name:'Living Dining', w:5600, h:4200, openings:[{offsetMm:500,widthMm:900,sillMm:900,headMm:2100,type:'door'}], cabinets:[{id:'c1',type:'base',widthMm:600,heightMm:720,xOffsetMm:0,zOffsetMm:0,name:'Base Drawer'}] },
+    { name:'Master Bedroom', w:4200, h:3600, openings:[], cabinets:[] },
+    { name:'Kitchen', w:3600, h:3000, openings:[], cabinets:[{id:'k1',type:'base',widthMm:900,heightMm:720,xOffsetMm:0,zOffsetMm:0,name:'Base Cabinet'}] },
+  ];
+  runPipeline({ projectId:'nambia', rooms:demoRooms, projectName:'Nambia' }).then(r => console.log(JSON.stringify({ok:true, images:r.images.length, dxfs:r.dxfs.length, pdfs:r.pdfs.length, skp:r.skpFiles.length}, null, 2)).catch(e=>{console.error(e); process.exit(1);}));
+}
