@@ -58,7 +58,7 @@ app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true,
 
 app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
 app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
-app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=> res.json({ success:false, error:'auto elevation needs wallId', hint:'use wallId or generate elevations first' }));
+app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=>{ const cl=(req.query.componentLayers==='true')||false; res.json({ success:true, warning: cl?'Component layers enabled (GLASS/CANE/HANDLE/FRAME)':'componentLayers disabled', componentLayers:{ useGlassLayers: cl, useCaneLayers: cl, useHandleLayers: cl, useFrameLayers: cl }, hint:'use wallId for per-wall DXF or generate elevations first' }); });
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   try { const txt=String(req.body?.dimsText||''); if(!txt.trim()) return res.status(400).json({ success:false, error:'dimsText required' }); res.json({ success:true, dxf:`0
 SECTION
@@ -1339,7 +1339,7 @@ app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true,
 
 app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
 app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
-app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=> res.json({ success:false, error:'auto elevation needs wallId', hint:'use wallId or generate elevations first' }));
+app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=>{ const cl=(req.query.componentLayers==='true')||false; res.json({ success:true, warning: cl?'Component layers enabled (GLASS/CANE/HANDLE/FRAME)':'componentLayers disabled', componentLayers:{ useGlassLayers: cl, useCaneLayers: cl, useHandleLayers: cl, useFrameLayers: cl }, hint:'use wallId for per-wall DXF or generate elevations first' }); });
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   try { const txt=String(req.body?.dimsText||''); if(!txt.trim()) return res.status(400).json({ success:false, error:'dimsText required' }); res.json({ success:true, dxf:`0
 SECTION

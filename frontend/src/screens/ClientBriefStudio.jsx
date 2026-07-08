@@ -117,7 +117,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
       });
       const data = await res.json();
       if (data.success) {
-        alert("Onboarding brief specifications compiled successfully!");
+        window.__toast?.success("Onboarding brief specifications compiled successfully!");
         if (onBriefSaved) onBriefSaved();
       }
     } catch (err) {

@@ -1471,7 +1471,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         <div className="mt-auto space-y-2 shrink-0">
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => exportToDXF({ walls, openings, furniture, rooms, measures, pixelsPerMeter, hasUnderlay: !!sketchUrl })}
+              onClick={() => exportToDXF({ walls, openings, furniture, rooms, measures, pixelsPerMeter, hasUnderlay: !!sketchUrl, componentLayers: true })}
               className="py-2.5 bg-slate-800 hover:bg-slate-700 text-brand-500 border border-slate-750 font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition"
             >
               <Download className="w-3.5 h-3.5" />
@@ -1495,7 +1495,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dimsText: txt })
               });
               const d = await r.json();
-              if (d?.success) { window.__toast?.success('Render DXF generated'); } else { window.__toast?.error(d?.error || 'failed'); }
+              if (d?.success) { __toast?.success('Render DXF generated'); } else { __toast?.error(d?.error || 'failed'); }
             }} className="w-full py-2 bg-[#C9A84C] text-slate-950 font-black uppercase text-[10px] rounded-lg">Generate from Render Dims</button>
           </div>
 

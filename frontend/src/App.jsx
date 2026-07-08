@@ -163,6 +163,17 @@ export function App() {
   useEffect(() => {
     const originalAlert = window.alert;
     window.alert = (msg) => { mixer.error(typeof msg === 'string' ? msg : String(msg)); };
+    const confirm = (title, message) => new Promise((resolve)=>{
+      const root = document.getElementById('root');
+      const el = document.createElement('div');
+      el.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/70';
+      el.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl w-full max-w-sm m-4"><div class="text-sm font-bold text-slate-100">${title}</div><div class="text-xs text-slate-400 mt-1">${message}</div><div class="mt-4 flex gap-2 justify-end"><button id="aura-confirm-yes" class="px-3 py-1.5 bg-[#D4AF37] text-slate-950 font-black text-xs rounded-lg">Confirm</button><button id="aura-confirm-no" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg border border-slate-700">Cancel</button></div></div>`;
+      root?.appendChild(el);
+      el.querySelector('#aura-confirm-yes')?.addEventListener('click', () => { el.remove(); resolve(true); });
+      el.querySelector('#aura-confirm-no')?.addEventListener('click', () => { el.remove(); resolve(false); });
+    });
+    window.__auraConfirm = { confirm };
+    return () => { window.alert = originalAlert; delete window.__toast; delete window.__auraConfirm; };
     // Never override confirm: security prompts need real user choice
     window.__toast = mixer;
     return () => { window.alert = originalAlert; delete window.__toast; };
