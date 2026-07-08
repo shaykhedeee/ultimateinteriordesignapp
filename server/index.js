@@ -65,10 +65,6 @@ app.post('/api/projects/:id/cutlist/refresh', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true, message:'CV trace queued. Traced walls will appear shortly.', traceId:'cv_'+Date.now().toString(36) }));
-
-app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
-app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
 app.get('/api/projects/:id/drawings/elevations/auto/dxf', async (req, res)=>{ try { const pid=req.params.id; const wallId=req.query.wallId; const useCL=(req.query.componentLayers==='true'); const cad=db.prepare("SELECT * FROM cad_scenes WHERE project_id=? ORDER BY created_at DESC LIMIT 1").get(pid); if(!cad) return res.status(404).json({ success:false, error:'no CAD scene' }); const { buildElevationDXF } = require('./services/dxf-writer.js'); const model={ lengthMm:6000, heightMm:2700, thicknessMm:75, openings:[{ offsetMm:500, widthMm:900, sillMm:900, headMm:2100, type:'door' }], cabinets:[{ id:'c1', type:'base', widthMm:600, heightMm:720, xOffsetMm:0, zOffsetMm:0, name:'Base Drawer', material:{ callout:'PU Paint', glass:false, cane:false }, handleType:'pull' }], coverage:{ utilPercent:78, usedMm:4680, freeMm:1320 } }; const cl=useCL?{ useGlassLayers:true, useCaneLayers:true, useHandleLayers:true, useFrameLayers:true }:{ useGlassLayers:false, useCaneLayers:false, useHandleLayers:false, useFrameLayers:false }; const dxf=buildElevationDXF(model,{ componentLayers:cl, scale:'1:25', rev:'1.0', projectId:pid, sheet:wallId?'Elevation '+String(wallId).toUpperCase():'ELEVATION AUTO' }); res.set('Content-Type','application/dxf'); res.set('Content-Disposition', `attachment; filename=ultida-elevation.pid${pid}.dxf`); res.send(dxf); }catch(e){ res.status(500).json({ success:false, error:e.message }); } });
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   try {
@@ -1419,10 +1415,8 @@ app.post('/api/projects/:id/cutlist/calculate', (req, res) => {
   res.json({ cutlistId, parts: allParts, nesting: nestingResult });
 });
 
-app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true, message:'CV trace queued. Traced walls will appear shortly.', traceId:'cv_'+Date.now().toString(36) }));
 
-app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
-app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
+
 
 
 
