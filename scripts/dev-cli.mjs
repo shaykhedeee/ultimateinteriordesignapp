@@ -8,6 +8,23 @@ const projectRoot = path.resolve(__dirname, '..');
 
 const PROJECT_ID = 'proj-nambia-25bhk';
 
+// Option 1 — Luxe Parallel Kitchen + Island (chosen template)
+const KITCHEN_TEMPLATE = {
+  name: 'Kitchen',
+  cabinets: [
+    { id:'a1', type:'base', widthMm:1200, heightMm:720, xOffsetMm:0, zOffsetMm:0, name:'Base Left', material:{ callout:'High-Gloss Blue', glass:false, cane:false }, handleType:'handle' },
+    { id:'a2', type:'island', widthMm:1200, heightMm:720, xOffsetMm:1500, zOffsetMm:1200, name:'Island Counter', material:{ callout:'High-Gloss White', glass:false, cane:false }, handleType:'handleless' },
+    { id:'a3', type:'tall', widthMm:500, heightMm:2400, xOffsetMm:0, zOffsetMm:0, name:'Tall Pantry Left', material:{ callout:'High-Gloss Blue', glass:false, cane:false }, handleType:'pull' },
+    { id:'a4', type:'tall', widthMm:500, heightMm:2400, xOffsetMm:0, zOffsetMm:0, name:'Tall Pantry Right', material:{ callout:'High-Gloss Blue', glass:false, cane:false }, handleType:'pull' },
+    { id:'a5', type:'wall', widthMm:2200, heightMm:720, xOffsetMm:0, zOffsetMm:1400, name:'Wall Units', material:{ callout:'High-Gloss White', glass:false, cane:false }, handleType:'handle' },
+  ],
+  furniture: [
+    { id:'util001', name:'Tall Utility + Laundry', type:'utility_unit' },
+    { id:'cr002', name:'Combined Crockery + Appliance Bay', type:'crockery_unit' },
+  ],
+  theme: 'luxe-marble'
+};
+
 const ROOMS = [
   { name: "Children's Bedroom", type: 'bedroom', x: 0, y: 0, w: 2900, h: 3350 },
   { name: 'Toilet Top', type: 'toilet', x: 2900, y: 0, w: 1116, h: 2133 },
@@ -24,13 +41,16 @@ const OPENINGS = [
   { room: "Living Dining", offsetMm: 3200, widthMm: 1800, type: 'window', sillMm: 900, headMm: 2100 },
   { room: "Master Bedroom", offsetMm: 600, widthMm: 1200, type: 'window', sillMm: 900, headMm: 2100 },
   { room: "Kitchen", offsetMm: 0, widthMm: 900, type: 'door', sillMm: 0, headMm: 2100 },
+  { room: "Kitchen", offsetMm: 1200, widthMm: 1800, type: 'window', sillMm: 900, headMm: 2100 },
   { room: "Children's Bedroom", offsetMm: 500, widthMm: 1200, type: 'window', sillMm: 900, headMm: 2100 },
 ];
 
 const CABINETS = [
-  { room: 'Living Dining', id:'cab_living', name:'LIVING CABINET', widthMm: 2400, heightMm: 2400, xOffsetMm: 1200, zOffsetMm: 0 },
-  { room: 'Kitchen', id:'cab_kitchen_base', name:'KITCHEN BASE', widthMm: 2000, heightMm: 720, xOffsetMm: 0, zOffsetMm: 0 },
-  { room: 'Master Bedroom', id:'cab_master', name:'WARDROBE', widthMm: 1800, heightMm: 2400, xOffsetMm: 300, zOffsetMm: 0 },
+  { room: 'Kitchen', id:'k_base_run', name:'Base Run', widthMm:2200, heightMm:720, xOffsetMm:0, zOffsetMm:0, material:{ callout:'Matte Laminate', glass:false, cane:false }, handleType:'pull' },
+  { room: 'Kitchen', id:'k_wall_run', name:'Wall Units', widthMm:2200, heightMm:720, xOffsetMm:0, zOffsetMm:1400, material:{ callout:'Matte Laminate', glass:false, cane:false }, handleType:'handle' },
+  { room: 'Kitchen', id:'k_tall_utility', name:'Tall Utility', widthMm:1400, heightMm:2400, xOffsetMm:2200, zOffsetMm:0, material:{ callout:'Matte Laminate', glass:false, cane:false }, handleType:'pull' },
+  { room: 'Living Dining', id:'cab_living', name:'LIVING CABINET', widthMm:2400, heightMm:2400, xOffsetMm:1200, zOffsetMm:0 },
+  { room: 'Master Bedroom', id:'cab_master', name:'WARDROBE', widthMm:1800, heightMm:2400, xOffsetMm:300, zOffsetMm:0 },
 ];
 
 function normalize(p) { return p.replace(/[^a-zA-Z0-9]+/g, '_'); }
@@ -38,7 +58,15 @@ function normalize(p) { return p.replace(/[^a-zA-Z0-9]+/g, '_'); }
 function makeRooms() {
   const map = {};
   for (const r of ROOMS) {
-    map[r.name] = { ...r, openings: [], cabinets: [] };
+    map[r.name] = { ...r, openings: [], cabinets: [], furniture: [], theme: undefined };
+  }
+  // Apply chosen Luxe Parallel Kitchen template
+  const kt = map[KITCHEN_TEMPLATE.name];
+  if (kt) {
+    kt.cabinets = KITCHEN_TEMPLATE.cabinets.map(c => ({ ...c }));
+    kt.furniture = KITCHEN_TEMPLATE.furniture.map(f => ({ ...f }));
+    kt.theme = KITCHEN_TEMPLATE.theme;
+    kt.w = 4200; kt.h = 3600;
   }
   for (const o of OPENINGS) {
     const target = map[o.room];
@@ -48,7 +76,7 @@ function makeRooms() {
   }
   for (const c of CABINETS) {
     const target = map[c.room];
-    if (!target) continue;
+    if (!target || target === kt) continue;
     target.cabinets = target.cabinets || [];
     target.cabinets.push({ ...c });
   }

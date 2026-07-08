@@ -22,7 +22,8 @@ const TOOLS = [
   { id:'cutlist_calculate',  label:'Calculate cutlist',       intent:/cutlist|nest|sheet|panel|cut|board/i, action:'cutlist_calculate' },
   { id:'generate_signoff',   label:'Generate share PDF pack', intent:/signoff|pdf|brief|quotation|share|pack/i, action:'generate_signoff' },
   { id:'budget_optimize',    label:'Optimize budget',         intent:/budget|cost|price|cheap|save|optimize/i, action:'budget_optimize' },
-  { id:'assign_task',        label:'Start background job',    intent:/job|running|status|que|run|spawn/i, action:'assign_task' }
+  { id:'assign_task',        label:'Start background job',    intent:/job|running|status|que|run|spawn/i, action:'assign_task' },
+  { id:'regen_room',         label:'Regenerate room render',  intent:/regenerate|re-render|redo|regen|refresh.*room|regenerate.*room/i, action:'regen_room' }
 ];
 
 function resolveIntent(message) {
@@ -71,8 +72,16 @@ async function toolReply(tool, args, projectId) {
       return { text: 'Open Presentation Studio and choose brief, signoff, or quotation pack.', actions:[{ actionId:'openPresentation', label:'Open Presentation Studio', primary:true }] };
     case 'generate_quotation':
       return { text: 'Opening quotation generator in Materials & BOQ.', actions:[{ actionId:'openMaterials', label:'Open Materials & BOQ', primary:true }] };
-    case 'onboarding':
-      return { text: 'Starting quick onboarding walkthrough.', actions:[{ actionId:'startOnboarding', label:'Start Onboarding', primary:true }] };
+    case 'regen_room': {
+      const roomMatch = String(message || '').match(/room\s+([a-z0-9 ]+?)(?:$|\.|,|with|using)/i);
+      const roomName = roomMatch ? roomMatch[1].trim() : 'Living Dining';
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}/pipeline/regenerate-room`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ room: { name: roomName, w: 4200, h: 3600 }, projectName: 'Nambia' })
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return { text: d?.success ? `Regenerated ${roomName} render, SKP, DXF and PDF.` : `Regenerating ${roomName} via AURA.`, actions:[{ actionId:'openPipelineStudio', label:'Open Pipeline Studio', primary:true }] };
+    }
     case 'testimonial':
       return { text: 'Opening testimonial capture form.', actions:[{ actionId:'openTestimonial', label:'Open Testimonial Form', primary:true }] };
     default:
