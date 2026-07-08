@@ -1286,42 +1286,30 @@ app.post('/api/projects/:id/skp/analyze', upload.single('skpFile'), async (req, 
     const buffer = req.file?.buffer || (req.file && fs.readFileSync(req.file.path));
     if (!buffer) return res.status(400).json({ success:false, error:'Upload a .skp file as `skpFile`.' });
     const data = await skpReader.readSkpFile(buffer);
-    await db_prepare_project_file(pid, req.file?.originalname || 'upload.skp', buffer, 'application/octet-stream');
     res.json({ success:true, source:'local-reader', summary: data.summary, recommendations: data.recommendations, entityCount: data.entityCount, materials: data.materials, layers: data.layers, bbox: data.bbox });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
 app.post('/api/projects/:id/skp/generate', express.json(), async (req, res) => {
   try {
-    const pid = req.params.id;
-    const result = await skpReader.generateSkpDirect(req.body.payload || req.body, { fileName: req.body.fileName || `ultida-${pid}.skp`, units: req.body.units || 4 });
-    const meta = await db_prepare_project_file(pid, result.fileName, result.buffer, 'application/octet-stream');
-    res.json({ success:true, fileName:result.fileName, bytes:result.bytes, source:result.source, filePath:meta.filePath });
+    const result = await skpReader.generateSkpDirect(req.body.payload || req.body, { fileName: req.body.fileName || `ultida-${req.params.id}.skp`, units: req.body.units || 4 });
+    res.json({ success:true, fileName:result.fileName, bytes:result.bytes, source:result.source, bufferB64: result.buffer.toString('base64'), mime:'application/octet-stream' });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
 app.post('/api/projects/:id/skp/import-to-dxf', upload.single('skpFile'), async (req, res) => {
   try {
-    const pid = req.params.id;
     const buffer = req.file?.buffer || (req.file && fs.readFileSync(req.file.path));
     if (!buffer) return res.status(400).json({ success:false, error:'Upload a .skp file as `skpFile`.' });
-    const result = await skpReader.importSkpToDxf(buffer, pid, { fileName: `ultida-${pid}-skp-import.dxf`, outDir: path.join(storageDir,'proposals') });
+    const result = await skpReader.importSkpToDxf(buffer, req.params.id, { fileName: `ultida-${req.params.id}-skp-import.dxf`, outDir: path.join(storageDir,'proposals') });
     if (result?.dxfPath && fs.existsSync(result.dxfPath)) {
       res.setHeader('Content-Type','application/dxf');
-      res.setHeader('Content-Disposition', `attachment; filename=ultida-${pid}-skp.dxf`);
+      res.setHeader('Content-Disposition', `attachment; filename=ultida-${req.params.id}-skp.dxf`);
       return res.sendFile(result.dxfPath);
     }
     res.json({ success:true, dxfPath: result.dxfPath, recommendations: result.recommendations });
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
-
-async function db_prepare_project_file(projectId, originalName, buffer, mime) {
-  const id = nanoid();
-  const stored = path.join(storageDir, 'uploads', `${id}-${originalName}`);
-  fs.writeFileSync(stored, buffer);
-  db.prepare("INSERT INTO project_files (id, project_id, original_name, file_path, mime_type, size_bytes, created_at) VALUES (?,?,?,?,?,?,datetime('now'))").run(id, projectId, originalName, stored, mime, buffer.length);
-  return { id, filePath: stored };
-}
 
 
 // Download a rendered image asset for the frontend gallery/download buttons.
