@@ -24,7 +24,9 @@ const MaterialCatalogScreen    = lazy(() => import('./screens/MaterialCatalogScr
 const Render3DStudio           = lazy(() => import('./screens/Render3DStudio.jsx'));
 const CutlistNestingScreen     = lazy(() => import('./screens/CutlistNestingScreen.jsx'));
 const DesignStudioScreen       = lazy(() => import('./screens/DesignStudioScreen.jsx'));
-const PresentationStudio       = lazy(() => import('./screens/PresentationStudio.jsx'));
+import PresentationStudio       from './screens/PresentationStudio.jsx';
+import PipelineStudio            from './screens/PipelineStudio.jsx';
+
 
 const STATUS_ORDER = ['brief','cad_approved','scene_ready','materials_selected','renders_approved','production','billing'];
 
@@ -70,7 +72,8 @@ const NAV_CONFIG = [
   {
     title: 'Client Delivery',
     items: [
-      { id: 'presentation',  label: 'Presentation Pack',   icon: Award,        shortcut: null }
+      { id: 'presentation',  label: 'Presentation Pack',   icon: Award,        shortcut: null },
+      { id: 'pipeline',      label: 'Pipeline Studio',     icon: Sparkles,     shortcut: null }
     ]
   }
 ];
@@ -93,14 +96,16 @@ const TAB_META = {
   projects:  { title: 'Project Pipeline',  sub: 'Active projects, kanban workflow & status tracking' },
   brief:     { title: 'Client Intake',      sub: 'Capture lifestyle, budget, rooms, references and floor plan uploads' },
   cad:       { title: 'Plan Intelligence', sub: 'Review rooms, walls, openings, scale, services and confidence' },
-  studio:    { title: 'Editable 3D Scene',  sub: 'Place parametric modules from one spatial source of truth' },
+  studio:    { title: 'Editable 3D Scene', sub: 'Place parametric modules from one spatial source of truth' },
   drawings:  { title: 'Drawings & Elevations', sub: 'Annotated wall drawings, cabinet elevations and DXF exports' },
   materials: { title: 'Materials Catalog', sub: 'Select laminates, hardware fittings & estimate costs' },
   renders:   { title: '3D AI Render Studio', sub: 'Generate photorealistic renders with Vastu insights' },
   cutlist:   { title: 'Cutlist & Nesting', sub: 'Calculate precise panel cuts & optimise sheet nesting' },
-  finance:   { title: 'Commerce & Quotes', sub: 'Proposals, GST invoices, payment tracking' },
-  timeline:  { title: 'Project Timeline',  sub: 'Activity log, milestone events & audit trail' },
-  jobs:      { title: 'Background Jobs',   sub: 'Rendering pipeline monitor & async job queue' }
+  finance:       { title: 'Commerce & Quotes',   sub: 'Proposals, GST invoices, payment tracking' },
+  timeline:      { title: 'Project Timeline',    sub: 'Activity log, milestone events & audit trail' },
+  jobs:          { title: 'Background Jobs',     sub: 'Rendering pipeline monitor & async job queue' },
+  presentation:  { title: 'Presentation Pack',   sub: 'Client-ready delivery package and narrative' },
+  pipeline:      { title: 'Pipeline Studio',     sub: 'End-to-end sequential generation per your required flow' }
 };
 
 // ── Status color map ──
