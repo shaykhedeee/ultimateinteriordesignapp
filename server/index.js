@@ -1295,12 +1295,86 @@ app.post('/api/projects/:id/pipeline/run', express.json(), async (req, res) => {
     const projectId = req.params.id;
     const body = req.body || {};
     const rooms = Array.isArray(body.rooms) ? body.rooms : [
-      { name:'Living Dining', w:5600, h:4200, openings:[{offsetMm:500,widthMm:900,sillMm:900,headMm:2100,type:'door'}], cabinets:[{id:'c1',type:'base',widthMm:600,heightMm:720,xOffsetMm:0,zOffsetMm:0,name:'Base Drawer'}] },
+      { name:'Living Dining', w:5600, h:4200, openings:[{offsetMm:500,widthMm:900,sillMm:900,headMm:2100,type:'door'}], cabinets:[{id:'c1',type:'base',widthMm:600,heightMm:720,xOffsetMm:0,zOffsetMm:0,name:'Base Drawer',material:{ callout:'PU Paint', glass:false, cane:false },handleType:'pull'}] },
       { name:'Master Bedroom', w:4200, h:3600, openings:[], cabinets:[] },
     ];
     const { runPipeline } = await import('./services/pipeline-orchestrator.js');
     const result = await runPipeline({ projectId, rooms, walls:body.walls, openings:body.openings, projectName:body.projectName||'ULTIDA Project' });
     res.json({ success:true, ...result });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.post('/api/projects/:id/delivery-package', express.json(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const body = req.body || {};
+    const pipelineResult = body.pipelineResult || body;
+    const outDir = body.outDir || path.join(storageDir, 'proposals', String(projectId));
+    const { buildDeliveryPackage } = await import('./services/delivery-package.js');
+    const zipPath = await buildDeliveryPackage({ projectId, pipelineResult, outDir, rooms: pipelineResult?.rooms });
+    if (!fs.existsSync(zipPath)) return res.status(500).json({ success:false, error:'package_not_generated' });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=ULTIDA_${projectId}_package.zip`);
+    res.sendFile(zipPath);
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+// --- Room templates & furniture catalog (design library) ---
+import { KITCHEN_TEMPLATES, FURNITURE_CATALOG, listTemplates, getTemplate, getCatalog } from './services/room-templates.js';
+
+app.get('/api/room-templates', (req, res) => {
+  try { res.json({ success:true, templates: listTemplates() }); }
+  catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.get('/api/room-templates/:id', (req, res) => {
+  try {
+    const t = getTemplate(req.params.id);
+    if (!t) return res.status(404).json({ success:false, error:'template not found' });
+    res.json({ success:true, template: t });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.get('/api/furniture-catalog', (req, res) => {
+  try { res.json({ success:true, catalog: getCatalog() }); }
+  catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.post('/api/projects/:id/apply-template', express.json(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { templateId } = req.body || {};
+    const t = getTemplate(templateId);
+    if (!t) return res.status(404).json({ success:false, error:'template not found' });
+    const { generateBriefPack } = await import('./services/room-templates.js');
+    const bp = await generateBriefPack(projectId, { templateId, templateName:t.name, cabinets:t.cabinets, appliances:t.appliances, finishes:t.finishes, promptBoost:t.promptBoost });
+    res.json({ success:true, briefPath: bp, template: t });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+app.post('/api/projects/:id/pipeline/regenerate-room', express.json(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const room = req.body?.room;
+    if (!room || !room.name) return res.status(400).json({ success:false, error:'room with name required' });
+    const { regenerateRoom } = await import('./services/pipeline-orchestrator.js');
+    const result = await regenerateRoom({ projectId, room, projectName: req.body.projectName || 'ULTIDA Project' });
+    res.json({ success:true, ...result });
+  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+});
+
+// --- Serve generated deliverable artifacts (thumbnails + full files) ---
+const DELIVERABLES_ROOT = path.join(__dirname, '..', '_deliverables');
+app.get('/api/deliverables/:projectId/*', (req, res) => {
+  try {
+    const rel = String(req.params[0] || '');
+    const safe = path.normalize(rel).replace(/^(\.\.[/\\])+/, '');
+    const full = path.join(DELIVERABLES_ROOT, req.params.projectId, safe);
+    if (!full.startsWith(DELIVERABLES_ROOT) || !fs.existsSync(full)) return res.status(404).json({ success:false, error:'not_found' });
+    const ext = path.extname(full).toLowerCase();
+    const types = { '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png', '.gif':'image/gif', '.webp':'image/webp', '.svg':'image/svg+xml', '.dxf':'application/dxf', '.pdf':'application/pdf', '.skp':'application/octet-stream' };
+    res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
+    res.sendFile(full);
   } catch (e) { res.status(500).json({ success:false, error:e.message }); }
 });
 
