@@ -125,6 +125,36 @@ class PlanIntelligenceCore {
    * Never invents — if nothing traced, returns NO_TRACED_WALLS.
    */
   measurePlan({ walls = [], openings = [], rooms = [], scaleRef } = {}) {
+    // Manual room-marking path: user has marked rooms with real mm dimensions
+    // but not traced walls yet. Produce measurements from rooms directly.
+    if ((!Array.isArray(walls) || walls.length === 0) && Array.isArray(rooms) && rooms.length > 0) {
+      const interpretedRooms = rooms.map((r, i) => {
+        const wMm = Number(r.wMm ?? r.widthMm ?? 0);
+        const hMm = Number(r.hMm ?? r.heightMm ?? 0);
+        const areaMm2 = (r.areaMm2 != null) ? Number(r.areaMm2) : (wMm * hMm);
+        const areaSqft = areaMm2 / 92903;
+        return {
+          id: r.id || `room_${i + 1}`,
+          name: r.name || `Room ${i + 1}`,
+          type: (r.name || '').toLowerCase().includes('kitchen') ? 'kitchen'
+              : (r.name || '').toLowerCase().includes('bed') ? 'bedroom'
+              : (r.name || '').toLowerCase().includes('liv') ? 'living'
+              : (r.name || '').toLowerCase().includes('bath') ? 'bathroom' : 'other',
+          widthMm: wMm, heightMm: hMm, areaMm2, areaSqft: +areaSqft.toFixed(2),
+          confidence: 0.9
+        };
+      });
+      const totalArea = interpretedRooms.reduce((s, r) => s + (r.areaMm2 || 0), 0);
+      const bedrooms = interpretedRooms.filter(r => r.type === 'bedroom').length;
+      const type = bedrooms >= 4 ? '4BHK' : bedrooms === 3 ? '3BHK' : bedrooms === 2 ? '2BHK' : bedrooms === 1 ? '1BHK' : 'APARTMENT';
+      return {
+        success: true,
+        scaleRef: { ppm: DEFAULT_PPM, realMm: scaleRef ? scaleRef.realMm : null },
+        overallConfidence: 0.9,
+        interpretation: { rooms: interpretedRooms, totalAreaMm2: totalArea, totalAreaSqft: +(totalArea / 92903).toFixed(2), type, bedroomCount: bedrooms },
+        reviewItems: []
+      };
+    }
     if (!Array.isArray(walls) || walls.length === 0) {
       return { success: false, error: 'NO_TRACED_WALLS', message: 'Trace the walls (and a scale line if no ppm known) before measuring.', interpretation: null, overallConfidence: 0, reviewItems: [] };
     }

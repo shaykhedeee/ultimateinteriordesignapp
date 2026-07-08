@@ -82,11 +82,23 @@ function roomPrompt(room){
   return `${style}, ${room.name} with ${room.w}mm x ${room.h}mm floor area, natural light, premium materials, clean lines, professional architectural photography.${furnitureNote}`;
 }
 
+async function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms); });
+  try { return await Promise.race([promise, timeout]); }
+  finally { clearTimeout(timer); }
+}
+
 async function aiRenderRoom(room){
   const prompt = roomPrompt(room);
   const tags = Array.isArray(room.furniture) ? room.furniture.map(f => f.type || f.name) : [];
   try {
-    const blob = await generateInteriorAsset({ prompt, room: room.name, style:'indian-contemporary', model:'auto', reuseFirst:false, tags });
+    // Hard timeout: when no image API keys are configured (sandbox), the provider
+    // chain would otherwise hang retrying. Fall back to a labeled placeholder.
+    const blob = await withTimeout(
+      generateInteriorAsset({ prompt, room: room.name, style:'indian-contemporary', model:'auto', reuseFirst:false, tags }),
+      8000, 'aiRender'
+    );
     if (blob && blob.filePath) {
       // generateInteriorAsset returns a virtual /storage/assets/... path; resolve to disk.
       const onDisk = path.resolve(projectRoot, 'storage', blob.filePath.replace(/^\/?storage\//, ''));
