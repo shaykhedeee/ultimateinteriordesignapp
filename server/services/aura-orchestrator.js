@@ -64,14 +64,17 @@ async function toolReply(tool, args, projectId) {
       return { text: 'Open CAD to start CV auto-trace on the underlay.', actions:[{ actionId:'openCad', label:'Open CAD', primary:true }] };
     case 'cutlist_calculate':
       return { text: 'Open Cutlist & Nesting to inspect panel optimization.', actions:[{ actionId:'openCutlist', label:'Open Cutlist & Nesting', primary:true }] };
+    case 'rag_search': {
+      return { text: 'Search terms saved. Opening knowledge base results.', actions:[{ actionId:'openKnowledgeBase', label:'Open Knowledge Base', primary:true }] };
+    }
     case 'generate_signoff':
       return { text: 'Open Presentation Studio and choose brief, signoff, or quotation pack.', actions:[{ actionId:'openPresentation', label:'Open Presentation Studio', primary:true }] };
-    case 'budget_optimize':
-      return { text: 'Open Materials & BOQ to inspect cost swaps and optimizations.', actions:[{ actionId:'openMaterials', label:'Open Materials & BOQ', primary:true }] };
-    case 'assign_task': {
-      await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}/jobs`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ jobType:'background_task' }) }).catch(()=>{});
-      return { text: 'Background job started via AURA.', actions:[{ actionId:'openJobs', label:'Open Jobs', primary:true }] };
-    }
+    case 'generate_quotation':
+      return { text: 'Opening quotation generator in Materials & BOQ.', actions:[{ actionId:'openMaterials', label:'Open Materials & BOQ', primary:true }] };
+    case 'onboarding':
+      return { text: 'Starting quick onboarding walkthrough.', actions:[{ actionId:'startOnboarding', label:'Start Onboarding', primary:true }] };
+    case 'testimonial':
+      return { text: 'Opening testimonial capture form.', actions:[{ actionId:'openTestimonial', label:'Open Testimonial Form', primary:true }] };
     default:
       return noAnswer();
   }
