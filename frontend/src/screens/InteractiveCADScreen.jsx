@@ -376,6 +376,34 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     const roomCount = rooms.length || furniture.length || 0;
     speak(`OKAY I SEE IT IS A ${type} BEAUTIFUL APARTMENT WITH ${roomCount} ZONES — ANALYSING NOW`);
   };
+
+  // --- Kitchen template picker (canonical step 7) ---
+  const applyKitchenShape = async (shape) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/kitchen/template`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shape })
+      });
+      const data = await res.json();
+      if (res.ok) { window.__toast?.show(`Kitchen ${shape}-shape applied`); const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
+    } catch (e) { console.error(e); }
+  };
+
+  // --- Modular TV-unit library (canonical step 8) ---
+  const [tvUnits, setTvUnits] = useState([]);
+  const [tvBusy, setTvBusy] = useState(false);
+  const loadTvUnits = async () => {
+    try { const d = await (await fetch('http://127.0.0.1:5055/api/tv-units')).json(); setTvUnits(d); } catch (e) { console.error(e); }
+  };
+  const applyTvUnitStyle = async (unitId) => {
+    setTvBusy(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/tv-unit/apply`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unitId })
+      });
+      const data = await res.json();
+      if (res.ok) { window.__toast?.show('TV unit style applied'); const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
+    } catch (e) { console.error(e); } finally { setTvBusy(false); }
+  };
   const saveCADToServer = async () => {
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
@@ -1087,6 +1115,35 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             </div>
           )}
           {vastuApplied && <div className="text-[10px] text-emerald-400">✓ Applied & saved to plan.</div>}
+        </div>
+
+        {/* Kitchen template picker (canonical flow step 7) */}
+        <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 space-y-2">
+          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Kitchen Layout</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => applyKitchenShape('L')} className="py-2 rounded-lg border border-slate-700 text-[10px] font-bold uppercase hover:border-[#D4AF37]/50 hover:text-[#D4AF37]">L-Shape</button>
+            <button onClick={() => applyKitchenShape('U')} className="py-2 rounded-lg border border-slate-700 text-[10px] font-bold uppercase hover:border-[#D4AF37]/50 hover:text-[#D4AF37]">U-Shape</button>
+          </div>
+        </div>
+
+        {/* Modular TV-unit library (canonical flow step 8) */}
+        <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">TV Unit Library</label>
+            <button onClick={loadTvUnits} className="text-[10px] uppercase font-bold text-slate-300 border border-slate-700 rounded px-2 py-0.5 hover:border-[#D4AF37]/50">Load</button>
+          </div>
+          {tvUnits.length > 0 && (
+            <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+              {tvUnits.map(u => (
+                <button key={u.id} onClick={() => applyTvUnitStyle(u.id)} disabled={tvBusy}
+                  className="text-left rounded-lg border border-slate-800 hover:border-[#D4AF37]/60 p-1.5 flex items-center gap-2 disabled:opacity-50">
+                  <span className="w-4 h-4 rounded-sm shrink-0" style={{ background: u.color }} />
+                  <span className="text-[9px] leading-tight text-slate-300">{u.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {tvUnits.length === 0 && <div className="text-[9px] text-slate-500">Click Load to browse 14+ modular styles.</div>}
         </div>
 
         {/* Theme Settings Selector */}
