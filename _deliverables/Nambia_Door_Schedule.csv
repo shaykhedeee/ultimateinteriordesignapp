@@ -1,0 +1,9 @@
+Door ID,Location,Width (mm),Height (mm),Type
+D1,"Entry to Children's Bedroom",900,2100,Single leaf
+D2,"Entry to Toilet Top",900,2100,Single leaf
+D3,"Entry to Home Office",900,2100,Single leaf
+D4,"Balcony door",1200,2100,Sliding/Fixed
+D5,"Living/Dining entry",1200,2100,Double leaf
+D6,"Master Bedroom entry",900,2100,Single leaf
+D7,"Toilet Bottom entry",900,2100,Single leaf
+D8,"Kitchen entry",900,2100,Single leaf

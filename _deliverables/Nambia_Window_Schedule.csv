@@ -1,0 +1,10 @@
+Window ID,Location,Width (mm),Height (mm),Sill (mm)
+W1,"Children's Bedroom exterior",1200,1200,900
+W2,"Toilet Top ventilator",600,600,1800
+W3,"Home Office exterior",1200,1200,900
+W4,"Living room main window",1800,1500,600
+W5,"Dining side window",1200,1200,900
+W6,"Master Bedroom main window",1800,1500,600
+W7,"Master Bedroom side window",1200,1200,900
+W8,"Toilet Bottom ventilator",600,600,1800
+W9,"Kitchen window",1200,900,900
