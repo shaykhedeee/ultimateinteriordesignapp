@@ -61,6 +61,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   // --- Undo/Redo Stacks ---
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [photoElevations, setPhotoElevations] = useState([]);
 
   // SVG viewport ref
   const svgRef = useRef(null);
@@ -117,8 +118,18 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   useEffect(() => {
     if (projectId) {
       loadCADData();
+      loadPhotoElevations();
     }
   }, [projectId]);
+
+  const loadPhotoElevations = async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations`);
+      const rows = await res.json();
+      if (Array.isArray(rows)) setPhotoElevations(rows.reverse().slice(0, 20));
+    } catch (e) { /* silent */ }
+  };
 
   const loadCADData = async () => {
     try {

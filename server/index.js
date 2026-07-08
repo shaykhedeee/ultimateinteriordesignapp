@@ -1730,7 +1730,19 @@ app.get('/api/projects/:id/drawings/elevations/:wallId/dxf', (req, res) => {
   }
 });
 
-// GET professional print-ready PDF elevation sheet
+app.get('/api/projects/:id/photo-elevations/:elevationId/dxf', async (req, res) => {
+  try {
+    const row = db.prepare("SELECT * FROM photo_elevations WHERE id = ? AND project_id = ?").get(req.params.elevationId, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Elevation not found' });
+    const model = JSON.parse(row.model_json || '{}');
+    const dxf = generateElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: row.project_id, sheetName: row.wall_name || 'PHOTO ELEVATION' });
+    res.setHeader('Content-Type', 'application/dxf');
+    res.setHeader('Content-Disposition', `attachment; filename="${(row.unit_type || 'elevation').toLowerCase()}-elevation.dxf"`);
+    res.send(dxf);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Download professional print-ready PDF elevation sheet
 app.get('/api/projects/:id/drawings/elevations/:wallId/pdf', async (req, res) => {
   try {
     const projectId = req.params.id;
