@@ -42,6 +42,17 @@ const frontendDistDir = path.join(__dirname, '../dist');
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 });
 
+// Multer for photos/videos
+const multerStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(storageDir, 'uploads'));
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+const upload = multer({ storage: multerStorage });
+
 const app = express();
 const port = 5055;
 
@@ -83,18 +94,7 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
 
 // REAL image -> measured 2D elevation (Magicplan/RoomGPT move)
 // Body (multipart or JSON): image file OR { imageB64 }, dimsText, unitTypeHint
-app.post('/api/elevation/from-photo', 
-// Multer setup for video/photo uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(storageDir, 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage });
-upload.single('image'), async (req, res) => {
+app.post('/api/elevation/from-photo', upload.single('image'), async (req, res) => {
   try {
     let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '';
     if (req.file) imageB64 = req.file.buffer.toString('base64');
@@ -130,17 +130,6 @@ app.get('/api/elevation/learning', (req, res) => {
 app.use(cors());
 app.use(express.json());
 app.use('/storage', express.static(storageDir));
-
-// Multer setup for video/photo uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(storageDir, 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
-});
-const upload = multer({ storage: storage });
 
 // Secure API keys diagnostics endpoint for developer/admin overview
 app.get('/api/diagnostics/api-keys', (req, res) => {
