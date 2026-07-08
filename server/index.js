@@ -2713,6 +2713,121 @@ app.post('/api/settings/app-settings', express.json(), (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── System AI status (single source of truth for "is AI live") ──
+app.get('/api/system/ai-status', (req, res) => {
+  try {
+    const liveRequested = process.env.LIVE_IMAGE_GEN === 'true';
+    const pstatus = (typeof getProviderStatus === 'function') ? getProviderStatus() : { providers:{} };
+    const clientSafe = pstatus.providers || {};
+    const readyProviders = [];
+    const missingKeys = [];
+    const providerMeta = {
+      geminiImagen:  { label:'Gemini Imagen',  costTier:'paid',  qualityTier:'high' },
+      'openai-gpt-image-1': { label:'OpenAI GPT-Image', costTier:'paid', qualityTier:'high' },
+      openai:        { label:'OpenAI DALL·E',  costTier:'paid',  qualityTier:'high' },
+      freepik:       { label:'Freepik Flux',   costTier:'paid',  qualityTier:'high' },
+      huggingface:   { label:'HuggingFace',    costTier:'free',  qualityTier:'mid'  },
+      pollinations:  { label:'Pollinations',   costTier:'free',  qualityTier:'mid'  },
+      stabilitySdxl: { label:'Stability SDXL', costTier:'paid',  qualityTier:'mid'  },
+      stabilityFlux: { label:'Stability Flux', costTier:'paid',  qualityTier:'high' }
+    };
+    for (const [key, meta] of Object.entries(providerMeta)) {
+      const ready = !!clientSafe[key];
+      if (ready) readyProviders.push({ key, ...meta });
+      else if (meta.costTier === 'paid') missingKeys.push({ key, label: meta.label });
+    }
+    const liveRenderReady = readyProviders.length > 0;
+    let mode = 'offline';
+    if (!liveRequested) mode = 'misconfigured';
+    else if (liveRenderReady) mode = 'live';
+    else if (readyProviders.some(p => p.costTier === 'free')) mode = 'partial';
+    const recommendation = {
+      live: 'AI renders are LIVE. Generate photoreal interiors now.',
+      partial: 'Free providers are ready — renders work but capped quality. Add a paid key (Gemini/Freepik) for 8k.',
+      misconfigured: 'Set LIVE_IMAGE_GEN=true in .env and restart the server to enable live AI.',
+      offline: 'No image provider configured. Add an API key or set IMAGE_PROVIDER=pollinations.'
+    }[mode];
+    res.json({
+      mode,
+      liveRequested,
+      liveRenderReady,
+      auraChatReady: true,
+      readyProviders,
+      missingKeysForLiveRender: missingKeys.map(k => k.label),
+      imageProviderConfigured: process.env.IMAGE_PROVIDER || 'library-reuse',
+      recommendation,
+      enableInstructions: {
+        quickstart: 'Copy .env.example → .env, set LIVE_IMAGE_GEN=true, paste your GEMINI_API_KEY, restart node server/index.js',
+        free: 'Set IMAGE_PROVIDER=pollinations (no key needed) for free Flux renders.'
+      }
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── White-label settings (brand studio) ──
+const ensureWhitelabelTable = () => {
+  db.prepare(`CREATE TABLE IF NOT EXISTS whitelabel_settings (
+    id TEXT PRIMARY KEY,
+    studio_name TEXT, tagline TEXT, logo_text TEXT, accent_color TEXT,
+    hero_image_url TEXT, surface_color TEXT, text_color TEXT, muted_color TEXT,
+    font_display TEXT, support_phone TEXT, social_links_json TEXT,
+    terms_url TEXT, privacy_url TEXT, show_powered_by INTEGER DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`).run();
+};
+ensureWhitelabelTable();
+const WL_COLUMNS = ['studio_name','tagline','logo_text','accent_color','hero_image_url','surface_color','text_color','muted_color','font_display','support_phone','social_links_json','terms_url','privacy_url','show_powered_by'];
+const wlDefaults = () => ({ id:'default', studio_name:'ULTIDA', tagline:'The Ultimate Interior Design Application', logo_text:'U', accent_color:'#C9A84C', hero_image_url:'', surface_color:'#0F0F14', text_color:'#F0EEE8', muted_color:'#5C5C72', font_display:'Outfit', support_phone:'', social_links_json:'{}', terms_url:'', privacy_url:'', show_powered_by:1 });
+
+app.post('/api/whitelabel', express.json(), (req, res) => {
+  try {
+    const body = req.body || {};
+    // map camelCase incoming -> snake_case columns
+    const map = {
+      studioName: 'studio_name', tagline: 'tagline', logoText: 'logo_text', accentColor: 'accent_color',
+      heroImageUrl: 'hero_image_url', surfaceColor: 'surface_color', textColor: 'text_color', mutedColor: 'muted_color',
+      fontDisplay: 'font_display', supportPhone: 'support_phone', termsUrl: 'terms_url', privacyUrl: 'privacy_url',
+      showPoweredBy: 'show_powered_by'
+    };
+    const d = wlDefaults();
+    for (const [camel, snake] of Object.entries(map)) {
+      if (body[camel] !== undefined) d[snake] = body[camel];
+    }
+    const vals = WL_COLUMNS.map(c => d[c] ?? null);
+    const placeholders = WL_COLUMNS.map(() => '?').join(',');
+    db.prepare(`INSERT OR REPLACE INTO whitelabel_settings (id, ${WL_COLUMNS.join(',')}, updated_at) VALUES ('default', ${placeholders}, ?)`)
+      .run(...vals, new Date().toISOString());
+    const row = db.prepare('SELECT * FROM whitelabel_settings WHERE id = ?').get('default');
+    res.json({ success:true, settings: whitelabelSafe(row) });
+  } catch (err) { res.status(500).json({ success:false, error: err.message }); }
+});
+
+function whitelabelSafe(row) {
+  return {
+    studioName: row.studio_name, tagline: row.tagline, logoText: row.logo_text,
+    accentColor: row.accent_color, heroImageUrl: row.hero_image_url,
+    surfaceColor: row.surface_color, textColor: row.text_color, mutedColor: row.muted_color,
+    fontDisplay: row.font_display, supportPhone: row.support_phone,
+    socialLinks: (() => { try { return JSON.parse(row.social_links_json || '{}'); } catch { return {}; } })(),
+    termsUrl: row.terms_url, privacyUrl: row.privacy_url,
+    showPoweredBy: !!row.show_powered_by
+  };
+}
+
+app.get('/api/whitelabel/public', (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM whitelabel_settings WHERE id = ?').get('default') || wlDefaults();
+    res.json({ success:true, settings: whitelabelSafe(row) });
+  } catch (err) { res.status(500).json({ success:false, error: err.message }); }
+});
+
+app.post('/api/whitelabel/reset', express.json(), (req, res) => {
+  try {
+    db.prepare('DELETE FROM whitelabel_settings WHERE id = ?').run('default');
+    res.json({ success:true, settings: whitelabelSafe(wlDefaults()) });
+  } catch (err) { res.status(500).json({ success:false, error: err.message }); }
+});
+
 // Serve the built frontend from the same process in production.
 if (fs.existsSync(frontendDistDir)) {
   app.use(express.static(frontendDistDir));
