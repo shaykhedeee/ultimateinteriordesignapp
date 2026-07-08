@@ -31,6 +31,7 @@ import { buildElevationDXF } from './services/dxf-writer.js';
 import { renderElevationPDF } from './services/pdf-elevation.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
+import { previewVastu, applyVastu } from './services/vastu-auto.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1968,6 +1969,28 @@ app.get('/api/projects/:id/analyze-elevation', (req, res) => {
     if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
     const result = analyzeProjectElevations(cad, { projectId, wallHeightMm: 2700 });
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Auto-Vastu: preview proposed fixes (Pooja insert + bed placement) ---
+app.get('/api/projects/:id/vastu/preview', (req, res) => {
+  try {
+    const p = previewVastu(req.params.id);
+    if (!p.ok) return res.status(404).json({ error: p.reason });
+    res.json(p);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Auto-Vastu: apply the fixes to cad_drawings ---
+app.post('/api/projects/:id/vastu/auto-apply', express.json(), (req, res) => {
+  try {
+    const r = applyVastu(req.params.id);
+    if (!r.ok) return res.status(404).json({ error: r.reason });
+    res.json(r);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
