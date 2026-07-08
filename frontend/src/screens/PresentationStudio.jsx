@@ -224,7 +224,8 @@ export default function PresentationStudio({ projectId }) {
           <button
             onClick={async () => {
               if (!share?.token) return;
-              if (!confirm('Revoke this share link? The client will no longer be able to access it.')) return;
+              const ok = await window.__auraConfirm?.confirm?.('Revoke Link', 'Revoke this share link? The client will no longer be able to access it.') || false;
+              if (!ok) return;
               try {
                 await fetch(`${API}/projects/${projectId}/client-share/${share.token}/revoke`, { method: 'DELETE' });
                 setShare(null);

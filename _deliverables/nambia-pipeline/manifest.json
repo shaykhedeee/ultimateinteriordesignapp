@@ -1,0 +1,134 @@
+{
+  "generatedAt": "2026-07-08T14:34:51.600Z",
+  "rooms": [
+    {
+      "id": "r1",
+      "name": "Childrens Bedroom",
+      "type": "bedroom",
+      "x": 0,
+      "y": 0,
+      "width": 2900,
+      "height": 3350
+    },
+    {
+      "id": "r2",
+      "name": "Toilet Top",
+      "type": "toilet",
+      "x": 2900,
+      "y": 0,
+      "width": 1116,
+      "height": 2133
+    },
+    {
+      "id": "r3",
+      "name": "Home Office",
+      "type": "office",
+      "x": 4016,
+      "y": 0,
+      "width": 2643,
+      "height": 2096
+    },
+    {
+      "id": "r4",
+      "name": "Balcony",
+      "type": "balcony",
+      "x": 0,
+      "y": 3350,
+      "width": 600,
+      "height": 187
+    },
+    {
+      "id": "r5",
+      "name": "Living Dining",
+      "type": "living",
+      "x": 600,
+      "y": 3350,
+      "width": 2549,
+      "height": 2842
+    },
+    {
+      "id": "r6",
+      "name": "Master Bedroom",
+      "type": "bedroom",
+      "x": 0,
+      "y": 3537,
+      "width": 3005,
+      "height": 3350
+    },
+    {
+      "id": "r7",
+      "name": "Toilet Bottom",
+      "type": "toilet",
+      "x": 3005,
+      "y": 3537,
+      "width": 2246,
+      "height": 1081
+    },
+    {
+      "id": "r8",
+      "name": "Kitchen",
+      "type": "kitchen",
+      "x": 3005,
+      "y": 4618,
+      "width": 2692,
+      "height": 2022
+    }
+  ],
+  "spaces": [
+    {
+      "room": "Childrens Bedroom",
+      "bytes": 12382
+    },
+    {
+      "room": "Toilet Top",
+      "bytes": 9203
+    },
+    {
+      "room": "Home Office",
+      "bytes": 9193
+    },
+    {
+      "room": "Balcony",
+      "bytes": 5411
+    },
+    {
+      "room": "Living Dining",
+      "bytes": 19005
+    },
+    {
+      "room": "Master Bedroom",
+      "bytes": 14135
+    },
+    {
+      "room": "Toilet Bottom",
+      "bytes": 9203
+    },
+    {
+      "room": "Kitchen",
+      "bytes": 9194
+    }
+  ],
+  "elevations": [
+    {
+      "dir": "north",
+      "dxfBytes": 20815,
+      "pdfBytes": 3438
+    },
+    {
+      "dir": "south",
+      "dxfBytes": 20815,
+      "pdfBytes": 3438
+    },
+    {
+      "dir": "east",
+      "dxfBytes": 20815,
+      "pdfBytes": 3438
+    },
+    {
+      "dir": "west",
+      "dxfBytes": 20815,
+      "pdfBytes": 3438
+    }
+  ],
+  "floorPlanBytes": 24523
+}

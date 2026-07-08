@@ -172,11 +172,25 @@ export function App() {
       el.querySelector('#aura-confirm-yes')?.addEventListener('click', () => { el.remove(); resolve(true); });
       el.querySelector('#aura-confirm-no')?.addEventListener('click', () => { el.remove(); resolve(false); });
     });
-    window.__auraConfirm = { confirm };
-    return () => { window.alert = originalAlert; delete window.__toast; delete window.__auraConfirm; };
-    // Never override confirm: security prompts need real user choice
+    window.__auraConfirm = { confirm, open: (title, message, callback) => new Promise((resolve) => {
+      const fallback = typeof callback === 'function' ? () => callback('') : null;
+      const input = document.createElement('input');
+      input.value = '';
+      input.placeholder = message || title || '';
+      input.className = 'w-full mt-2 p-2 rounded-lg border border-slate-700 bg-slate-950 text-slate-100 text-sm focus:outline-none focus:border-[#D4AF37]';
+      const close = () => { root?.contains(el) && root.removeChild(el); resolve(fallback ? fallback(input.value) : input.value); };
+      const root = document.getElementById('root');
+      const el = document.createElement('div');
+      el.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/70';
+      el.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl w-full max-w-sm m-4"><div class="text-sm font-bold text-slate-100">${title}</div><div class="text-xs text-slate-400 mt-1">${message}</div>${input.outerHTML}<div class="mt-4 flex gap-2 justify-end"><button id="aura-open-ok" class="px-3 py-1.5 bg-[#D4AF37] text-slate-950 font-black text-xs rounded-lg">Continue</button><button id="aura-open-cancel" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg border border-slate-700">Cancel</button></div></div>`;
+      root?.appendChild(el);
+      setTimeout(() => input.focus(), 0);
+      el.querySelector('#aura-open-ok')?.addEventListener('click', () => close());
+      el.querySelector('#aura-open-cancel')?.addEventListener('click', () => { root?.contains(el) && root.removeChild(el); resolve(fallback ? fallback('') : ''); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') close(); if (e.key === 'Escape') { root?.contains(el) && root.removeChild(el); resolve(fallback ? fallback('') : ''); } });
+    }) };
     window.__toast = mixer;
-    return () => { window.alert = originalAlert; delete window.__toast; };
+    return () => { window.alert = originalAlert; delete window.__toast; delete window.__auraConfirm; };
   }, []);
 
   const pickerRef = useRef(null);
