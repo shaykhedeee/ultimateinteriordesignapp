@@ -107,6 +107,18 @@ class DXF {
       this.arc(x + w / 2, y + h / 2, Math.max(1, Math.min(w, h) / 2), 0, Math.PI * 2, 'HANDLE');
     }
   }
+  // === injected frameBracket ===
+  frameBracket(x, y, w, h) {
+    // simplified 4-corner bracket with horizontal flange
+    const flange = 90;
+    for (const [fx,fy] of [[x,y],[x+w,y],[x,y+h],[x+w,y+h]]) {
+      this.line(fx, fy, fx + (fx < x+w/2 ? flange : -flange), fy, 'FRAME');
+      this.line(fx, fy, fx, fy + (fy < y+h/2 ? flange : -flange), 'FRAME');
+    }
+    this.rect(x, y, w, h, 'FRAME');
+    this.text(x + w / 2, y + h / 2, 'FRAME BRACKET', 130, 'FRAME');
+  }
+
   rugArea(x, y, w, h, label = 'RUG ZONE') {
     this.rect(x, y, w, h, 'RUG');
     // dashed-ish rug boundary via cross marks

@@ -4,7 +4,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildElevationDXF } from '../server/services/dxf-writer.js';
+import pkg from '../server/services/dxf-writer.js';
+const { buildElevationDXF } = pkg;
 import { analyzeWallElevation } from '../server/services/elevation-analyzer.js';
 
 const PPM = 40;

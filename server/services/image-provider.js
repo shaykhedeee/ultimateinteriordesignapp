@@ -319,14 +319,15 @@ async function callGeminiImageGenerateContent({ apiKey, model, prompt }) {
 }
 
 async function tryGenerateOpenAiImage({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags }) {
+  const resolved = resolveKey('openai') || process.env.OPENAI_API_KEY;
   try {
-    if (process.env.LIVE_IMAGE_GEN !== 'true' || !process.env.OPENAI_API_KEY) return null;
-    if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+    if (process.env.LIVE_IMAGE_GEN !== 'true' || !resolved) return null;
+    if (!isNativeOpenAiKey(resolved)) {
       console.warn('OpenAI image generation skipped: configured key is not an OpenAI Platform image key.');
       return null;
     }
     const { default: OpenAI } = await import('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: resolved });
     const model = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
     const response = await openai.images.generate({
       model,
@@ -579,8 +580,9 @@ async function tryDownloadPexelsImage({ id, projectId, room, safeRoom, title, pr
 }
 
 async function tryGenerateStabilityImage({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags, model = 'sdxl' }) {
+  const resolved = resolveKey('stability') || process.env.STABILITY_API_KEY;
   try {
-    if (process.env.LIVE_IMAGE_GEN !== 'true' || !process.env.STABILITY_API_KEY) return null;
+    if (process.env.LIVE_IMAGE_GEN !== 'true' || !resolved) return null;
     const modelMap = {
       'sdxl': 'stable-diffusion-xl-1024-v1-0',
       'flux': 'stable-diffusion-3-large'
