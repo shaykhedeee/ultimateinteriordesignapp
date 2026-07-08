@@ -11,7 +11,26 @@ const __dirname = path.dirname(__filename);
 const getDb = () => db;
 const storageDir = path.resolve(__dirname, '../../storage');
 
+function resolveKey(provider) {
+  const map = {
+    openai: ['OPENAI_API_KEY','OPENAI_KEY'],
+    anthropic: ['ANTHROPIC_API_KEY'],
+    google: ['GOOGLE_AI_API_KEY','GOOGLE_API_KEY'],
+    gemini: ['GEMINI_API_KEY'],
+    stability: ['STABILITY_API_KEY'],
+    midjourney: ['MIDJOURNEY_API_KEY']
+  };
+  const envKeys = map[provider] || [provider.toUpperCase()+'_API_KEY'];
+  for (const k of envKeys) if (process.env[k]) return process.env[k];
+  try {
+    const row = db.prepare('SELECT key_value FROM api_keys WHERE provider = ? LIMIT 1').get(provider);
+    if (row?.key_value) return row.key_value;
+  } catch {}
+  return process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY || null;
+}
+
 export { isNativeOpenAiKey, openAiKeyType } from './provider-config.js';
+export { resolveKey };
 
 const PROVIDER_COSTS = {
   'gemini-imagen': { perImage: 0.03, currency: 'USD' },
@@ -203,6 +222,7 @@ async function tryCopyCuratedFallback({ id, projectId, room, safeRoom, title, pr
 }
 
 async function tryGenerateGeminiImagen({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags }) {
+  const resolved = resolveKey('gemini') || process.env.GEMINI_API_KEY;
   try {
     const keys = geminiImageKeys();
     if (process.env.LIVE_IMAGE_GEN !== 'true' || !keys.length) return null;
