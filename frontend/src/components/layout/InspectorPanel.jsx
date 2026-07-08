@@ -128,9 +128,9 @@ export default function InspectorPanel() {
     });
   };
 
-  const handleRemoveModule = () => {
+  const handleRemoveModule = async () => {
     if (isLocked || !selectedEntity) return;
-    const ok = await window.__auraConfirm?.confirm?.('Delete Module', `Are you sure you want to delete module "${selectedEntity.name}"?`) || Promise.resolve(false);
+    const ok = await window.__auraConfirm?.confirm?.('Delete Module', `Delete module "${selectedEntity.name}"?`) || Promise.resolve(false);
     if (ok) {
       applyPatch({
         op: 'remove_module',
