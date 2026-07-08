@@ -63,6 +63,10 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [photoElevations, setPhotoElevations] = useState([]);
   const [componentLayers, setComponentLayers] = useState({ glass: false, cane: false, handle: false, frame: false });
+  const [vastuDiff, setVastuDiff] = useState(null); // { poojaPresent, changes, needsApply }
+  const [vastuBusy, setVastuBusy] = useState(false);
+  const [vastuApplied, setVastuApplied] = useState(false);
+  const [ackText, setAckText] = useState(''); // spoken floor-plan acknowledgement
 
   // SVG viewport ref
   const svgRef = useRef(null);
@@ -151,6 +155,8 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       setRooms(loadedRooms);
       setMeasures(loadedMeasures);
       setPixelsPerMeter(ppm);
+      // Canonical flow step 1: speak/print acknowledgement once the plan is loaded
+      if (loadedRooms.length || loadedFurniture.length) buildAcknowledgement();
 
       // Seed initial history
       const initialState = JSON.stringify({
@@ -324,7 +330,52 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     }
   };
 
-  // Save CAD vector back to server
+  // --- Auto-Vastu: preview proposed fixes ---
+  const runVastuCheck = async () => {
+    setVastuBusy(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/vastu/preview`);
+      const data = await res.json();
+      if (res.ok) setVastuDiff(data);
+    } catch (e) {
+      console.error('vastu preview failed', e);
+    } finally {
+      setVastuBusy(false);
+    }
+  };
+
+  const applyVastuFix = async () => {
+    setVastuBusy(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/vastu/auto-apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const data = await res.json();
+      if (res.ok && data.applied?.length) {
+        window.__toast?.show(`Vastu applied: ${data.applied.length} fix(es)`);
+        setVastuApplied(true);
+        setVastuDiff({ ...(vastuDiff || {}), needsApply: false });
+        // reload furniture so the canvas reflects the change
+        const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json();
+        if (cad?.furniture) setFurniture(cad.furniture);
+      }
+    } catch (e) {
+      console.error('vastu apply failed', e);
+    } finally {
+      setVastuBusy(false);
+    }
+  };
+
+  // --- Spoken + banner acknowledgement of the analyzed floor plan ---
+  const speak = (text) => {
+    setAckText(text);
+    try { if (window.speechSynthesis) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 0.95; u.pitch = 1; window.speechSynthesis.speak(u); } } catch (_) {}
+  };
+  const buildAcknowledgement = () => {
+    const bedrooms = rooms.filter(r => /bed|sleep/i.test(r.name || r.type || '')).length
+      || furniture.filter(f => /bed/i.test(f.name || f.type || '')).length;
+    const type = bedrooms >= 4 ? '4BHK' : bedrooms === 3 ? '3BHK' : bedrooms === 2 ? '2BHK' : bedrooms === 1 ? '1BHK' : 'APARTMENT';
+    const roomCount = rooms.length || furniture.length || 0;
+    speak(`OKAY I SEE IT IS A ${type} BEAUTIFUL APARTMENT WITH ${roomCount} ZONES — ANALYSING NOW`);
+  };
   const saveCADToServer = async () => {
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
@@ -819,6 +870,15 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       {/* Hidden offscreen canvas for CV wall detection from underlay image */}
       <canvas ref={hiddenCanvasRef} style={{ display: 'none' }} />
 
+      {/* Spoken floor-plan acknowledgement banner (canonical flow step 1) */}
+      {ackText && (
+        <div className="w-full xl:w-full bg-gradient-to-r from-[#1a1407] to-[#0b0f17] border border-[#C9A84C]/40 rounded-xl px-4 py-2.5 flex items-center gap-3 shrink-0">
+          <span className="text-[#D4AF37] text-lg">🛈</span>
+          <span className="text-sm font-bold text-slate-100 tracking-wide flex-1">{ackText}</span>
+          <button onClick={() => speak(ackText)} className="text-[10px] uppercase font-bold text-[#D4AF37] border border-[#D4AF37]/40 rounded px-2 py-1 hover:bg-[#D4AF37]/10">🔊 Replay</button>
+        </div>
+      )}
+
       {/* 1. Left CAD Controls Palette */}
       <div className="w-full xl:w-72 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0">
         <div>
@@ -1002,6 +1062,32 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             )}
           </div>
         )}
+
+        {/* Auto-Vastu panel (canonical flow step 5-6) */}
+        <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Auto-Vastu</label>
+            <button onClick={runVastuCheck} disabled={vastuBusy} className="text-[10px] uppercase font-bold text-slate-300 border border-slate-700 rounded px-2 py-1 hover:border-[#D4AF37]/50 disabled:opacity-40">Check</button>
+          </div>
+          {vastuDiff && (
+            <div className="space-y-1.5">
+              {vastuDiff.poojaPresent === false && (
+                <div className="text-[10px] text-amber-300/90">• No Pooja unit found — will add one in North-East (NE).</div>
+              )}
+              {vastuDiff.changes?.filter(c => c.kind === 'move_bed').map((c, i) => (
+                <div key={i} className="text-[10px] text-amber-300/90">• {c.summary}</div>
+              ))}
+              {vastuDiff.needsApply ? (
+                <button onClick={applyVastuFix} disabled={vastuBusy} className="w-full mt-1 bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-slate-950 font-black py-1.5 rounded-lg text-[10px] uppercase transition disabled:opacity-40">
+                  {vastuBusy ? 'Applying…' : 'Apply Vastu Fixes'}
+                </button>
+              ) : (
+                <div className="text-[10px] text-emerald-400">✓ Plan is Vastu-compliant.</div>
+              )}
+            </div>
+          )}
+          {vastuApplied && <div className="text-[10px] text-emerald-400">✓ Applied & saved to plan.</div>}
+        </div>
 
         {/* Theme Settings Selector */}
         <div className="mt-auto space-y-2 shrink-0">
