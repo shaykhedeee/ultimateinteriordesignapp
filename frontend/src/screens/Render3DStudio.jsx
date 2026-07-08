@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { 
-  Compass, Code, Clipboard, Download, CheckCircle2, 
+  Compass, Code, Clipboard, Download, CheckCircle2, Lock, 
   ArrowRight, FileText, Layout, Info, Sparkles, Image as ImageIcon,
   RefreshCw, MessageSquare, Plus, AlertTriangle, XCircle, CheckCircle, Trash2, Eye, ShieldAlert,
   Palette
@@ -1975,17 +1975,30 @@ export default function Render3DStudio({ projectId, onComplete }) {
           <div className="bg-slate-900 rounded-lg p-2.5 h-16 overflow-y-auto font-mono text-[7.5px] text-[#D4AF37] leading-normal whitespace-pre border border-slate-850">
             {sketchupScript || "# Select 2D walls to export console commands"}
           </div>
-          <div className="flex gap-2 text-[9px] font-bold uppercase">
-            <button onClick={copyToClipboard} className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-center transition">
-              {copied ? 'Copied!' : 'Copy Ruby'}
-            </button>
-            <button onClick={downloadScriptFile} className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-center transition">
-              Download rb
-            </button>
-            <button onClick={downloadSelectedRender} disabled={!selectedRender} className="flex-1 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] rounded text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
-              Download Render
-            </button>
-          </div>
+          {(() => {
+            const approved = rendersList.filter(r => r.review_status === 'approved').length;
+            const SKP_REQ = 3;
+            const unlocked = approved >= SKP_REQ;
+            return (
+              <>
+                <div className={`text-[9px] font-bold uppercase flex items-center gap-1.5 ${unlocked ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {unlocked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                  SKP Unlock: {approved}/{SKP_REQ} approved renders {unlocked ? '— ready' : 'required'}
+                </div>
+                <div className="flex gap-2 text-[9px] font-bold uppercase">
+                  <button onClick={copyToClipboard} disabled={!unlocked} className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
+                    {copied ? 'Copied!' : 'Copy Ruby'}
+                  </button>
+                  <button onClick={downloadScriptFile} disabled={!unlocked} className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
+                    Download rb
+                  </button>
+                  <button onClick={downloadSelectedRender} disabled={!selectedRender} className="flex-1 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] rounded text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
+                    Download Render
+                  </button>
+                </div>
+              </>
+            );
+          })()}
           <button
             onClick={approveRenders}
             disabled={rendersList.filter(r => r.review_status === 'approved').length === 0}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Layers, Download, Save, RefreshCw, AlertTriangle, 
-  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2, FileText
+  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2, FileText, Package
 } from 'lucide-react';
 
 // Analyzer: SAME engine that drives the professional DXF export, so the
@@ -492,6 +492,28 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 transition flex items-center gap-1"
             >
               <FileText className="w-3.5 h-3.5" /> PDF
+            </button>
+            <button
+              onClick={() => { window.open(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/combined-pdf`, '_blank'); showToast("Combined elevations PDF downloading…"); }}
+              className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 px-2 py-1 text-[#D4AF37] transition flex items-center gap-1 text-[10px] font-bold"
+            >
+              <FileText className="w-3.5 h-3.5" /> COMBINE ALL
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/delivery-package`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                  if (!res.ok) { showToast('Delivery package failed', 'error'); return; }
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url; a.download = `ULTIDA_${projectId}_package.zip`; a.click();
+                  URL.revokeObjectURL(url);
+                  showToast('Delivery package downloaded!');
+                } catch (e) { showToast('Delivery package failed', 'error'); }
+              }}
+              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black px-2 py-1 transition flex items-center gap-1 text-[10px]"
+            >
+              <Package className="w-3.5 h-3.5" /> HANDOFF
             </button>
             <button
               onClick={() => {

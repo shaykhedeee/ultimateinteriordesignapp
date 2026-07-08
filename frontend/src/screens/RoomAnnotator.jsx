@@ -16,6 +16,25 @@ export default function RoomAnnotator({ image, onRoomsDefined, projectId }) {
 
   useEffect(() => { if (typeof window === 'undefined') return; setRooms([]); setSelectedId(null); setName(''); setWMm(''); setHMm(''); setShowForm(false); }, [image]);
 
+  // Prefill marked zones from the project's CAD rooms (canonical flow step 10)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !projectId) return;
+    fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`).then(r => r.json()).then(cad => {
+      const existing = JSON.parse(cad?.rooms_json || '[]');
+      if (existing.length) {
+        setRooms(existing.map(r => ({
+          id: r.id || crypto.randomUUID(),
+          name: r.name || 'Room',
+          x: r.points?.[0]?.x ?? 100,
+          y: r.points?.[0]?.y ?? 100,
+          wMm: r.wMm ?? Math.round((r.widthMm ?? 3000)),
+          hMm: r.hMm ?? Math.round((r.heightMm ?? 3000)),
+          seats: r.seats || []
+        })));
+      }
+    }).catch(() => {});
+  }, [projectId, image]);
+
   if (typeof window === 'undefined') return null;
 
   function handleCanvasClick(e){
@@ -44,6 +63,15 @@ export default function RoomAnnotator({ image, onRoomsDefined, projectId }) {
   function finish(){
     const payload = rooms.map(r => ({ name: r.name, x: r.x, y: r.y, wMm: Number(r.wMm), hMm: Number(r.hMm), areaMm2: (Number(r.wMm)*Number(r.hMm)) }));
     onRoomsDefined && onRoomsDefined(payload);
+    // Persist marked zones back to cad_drawings so the AI re-studies the altered plan
+    if (projectId) {
+      fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rooms: payload })
+      }).catch(() => {}).finally(() => { onComplete && onComplete(); });
+    } else {
+      onComplete && onComplete();
+    }
   }
 
   return (

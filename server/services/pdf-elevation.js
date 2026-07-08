@@ -15,11 +15,8 @@ const RED = '#e03a3a';
 const BLK = '#1a1a1a';
 const GREY = '#666666';
 
-export function renderElevationPDF(model, opts = {}) {
-  const doc = new PDFDocument({ size: 'A3', layout: 'landscape', margin: 40 });
-  const chunks = [];
-  doc.on('data', c => chunks.push(c));
-
+// Draw a single elevation model onto an existing pdfkit doc.
+function drawElevation(doc, model, opts = {}) {
   const L = model.lengthMm;
   const H = model.heightMm;
   const startX = 120;
@@ -102,9 +99,34 @@ export function renderElevationPDF(model, opts = {}) {
     .text(`PROJECT: ${model.projectId}`, tbX + 8, tbY + 6)
     .text(`SHEET: ${model.wallName}   SCALE: ${opts.scale || '1:25'}`, tbX + 8, tbY + 20)
     .text(`DRAWN: AURABRAIN  REV ${opts.rev || '1.0'}  ${new Date().toISOString().slice(0, 10)}`, tbX + 8, tbY + 34);
+}
 
+export function renderElevationPDF(model, opts = {}) {
+  const doc = new PDFDocument({ size: 'A3', layout: 'landscape', margin: 40 });
+  const chunks = [];
+  doc.on('data', c => chunks.push(c));
+  drawElevation(doc, model, opts);
   doc.end();
   return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
 }
 
-export default { renderElevationPDF };
+/**
+ * Combine every wall elevation into ONE multi-page A3 PDF (canonical flow:
+ * "combine all 2D → PDF"). Returns a Buffer.
+ */
+export function renderCombinedElevationsPDF(models, opts = {}) {
+  const doc = new PDFDocument({ size: 'A3', layout: 'landscape', margin: 40 });
+  const chunks = [];
+  doc.on('data', c => chunks.push(c));
+  (models || []).forEach((m, i) => {
+    if (i > 0) doc.addPage();
+    drawElevation(doc, m, opts);
+  });
+  if (!models || !models.length) {
+    doc.fontSize(14).fillColor(BLK).text('No wall elevations to combine.', 60, 60);
+  }
+  doc.end();
+  return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
+}
+
+export default { renderElevationPDF, renderCombinedElevationsPDF };

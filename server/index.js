@@ -28,7 +28,7 @@ import { analyzeSection } from './services/section-analyzer.js';
 import { analyzeRCP } from './services/rcp-analyzer.js';
 import { generateElevationDXF } from './services/dxf-generator.js';
 import { buildElevationDXF } from './services/dxf-writer.js';
-import { renderElevationPDF } from './services/pdf-elevation.js';
+import { renderElevationPDF, renderCombinedElevationsPDF } from './services/pdf-elevation.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu } from './services/vastu-auto.js';
@@ -1971,6 +1971,24 @@ app.get('/api/projects/:id/analyze-elevation', (req, res) => {
     if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
     const result = analyzeProjectElevations(cad, { projectId, wallHeightMm: 2700 });
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET combined PDF: every wall elevation on one multi-page A3 sheet (canonical flow)
+app.get('/api/projects/:id/elevations/combined-pdf', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
+    const result = analyzeProjectElevations(cad, { projectId, wallHeightMm: 2700 });
+    const models = (result.walls || []).filter(m => m && m.lengthMm);
+    if (!models.length) return res.status(404).json({ error: "No wall elevations to combine" });
+    const buf = await renderCombinedElevationsPDF(models, { scale: '1:25', rev: '1.0' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="project_${projectId}_elevations_combined.pdf"`);
+    res.send(buf);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
