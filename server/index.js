@@ -66,7 +66,23 @@ app.post('/api/projects/:id/cutlist/refresh', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/projects/:id/drawings/elevations/auto/dxf', async (req, res)=>{ try { const pid=req.params.id; const wallId=req.query.wallId; const useCL=(req.query.componentLayers==='true'); const cad=db.prepare("SELECT * FROM cad_scenes WHERE project_id=? ORDER BY created_at DESC LIMIT 1").get(pid); if(!cad) return res.status(404).json({ success:false, error:'no CAD scene' }); const { buildElevationDXF } = require('./services/dxf-writer.js'); const model={ lengthMm:6000, heightMm:2700, thicknessMm:75, openings:[{ offsetMm:500, widthMm:900, sillMm:900, headMm:2100, type:'door' }], cabinets:[{ id:'c1', type:'base', widthMm:600, heightMm:720, xOffsetMm:0, zOffsetMm:0, name:'Base Drawer', material:{ callout:'PU Paint', glass:false, cane:false }, handleType:'pull' }], coverage:{ utilPercent:78, usedMm:4680, freeMm:1320 } }; const cl=useCL?{ useGlassLayers:true, useCaneLayers:true, useHandleLayers:true, useFrameLayers:true }:{ useGlassLayers:false, useCaneLayers:false, useHandleLayers:false, useFrameLayers:false }; const dxf=buildElevationDXF(model,{ componentLayers:cl, scale:'1:25', rev:'1.0', projectId:pid, sheet:wallId?'Elevation '+String(wallId).toUpperCase():'ELEVATION AUTO' }); res.set('Content-Type','application/dxf'); res.set('Content-Disposition', `attachment; filename=ultida-elevation.pid${pid}.dxf`); res.send(dxf); }catch(e){ res.status(500).json({ success:false, error:e.message }); } });
+app.get('/api/projects/:id/drawings/elevations/auto/dxf', async (req, res)=>{ try {
+  const pid=req.params.id; const wallId=req.query.wallId; const useCL=(req.query.componentLayers==='true');
+  const cad=db.prepare("SELECT * FROM cad_drawings WHERE project_id=? ORDER BY created_at DESC LIMIT 1").get(pid);
+  if(!cad) return res.status(404).json({ success:false, error:'no CAD drawing for this project' });
+  const walls = JSON.parse(cad.walls_json || '[]');
+  if(!walls.length) return res.status(404).json({ success:false, error:'no walls in CAD drawing' });
+  const openings = JSON.parse(cad.openings_json || '[]');
+  const furniture = JSON.parse(cad.furniture_json || '[]');
+  const ppm = parseFloat(cad.pixels_per_meter) || 40;
+  const wall = (wallId && walls.find(w=>w.id===wallId)) || walls[0];
+  const model = analyzeWallElevation({ wall, openings, furniture, pixelsPerMeter: ppm, projectId: pid, sheetName: 'ELEVATION ' + String.fromCharCode(65 + walls.indexOf(wall)) });
+  const cl=useCL?{ useGlassLayers:true, useCaneLayers:true, useHandleLayers:true, useFrameLayers:true }:{ useGlassLayers:false, useCaneLayers:false, useHandleLayers:false, useFrameLayers:false };
+  const dxf=buildElevationDXF(model,{ componentLayers:cl, scale:'1:25', rev:'1.0', projectId:pid, sheet: model.wallName });
+  res.set('Content-Type','application/dxf');
+  res.set('Content-Disposition', `attachment; filename=ultida-elevation-${pid}-${model.wallId}.dxf`);
+  res.send(dxf);
+}catch(e){ res.status(500).json({ success:false, error:e.message }); } });
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   try {
     const pid = req.params.id;
@@ -80,7 +96,6 @@ app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
       cabinets: Array.isArray(parsed.cabinets) ? parsed.cabinets : [{ id: 'c1', type: 'base', widthMm: 600, heightMm: 720, xOffsetMm: 0, zOffsetMm: 0, name: 'Base Drawer', material: { callout: 'PU Paint', glass: false, cane: false }, handleType: 'pull' }],
       coverage: parsed.coverage || { utilPercent: 78, usedMm: 4680, freeMm: 1320 }
     };
-    const { buildElevationDXF } = require('./services/dxf-writer.js');
     const dxf = buildElevationDXF(model, { componentLayers: parsed.componentLayers, scale: '1:25', rev: '1.0', projectId: pid, sheet: 'Render Dimensions DXF' });
     res.setHeader('Content-Type', 'application/dxf');
     res.setHeader('Content-Disposition', `attachment; filename="${pid}-render-dims.dxf"`);
@@ -121,7 +136,7 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
 
 // REAL image -> measured 2D elevation (Magicplan/RoomGPT move)
 // Body (multipart or JSON): image file OR { imageB64 }, dimsText, unitTypeHint, projectId
-app.post('/api/elevation/from-photo', upload.single('image'), async (req, res) => {
+app.post('/api/elevation/from-photo', express.json(), upload.single('image'), async (req, res) => {
   try {
     let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '', projectId = req.body?.projectId || '';
     if (req.file) imageB64 = req.file.buffer.toString('base64');
@@ -169,7 +184,7 @@ app.post('/api/elevation/from-photo', upload.single('image'), async (req, res) =
 });
 
 // Download the DXF for a photo-derived elevation
-app.post('/api/elevation/from-photo/dxf', upload.single('image'), async (req, res) => {
+app.post('/api/elevation/from-photo/dxf', express.json(), upload.single('image'), async (req, res) => {
   try {
     let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '', projectId = req.body?.projectId || '';
     if (req.file) imageB64 = req.file.buffer.toString('base64');
@@ -1902,6 +1917,19 @@ app.get('/api/projects/:id/photo-elevations/:elevationId/dxf', async (req, res) 
     res.setHeader('Content-Type', 'application/dxf');
     res.setHeader('Content-Disposition', `attachment; filename="${(row.unit_type || 'elevation').toLowerCase()}-elevation.dxf"`);
     res.send(dxf);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Photo-derived elevation as a print-ready PDF sheet
+app.get('/api/projects/:id/photo-elevations/:elevationId/pdf', async (req, res) => {
+  try {
+    const row = db.prepare("SELECT * FROM photo_elevations WHERE id = ? AND project_id = ?").get(req.params.elevationId, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Elevation not found' });
+    const model = JSON.parse(row.model_json || '{}');
+    const pdfBuf = await renderElevationPDF(model, { scale: '1:25', rev: '1.0' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${(row.unit_type || 'elevation').toLowerCase()}-elevation.pdf"`);
+    res.send(pdfBuf);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

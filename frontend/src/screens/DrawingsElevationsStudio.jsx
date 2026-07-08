@@ -15,6 +15,12 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [filters, setFilters] = useState({ walls:true, openings:true, furniture:true, rugs:true, cabinets:true });
   const [pixelsPerMeter, setPixelsPerMeter] = useState(40);
   const [selectedWallId, setSelectedWallId] = useState(null);
+  const [activeTab, setActiveTab] = useState('walls'); // 'walls' | 'photo'
+  const [photoElevations, setPhotoElevations] = useState([]);
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoUpload, setPhotoUpload] = useState(null);
+  const [photoDims, setPhotoDims] = useState('86" wide 90" tall 24" deep');
+  const [photoGenerating, setPhotoGenerating] = useState(false);
   
   // Elevation-specific parameters
   const [wallHeight, setWallHeight] = useState(2700); // mm
@@ -89,6 +95,55 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     } catch (err) {
       console.error(err);
       showToast("Failed to spawn regeneration job", "error");
+    }
+  };
+
+  const loadPhotoElevations = async () => {
+    setPhotoLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations`);
+      if (res.ok) {
+        const data = await res.json();
+        setPhotoElevations(Array.isArray(data) ? data : (data.elevations || []));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'photo') loadPhotoElevations();
+  }, [activeTab, projectId]);
+
+  const handleGeneratePhotoElevation = async () => {
+    if (!photoUpload) { showToast('Upload a unit photo first', 'error'); return; }
+    setPhotoGenerating(true);
+    try {
+      const b64 = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result.split(',')[1]);
+        fr.onerror = reject;
+        fr.readAsDataURL(photoUpload);
+      });
+      const res = await fetch('http://127.0.0.1:5055/api/elevation/from-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, imageB64: b64, dimsText: photoDims, unitTypeHint: 'kitchen' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Photo elevation generated', 'success');
+        await loadPhotoElevations();
+      } else {
+        showToast(data.error || 'Generation failed', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Generation failed', 'error');
+    } finally {
+      setPhotoGenerating(false);
     }
   };
 
@@ -413,8 +468,18 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
       <div className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col h-[75vh]">
         <div className="flex items-center justify-between mb-4 shrink-0">
           <h2 className="text-sm font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-            2D Wall Elevation Canvas
+            2D Wall Elevation
           </h2>
+          <div className="flex gap-1 bg-slate-950/60 border border-slate-800 rounded-lg p-0.5">
+            <button
+              onClick={() => setActiveTab('walls')}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'walls' ? 'bg-[#D4AF37] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+            >CAD Walls</button>
+            <button
+              onClick={() => setActiveTab('photo')}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'photo' ? 'bg-[#D4AF37] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+            >Photo-Generated</button>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={downloadSVG}
@@ -451,6 +516,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         </div>
 
         {/* Blueprint view screen */}
+        {activeTab !== 'photo' && (
         <div className="flex-1 border border-slate-800 bg-[#080c14] relative flex items-center justify-center p-4 rounded-xl overflow-hidden">
           {selectedWall ? (
             <svg 
@@ -655,7 +721,59 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             </div>
           )}
         </div>
-      </div>
+        )}
+
+        {activeTab === 'photo' && (
+          <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
+            <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
+              <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Generate from Photo (3D → 2D)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setPhotoUpload(e.target.files?.[0] || null)}
+                className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-slate-200"
+              />
+              <input
+                value={photoDims}
+                onChange={(e) => setPhotoDims(e.target.value)}
+                placeholder='dims e.g. 86" wide 90" tall 24" deep'
+                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-200"
+              />
+              <button
+                onClick={handleGeneratePhotoElevation}
+                disabled={photoGenerating}
+                className="w-full bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-slate-950 font-black py-1.5 rounded-lg text-[10px] uppercase transition flex items-center justify-center gap-1.5"
+              >
+                {photoGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                Generate Measured Elevation
+              </button>
+              <div className="text-[9px] text-slate-500 leading-tight">Detects unit type + components from the photo, merges your handwritten dimensions as ground truth, exports DXF + PDF.</div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {photoLoading ? (
+                <div className="text-center py-10 text-xs text-slate-500">Loading…</div>
+              ) : photoElevations.length === 0 ? (
+                <div className="text-center py-10 text-xs text-slate-500">No photo elevations yet. Upload a unit photo above.</div>
+              ) : (
+                photoElevations.map((e) => (
+                  <div key={e.id} className="bg-slate-950/40 border border-slate-850 rounded-lg p-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-200">{e.wall_name || (e.unit_type || 'ELEVATION').toUpperCase()}</div>
+                      <div className="text-[9px] text-slate-500 font-mono">{(e.model_json ? JSON.parse(e.model_json).lengthMm : 0) || '—'} mm · conf {e.confidence ?? '—'}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => window.open(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations/${e.id}/dxf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1"><Download className="w-3 h-3" /> DXF</button>
+                      <button onClick={() => window.open(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations/${e.id}/pdf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh]">
         {/* AI Assisted Elevation Editor */}

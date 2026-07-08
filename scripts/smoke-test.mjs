@@ -54,6 +54,7 @@ const checks = [
   { name: 'cutlist-recalc', m: 'POST', p: `/api/projects/${projectId}/cutlist/recalc`, auth: true },
   { name: 'cv-trace-alias', m: 'POST', p: `/api/projects/${projectId}/cad/cv-trace`, auth: true },
   { name: 'auto-elevation-dxf', m: 'GET', p: `/api/projects/${projectId}/drawings/elevations/auto/dxf` },
+  { name: 'analyze-elevation-seed', m: 'GET', p: '/api/projects/proj_1/analyze-elevation' },
 
   // Core design routes
   { name: 'list-drawings', m: 'GET', p: `/api/projects/${projectId}/drawings`, auth: true },
