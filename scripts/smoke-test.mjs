@@ -58,6 +58,7 @@ const checks = [
   { name: 'combined-elevations-pdf', m: 'GET', p: '/api/projects/proj_1/elevations/combined-pdf' },
   { name: 'vastu-preview', m: 'GET', p: '/api/projects/proj_1/vastu/preview' },
   { name: 'tv-units-list', m: 'GET', p: '/api/tv-units' },
+  { name: 'plan-measure-rooms', m: 'POST', p: '/api/projects/proj_1/plan/measure', b: { projectName:'Nambia', rooms:[{name:'Living',wMm:5600,hMm:4200}] } },
 
   // Core design routes
   { name: 'list-drawings', m: 'GET', p: `/api/projects/${projectId}/drawings`, auth: true },
