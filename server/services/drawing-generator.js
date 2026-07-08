@@ -118,3 +118,4 @@ export function generateDrawings(cad, opts = {}) {
 }
 
 export default { generateDrawings, componentLayers: { useGlassLayers:true, useCaneLayers:true, useHandleLayers:true, useFrameLayers:true } };
+// Note: DXF entity emitters should consult these flags in dxf-writer.js when present.
