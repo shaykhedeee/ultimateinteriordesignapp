@@ -169,3 +169,8 @@
 {"ts":"2026-07-08T04:38:12.335Z","unitType":"vanity","dims":{"widthMm":1829,"heightMm":2667,"depthMm":533},"components":0,"material":null}
 {"ts":"2026-07-08T04:38:12.342Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667},"components":0,"material":null}
 {"ts":"2026-07-08T04:38:12.346Z","unitType":"tv-unit","dims":{"widthMm":2286,"heightMm":2032},"components":0,"material":null}
+{"ts":"2026-07-08T04:45:40.794Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667,"depthMm":559},"components":0,"material":null}
+{"ts":"2026-07-08T04:45:40.801Z","unitType":"wardrobe","dims":{"widthMm":1600,"heightMm":2667},"components":0,"material":null}
+{"ts":"2026-07-08T04:45:40.804Z","unitType":"vanity","dims":{"widthMm":1829,"heightMm":2667,"depthMm":533},"components":0,"material":null}
+{"ts":"2026-07-08T04:45:40.818Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667},"components":0,"material":null}
+{"ts":"2026-07-08T04:45:40.821Z","unitType":"tv-unit","dims":{"widthMm":2286,"heightMm":2032},"components":0,"material":null}

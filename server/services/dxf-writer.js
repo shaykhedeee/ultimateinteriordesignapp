@@ -209,6 +209,11 @@ class DXF {
       // material callout (red leader)
       if (c.material?.callout) this.callout(cx + cw / 2, cy + ch - 60, cx + cw + 700, cy + ch - 60, c.material.callout);
       if (c.lighting) this.callout(cx + cw / 2, cy + 60, cx - 700, cy + 60, c.lighting);
+      // Richer component symbols (glass inset / cane panel / handle glyph)
+      if (c.material?.glass && cw > 140 && ch > 140) this.glassRect(cx + 40, cy + 40, Math.max(1, cw - 80), Math.max(1, ch - 80), 100);
+      if (c.material?.cane && cw > 140 && ch > 140) this.canePanel(cx + 40, cy + 40, Math.max(1, cw - 80), Math.max(1, ch - 80));
+      this.handleGlyph(cx + cw - 110, cy + ch / 2 - 60, 80, 120, c.handleType || 'pull');
+      if (ch > 220) this.handleGlyph(cx + 50, cy + ch / 2 - 60, 80, 120, 'bar');
     }
 
     // Overall dimension (ARROWS on outer, ticks on inner)

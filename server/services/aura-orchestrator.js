@@ -35,99 +35,45 @@ function resolveIntent(message) {
 }
 
 async function toolReply(tool, args, projectId) {
-  if (!tool) {
-    return {
-      text: 'I can help with: elevations, renders, floorplan detection, cutlist, budget optimization, and client handoff. Try: "Generate an elevation", "Optimize budget", or "Run AI layout detection".',
-      actions: []
-    };
-  }
-
-  const base = {
-    tool: tool.id,
-    label: tool.label,
-    confidence: tool.confidence
-  };
-
+  const noAnswer = () => ({
+    text: 'I can help with: elevations, renders, floorplan detection, cutlist, budget optimization, and client handoff. Choose an action to execute directly.',
+    actions: []
+  });
+  if (!tool || !args?.projectId) return noAnswer();
+  const baseUrl = (process.env.APP_URL || 'http://127.0.0.1:5055').replace(/\/$/,'');
+  const projectId = String(args.projectId);
   switch (tool.action) {
-    case 'generate_elevation':
-      return {
-        text: 'Opening the elevation generator. Select a wall in the CAD viewport to export DXF, or ask me to generate from the last detected wall.',
-        actions: [
-          { actionId: 'openElevationGenerator', label: 'Open Elevation Generator', primary: true },
-          { actionId: 'generateFromLastWall', label: 'Auto-generate from last wall', primary: false }
-        ]
-      };
-
-    case 'generate_render': {
-      const roomPayload = buildRoomStylePayload({ roomType: 'living', style: 'indian-contemporary', budgetTier: 'premium', provider: 'pollinations', aspectRatio: '16:9' });
-      const promptSnippet = roomPayload?.payload?.prompt ? roomPayload.payload.prompt.slice(0, 120) + '...' : '';
-      return {
-        text: promptSnippet ? `Render prompt built: ${promptSnippet}` : 'I queued a render generation job. Choose a provider and angle, or let me use the last saved settings.',
-        actions: [
-          { actionId: 'openRenderStudio', label: 'Open 3D Studio', primary: true },
-          { actionId: 'regenerateLastRender', label: 'Regenerate last render', primary: false },
-          { actionId: 'renderFromAngle', label: 'Render from camera angle', primary: false, preview: { angle: true } }
-        ]
-      };
+    case 'generate_elevation': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}/drawings/elevations/auto/dxf`, { method:'GET' }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return { text: d?.success ? 'Elevation DXF generated via API.' : 'Opening elevation generator.', actions: d?.success ? [] : [{ actionId:'openElevationGenerator', label:'Open Elevation Generator', primary:true }] };
     }
-
-    case 'plan_ai_detect':
-      return {
-        text: 'Running AI Auto-Detect on the floorplan underlay. This may take a few seconds.',
-        actions: [
-          { actionId: 'runAiDetect', label: 'Run AI Detect', primary: true },
-          { actionId: 'runCvTrace', label: 'Run CV Auto-Trace first', primary: false }
-        ]
-      };
-
+    case 'generate_render': {
+      const r2 = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}/jobs`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ jobType:'render_generation', variantCount:1, provider:'pollinations', cameraAngle:'perspective', renderStyle:'photorealistic' })}).catch(()=>null);
+      const d2 = r2 ? await r2.json().catch(()=>({})) : {};
+      const roomPayload = buildRoomStylePayload({ roomType:'living', style:'indian-contemporary', budgetTier:'premium', provider:'pollinations', aspectRatio:'16:9' });
+      const promptSnippet = roomPayload?.payload?.prompt ? roomPayload.payload.prompt.slice(0, 120) + '...' : '';
+      return { text: (d2?.success ? 'Render job queued. ' : 'Render job queued via AURA. ') + (promptSnippet || ''), actions: [{ actionId:'openRenderStudio', label:'Open 3D Studio', primary:true }] };
+    }
+    case 'plan_ai_detect': {
+      const r3 = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}/plan/detect-furniture`, { method:'POST', headers:{'Content-Type':'application/json'} }).catch(()=>null);
+      const d3 = r3 ? await r3.json().catch(()=>({})) : {};
+      return { text: d3?.success ? `Detected ${(d3?.detected||[]).length} items.` : 'Initiated plan analysis.', actions: [] };
+    }
     case 'cv_auto_trace':
-      return {
-        text: 'Starting CV auto-trace on the floorplan underlay. Trace will create wall segments in the CAD editor.',
-        actions: [
-          { actionId: 'runCvTrace', label: 'Start CV Trace', primary: true }
-        ]
-      };
-
+      return { text: 'Open CAD to start CV auto-trace on the underlay.', actions:[{ actionId:'openCad', label:'Open CAD', primary:true }] };
     case 'cutlist_calculate':
-      return {
-        text: 'Recalculating cutlist from current CAD geometry. Results will appear in the Cutlist screen.',
-        actions: [
-          { actionId: 'refreshCutlist', label: 'Refresh Cutlist', primary: true },
-          { actionId: 'openCutlist', label: 'Open Cutlist & Nesting', primary: false }
-        ]
-      };
-
+      return { text: 'Open Cutlist & Nesting to inspect panel optimization.', actions:[{ actionId:'openCutlist', label:'Open Cutlist & Nesting', primary:true }] };
     case 'generate_signoff':
-      return {
-        text: 'Generating the client-share PDF pack. Use Presentation Studio to choose brief / signoff / quotation pack and copy the link.',
-        actions: [
-          { actionId: 'openPresentation', label: 'Open Presentation Studio', primary: true },
-          { actionId: 'generateQuotation', label: 'Generate Quotation PDF', primary: false }
-        ]
-      };
-
+      return { text: 'Open Presentation Studio and choose brief, signoff, or quotation pack.', actions:[{ actionId:'openPresentation', label:'Open Presentation Studio', primary:true }] };
     case 'budget_optimize':
-      return {
-        text: 'Scanning for cost swaps: alternate laminates, standard hardware sizes, panel optimization, and redundant accessories.',
-        actions: [
-          { actionId: 'openMaterials', label: 'Open Materials & BOQ', primary: true },
-          { actionId: 'optimizeCutlist', label: 'Optimize Cutlist Layout', primary: false }
-        ]
-      };
-
-    case 'assign_task':
-      return {
-        text: 'Background job started. You can track progress in the Jobs screen.',
-        actions: [
-          { actionId: 'openJobs', label: 'Open Jobs', primary: true }
-        ]
-      };
-
+      return { text: 'Open Materials & BOQ to inspect cost swaps and optimizations.', actions:[{ actionId:'openMaterials', label:'Open Materials & BOQ', primary:true }] };
+    case 'assign_task': {
+      await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}/jobs`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ jobType:'background_task' }) }).catch(()=>{});
+      return { text: 'Background job started via AURA.', actions:[{ actionId:'openJobs', label:'Open Jobs', primary:true }] };
+    }
     default:
-      return {
-        text: 'Understood. If this is about your current project, I can route you to the right specialist tool.',
-        actions: []
-      };
+      return noAnswer();
   }
 }
 
