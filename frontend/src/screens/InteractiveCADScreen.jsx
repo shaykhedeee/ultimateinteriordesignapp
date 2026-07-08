@@ -1510,9 +1510,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               const h = Number(document.getElementById('rtp-height')?.value);
               if (!file || !w || !h) { __toast?.warn('Upload photo + enter width/height'); return; }
               const fd = new FormData(); fd.append('image', file); fd.append('widthMm', String(w)); fd.append('heightMm', String(h)); fd.append('projectId', String(projectId));
-              const r = await fetch(`http://127.0.0.1:5055/api/elevation/from-photo/dxf`, { method:'POST', body: fd });
+              const r = await fetch(`http://127.0.0.1:5055/api/elevation/from-photo`, { method:'POST', body: fd });
               const d = await r.json();
-              if (d?.success) { __toast?.success('Elevation DXF generated'); } else { __toast?.error(d?.error || 'failed'); }
+              if (d?.success) {
+                __toast?.success('Elevation generated');
+                if (typeof loadProjectCAD === 'function') loadProjectCAD();
+                if (typeof loadPhotoElevations === 'function') loadPhotoElevations();
+              } else { __toast?.error(d?.error || 'failed'); }
             }} className="w-full py-2 bg-[#C9A84C] text-slate-950 font-black uppercase text-[10px] rounded-lg">Generate Elevation</button>
           </div>
           <button

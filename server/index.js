@@ -93,31 +93,69 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
 });
 
 // REAL image -> measured 2D elevation (Magicplan/RoomGPT move)
-// Body (multipart or JSON): image file OR { imageB64 }, dimsText, unitTypeHint
+// Body (multipart or JSON): image file OR { imageB64 }, dimsText, unitTypeHint, projectId
 app.post('/api/elevation/from-photo', upload.single('image'), async (req, res) => {
   try {
-    let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '';
+    let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '', projectId = req.body?.projectId || '';
     if (req.file) imageB64 = req.file.buffer.toString('base64');
     else if (req.body?.imageB64) imageB64 = req.body.imageB64;
     if (!imageB64) return res.status(400).json({ error: 'image required (file or imageB64)' });
+    if (!projectId) return res.status(400).json({ error: 'projectId required' });
     const result = await analyzePhotoToElevation({ imageB64, dimsText, unitTypeHint });
     if (!result.success) return res.status(422).json({ error: result.error });
-    res.json(result);
+    const m = result.model || {};
+    const model = {
+      lengthMm: m.lengthMm || 0,
+      heightMm: m.heightMm || 2400,
+      thicknessMm: m.thicknessMm || 75,
+      openings: m.openings || [],
+      cabinets: m.cabinets || [],
+      coverage: m.coverage || { utilPercent: 60, usedMm: 0, freeMm: m.lengthMm || 0 },
+      source: result.source,
+      unitType: result.unitType,
+      confidence: result.confidence
+    };
+    const elevation = {
+      id: 'elev_photo_' + Date.now().toString(36),
+      projectId,
+      wallId: 'photo',
+      wallName: m.wallName || (result.unitType || 'PHOTO').toUpperCase() + ' ELEVATION',
+      model,
+      dims: result.dims,
+      material: result.material,
+      notes: result.notes,
+      source: result.source,
+      confidence: result.confidence,
+      createdAt: new Date().toISOString()
+    };
+    try {
+      db.prepare(`CREATE TABLE IF NOT EXISTS photo_elevations
+        (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, wall_id TEXT, wall_name TEXT, wall_json TEXT, model_json TEXT, dims_json TEXT, material TEXT, notes TEXT, source TEXT, confidence REAL, created_at TEXT)
+      `).run();
+      db.prepare(`INSERT OR REPLACE INTO photo_elevations (id, project_id, wall_id, wall_name, wall_json, model_json, dims_json, material, notes, source, confidence, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(elevation.id, elevation.projectId, elevation.wallId, elevation.wallName, JSON.stringify({}), JSON.stringify(model), JSON.stringify(result.dims), elevation.material, elevation.notes, elevation.source, elevation.confidence, elevation.createdAt);
+    } catch (e) {
+      console.warn('photo_elevations persistence warn:', e.message);
+    }
+    res.json({ success: true, elevation, model });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Download the DXF for a photo-derived elevation
 app.post('/api/elevation/from-photo/dxf', upload.single('image'), async (req, res) => {
   try {
-    let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '';
+    let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '', projectId = req.body?.projectId || '';
     if (req.file) imageB64 = req.file.buffer.toString('base64');
     else if (req.body?.imageB64) imageB64 = req.body.imageB64;
     if (!imageB64) return res.status(400).json({ error: 'image required' });
+    if (!projectId) return res.status(400).json({ error: 'projectId required' });
     const result = await analyzePhotoToElevation({ imageB64, dimsText, unitTypeHint });
     if (!result.success) return res.status(422).json({ error: result.error });
-    const dxf = generateElevationDXF(result.model, { scale: '1:25', rev: '1.0', projectId: '', sheetName: result.model.wallName });
+    const m = result.model || {};
+    const model = { lengthMm: m.lengthMm || 0, heightMm: m.heightMm || 2400, thicknessMm: m.thicknessMm || 75, openings: m.openings || [], cabinets: m.cabinets || [], coverage: m.coverage || { utilPercent: 60, usedMm: 0, freeMm: m.lengthMm || 0 } };
+    const dxf = generateElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: projectId || '', sheetName: m.wallName || ((result.unitType || 'ELEVATION').toUpperCase()) });
     res.setHeader('Content-Type', 'application/dxf');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.unitType}-elevation.dxf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${(result.unitType || 'elevation').toLowerCase()}-elevation.dxf"`);
     res.send(dxf);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2040,6 +2078,13 @@ app.get('/api/projects/:id/timeline', (req, res) => {
 });
 
 // GET background jobs list
+app.get('/api/projects/:id/photo-elevations', (req, res)=>{
+  try {
+    const rows = db.prepare('SELECT *, model_json AS model, dims_json AS dims FROM photo_elevations WHERE project_id = ? ORDER BY created_at DESC').all(req.params.id);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/projects/:id/jobs', (req, res) => {
   const rows = db.prepare("SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at DESC").all(req.params.id);
   res.json(rows);
