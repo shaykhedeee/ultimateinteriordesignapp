@@ -57,12 +57,9 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   };
 
   const handleCreateBranch = async () => {
-    const label = 'Branch name (e.g. v2_modern)';
-    const onConfirm = window.__auraConfirm?.confirm?.('New Branch', `Enter ${label.toLowerCase()}.`) || (() => Promise.resolve(false));
-    const ok = await onConfirm;
-    const value = prompt(label);
-    const newB = (typeof value === 'string' ? value : '').trim().toLowerCase().replace(/\s+/g, '_');
-    if (ok && newB) {
+    const value = await window.__auraConfirm?.open?.('New Branch', 'Enter branch name:') ?? '';
+    const newB = String(value).trim().toLowerCase().replace(/\s+/g, '_');
+    if (newB) {
       loadScene(projectId, newB);
       setBranches(prev => Array.from(new Set([...prev, newB])));
     }
@@ -79,24 +76,28 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
         }
       }
     } else {
-      const reason = prompt("Enter lock reason (e.g. Approved by Client):", "Approved by Client");
-      if (reason !== null) {
+      const reason = await window.__auraConfirm?.open?.('Lock Scene', 'Enter lock reason:') ?? 'Approved by Client';
+      const value = String(reason).trim();
+      if (value) {
         const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/lock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason })
+          body: JSON.stringify({ reason: value })
         });
         if (res.ok) {
-          useEditorStore.setState({ isLocked: true, lockReason: reason });
+          useEditorStore.setState({ isLocked: true, lockReason: value });
         }
       }
     }
   };
 
   const handleSave = async () => {
-    const reason = window.__auraConfirm?.confirm?.('Save Revision', 'Enter revision note for this version.') ? prompt('Revision note:', `Revision ${versionNumber + 1}`) : undefined;
-    if (reason !== null && typeof reason === 'string') {
-      saveSceneVersion(reason || undefined);
+    const reason = (await window.__auraConfirm?.open?.('Save Revision', 'Revision note:')) || '';
+    const trimmed = String(reason).trim();
+    if (trimmed) {
+      saveSceneVersion(trimmed);
+    } else {
+      saveSceneVersion();
     }
   };
 
