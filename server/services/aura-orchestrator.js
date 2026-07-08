@@ -11,6 +11,7 @@
  */
 
 import { db } from './database.js';
+import { buildRoomStylePayload } from './prompt-harness.js';
 
 const TOOLS = [
   { id:'rag_search',         label:'Search knowledge base',   intent:/search|find|show|list|what|where/i, action:'project_search' },
@@ -57,15 +58,18 @@ async function toolReply(tool, args, projectId) {
         ]
       };
 
-    case 'generate_render':
+    case 'generate_render': {
+      const roomPayload = buildRoomStylePayload({ roomType: 'living', style: 'indian-contemporary', budgetTier: 'premium', provider: 'pollinations', aspectRatio: '16:9' });
+      const promptSnippet = roomPayload?.payload?.prompt ? roomPayload.payload.prompt.slice(0, 120) + '...' : '';
       return {
-        text: 'I queued a render generation job. Choose a provider and angle, or let me use the last saved settings.',
+        text: promptSnippet ? `Render prompt built: ${promptSnippet}` : 'I queued a render generation job. Choose a provider and angle, or let me use the last saved settings.',
         actions: [
           { actionId: 'openRenderStudio', label: 'Open 3D Studio', primary: true },
           { actionId: 'regenerateLastRender', label: 'Regenerate last render', primary: false },
           { actionId: 'renderFromAngle', label: 'Render from camera angle', primary: false, preview: { angle: true } }
         ]
       };
+    }
 
     case 'plan_ai_detect':
       return {
