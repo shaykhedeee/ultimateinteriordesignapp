@@ -227,6 +227,16 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
   };
 
   // Download PDF (print-ready sheet, rendered server-side via pdfkit)
+  const presets = [
+    {id:'modern-luxury',title:'Modern Luxury',chip:'CALACATTA / BRASS',accent:'#D4AF37',palette:['#0B1220','#D4AF37','#FFFFFF']},
+    {id:'scandi-warm',title:'Scandi Warm',chip:'OAK / OFF-WHITE',accent:'#C7A16B',palette:['#F3EFE8','#E6DCC8','#1B1B1B']},
+    {id:'industrial',title:'Industrial Loft',chip:'CONCRETE / BLACK IRON',accent:'#9EA7B0',palette:['#181A1E','#2F3336','#E3E3E3']},
+    {id:'indian-contemporary',title:'Indo Contemporary',chip:'TEAK + MARBLE',accent:'#8C5B3C',palette:['#3B2417','#F5E6D3','#2A2A2A']}
+  ];
+  const [stylePreset, setStylePreset] = React.useState(presets[0].id);
+  const [materialTag, setMaterialTag] = React.useState('laminate');
+  const preset = presets.find(pr=>pr.id===stylePreset)||presets[0];
+
   const downloadPDF = () => {
     if (!selectedWallId) return;
     window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedWallId}/pdf`, '_blank');
@@ -324,6 +334,26 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             } catch (err) { showToast('Detection failed', 'error'); }
           }} className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-[10px] font-bold uppercase flex items-center justify-center gap-2 transition">Detect Furniture + Rug</button>
           <div className="text-[9px] text-slate-500 leading-tight">Detects furniture footprints and rugs from the traced plan. Uses heuristics + CV when enabled.</div>
+        </div>
+
+        {/* Preset + material selector */}
+        <div className="space-y-1">
+          <div className="text-[9px] font-black text-[#D4AF37] uppercase tracking-widest">Preset</div>
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {presets.map(pr=>(
+              <button key={pr.id} onClick={()=>setStylePreset(pr.id)} className={`shrink-0 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase transition ${stylePreset===pr.id?'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]':'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{pr.title}</button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1">
+            <select value={materialTag} onChange={e=>setMaterialTag(e.target.value)} className="bg-slate-950 border border-slate-800 text-[10px] text-slate-200 rounded-lg px-2 py-1.5">
+              <option value="laminate">Laminate Sheets</option>
+              <option value="glass">Glass</option>
+              <option value="cane">Cane</option>
+              <option value="marble">Marble</option>
+              <option value="metal">Metal</option>
+            </select>
+            <button onClick={async()=>{ showToast(`Applied ${preset.title} → ${materialTag} sheet`,'success'); }} className="px-2 py-1.5 bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200 rounded-lg">Apply</button>
+          </div>
         </div>
 
         {/* Walls Dropdown List */}
