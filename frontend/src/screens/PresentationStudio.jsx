@@ -128,11 +128,10 @@ export default function PresentationStudio({ projectId }) {
     try {
       await navigator.clipboard.writeText(share.shareUrl);
       setCopyOk(true);
-      setTimeout(() => setCopyOk(false), 2000);
-    } catch {
-      // clipboard may be blocked; fall back to selecting
-      window.prompt('Copy this client link:', share.shareUrl);
-    }
+      } catch {
+        const ok = await window.__auraConfirm?.confirm?.('Copy Link', 'Clipboard is blocked. Open link instead?') || Promise.resolve(false);
+        if (ok) window.open(share.shareUrl, '_blank');
+      }
   };
 
   const clientLead = leads.find(l => l.id === project?.lead_id);

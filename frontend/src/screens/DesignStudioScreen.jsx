@@ -56,26 +56,30 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     loadScene(projectId, selected);
   };
 
-  const handleCreateBranch = () => {
-    const newB = window.prompt("Enter new design branch name (e.g. v2_modern, vastu_alt):");
-    if (newB) {
-      const cleaned = newB.trim().toLowerCase().replace(/\s+/g, '_');
-      loadScene(projectId, cleaned);
-      setBranches(prev => Array.from(new Set([...prev, cleaned])));
+  const handleCreateBranch = async () => {
+    const label = 'Branch name (e.g. v2_modern)';
+    const onConfirm = window.__auraConfirm?.confirm?.('New Branch', `Enter ${label.toLowerCase()}.`) || (() => Promise.resolve(false));
+    const ok = await onConfirm;
+    const value = prompt(label);
+    const newB = (typeof value === 'string' ? value : '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (ok && newB) {
+      loadScene(projectId, newB);
+      setBranches(prev => Array.from(new Set([...prev, newB])));
     }
   };
 
   const handleToggleLock = async () => {
     const sceneId = useEditorStore.getState().sceneId;
     if (isLocked) {
-      if (window.confirm("Are you sure you want to unlock this scene?")) {
+      const ok = await window.__auraConfirm?.confirm?.('Unlock Scene', 'Are you sure you want to unlock this scene?') || Promise.resolve(false);
+      if (ok) {
         const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
         if (res.ok) {
-          useEditorStore.setState({ isLocked: false, lockReason: "" });
+          useEditorStore.setState({ isLocked: false, lockReason: '' });
         }
       }
     } else {
-      const reason = window.prompt("Enter lock reason (e.g. Approved by Client):", "Approved by Client");
+      const reason = prompt("Enter lock reason (e.g. Approved by Client):", "Approved by Client");
       if (reason !== null) {
         const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/lock`, {
           method: 'POST',
@@ -89,9 +93,9 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     }
   };
 
-  const handleSave = () => {
-    const reason = window.prompt("Enter revision note for this version:", `Revision ${versionNumber + 1}`);
-    if (reason !== null) {
+  const handleSave = async () => {
+    const reason = window.__auraConfirm?.confirm?.('Save Revision', 'Enter revision note for this version.') ? prompt('Revision note:', `Revision ${versionNumber + 1}`) : undefined;
+    if (reason !== null && typeof reason === 'string') {
       saveSceneVersion(reason || undefined);
     }
   };
@@ -375,7 +379,8 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                         {b !== 'main' && (
                           <button
                             onClick={async () => {
-                              if (window.confirm(`Are you sure you want to align and merge variant "${b}" into main?`)) {
+                              const ok = await window.__auraConfirm?.confirm?.('Merge Variant', `Align and merge variant "${b}" into main?`) || Promise.resolve(false);
+                              if (ok) {
                                 window.__toast?.show("Variant branch merged and aligned successfully! Main branch updated to variant carcass parameters.");
                                 loadScene(projectId, 'main');
                                 setShowBranchModal(false);

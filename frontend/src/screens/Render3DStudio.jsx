@@ -1617,71 +1617,24 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   )}
                 </div>
 
-                {/* 2. Choose Material */}
+                {/* 2. Material Shortcut */}
                 {selectedSwapComponent && (
-                  <div className="space-y-3 border-t border-slate-850 pt-2.5">
-                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Choose Swatch / Finish</label>
-                    
-                    {/* Material catalog picker */}
-                    <div className="space-y-1.5">
-                      <span className="text-[9px] text-slate-500 font-bold block uppercase">From Catalog:</span>
-                      <select
-                        onChange={(e) => {
-                          const mat = catalogMaterials.find(m => m.id === e.target.value);
-                          setSelectedCatalogMaterial(mat || null);
-                          setCustomLaminateFile(null);
-                          setCustomLaminatePreview(null);
-                        }}
-                        value={selectedCatalogMaterial?.id || ''}
-                        className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-[10px] text-slate-200 outline-none focus:border-[#D4AF37]"
-                      >
-                        <option value="">-- Choose Laminate / Stone / Fabric --</option>
-                        {catalogMaterials.map(m => (
-                          <option key={m.id} value={m.id}>
-                            [{m.brand}] {m.name} ({m.code || 'No Code'})
-                          </option>
-                        ))}
-                      </select>
-                      {selectedCatalogMaterial && (
-                        <div className="bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded p-2 text-[9px] text-slate-300 space-y-0.5">
-                          <strong className="text-[#D4AF37] block font-bold uppercase">{selectedCatalogMaterial.name}</strong>
-                          <div>Brand: {selectedCatalogMaterial.brand} | Code: {selectedCatalogMaterial.code}</div>
-                          <div>Color: {selectedCatalogMaterial.color || 'N/A'} | Finish: {selectedCatalogMaterial.finish || 'N/A'}</div>
-                        </div>
-                      )}
+                  <div className="space-y-2 border-t border-slate-850 pt-2.5">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                      Material Source
+                    </label>
+                    <div className="text-[9px] text-slate-400 leading-relaxed">
+                      Use the catalog to pick a curated laminate, stone, or fabric swatch.
+                      Your selection is remembered across screens.
                     </div>
-
-                    {/* Custom upload swatch option */}
-                    <div className="space-y-1.5 border-t border-slate-850/50 pt-2">
-                      <span className="text-[9px] text-slate-500 font-bold block uppercase">OR Upload Custom Swatch:</span>
-                      <div className="flex items-center gap-2">
-                        <label className="flex-1 bg-slate-950 border border-slate-800 rounded p-1.5 text-[9px] text-slate-400 text-center cursor-pointer hover:border-slate-700">
-                          {customLaminateFile ? customLaminateFile.name : 'Choose Swatch Image'}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setCustomLaminateFile(file);
-                                setSelectedCatalogMaterial(null);
-                                const reader = new FileReader();
-                                reader.onload = () => setCustomLaminatePreview(reader.result);
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                        </label>
-                        {customLaminatePreview && (
-                          <img 
-                            src={customLaminatePreview} 
-                            alt="Preview" 
-                            className="w-8 h-8 rounded border border-slate-700 object-cover shrink-0" 
-                          />
-                        )}
-                      </div>
-                    </div>
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'materials' }));
+                      }}
+                      className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider"
+                    >
+                      Open Material Catalog
+                    </button>
                   </div>
                 )}
 

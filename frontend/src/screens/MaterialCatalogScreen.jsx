@@ -318,7 +318,8 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const handleDeleteMaterial = async (e, id) => {
     e.stopPropagation();
-    if (window.confirm("Are you sure you want to deactivate this material item?")) {
+    const ok = await window.__auraConfirm?.confirm?.('Delete Material', 'Deactivate this material item?') || Promise.resolve(false);
+    if (ok) {
       try {
         await fetch(`http://127.0.0.1:5055/api/material-catalog/${id}`, {
           method: 'DELETE'
