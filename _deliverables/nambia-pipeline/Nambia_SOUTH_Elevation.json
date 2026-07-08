@@ -1,0 +1,12 @@
+{
+  "lengthMm": 6659,
+  "heightMm": 2700,
+  "thicknessMm": 200,
+  "openings": [],
+  "cabinets": [],
+  "coverage": {
+    "utilPercent": 50,
+    "usedMm": 1200,
+    "freeMm": 5459
+  }
+}
