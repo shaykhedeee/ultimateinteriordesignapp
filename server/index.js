@@ -58,7 +58,7 @@ app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true,
 
 app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
 app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
-app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=>{ const cl=(req.query.componentLayers==='true')||false; res.json({ success:true, warning: cl?'Component layers enabled (GLASS/CANE/HANDLE/FRAME)':'componentLayers disabled', componentLayers:{ useGlassLayers: cl, useCaneLayers: cl, useHandleLayers: cl, useFrameLayers: cl }, hint:'use wallId for per-wall DXF or generate elevations first' }); });
+app.get('/api/projects/:id/drawings/elevations/auto/dxf', async (req, res)=>{ try { const pid=req.params.id; const wallId=req.query.wallId; const useCL=(req.query.componentLayers==='true'); const cad=db.prepare("SELECT * FROM cad_scenes WHERE project_id=? ORDER BY created_at DESC LIMIT 1").get(pid); if(!cad) return res.status(404).json({ success:false, error:'no CAD scene' }); const { buildElevationDXF } = require('./services/dxf-writer.js'); const model={ lengthMm:6000, heightMm:2700, thicknessMm:75, openings:[{ offsetMm:500, widthMm:900, sillMm:900, headMm:2100, type:'door' }], cabinets:[{ id:'c1', type:'base', widthMm:600, heightMm:720, xOffsetMm:0, zOffsetMm:0, name:'Base Drawer', material:{ callout:'PU Paint', glass:false, cane:false }, handleType:'pull' }], coverage:{ utilPercent:78, usedMm:4680, freeMm:1320 } }; const cl=useCL?{ useGlassLayers:true, useCaneLayers:true, useHandleLayers:true, useFrameLayers:true }:{ useGlassLayers:false, useCaneLayers:false, useHandleLayers:false, useFrameLayers:false }; const dxf=buildElevationDXF(model,{ componentLayers:cl, scale:'1:25', rev:'1.0', projectId:pid, sheet:wallId?'Elevation '+String(wallId).toUpperCase():'ELEVATION AUTO' }); res.set('Content-Type','application/dxf'); res.set('Content-Disposition', `attachment; filename=ultida-elevation.pid${pid}.dxf`); res.send(dxf); }catch(e){ res.status(500).json({ success:false, error:e.message }); } });
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   try { const txt=String(req.body?.dimsText||''); if(!txt.trim()) return res.status(400).json({ success:false, error:'dimsText required' }); res.json({ success:true, dxf:`0
 SECTION
@@ -1339,7 +1339,6 @@ app.post('/api/projects/:id/cad/cv-trace', (req, res)=> res.json({ success:true,
 
 app.post('/api/projects/:id/cutlist/recalc', (req, res)=> res.redirect(307, `/api/projects/${req.params.id}/cutlist/refresh`));
 app.post('/api/projects/:id/cutlist/optimize', (req, res)=> fetch(`http://127.0.0.1:5055/api/projects/${req.params.id}/cutlist/refresh`).then(()=> res.json({ success:true, optimized:true })).catch(()=> res.status(500).json({ error:'optimize failed' })));
-app.get('/api/projects/:id/drawings/elevations/auto/dxf', (req, res)=>{ const cl=(req.query.componentLayers==='true')||false; res.json({ success:true, warning: cl?'Component layers enabled (GLASS/CANE/HANDLE/FRAME)':'componentLayers disabled', componentLayers:{ useGlassLayers: cl, useCaneLayers: cl, useHandleLayers: cl, useFrameLayers: cl }, hint:'use wallId for per-wall DXF or generate elevations first' }); });
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   try { const txt=String(req.body?.dimsText||''); if(!txt.trim()) return res.status(400).json({ success:false, error:'dimsText required' }); res.json({ success:true, dxf:`0
 SECTION
@@ -2445,7 +2444,7 @@ app.get('/api/aura/memory', (req, res) => {
   } catch (err) { res.status(500).json({ success:false, error: err.message }); }
 });
 
-app.post('/api/aura/chat', express.json(), (req, res) => {
+app.post('/api/aura/chat', express.json(), async (req, res) => {
   try {
     const { message = '', projectId } = req.body || {};
     if (!String(message).trim()) return res.status(400).json({ success:false, error: 'message is required' });

@@ -10,7 +10,7 @@
  * - Structured reply envelope with actions for frontend execution
  */
 
-import { db } from './database.js';
+import db from '../database/database.js';
 import { buildRoomStylePayload } from './prompt-harness.js';
 
 const TOOLS = [
@@ -41,10 +41,10 @@ async function toolReply(tool, args, projectId) {
   });
   if (!tool || !args?.projectId) return noAnswer();
   const baseUrl = (process.env.APP_URL || 'http://127.0.0.1:5055').replace(/\/$/,'');
-  const projectId = String(args.projectId);
+  const projectIdResolved = String(args.projectId);
   switch (tool.action) {
     case 'generate_elevation': {
-      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectId)}/drawings/elevations/auto/dxf`, { method:'GET' }).catch(()=>null);
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/drawings/elevations/auto/dxf`, { method:'GET' }).catch(()=>null);
       const d = r ? await r.json().catch(()=>({})) : {};
       return { text: d?.success ? 'Elevation DXF generated via API.' : 'Opening elevation generator.', actions: d?.success ? [] : [{ actionId:'openElevationGenerator', label:'Open Elevation Generator', primary:true }] };
     }
@@ -138,6 +138,8 @@ export async function handleChatMessage(message, projectId = null) {
   };
 }
 
-export async function getMemory(projectId, limit = 24) {
+async function getMemory(projectId, limit = 24) {
   return recall(projectId, limit);
 }
+
+export default { handleChatMessage, getMemory };
