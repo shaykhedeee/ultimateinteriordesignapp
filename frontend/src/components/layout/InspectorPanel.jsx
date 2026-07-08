@@ -130,7 +130,8 @@ export default function InspectorPanel() {
 
   const handleRemoveModule = () => {
     if (isLocked || !selectedEntity) return;
-    if (window.confirm(`Are you sure you want to delete module "${selectedEntity.name}"?`)) {
+    const ok = await window.__auraConfirm?.confirm?.('Delete Module', `Are you sure you want to delete module "${selectedEntity.name}"?`) || Promise.resolve(false);
+    if (ok) {
       applyPatch({
         op: 'remove_module',
         payload: { moduleId: selectedId }

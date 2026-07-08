@@ -201,6 +201,34 @@ export function App() {
     return () => window.removeEventListener('navigate-to-tab', fn);
   }, []);
 
+  // ── Global whitelabel/branding event ──
+  useEffect(() => {
+    const fn = async () => {
+      try {
+        const [settingsRes, brandRaw] = await Promise.all([
+          fetch('http://127.0.0.1:5055/api/settings/app-settings'),
+          fetch('http://127.0.0.1:5055/api/settings/app-settings')
+        ]);
+        const settings = (await settingsRes.json())?.settings || {};
+        const b = {
+          studioName: settings.studio_name || localStorage.getItem('ultida_whitelabel') ? JSON.parse(localStorage.getItem('ultida_whitelabel') || '{}').studioName || '' : '',
+          tagline: settings.tagline || '',
+          logoText: settings.logo_text || '',
+          accentColor: settings.accent_color || '#C9A84C'
+        };
+        window.__ultidaBrand = b;
+        localStorage.setItem('ultida_whitelabel', JSON.stringify(b));
+        window.dispatchEvent(new CustomEvent('ultida-update-branding', { detail: b }));
+      } catch {
+        localStorage.removeItem('ultida_whitelabel');
+      }
+    };
+    fn();
+    const onUpdate = () => fn();
+    window.addEventListener('ultida-update-branding', onUpdate);
+    return () => window.removeEventListener('ultida-update-branding', onUpdate);
+  }, []);
+
   // ── Close picker on outside click ──
   useEffect(() => {
     const fn = e => { if (pickerRef.current && !pickerRef.current.contains(e.target)) setShowProjectPicker(false); };

@@ -62,6 +62,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [photoElevations, setPhotoElevations] = useState([]);
+  const [componentLayers, setComponentLayers] = useState({ glass: false, cane: false, handle: false, frame: false });
 
   // SVG viewport ref
   const svgRef = useRef(null);
@@ -1482,7 +1483,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         <div className="mt-auto space-y-2 shrink-0">
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => exportToDXF({ walls, openings, furniture, rooms, measures, pixelsPerMeter, hasUnderlay: !!sketchUrl, componentLayers: true })}
+              onClick={() => exportToDXF({ walls, openings, furniture, rooms, measures, pixelsPerMeter, hasUnderlay: !!sketchUrl, componentLayers })}
               className="py-2.5 bg-slate-800 hover:bg-slate-700 text-brand-500 border border-slate-750 font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition"
             >
               <Download className="w-3.5 h-3.5" />
@@ -1530,6 +1531,17 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               } else { __toast?.error(d?.error || 'failed'); }
             }} className="w-full py-2 bg-[#C9A84C] text-slate-950 font-black uppercase text-[10px] rounded-lg">Generate Elevation</button>
           </div>
+
+          <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl space-y-2">
+            <div className="text-[9px] font-black text-[#C9A84C] uppercase tracking-widest">Component Layers</div>
+            <div className="flex flex-wrap gap-1.5">
+              {['glass','cane','handle','frame'].map(k => (
+                <button key={k} onClick={() => setComponentLayers(s => ({ ...s, [k]: !s[k] }))} className={`px-2 py-1 rounded-md border text-[9px] font-bold uppercase transition ${componentLayers[k] ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{k}</button>
+              ))}
+            </div>
+            <div className="text-[9px] text-slate-500">Toggle symbolic DXF layers for glass, cane, handles, and frame brackets.</div>
+          </div>
+
           <button
             onClick={saveCADToServer}
             className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition"
