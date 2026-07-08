@@ -382,6 +382,7 @@ export function App() {
       case 'timeline':      return <TimelineScreen projectId={selectedProjectId} />;
       case 'jobs':          return <JobsScreen projectId={selectedProjectId} />;
       case 'presentation':  return <PresentationStudio projectId={selectedProjectId} />;
+      case 'pipeline':      return <PipelineStudio projectId={selectedProjectId} />;
       default:              return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
     }
   };
