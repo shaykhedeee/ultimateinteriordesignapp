@@ -32,6 +32,8 @@ import { renderElevationPDF } from './services/pdf-elevation.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu } from './services/vastu-auto.js';
+import { applyKitchenTemplate } from './services/kitchen-templates.js';
+import { getTvUnitLibrary, applyTvUnit } from './services/tv-unit-library.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1990,6 +1992,32 @@ app.post('/api/projects/:id/vastu/auto-apply', express.json(), (req, res) => {
   try {
     const r = applyVastu(req.params.id);
     if (!r.ok) return res.status(404).json({ error: r.reason });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Kitchen template picker (U-shape / L-shape) ---
+app.post('/api/projects/:id/kitchen/template', express.json(), (req, res) => {
+  try {
+    const shape = (req.body?.shape || 'L').toUpperCase();
+    const r = applyKitchenTemplate(req.params.id, shape);
+    if (!r.ok) return res.status(400).json({ error: r.reason });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Modular TV-unit library ---
+app.get('/api/tv-units', (req, res) => {
+  try { res.json(getTvUnitLibrary()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/projects/:id/tv-unit/apply', express.json(), (req, res) => {
+  try {
+    const r = applyTvUnit(req.params.id, req.body?.unitId);
+    if (!r.ok) return res.status(400).json({ error: r.reason });
     res.json(r);
   } catch (err) {
     res.status(500).json({ error: err.message });
