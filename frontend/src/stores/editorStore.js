@@ -3,6 +3,13 @@ import { create } from 'zustand';
 // Local nanoid simulation for client-side ID generation
 const clientId = (prefix) => prefix + '_' + Math.random().toString(36).substring(2, 8);
 
+const getAppToast = () => ({
+  success: (m) => { try { window.__toast?.success?.(String(m)); } catch {} },
+  error: (m) => { try { window.__toast?.error?.(String(m)); } catch {} },
+  warn: (m) => { try { window.__toast?.warn?.(String(m)); } catch {} },
+  info: (m) => { try { window.__toast?.info?.(String(m)); } catch {} }
+});
+
 // Default blank SceneDocument layout (used if API initialization fails)
 const initialSceneDoc = (projectId) => ({
   schemaVersion: "1.0",
@@ -171,7 +178,7 @@ export const useEditorStore = create((set, get) => ({
   applyPatch: (op) => {
     const { scene, isLocked } = get();
     if (isLocked) {
-      alert("This scene version is locked for approvals and cannot be modified. Create a new branch variant instead.");
+      getAppToast().error('This scene version is locked for approvals and cannot be modified. Create a new branch variant instead.');
       return;
     }
     if (!scene) return;
@@ -336,13 +343,13 @@ export const useEditorStore = create((set, get) => ({
           versionNumber: data.versionNumber,
           isSaving: false
         });
-        alert(`Scene saved successfully! Created Immutable Version #${data.versionNumber} on branch '${branchName}'.`);
+        getAppToast().success(`Scene saved successfully! Created Immutable Version #${data.versionNumber} on branch '${branchName}'.`);
       } else {
         throw new Error("API responded with error");
       }
     } catch(err) {
       console.error("Error saving scene version:", err);
-      alert("Failed to save scene version to database.");
+      getAppToast().error("Failed to save scene version to database.");
       set({ isSaving: false });
     }
   },
@@ -360,7 +367,7 @@ export const useEditorStore = create((set, get) => ({
       });
       if (res.ok) {
         set({ isLocked: true, lockReason: reason });
-        alert(`Scene version locked successfully: "${reason}"`);
+        getAppToast().success(`Scene version locked successfully: "${reason}"`);
       }
     } catch(err) {
       console.error("Error locking scene:", err);
