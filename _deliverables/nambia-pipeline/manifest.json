@@ -1,134 +1,276 @@
 {
-  "generatedAt": "2026-07-08T14:34:51.600Z",
-  "rooms": [
+  "generatedAt": "2026-07-08T17:57:12.850Z",
+  "projectId": "proj-nambia-25bhk",
+  "files": [
     {
-      "id": "r1",
-      "name": "Childrens Bedroom",
-      "type": "bedroom",
-      "x": 0,
-      "y": 0,
-      "width": 2900,
-      "height": 3350
+      "file": "Balcony_3D.dxf",
+      "bytes": 1575
     },
     {
-      "id": "r2",
-      "name": "Toilet Top",
-      "type": "toilet",
-      "x": 2900,
-      "y": 0,
-      "width": 1116,
-      "height": 2133
+      "file": "Balcony_3D.json",
+      "bytes": 471
     },
     {
-      "id": "r3",
-      "name": "Home Office",
-      "type": "office",
-      "x": 4016,
-      "y": 0,
-      "width": 2643,
-      "height": 2096
+      "file": "Balcony_3D_Accurate.dxf",
+      "bytes": 1575
     },
     {
-      "id": "r4",
-      "name": "Balcony",
-      "type": "balcony",
-      "x": 0,
-      "y": 3350,
-      "width": 600,
-      "height": 187
+      "file": "Children's_Bedroom_3D.dxf",
+      "bytes": 5415
     },
     {
-      "id": "r5",
-      "name": "Living Dining",
-      "type": "living",
-      "x": 600,
-      "y": 3350,
-      "width": 2549,
-      "height": 2842
+      "file": "Children's_Bedroom_3D.json",
+      "bytes": 482
     },
     {
-      "id": "r6",
-      "name": "Master Bedroom",
-      "type": "bedroom",
-      "x": 0,
-      "y": 3537,
-      "width": 3005,
-      "height": 3350
+      "file": "Children_s_Bedroom_3D.dxf",
+      "bytes": 1626
     },
     {
-      "id": "r7",
-      "name": "Toilet Bottom",
-      "type": "toilet",
-      "x": 3005,
-      "y": 3537,
-      "width": 2246,
-      "height": 1081
+      "file": "Children_s_Bedroom_3D_Accurate.dxf",
+      "bytes": 1626
     },
     {
-      "id": "r8",
-      "name": "Kitchen",
-      "type": "kitchen",
-      "x": 3005,
-      "y": 4618,
-      "width": 2692,
-      "height": 2022
-    }
-  ],
-  "spaces": [
-    {
-      "room": "Childrens Bedroom",
-      "bytes": 12382
+      "file": "Home_Office_3D.dxf",
+      "bytes": 1621
     },
     {
-      "room": "Toilet Top",
-      "bytes": 9203
+      "file": "Home_Office_3D.json",
+      "bytes": 477
     },
     {
-      "room": "Home Office",
-      "bytes": 9193
+      "file": "Home_Office_3D_Accurate.dxf",
+      "bytes": 1621
     },
     {
-      "room": "Balcony",
+      "file": "Kitchen_3D.dxf",
+      "bytes": 1615
+    },
+    {
+      "file": "Kitchen_3D.json",
+      "bytes": 477
+    },
+    {
+      "file": "Kitchen_3D_Accurate.dxf",
+      "bytes": 1615
+    },
+    {
+      "file": "Living_Dining_3D.dxf",
+      "bytes": 1623
+    },
+    {
+      "file": "Living_Dining_3D.json",
+      "bytes": 481
+    },
+    {
+      "file": "Living_Dining_3D_Accurate.dxf",
+      "bytes": 1623
+    },
+    {
+      "file": "manifest.json",
+      "bytes": 4972
+    },
+    {
+      "file": "Master_Bedroom_3D.dxf",
+      "bytes": 1624
+    },
+    {
+      "file": "Master_Bedroom_3D.json",
+      "bytes": 481
+    },
+    {
+      "file": "Master_Bedroom_3D_Accurate.dxf",
+      "bytes": 1624
+    },
+    {
+      "file": "Nambia_Balcony_3D.dxf",
       "bytes": 5411
     },
     {
-      "room": "Living Dining",
+      "file": "Nambia_Childrens_Bedroom_3D.dxf",
+      "bytes": 12382
+    },
+    {
+      "file": "Nambia_EAST_Elevation.dxf",
+      "bytes": 17474
+    },
+    {
+      "file": "Nambia_EAST_Elevation.json",
+      "bytes": 183
+    },
+    {
+      "file": "Nambia_EAST_Elevation.pdf",
+      "bytes": 2561
+    },
+    {
+      "file": "Nambia_FloorPlan.dxf",
+      "bytes": 21070
+    },
+    {
+      "file": "Nambia_FloorPlan_Accurate.dxf",
+      "bytes": 21070
+    },
+    {
+      "file": "Nambia_Home_Office_3D.dxf",
+      "bytes": 9193
+    },
+    {
+      "file": "Nambia_Kitchen_3D.dxf",
+      "bytes": 9194
+    },
+    {
+      "file": "Nambia_Living_Dining_3D.dxf",
       "bytes": 19005
     },
     {
-      "room": "Master Bedroom",
+      "file": "Nambia_Master_Bedroom_3D.dxf",
       "bytes": 14135
     },
     {
-      "room": "Toilet Bottom",
+      "file": "Nambia_NORTH_Elevation.dxf",
+      "bytes": 12432
+    },
+    {
+      "file": "Nambia_NORTH_Elevation.json",
+      "bytes": 432
+    },
+    {
+      "file": "Nambia_NORTH_Elevation.pdf",
+      "bytes": 2841
+    },
+    {
+      "file": "Nambia_SOUTH_Elevation.dxf",
+      "bytes": 10282
+    },
+    {
+      "file": "Nambia_SOUTH_Elevation.json",
+      "bytes": 183
+    },
+    {
+      "file": "Nambia_SOUTH_Elevation.pdf",
+      "bytes": 2538
+    },
+    {
+      "file": "Nambia_Toilet_Bottom_3D.dxf",
       "bytes": 9203
     },
     {
-      "room": "Kitchen",
-      "bytes": 9194
+      "file": "Nambia_Toilet_Top_3D.dxf",
+      "bytes": 9203
+    },
+    {
+      "file": "Nambia_WEST_Elevation.dxf",
+      "bytes": 10093
+    },
+    {
+      "file": "Nambia_WEST_Elevation.json",
+      "bytes": 183
+    },
+    {
+      "file": "Nambia_WEST_Elevation.pdf",
+      "bytes": 2561
+    },
+    {
+      "file": "Toilet_Bottom_3D.dxf",
+      "bytes": 1618
+    },
+    {
+      "file": "Toilet_Bottom_3D.json",
+      "bytes": 482
+    },
+    {
+      "file": "Toilet_Bottom_3D_Accurate.dxf",
+      "bytes": 1618
+    },
+    {
+      "file": "Toilet_Top_3D.dxf",
+      "bytes": 1614
+    },
+    {
+      "file": "Toilet_Top_3D.json",
+      "bytes": 476
+    },
+    {
+      "file": "Toilet_Top_3D_Accurate.dxf",
+      "bytes": 1614
+    },
+    {
+      "file": "wall-model.json",
+      "bytes": 3807
     }
   ],
-  "elevations": [
+  "rooms": [
     {
-      "dir": "north",
-      "dxfBytes": 20815,
-      "pdfBytes": 3438
+      "name": "Children's Bedroom",
+      "x": 0,
+      "y": 0,
+      "w": 2900,
+      "h": 3350,
+      "areaSqft": 104.6,
+      "areaSqm": 9.72
     },
     {
-      "dir": "south",
-      "dxfBytes": 20815,
-      "pdfBytes": 3438
+      "name": "Toilet Top",
+      "x": 2900,
+      "y": 0,
+      "w": 1116,
+      "h": 2133,
+      "areaSqft": 25.6,
+      "areaSqm": 2.38
     },
     {
-      "dir": "east",
-      "dxfBytes": 20815,
-      "pdfBytes": 3438
+      "name": "Home Office",
+      "x": 4016,
+      "y": 0,
+      "w": 2643,
+      "h": 2096,
+      "areaSqft": 59.6,
+      "areaSqm": 5.54
     },
     {
-      "dir": "west",
-      "dxfBytes": 20815,
-      "pdfBytes": 3438
+      "name": "Balcony",
+      "x": 0,
+      "y": 3350,
+      "w": 600,
+      "h": 187,
+      "areaSqft": 1.2,
+      "areaSqm": 0.11
+    },
+    {
+      "name": "Living Dining",
+      "x": 600,
+      "y": 3350,
+      "w": 2549,
+      "h": 2842,
+      "areaSqft": 78,
+      "areaSqm": 7.24
+    },
+    {
+      "name": "Master Bedroom",
+      "x": 0,
+      "y": 3537,
+      "w": 3005,
+      "h": 3350,
+      "areaSqft": 108.4,
+      "areaSqm": 10.07
+    },
+    {
+      "name": "Toilet Bottom",
+      "x": 3005,
+      "y": 3537,
+      "w": 2246,
+      "h": 1081,
+      "areaSqft": 26.1,
+      "areaSqm": 2.43
+    },
+    {
+      "name": "Kitchen",
+      "x": 3005,
+      "y": 4618,
+      "w": 2692,
+      "h": 2022,
+      "areaSqft": 58.6,
+      "areaSqm": 5.44
     }
-  ],
-  "floorPlanBytes": 24523
+  ]
 }

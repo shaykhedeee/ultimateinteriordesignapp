@@ -1,0 +1,29 @@
+{
+  "room": {
+    "id": "r3",
+    "name": "Home Office",
+    "type": "office",
+    "widthMm": 2643,
+    "heightMm": 2096,
+    "xMm": 4016,
+    "yMm": 0
+  },
+  "builtIn": [
+    {
+      "type": "wardrobe",
+      "widthMm": 800,
+      "heightMm": 2400,
+      "depthMm": 600,
+      "xOffsetMm": 0,
+      "yOffsetMm": 0
+    },
+    {
+      "type": "bed",
+      "widthMm": 2000,
+      "heightMm": 1800,
+      "depthMm": 2000,
+      "xOffsetMm": 100,
+      "yOffsetMm": 100
+    }
+  ]
+}

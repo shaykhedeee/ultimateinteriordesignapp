@@ -1,0 +1,27 @@
+{
+  "lengthMm": 6659,
+  "heightMm": 2700,
+  "thicknessMm": 200,
+  "openings": [
+    {
+      "offsetMm": 1400,
+      "widthMm": 900,
+      "sillMm": 0,
+      "headMm": 2100,
+      "type": "door"
+    },
+    {
+      "offsetMm": 3200,
+      "widthMm": 1800,
+      "sillMm": 900,
+      "headMm": 2100,
+      "type": "window"
+    }
+  ],
+  "cabinets": [],
+  "coverage": {
+    "utilPercent": 50,
+    "usedMm": 1200,
+    "freeMm": 5459
+  }
+}
