@@ -406,11 +406,11 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             value={projectName} 
             onChange={e => setProjectName(e.target.value)} 
             placeholder="e.g. Verona Heights 3BHK"
-            className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:border-[#D4AF37] outline-none"
+            className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:border-[var(--gold)] outline-none"
           />
           <button 
             onClick={() => setWizardStep('upload')}
-            className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-md shadow-[#D4AF37]/15 block w-full"
+            className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] px-5 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition shadow-md shadow-[#D4AF37]/15 block w-full"
           >
             Create Project & Continue
           </button>
@@ -420,14 +420,14 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       {/* STEP 2: File Upload */}
       {wizardStep === 'upload' && (
         <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-3xl p-10 bg-slate-950/40 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--gold)]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
             <Upload className="w-5 h-5" />
           </div>
           <div className="text-center">
             <strong className="text-xs text-slate-200 block">Upload Floor Plan Blueprint for "{projectName}"</strong>
             <span className="text-[10px] text-slate-500 mt-1 block font-bold uppercase">Click or Drag CAD DXF, PDF, or PNG layout plan</span>
           </div>
-          <label className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase text-[10px] tracking-wider py-2 px-5 rounded-xl cursor-pointer transition shadow-md shadow-[#D4AF37]/10">
+          <label className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] font-black uppercase text-[10px] tracking-wider py-2 px-5 rounded-xl cursor-pointer transition shadow-md shadow-[#D4AF37]/10">
             Select Blueprint
             <input type="file" onChange={handleUpload} className="hidden" accept="image/*,application/pdf" />
           </label>
@@ -461,7 +461,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   setIsEnhanced(true);
                   triggerLoading('scale_calibrate', 'AI Top View Enhancement pipeline running...');
                 }}
-                className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-md shadow-[#D4AF37]/10"
+                className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-md shadow-[#D4AF37]/10"
               >
                 Enhance top view
               </button>
@@ -502,7 +502,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               {calibrationPoints.map((pt, i) => (
                 <div 
                   key={i} 
-                  className="absolute w-3 h-3 bg-[#C9A84C] border border-slate-950 rounded-full cursor-pointer z-10"
+                  className="absolute w-3 h-3 bg-[var(--gold)] border border-slate-950 rounded-full cursor-pointer z-10"
                   style={{ left: pt.x - 6, top: pt.y - 6 }}
                 />
               ))}
@@ -581,7 +581,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             <button 
               onClick={() => setWizardStep('draw_rooms')}
               disabled={calibrationPoints.length < 2}
-              className="w-full py-2.5 bg-[#C9A84C] hover:bg-[#e6c045] disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#C9A84C]/10"
+              className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] disabled:bg-slate-800 disabled:text-slate-500 text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[#C9A84C]/10"
             >
               Set Scale & Continue
             </button>
@@ -608,7 +608,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               {markedRooms.map(rm => (
                 <div 
                   key={rm.id}
-                  className="absolute border border-[#C9A84C] bg-[#C9A84C]/10 flex items-center justify-center rounded"
+                  className="absolute border border-[#C9A84C] bg-[var(--gold)]/10 flex items-center justify-center rounded"
                   style={{
                     left: `${rm.bounds.x}%`,
                     top: `${rm.bounds.y}%`,
@@ -744,7 +744,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   triggerLoading('rooms_ready', 'Rooms saved in local session state.');
                 });
               }}
-              className="w-full py-2.5 bg-[#C9A84C] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#C9A84C]/10"
+              className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[#C9A84C]/10"
             >
               Save Rooms & Continue
             </button>
@@ -770,7 +770,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   setSelectedZoneToRender(zone.name);
                   triggerLoading('detection_done', 'Detecting objects in the layout — one moment.');
                 }}
-                className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[#D4AF37]/50 hover:bg-[#D4AF37]/2 transition cursor-pointer text-slate-300"
+                className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[#D4AF37]/50 hover:bg-[var(--gold)]/2 transition cursor-pointer text-slate-300"
               >
                 {zone.name}
               </button>
@@ -793,7 +793,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     <strong className="text-slate-200">{obj.assigned}</strong>
                   </div>
                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${
-                    obj.matched ? 'bg-emerald-950/40 text-emerald-400' : 'bg-[#D4AF37]/10 text-[#D4AF37]'
+                    obj.matched ? 'bg-emerald-950/40 text-emerald-400' : 'bg-[var(--gold)]/10 text-[#D4AF37]'
                   }`}>
                     {obj.matched ? 'Auto Matched' : 'Awaiting Assign'}
                   </span>
@@ -818,9 +818,9 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                       setAssignMode(mode.id);
                       __toast?.success(`Product assignments: ${mode.label}`);
                     }}
-                    className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
+                    className={`w-full py-2 rounded-xl text-xs font-semibold tracking-wide transition ${
                       assignMode === mode.id 
-                        ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
+                        ? 'bg-[var(--gold)]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
                         : 'bg-slate-950 border border-slate-850 text-slate-350 hover:text-slate-200'
                     }`}
                   >
@@ -835,7 +835,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                 <span className="text-[9px] text-emerald-400 font-bold block uppercase tracking-wider">Assignments are ready. Review the product board next.</span>
                 <button 
                   onClick={() => setWizardStep('moodboard_view')}
-                  className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-emerald-500/10"
+                  className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-emerald-500/10"
                 >
                   Create Moodboard
                 </button>
@@ -859,7 +859,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               className="py-3 bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >
               <Compass className="w-5 h-5 text-[#D4AF37]" />
-              <span className="text-[10px] font-black uppercase tracking-wider">Perspective View</span>
+              <span className="text-xs font-semibold tracking-wide">Perspective View</span>
             </button>
             <button 
               onClick={() => {
@@ -869,7 +869,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               className="py-3 bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >
               <Grid className="w-5 h-5 text-[#D4AF37]" />
-              <span className="text-[10px] font-black uppercase tracking-wider">Isometric View</span>
+              <span className="text-xs font-semibold tracking-wide">Isometric View</span>
             </button>
           </div>
         </div>
@@ -905,7 +905,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               </h4>
               
               {actionProgress && (
-                <div className="flex items-center gap-2 p-2 bg-[#D4AF37]/10 border border-[#D4AF37]/25 rounded-xl text-[10px] text-[#D4AF37] animate-pulse">
+                <div className="flex items-center gap-2 p-2 bg-[var(--gold)]/10 border border-[#D4AF37]/25 rounded-xl text-[10px] text-[#D4AF37] animate-pulse">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   <span>Processing request queue: {selectedAction}...</span>
                 </div>
@@ -938,7 +938,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
 
             <button
               onClick={() => setWizardStep('name_project')}
-              className="w-full py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 text-[10px] font-black uppercase tracking-wider rounded-xl transition"
+              className="w-full py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-semibold tracking-wide rounded-xl transition"
             >
               Start New Project Flow
             </button>
@@ -998,7 +998,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
             <select 
               value={selectedRoom}
               onChange={e => setSelectedRoom(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]"
+              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]"
             >
               <option value="living">Grand Living Area</option>
               <option value="kitchen">Modular Kitchen</option>
@@ -1012,7 +1012,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
             <select 
               value={selectedStyle}
               onChange={e => setSelectedStyle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]"
+              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]"
             >
               <option value="modern-luxury">Modern Luxury</option>
               <option value="japandi-fusion">Japandi Fusion</option>
@@ -1026,14 +1026,14 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
             <textarea 
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37] h-24 resize-none font-sans"
+              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)] h-24 resize-none font-sans"
             />
           </div>
 
           <button 
             onClick={handleGenerate}
             disabled={generating}
-            className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10 flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[#D4AF37]/10 flex items-center justify-center gap-1.5"
           >
             {generating ? (
               <>
@@ -1071,7 +1071,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
                 </div>
                 <button 
                   onClick={() => onNavigateToTab('renders')}
-                  className="bg-[#D4AF37]/10 border border-[#D4AF37]/35 text-[#D4AF37] px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-[#D4AF37]/20 transition"
+                  className="bg-[var(--gold)]/10 border border-[#D4AF37]/35 text-[#D4AF37] px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide hover:bg-[var(--gold)]/20 transition"
                 >
                   Promote to Design Studio
                 </button>
@@ -1146,14 +1146,14 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
             <textarea 
               value={instructions}
               onChange={e => setInstructions(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37] h-24 resize-none font-sans"
+              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)] h-24 resize-none font-sans"
             />
           </div>
 
           <button 
             onClick={handleSubmitPatch}
             disabled={editing || !photo}
-            className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10 flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[#D4AF37]/10 flex items-center justify-center gap-1.5"
           >
             {editing ? (
               <>
@@ -1191,7 +1191,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
                 </div>
                 <button 
                   onClick={() => onNavigateToTab('materials')}
-                  className="bg-[#D4AF37]/10 border border-[#D4AF37]/35 text-[#D4AF37] px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-[#D4AF37]/20 transition"
+                  className="bg-[var(--gold)]/10 border border-[#D4AF37]/35 text-[#D4AF37] px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide hover:bg-[var(--gold)]/20 transition"
                 >
                   View Material Schedule
                 </button>
@@ -1204,7 +1204,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
                 
                 {/* Bounding box marker overlay */}
                 <div 
-                  className="absolute border-2 border-dashed border-[#D4AF37] bg-[#D4AF37]/10 rounded shadow-lg"
+                  className="absolute border-2 border-dashed border-[#D4AF37] bg-[var(--gold)]/10 rounded shadow-lg"
                   style={{
                     left: `${(coordinates.x1 / 600) * 100}%`,
                     top: `${(coordinates.y1 / 400) * 100}%`,
@@ -1212,7 +1212,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
                     height: `${((coordinates.y2 - coordinates.y1) / 400) * 100}%`
                   }}
                 >
-                  <span className="absolute bottom-full left-0 bg-[#D4AF37] text-slate-950 font-black text-[8px] uppercase px-1.5 py-0.2 rounded-t font-mono">
+                  <span className="absolute bottom-full left-0 bg-[var(--gold)] text-[#0A0A0D] font-black text-[8px] uppercase px-1.5 py-0.2 rounded-t font-mono">
                     Target region
                   </span>
                 </div>
@@ -1226,7 +1226,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
                 <strong className="text-xs text-slate-200 block text-center">Upload Room Image to Begin</strong>
                 <span className="text-[9px] text-slate-500 mt-1 block text-center">Select rendering or real photo of cabinet installation</span>
               </div>
-              <label className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase text-[9px] tracking-wider py-1.5 px-4 rounded-xl cursor-pointer transition">
+              <label className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] font-black uppercase text-[9px] tracking-wider py-1.5 px-4 rounded-xl cursor-pointer transition">
                 Upload Photo
                 <input type="file" onChange={handleUpload} className="hidden" accept="image/*" />
               </label>
@@ -1295,7 +1295,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
           </button>
           <button 
             onClick={handleLockAndPromote}
-            className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-md shadow-[#D4AF37]/10"
+            className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] px-4 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition shadow-md shadow-[#D4AF37]/10"
           >
             Promote to Scene
           </button>
@@ -1319,7 +1319,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
                 onClick={() => setSelectedTool(t.id)}
                 className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${
                   selectedTool === t.id
-                    ? 'bg-[#D4AF37]/10 border-[#D4AF37]/50 text-[#D4AF37]'
+                    ? 'bg-[var(--gold)]/10 border-[#D4AF37]/50 text-[#D4AF37]'
                     : 'bg-slate-950/20 border-slate-850 hover:border-slate-800 text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -1594,7 +1594,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                   onClick={() => setSelectedModule(item)}
                   className={`w-full p-2.5 rounded-xl border text-left flex flex-col gap-1 transition ${
                     selectedModule.key === item.key 
-                      ? 'bg-[#D4AF37]/10 border-[#D4AF37]/50 text-[#D4AF37]' 
+                      ? 'bg-[var(--gold)]/10 border-[#D4AF37]/50 text-[#D4AF37]' 
                       : 'bg-slate-950/20 border-slate-850 hover:border-slate-800 text-slate-350 hover:text-slate-200'
                   }`}
                 >
@@ -1688,7 +1688,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     <select 
                       value={carcassMaterialId}
                       onChange={e => setCarcassMaterialId(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-850 rounded p-1 text-slate-200 outline-none focus:border-[#D4AF37]"
+                      className="w-full bg-slate-950 border border-slate-850 rounded p-1 text-slate-200 outline-none focus:border-[var(--gold)]"
                     >
                       {laminates.map(l => <option key={l.id} value={l.id}>{l.name} (₹{l.price_per_sqft})</option>)}
                     </select>
@@ -1698,7 +1698,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     <select 
                       value={shutterMaterialId}
                       onChange={e => setShutterMaterialId(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-850 rounded p-1 text-slate-200 outline-none focus:border-[#D4AF37]"
+                      className="w-full bg-slate-950 border border-slate-850 rounded p-1 text-slate-200 outline-none focus:border-[var(--gold)]"
                     >
                       {laminates.map(l => <option key={l.id} value={l.id}>{l.name} (₹{l.price_per_sqft})</option>)}
                     </select>
@@ -1738,12 +1738,12 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
               value={catalogQuery}
               onChange={e => setCatalogQuery(e.target.value)}
               placeholder="Search beds, sofas, wardrobes, modules..." 
-              className="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-550 outline-none focus:border-[#D4AF37]"
+              className="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-550 outline-none focus:border-[var(--gold)]"
             />
             <select 
               value={catalogCategory}
               onChange={e => setCatalogCategory(e.target.value)}
-              className="bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-350 outline-none focus:border-[#D4AF37]"
+              className="bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-350 outline-none focus:border-[var(--gold)]"
             >
               <option value="all">All Categories</option>
               <option value="bed">Beds</option>
@@ -1791,7 +1791,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                         setSelectedModule(item);
                         setSelectedSubTab('parametric');
                       }}
-                      className="bg-[#D4AF37]/10 border border-[#D4AF37]/35 text-[#D4AF37] hover:bg-[#D4AF37]/20 text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded transition"
+                      className="bg-[var(--gold)]/10 border border-[var(--gold-border)] text-[var(--gold)] hover:bg-[var(--gold)]/20 text-[9px] font-semibold tracking-wide px-2 py-1 rounded transition"
                     >
                       Configure
                     </button>
@@ -2094,7 +2094,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="Search plan calibration, zonation, nesting, lighting tools..."
-          className="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-550 outline-none focus:border-[#D4AF37]"
+          className="flex-1 bg-slate-900 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-550 outline-none focus:border-[var(--gold)]"
         />
         <div className="flex flex-wrap gap-1">
           {categories.map(cat => (
@@ -2103,7 +2103,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition ${
                 selectedCategory === cat
-                  ? 'bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
+                  ? 'bg-[var(--gold)]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
                   : 'bg-slate-900 border border-slate-850 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -2122,7 +2122,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
               setActiveTool(t);
               setToolResult(null);
             }}
-            className="bg-slate-900/40 border border-slate-850 hover:border-[#D4AF37]/50 p-4 rounded-2xl flex flex-col justify-between transition cursor-pointer hover:bg-[#D4AF37]/2 text-left"
+            className="bg-slate-900/40 border border-slate-850 hover:border-[#D4AF37]/50 p-4 rounded-2xl flex flex-col justify-between transition cursor-pointer hover:bg-[var(--gold)]/2 text-left"
           >
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -2153,7 +2153,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--gold)]/10 border border-[#D4AF37]/30 text-[#D4AF37] flex items-center justify-center">
                   {getToolIcon(activeTool.icon)}
                 </div>
                 <div>
@@ -2205,7 +2205,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                         onClick={() => setLightPreset(p.id)}
                         className={`p-2 rounded-xl border text-center transition flex flex-col gap-0.5 cursor-pointer ${
                           lightPreset === p.id 
-                            ? 'bg-[#D4AF37]/15 border-[#D4AF37]/60 text-[#D4AF37] font-bold' 
+                            ? 'bg-[var(--gold)]/15 border-[#D4AF37]/60 text-[#D4AF37] font-bold' 
                             : 'bg-slate-950/40 border-slate-850 hover:border-slate-800 text-slate-400'
                         }`}
                       >
@@ -2259,7 +2259,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                   <select 
                     value={elevationWall} 
                     onChange={e => setElevationWall(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
+                    className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[var(--gold)]"
                   >
                     <option value="North Wall">North Wall (Master Bedroom Console Wall)</option>
                     <option value="South Wall">South Wall (Entry Door & Wardrobe Wall)</option>
@@ -2284,7 +2284,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                         onClick={() => setSwatchType(s.id)}
                         className={`p-2 rounded-xl border text-center transition flex flex-col gap-0.5 cursor-pointer ${
                           swatchType === s.id 
-                            ? 'bg-[#D4AF37]/15 border-[#D4AF37]/60 text-[#D4AF37] font-bold' 
+                            ? 'bg-[var(--gold)]/15 border-[#D4AF37]/60 text-[#D4AF37] font-bold' 
                             : 'bg-slate-950/40 border-slate-850 hover:border-slate-800 text-slate-400'
                         }`}
                       >
@@ -2340,7 +2340,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
             <button
               onClick={handleRunTool}
               disabled={isRunning}
-              className="w-full py-3 bg-[#D4AF37] hover:bg-[#e6c045] disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#D4AF37]/5 cursor-pointer"
+              className="w-full py-3 bg-[var(--gold)] hover:bg-[var(--gold-bright)] disabled:bg-slate-800 disabled:text-slate-500 text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#D4AF37]/5 cursor-pointer"
             >
               {isRunning ? (
                 <>
@@ -2445,7 +2445,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                         setActiveTool(null);
                         onNavigateToTab('materials');
                       }}
-                      className="bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[9px] px-3.5 py-2 rounded-xl transition"
+                      className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-[10px] font-semibold tracking-wide px-3.5 py-2 rounded-xl transition"
                     >
                       Assign Finish
                     </button>
@@ -2458,7 +2458,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                     <div className="w-[120px] h-[100px] border border-[#D4AF37]/50 rounded transform rotate-x-45 rotate-z-45 relative flex items-center justify-center" style={{ transform: 'perspective(400px) rotateX(60deg) rotateZ(-45deg)' }}>
                       <div className="absolute inset-0 border-t-2 border-r-2 border-indigo-400 bg-indigo-950/20 translate-z-10" style={{ transform: 'translateZ(30px)' }}></div>
                       <div className="absolute inset-0 border-b-2 border-l-2 border-indigo-400 bg-indigo-950/20"></div>
-                      <div className="absolute left-0 bottom-0 top-0 w-px bg-[#D4AF37] h-[30px]" style={{ transform: 'rotateX(-90deg) origin(bottom left)' }}></div>
+                      <div className="absolute left-0 bottom-0 top-0 w-px bg-[var(--gold)] h-[30px]" style={{ transform: 'rotateX(-90deg) origin(bottom left)' }}></div>
                       <span className="font-mono text-[7px] text-[#D4AF37] absolute -top-5">Extruded Wireframe</span>
                     </div>
                   </div>
@@ -2575,7 +2575,7 @@ function SettingsWorkspace() {
             <input className="sm:col-span-1" value={provider} onChange={e=>setProvider(e.target.value)} placeholder="provider" style={inputStyle} />
             <input className="sm:col-span-2" value={keyValue} onChange={e=>setKeyValue(e.target.value)} placeholder="sk-..." style={inputStyle} />
           </div>
-          <button onClick={saveKey} disabled={busy} className="px-4 py-2 rounded-xl bg-[#C9A84C] text-slate-950 text-[10px] font-black uppercase tracking-wider disabled:opacity-50">{busy ? 'Saving…' : 'Save Key'}</button>
+          <button onClick={saveKey} disabled={busy} className="px-4 py-2 rounded-xl bg-[var(--gold)] text-[#0A0A0D] text-xs font-semibold tracking-wide disabled:opacity-50">{busy ? 'Saving…' : 'Save Key'}</button>
           <div className="space-y-2">
             {keys.map(k => (
               <div key={k.id} className="flex items-center justify-between bg-slate-950/60 border border-slate-850 rounded-xl px-3 py-2">
@@ -2611,7 +2611,7 @@ function SettingsWorkspace() {
               <span className="text-[11px] font-mono text-slate-300">{brand.logoColor}</span>
             </div>
           </div>
-          <button onClick={saveBrand} className="px-4 py-2 rounded-xl bg-[#C9A84C] text-slate-950 text-[10px] font-black uppercase tracking-wider">Save Branding</button>
+          <button onClick={saveBrand} className="px-4 py-2 rounded-xl bg-[var(--gold)] text-[#0A0A0D] text-xs font-semibold tracking-wide">Save Branding</button>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import {
   BarChart3, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, Zap,
   CheckCircle2, Clock, Layers, IndianRupee,
-  TrendingUp, ArrowRight, Bell, Award
+  TrendingUp, ArrowRight, Bell, Award, Paintbrush
 } from 'lucide-react';
 
 // Import Screens
@@ -17,6 +17,7 @@ import TimelineScreen         from './screens/TimelineScreen.jsx';
 import JobsScreen             from './screens/JobsScreen.jsx';
 import CommandCenterScreen    from './screens/CommandCenterScreen.jsx';
 import AuraBrainChat          from './components/layout/AuraBrainChat.jsx';
+import AiStatusBanner         from './components/shell/AiStatusBanner.jsx';
 
 // Heavy screens are code-split (lazy) so the initial bundle stays small and fast.
 const DrawingsElevationsStudio = lazy(() => import('./screens/DrawingsElevationsStudio.jsx'));
@@ -26,6 +27,8 @@ const CutlistNestingScreen     = lazy(() => import('./screens/CutlistNestingScre
 const DesignStudioScreen       = lazy(() => import('./screens/DesignStudioScreen.jsx'));
 import PresentationStudio       from './screens/PresentationStudio.jsx';
 import PipelineStudio            from './screens/PipelineStudio.jsx';
+const WhiteLabelStudio          = lazy(() => import('./screens/WhiteLabelStudio.jsx'));
+const LandingPage               = lazy(() => import('./components/landing/LandingPage.jsx'));
 
 
 const STATUS_ORDER = ['brief','cad_approved','scene_ready','materials_selected','renders_approved','production','billing'];
@@ -73,7 +76,8 @@ const NAV_CONFIG = [
     title: 'Client Delivery',
     items: [
       { id: 'presentation',  label: 'Presentation Pack',   icon: Award,        shortcut: null },
-      { id: 'pipeline',      label: 'Pipeline Studio',     icon: Sparkles,     shortcut: null }
+      { id: 'pipeline',      label: 'Pipeline Studio',     icon: Sparkles,     shortcut: null },
+      { id: 'brand',         label: 'Brand Studio',        icon: Paintbrush,   shortcut: null }
     ]
   }
 ];
@@ -119,6 +123,7 @@ const STATUS_COLOR = {
 };
 
 export function App() {
+  const [view, setView] = useState(() => (location.hash === '#view=landing' ? 'landing' : 'studio'));
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('ultida_tab') || 'dashboard');
   const [selectedProjectId, setSelectedProjectId] = useState(() => localStorage.getItem('ultida_project') || null);
   const [projectsList, setProjectsList]   = useState([]);
@@ -212,6 +217,19 @@ export function App() {
     if (selectedProjectId) localStorage.setItem('ultida_project', selectedProjectId);
     else localStorage.removeItem('ultida_project');
   }, [selectedProjectId]);
+
+  // ── Hash routing (landing vs studio) ──
+  useEffect(() => {
+    const sync = () => {
+      const h = location.hash;
+      if (h === '#view=landing') setView('landing');
+      else if (h === '#view=studio') setView('studio');
+    };
+    sync();
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
+  const goLanding = (v) => { setView(v); location.hash = v === 'landing' ? '#view=landing' : '#view=studio'; };
 
   // ── Global nav event ──
   useEffect(() => {
@@ -383,9 +401,19 @@ export function App() {
       case 'jobs':          return <JobsScreen projectId={selectedProjectId} />;
       case 'presentation':  return <PresentationStudio projectId={selectedProjectId} />;
       case 'pipeline':      return <PipelineStudio projectId={selectedProjectId} />;
+      case 'brand':         return <WhiteLabelStudio onBack={() => setActiveTab('dashboard')} />;
       default:              return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
     }
   };
+
+  // ── Landing (public marketing surface) ──
+  if (view === 'landing') {
+    return (
+      <Suspense fallback={<div style={{ padding:40, color:'var(--text-secondary)' }}>Loading…</div>}>
+        <LandingPage onEnterApp={() => goLanding('studio')} />
+      </Suspense>
+    );
+  }
 
   const meta = TAB_META[activeTab] || {};
 
@@ -595,6 +623,17 @@ export function App() {
 
           {/* Right: Controls */}
           <div className="app-header-actions" style={{ display:'flex', alignItems:'center', gap:'10px', flexShrink:0 }}>
+            {/* Public-site pill */}
+            <button
+              onClick={() => goLanding('landing')}
+              title="View public marketing site"
+              style={{ display:'flex', alignItems:'center', gap:'5px', padding:'6px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.10)', color:'var(--text-secondary)', fontSize:'11px', fontWeight:600, cursor:'pointer', background:'transparent' }}
+            >
+              <ArrowRight style={{ width:12, height:12 }} /> Public site
+            </button>
+
+            <div style={{ width:1, height:20, background:'rgba(255,255,255,0.07)' }} />
+
             {/* AURA toggle */}
             <button
               onClick={() => setIsAuraOpen(v => !v)}
@@ -683,6 +722,9 @@ export function App() {
             onClose={() => setIsAuraOpen(false)}
           />
         </div>
+
+        {/* ── AI status banner (honest live/render-readiness) ── */}
+        <AiStatusBanner onOpenSetup={() => setActiveTab('brand')} />
       </main>
     </div>
   );
