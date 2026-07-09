@@ -366,7 +366,7 @@ export function App() {
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'AURA request failed');
       const reply = data.reply || { text: 'No response', toolCalls: [] };
-      setChatMessages(p => [...p, { id: reply.id || `a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text: reply.text, toolCalls: reply.toolCalls || [], intent: reply.intent || null }]);
+      setChatMessages(p => [...p, { id: reply.id || `a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text: reply.text, toolCalls: reply.toolCalls || [], intent: reply.intent || null, llmPowered: Boolean(reply.llmPowered), model: reply.model || null }]);
     } catch (err) {
       setChatMessages(p => [...p, { id:`a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text:`AURA is temporarily unreachable: ${err.message}. Using offline mode.`, toolCalls:[], intent:null }]);
       window.__toast?.warn(err.message || 'AURA offline');

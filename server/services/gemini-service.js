@@ -111,3 +111,109 @@ export async function refineRenderPromptWithGemini({ prompt, room, style, budget
 
   return { prompt, provider: 'deterministic-compiler', refined: false };
 }
+
+/**
+ * chatWithAura — real conversational LLM call for the AURA co-pilot.
+ * Tries OpenRouter (meta-llama/llama-3.3-70b-instruct:free) first, falls back
+ * to Gemini (gemini-2.5-flash) when OpenRouter is rate-limited/unavailable.
+ * Returns { text, toolId, model } or null (caller then uses rule engine).
+ */
+export async function chatWithAura({ message, history = [], tools = [] }) {
+  const toolList = tools.map(t => `- ${t.id}: ${t.label} (triggers action "${t.action}")`).join('\n');
+  const system = [
+    'You are AURA, an AI design co-pilot for an Indian interior-design studio (ULTIDA).',
+    'You help with elevations, 3D renders, floorplan detection, cutlists, budget optimization,',
+    'Vastu checks, and client handoff. Be concise, professional, and use Indian residential context.',
+    'If the user clearly wants a specific action executed, end your reply with a single line:',
+    'ACTION:<toolId> where toolId is one of:',
+    toolList,
+    'Otherwise just answer conversationally. Do not invent dimensions or claim actions you did not take.'
+  ].join('\n');
+  const messages = [
+    { role: 'system', content: system },
+    ...history.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
+    { role: 'user', content: message }
+  ];
+
+  // 1) OpenRouter (with one 429-aware retry)
+  const orResult = await callOpenRouterChat(messages);
+  if (orResult) return orResult;
+
+  // 2) Gemini fallback (higher free quota, avoids OpenRouter 429s)
+  const gemResult = await callGeminiChat(system, message, history);
+  if (gemResult) return gemResult;
+
+  return null;
+}
+
+async function callOpenRouterChat(messages) {
+  const key = openRouterKey();
+  if (!key) return null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`,
+          'HTTP-Referer': process.env.APP_URL || 'http://127.0.0.1:5055',
+          'X-Title': 'ULTIDA AURA'
+        },
+        body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct:free', messages, temperature: 0.4 })
+      });
+      if (response.status === 429) {
+        const retryAfter = Number(response.headers.get('retry-after') || '3');
+        console.warn(`AURA chat: OpenRouter 429, retry in ${retryAfter}s`);
+        await new Promise(r => setTimeout(r, Math.min(retryAfter, 5) * 1000));
+        continue;
+      }
+      if (!response.ok) { console.warn(`AURA chat failed: OpenRouter ${response.status}`); return null; }
+      const payload = await response.json();
+      const content = payload?.choices?.[0]?.message?.content?.trim();
+      if (!content) return null;
+      return parseAuraReply(content, payload?.model || 'meta-llama/llama-3.3-70b-instruct:free');
+    } catch (err) {
+      console.warn('AURA chat error:', err.message);
+      return null;
+    }
+  }
+  return null;
+}
+
+async function callGeminiChat(system, message, history) {
+  const status = getGeminiStatus();
+  if (!status.configured || !status.enabled) return null;
+  const parts = [
+    system,
+    ...history.slice(-6).flatMap(m => [`${m.role === 'user' ? 'User' : 'AURA'}: ${m.text}`]),
+    `User: ${message}`
+  ].join('\n');
+  for (const apiKey of geminiKeys()) {
+    try {
+      const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${status.model}:generateContent`);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey },
+        body: JSON.stringify({ contents: [{ parts: [{ text: parts }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 800 } })
+      });
+      if (!response.ok) {
+        if (![401, 403, 429].includes(response.status)) console.warn(`AURA Gemini fallback ${response.status}`);
+        continue;
+      }
+      const payload = await response.json();
+      const content = payload?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join(' ').trim();
+      if (!content) continue;
+      return parseAuraReply(content, `gemini:${status.model}`);
+    } catch (err) {
+      console.warn('AURA Gemini chat error:', err.message);
+    }
+  }
+  return null;
+}
+
+function parseAuraReply(content, model) {
+  const actionMatch = content.match(/ACTION:([a-z_]+)\s*$/i);
+  const text = actionMatch ? content.replace(/ACTION:[a-z_]+\s*$/i, '').trim() : content;
+  const toolId = actionMatch ? actionMatch[1].toLowerCase() : null;
+  return { text: text || content, toolId, model };
+}
