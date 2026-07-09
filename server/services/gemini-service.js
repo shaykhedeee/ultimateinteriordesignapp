@@ -60,6 +60,7 @@ export async function refineRenderPromptWithGemini({ prompt, room, style, budget
     'Preserve these non-negotiable render constraints: Lumion-like professional 3D architectural render, no humans, no human figures, no silhouettes, no mannequins, no pets, no text, no logos, no watermarks, no fantasy objects, no unrequested furniture.',
     'Keep it concise enough for an image model, but explicit about layout accuracy and Indian residential context.',
     'Return only the rewritten prompt without markdown or commentary.',
+    'MANDATORY SUFFIX — append verbatim, do not alter: ULTIDA signature luxury Indian-modern interior language: warm-white/cream plaster walls, beige marble-vein floors, two-tone walnut/charcoal ribbed cabinetry, slim black handles, warm 2700K LED cove + arched-mirror halo, channel-tufted sage/teal headboard, houndstooth throw, brass accents, no cold corporate palette.',
     `Room: ${room}. Style: ${style}. Budget tier: ${budgetTier}.`,
     `Layout constraints JSON: ${JSON.stringify(layoutConstraints)}.`,
     `Source prompt: ${prompt}`

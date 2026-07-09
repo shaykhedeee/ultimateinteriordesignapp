@@ -524,7 +524,10 @@ async function tryGenerateHuggingFaceImage({ id, projectId, room, safeRoom, titl
 
 async function tryGeneratePollinationsImage({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags }) {
   try {
-    if (process.env.LIVE_IMAGE_GEN !== 'true') return null;
+    // Pollinations is the keyless real-image provider and is ON by default so
+    // photoreal renders work out-of-the-box (no API key required). It only
+    // stands down when explicitly disabled. A BYOK key or LIVE_IMAGE_GEN=true
+    // still takes precedence for the premium providers.
     if (process.env.POLLINATIONS_ENABLED === 'false') return null;
     const width = Number(process.env.POLLINATIONS_IMAGE_WIDTH || 1280);
     const height = Number(process.env.POLLINATIONS_IMAGE_HEIGHT || 720);

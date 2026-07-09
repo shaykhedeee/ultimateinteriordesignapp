@@ -1227,6 +1227,10 @@ export async function generateFastRenderVariants(projectId, params = {}) {
   });
   renderPlan.sourcePrompt = renderPlan.prompt;
   renderPlan.prompt = refinement.prompt;
+  // Guarantee the ULTIDA signature language survives LLM refinement.
+  if (!/ULTIDA signature/i.test(renderPlan.prompt)) {
+    renderPlan.prompt = `${renderPlan.prompt} ULTIDA signature luxury Indian-modern interior language: warm-white/cream plaster walls, beige marble-vein floors, two-tone walnut/charcoal ribbed cabinetry, slim black handles, warm 2700K LED cove + arched-mirror halo, channel-tufted sage/teal headboard, houndstooth throw, brass accents, no cold corporate palette.`;
+  }
   renderPlan.promptRefinement = {
     provider: refinement.provider,
     refined: refinement.refined,
