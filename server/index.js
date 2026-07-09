@@ -35,6 +35,7 @@ import { buildElevationDXF } from './services/dxf-writer.js';
 import { renderElevationPDF, renderCombinedElevationsPDF } from './services/pdf-elevation.js';
 import { getAllDecodedModels, DECODED_UNITS } from './services/render-elevation-decode.js';
 import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
+import { buildShoeRackDXF, buildShoeRackPDF, shoeRackModel } from './services/shoe-rack.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu } from './services/vastu-auto.js';
@@ -164,6 +165,38 @@ app.post('/api/projects/:id/elevations/jali-panel', express.json(), async (req, 
     const pdf = await buildJaliPanelPDF({ widthMm, heightMm, name, projectId: req.params.id });
     fs.writeFileSync(path.join(outDir, pdfName), pdf);
     res.json({ success: true, dxf: `/storage/elevations/${dxfName}`, pdf: `/storage/elevations/${pdfName}`, widthMm, heightMm, name });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Generate a parametric SHOE RACK / entry cabinet DXF + PDF (photo-accurate, standard dims)
+app.post('/api/projects/:id/elevations/shoe-rack', express.json(), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const opts = {
+      tallWidth: Number(b.tallWidth) || undefined,
+      benchWidth: Number(b.benchWidth) || undefined,
+      totalHeight: Number(b.totalHeight) || undefined,
+      benchHeight: Number(b.benchHeight) || undefined,
+      depth: Number(b.depth) || undefined,
+      topCabH: Number(b.topCabH) || undefined,
+      shoeShelves: Number(b.shoeShelves) || undefined,
+      drawerH: Number(b.drawerH) || undefined,
+      plinthH: Number(b.plinthH) || undefined,
+      led: b.led !== false,
+      handleStyle: ['bar', 'knob', 'none'].includes(b.handleStyle) ? b.handleStyle : 'bar',
+      shutterFinish: (b.shutterFinish || 'LACQUER / LAMINATE (18mm)').toString().slice(0, 60),
+      carcassFinish: (b.carcassFinish || 'MR PLYWOOD (18mm)').toString().slice(0, 60),
+      projectId: req.params.id,
+    };
+    const outDir = path.join(__dirname, '..', 'storage', 'elevations');
+    fs.mkdirSync(outDir, { recursive: true });
+    const ts = Date.now().toString(36);
+    const dxfName = `shoe-rack-${ts}.dxf`;
+    const pdfName = `shoe-rack-${ts}.pdf`;
+    fs.writeFileSync(path.join(outDir, dxfName), buildShoeRackDXF(opts), 'utf8');
+    const pdf = await buildShoeRackPDF(opts);
+    fs.writeFileSync(path.join(outDir, pdfName), pdf);
+    res.json({ success: true, dxf: `/storage/elevations/${dxfName}`, pdf: `/storage/elevations/${pdfName}`, name: 'Shoe Rack', opts });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 

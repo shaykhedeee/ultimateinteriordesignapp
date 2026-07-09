@@ -15,6 +15,8 @@
  *   - entry    : off-white two-tone shutters + dark open shoe shelves, underlight
  *   - vanity   : arched backlit mirror + espresso column + cream shutter + base LED
  */
+import { buildElevationDXF } from './dxf-writer.js';
+import { shoeRackModel } from './shoe-rack.js';
 const cab = (o) => ({
   type: o.type || 'door',
   widthMm: o.w, heightMm: o.h, depthMm: o.d || 600,
@@ -143,6 +145,7 @@ export const DECODED_UNITS = {
   'entry': entryModel,
   'vanity': vanityModel,
   'kitchen-pantry': kitchenPantryModel,
+  'shoe-rack': shoeRackModel,
 };
 
 export function getAllDecodedModels() {
