@@ -436,6 +436,21 @@ app.get('/api/projects/:id', (req, res) => {
   res.json(project);
 });
 
+// Edit project core fields (name, client_name, budget, status)
+app.patch('/api/projects/:id', express.json(), (req, res) => {
+  try {
+    const existing = db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: "Project not found" });
+    const name = (req.body.name ?? existing.name ?? '').toString().trim();
+    const client_name = (req.body.client_name ?? existing.client_name ?? '').toString().trim();
+    const budget = req.body.budget !== undefined ? (req.body.budget === '' || req.body.budget == null ? null : Number(req.body.budget)) : existing.budget;
+    const status = (req.body.status ?? existing.status ?? '').toString().trim();
+    db.prepare("UPDATE projects SET name = ?, client_name = ?, budget = ?, status = ? WHERE id = ?")
+      .run(name, client_name, budget, status, req.params.id);
+    res.json({ success: true, project: db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 // Update project status/stage
 app.post('/api/projects/:id/status', (req, res) => {
   const { status, currentStep } = req.body;

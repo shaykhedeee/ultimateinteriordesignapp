@@ -13,6 +13,31 @@ const SUGGESTIONS = [
   "🪴 Add 3 Monstera plants for biophilic +12 pts"
 ];
 
+// Derive real, project-aware insights from the selected project so the
+// AURA Insights panel is never empty and always relevant to the work at hand.
+function buildInsights(project) {
+  if (!project || !project.name) {
+    return SUGGESTIONS.map(s => ({ text: s.replace(/^[^\s]*\s*/, ''), prompt: s.replace(/^[^\s]*\s*/, ''), tone: 'info' }));
+  }
+  const insights = [];
+  const budget = Number(project.budget) || 0;
+  if (!budget) {
+    insights.push({ text: `Set a budget for “${project.name}” to unlock cost optimisation`, prompt: `What budget should I plan ${project.name} around?`, tone: 'warn' });
+  } else {
+    insights.push({ text: `Budget ₹${(budget/100000).toFixed(1)}L allocated — optimise joinery cost`, prompt: `Optimise the joinery cost for ${project.name}'s ₹${(budget/100000).toFixed(1)}L budget`, tone: 'info' });
+  }
+  const status = (project.status || '').replace(/_/g, ' ');
+  if (status && status !== 'production') {
+    insights.push({ text: `Stage: ${status}. Generate elevations to advance`, prompt: `Generate 2D elevations for ${project.name}`, tone: 'info' });
+  }
+  insights.push({ text: `Generate photoreal renders for ${project.name}`, prompt: `Generate 3D photoreal renders for ${project.name}`, tone: 'info' });
+  insights.push({ text: `Run Vastu check on ${project.name}`, prompt: `Run a Vastu compliance check on ${project.name}`, tone: 'info' });
+  if (status === 'production') {
+    insights.push({ text: `Build delivery package (SKP + DXF + cutlist)`, prompt: `Build the full delivery package for ${project.name}`, tone: 'info' });
+  }
+  return insights;
+}
+
 export default function AuraBrainChat({
   messages, onSendMessage, onExecuteAction,
   project, isOpen, onClose
@@ -264,27 +289,26 @@ export default function AuraBrainChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Proactive Suggestions ── */}
+      {/* ── Proactive Insights (dynamic, project-aware) ── */}
       <div style={S.suggestionsBar}>
         <span style={{ fontSize:'8.5px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--text-muted)', display:'block', marginBottom:'6px' }}>
           AURA Insights
         </span>
-        <div style={{ maxHeight:'80px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'3px' }}>
-          {SUGGESTIONS.map((sug, i) => (
+        <div style={{ maxHeight:'92px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'3px' }}>
+          {buildInsights(project).map((ins, i) => (
             <button
               key={i}
-              onClick={() => setInputText(sug.replace(/^[^\s]*\s*/, ''))}
+              onClick={() => setInputText(ins.prompt)}
               style={{
-                textAlign:'left', fontSize:'10px', color:'var(--text-secondary)', fontWeight:500,
+                textAlign:'left', fontSize:'10px', color: ins.tone === 'warn' ? '#fcd34d' : 'var(--text-secondary)', fontWeight:500,
                 padding:'5px 8px', borderRadius:'7px', cursor:'pointer',
-                background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.04)',
-                overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                background: ins.tone === 'warn' ? 'rgba(250,204,21,0.06)' : 'rgba(255,255,255,0.025)', border:'1px solid ' + (ins.tone === 'warn' ? 'rgba(250,204,21,0.18)' : 'rgba(255,255,255,0.04)'),
                 transition:'all 0.15s'
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(99,102,241,0.3)'; e.currentTarget.style.color='#c7d2fe'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(255,255,255,0.04)'; e.currentTarget.style.color='var(--text-secondary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = ins.tone === 'warn' ? 'rgba(250,204,21,0.18)' : 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = ins.tone === 'warn' ? '#fcd34d' : 'var(--text-secondary)'; }}
             >
-              {sug}
+              {ins.tone === 'warn' ? '⚠ ' : '💡 '}{ins.text}
             </button>
           ))}
         </div>

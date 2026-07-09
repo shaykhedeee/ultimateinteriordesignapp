@@ -284,7 +284,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                     </div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'9.5px', color:'var(--text-muted)', fontWeight:500 }}>
                       <span>{p.client_name || '—'}</span>
-                      <span style={{ fontFamily:'monospace', color: isActive ? 'var(--gold)' : 'var(--text-muted)' }}>₹{p.budget ? `${(p.budget/100000).toFixed(1)}L` : '0L'}</span>
+                      <span style={{ fontFamily:'monospace', color: isActive ? 'var(--gold)' : 'var(--text-muted)' }}>{p.budget ? `₹${(p.budget/100000).toFixed(1)}L` : '—'}</span>
                     </div>
                   </div>
                 );

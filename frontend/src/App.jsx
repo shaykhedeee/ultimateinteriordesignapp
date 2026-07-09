@@ -159,7 +159,7 @@ export function App() {
   const [stats, setStats] = useState({ totalLeads:0, qualifiedLeads:0, activeProjects:0, conversionPct:0 });
   const [chatMessages, setChatMessages] = useState([{
     id:'1', sender:'aura',
-    text:"Hello! I am AURA — your AI design co-pilot. Ask me to restyle rooms, suggest lighting configurations, or optimise your modular cabinet budget.",
+    text:"Hello! I am AURA — your AI design co-pilot. I can help with elevations, renders, floorplan detection, cutlist, budget optimisation, and client handoff. Pick a project and choose an action to execute directly.",
     timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
   }]);
   const [toasts, setToasts] = useState([]);
