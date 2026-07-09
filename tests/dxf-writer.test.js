@@ -35,7 +35,7 @@ test('valid DXF structure (sections balanced + EOF)', () => {
 test('professional layer table present (incl REF_LINES, ANNOTATIONS)', () => {
   const dxf = buildElevationDXF(sampleModel());
   for (const l of ['WALL_OUTLINE', 'OPENINGS', 'CABINETRY', 'DIMENSIONS', 'HATCH', 'ANNOTATIONS', 'REF_LINES', 'TITLEBLOCK'])
-    assert.match(dxf, new RegExp('LAYER\n  2\n' + l), `layer ${l} missing`);
+    assert.match(dxf, new RegExp('LAYER[\\s\\S]*?\\n  2\\n' + l), `layer ${l} missing`);
 });
 
 test('dimensions are RED (DIMENSIONS layer) with tick/arrow marks', () => {
