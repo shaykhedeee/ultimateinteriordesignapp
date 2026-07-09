@@ -2810,13 +2810,34 @@ app.delete('/api/settings/api-keys/:id', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/settings/api-keys/test', express.json(), (req, res) => {
+app.post('/api/settings/api-keys/test', express.json(), async (req, res) => {
   try {
     const { provider, key_value } = req.body || {};
     if (!provider || !key_value) return res.status(400).json({ success:false, error:'provider and key_value required' });
+    const p = provider.toLowerCase();
+    const masked = String(key_value).slice(0,4)+'...'+String(key_value).slice(-4);
+
+    // Real connectivity check for the two render providers we actually use.
+    if (p.includes('gemini') || p.includes('google')) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key_value)}`, { method:'GET' });
+        return res.json({ success:true, status: r.ok ? 'live_ok' : 'live_failed', httpStatus: r.status, provider, masked, note: r.ok ? 'Key is valid and reached Google.' : 'Google rejected the key (check permissions / model access).' });
+      } catch (e) {
+        return res.json({ success:true, status:'network_unreachable', provider, masked, note: 'Could not reach Google. Server needs outbound internet. ' + e.message });
+      }
+    }
+    if (p.includes('openai')) {
+      try {
+        const r = await fetch('https://api.openai.com/v1/models', { method:'GET', headers:{ 'Authorization': `Bearer ${key_value}` } });
+        return res.json({ success:true, status: r.ok ? 'live_ok' : 'live_failed', httpStatus: r.status, provider, masked, note: r.ok ? 'Key is valid and reached OpenAI.' : 'OpenAI rejected the key.' });
+      } catch (e) {
+        return res.json({ success:true, status:'network_unreachable', provider, masked, note: 'Could not reach OpenAI. Server needs outbound internet. ' + e.message });
+      }
+    }
+
     const providers = ['openai','anthropic','google','gemini','pollinations','stability','midjourney'];
-    const ok = providers.some(pr => provider.toLowerCase().includes(pr));
-    res.json({ success:true, status: ok ? 'valid_format' : 'unknown_provider', provider, masked: String(key_value).slice(0,4)+'...'+String(key_value).slice(-4), note:'Format validation passed. Live connectivity requires outbound test call, provided your server has internet.' });
+    const ok = providers.some(pr => p.includes(pr));
+    res.json({ success:true, status: ok ? 'valid_format' : 'unknown_provider', provider, masked, note:'Format validation passed (no live connectivity check available for this provider).' });
   } catch (err) { res.status(500).json({ success:false, error: err.message }); }
 });
 
