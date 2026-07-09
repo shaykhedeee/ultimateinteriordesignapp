@@ -42,6 +42,7 @@ import { previewVastu, applyVastu } from './services/vastu-auto.js';
 import { applyKitchenTemplate } from './services/kitchen-templates.js';
 import { getTvUnitLibrary, applyTvUnit } from './services/tv-unit-library.js';
 import { traceDxf } from './services/dxf-trace.js';
+import { checkAccess, PRODUCTS } from './services/subscription-validator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -147,7 +148,29 @@ app.post('/api/projects/:id/elevations/from-renders', express.json(), async (req
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// Generate a standalone CNC JALI / lattice panel DXF + PDF (reusable jali front)
+// Image-generation provider status (used by Pipeline / Render studios to show
+// which providers are live). Was previously 404 — now returns the real,
+// key-aware provider priority so the UI can display active providers.
+function activeImageProviders() {
+  const has = (k) => !!(process.env[k] && String(process.env[k]).trim().length >= 8);
+  const list = [
+    { id: 'openai',      name: 'OpenAI (DALL-E / GPT-Image)', envKey: 'OPENAI_API_KEY' },
+    { id: 'freepik',     name: 'Freepik Flux-Dev',           envKey: 'FREEPIK_API_KEY' },
+    { id: 'huggingface', name: 'HuggingFace FLUX',            envKey: 'HUGGINGFACE_API_KEY' },
+    { id: 'replicate',   name: 'Replicate Flux',             envKey: 'REPLICATE_API_KEY' },
+    { id: 'imagineart',  name: 'Imagine.Art Visualizer',     envKey: 'IMAGINEART_API_KEY' },
+    { id: 'pollinations',name: 'Pollinations (free fallback)',envKey: null },
+  ];
+  return list.map(p => ({ ...p, active: p.envKey ? has(p.envKey) : (process.env.POLLINATIONS_ENABLED !== 'false') }));
+}
+app.get('/api/pipeline/providers', (req, res) => {
+  const providers = activeImageProviders();
+  res.json({ success: true, liveImageGen: process.env.LIVE_IMAGE_GEN === 'true', providers, active: providers.filter(p => p.active).map(p => p.id) });
+});
+app.get('/api/render/providers', (req, res) => {
+  const providers = activeImageProviders();
+  res.json({ success: true, liveImageGen: process.env.LIVE_IMAGE_GEN === 'true', providers, active: providers.filter(p => p.active).map(p => p.id) });
+});
 app.post('/api/projects/:id/elevations/jali-panel', express.json(), async (req, res) => {
   try {
     const widthMm = Number(req.body?.widthMm) || 600;
@@ -832,7 +855,7 @@ app.post('/api/projects/:id/floorplan', upload.any(), (req, res) => {
 // REAL: parses the DXF entity stream (LINE / LWPOLYLINE) to true-mm wall
 // segments, writes cad_drawings.walls_json + pixels_per_meter, then runs
 // interpretFloorPlan so the canonical journey proceeds without manual tracing.
-app.post('/api/projects/:id/floorplan/auto-trace', dxfUpload.single('floorplan'), async (req, res) => {
+app.post('/api/projects/:id/floorplan/auto-trace', checkAccess(PRODUCTS.PLAN_INTELLIGENCE), dxfUpload.single('floorplan'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No floorplan file provided' });
     const projectId = req.params.id;
@@ -1167,7 +1190,7 @@ app.post('/api/projects/:id/cad', (req, res) => {
 });
 
 // AI Auto-Detect Layout and Place Furniture Modules
-app.post('/api/projects/:id/cad/ai-detect', (req, res) => {
+app.post('/api/projects/:id/cad/ai-detect', checkAccess(PRODUCTS.PLAN_INTELLIGENCE), (req, res) => {
   try {
     const projectId = req.params.id;
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
@@ -1384,7 +1407,7 @@ app.get('/api/projects/:id/renders', (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/projects/:id/renders/generate', visualizerFields, async (req, res) => {
+app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDIO), visualizerFields, async (req, res) => {
   try {
     const projectId = req.params.id;
     const sitePhotoFile = req.files?.['sitePhoto']?.[0];
@@ -1602,7 +1625,7 @@ app.post('/api/projects/:id/renders', (req, res) => {
   res.json({ success: true, message: "Renders approved successfully" });
 });
 
-app.get('/api/projects/:id/renders/sketchup', (req, res) => {
+app.get('/api/projects/:id/renders/sketchup', checkAccess(PRODUCTS.PRODUCTION_NESTING), (req, res) => {
   const render = db.prepare("SELECT * FROM design_renders WHERE project_id = ? ORDER BY created_at DESC LIMIT 1").get(req.params.id);
   if (!render) return res.status(404).json({ error: "No renders created yet" });
   res.setHeader('Content-Type', 'text/plain');

@@ -706,5 +706,6 @@ try {
   );`).run();
 } catch (e) { console.warn("api_keys schema warn:", e.message); }
 
-export default db;
+import dbClient from './db-client.js';
+export default dbClient;
 
