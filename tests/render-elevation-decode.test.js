@@ -1,7 +1,7 @@
 /**
  * tests/render-elevation-decode.test.js
  * Proves the decoded-3D-render elevation pipeline works end-to-end:
- *   - the service exposes 6 decoded unit builders
+ *   - the service exposes 7 decoded unit builders (incl. kitchen-pantry)
  *   - the API route produces real DXF (SECTION/EOF) + real PDF (%PDF-)
  *     files for each unit on demand.
  * (Server must be running on 127.0.0.1:5055.)
@@ -16,9 +16,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.APP_URL || 'http://127.0.0.1:5055';
 const OUT = path.join(__dirname, '..', 'storage', 'elevations');
 
-test('decode service exposes 6 decoded unit builders', async () => {
+test('decode service exposes >=6 decoded unit builders (incl. kitchen-pantry)', async () => {
   const mod = await import('../server/services/render-elevation-decode.js');
-  assert.equal(Object.keys(mod.DECODED_UNITS).length, 6);
+  assert.equal(Object.keys(mod.DECODED_UNITS).length, 7);
+  assert.ok(mod.DECODED_UNITS['kitchen-pantry'], 'kitchen-pantry registered');
   for (const [k, fn] of Object.entries(mod.DECODED_UNITS)) {
     const m = fn();
     assert.ok(m.lengthMm > 0 && m.heightMm > 0, `${k} has dims`);
