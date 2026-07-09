@@ -283,6 +283,83 @@ export function kitchenWallBModel() {
   return baseModel('KITCHEN-WALL-B','KITCHEN WALL B — SINK + WINDOW ELEVATION',L,H,650,T,c,[{ type:'window', offsetMm:1000, sillMm:1000, widthMm:800, headMm:1750 }]);
 }
 
+// ============================================================================
+// JULY REFERENCE PHOTOS — 3 additional units traced to user's new photos.
+// ============================================================================
+
+// PHOTO 1: cream/dark wardrobe + arched-mirror vanity (warm LED halo).
+export function wardrobeVanityModel() {
+  const L = 1300, H = 2400, T = 75;
+  const wW = 600;                 // wardrobe column width
+  const vW = L - wW;              // vanity column width
+  const D = { callout: 'ESPRESSO / DARK WOOD' };
+  const CR = { callout: 'MATTE CREAM LAMINATE' };
+  const c = [
+    // ---- wardrobe column (left) ----
+    cab({ type:'door', w:wW, h:1300, x:0, z:1100, tag:'SHUTTER', name:'Cream tall', handle:'vbar', material:CR }),
+    cab({ type:'drawer', w:wW, h:300, x:0, z:800, tag:'DRAWER', name:'Dark drawer', handle:'knob', material:D }),
+    cab({ type:'door', w:wW, h:800, x:0, z:0, tag:'SHUTTER', name:'Cream/dark base', handle:'vbar', material:{ callout:'CREAM TOP / ESPRESSO BASE', twoTone:true, splitRatio:0.5 } }),
+    // ---- vanity column (right) ----
+    cab({ type:'open', w:vW, h:1200, x:wW, z:1050, tag:'MIRROR', name:'Arched mirror', handle:'none', material:{ callout:'ARCHED MIRROR + DARK FRAME + WARM LED HALO', arch:true }, lighting:'WARM LED HALO' }),
+    cab({ type:'door', w:vW, h:250, x:wW, z:600, tag:'DRAWER', name:'Dark vanity drawer', handle:'knob', material:D }),
+    cab({ type:'door', w:vW, h:600, x:wW, z:0, tag:'SHUTTER', name:'Vanity base', handle:'none', material:D }),
+    cab({ type:'loft', w:L, h:200, x:0, z:H-200, tag:'LOFT', name:'Loft', handle:'none', material:CR }),
+  ];
+  return baseModel('WARDROBE-VANITY','WARDROBE + ARCHED VANITY ELEVATION',L,H,550,T,c,[]);
+}
+
+// PHOTO 2: two-tone (taupe/white) wardrobe + study nook with glass + corkboard.
+export function wardrobeStudyNookModel() {
+  const L = 3400, H = 2400, T = 75;
+  const loftH = 420, loftY = H - loftH;
+  const wW = 2100;                // wardrobe zone
+  const sW = L - wW;              // study zone
+  const TT = { callout: 'TWO-TONE TAUPE TOP / WHITE BOTTOM', twoTone:true, splitRatio:0.5 };
+  const CR = { callout: 'MATTE CREAM LAMINATE' };
+  const c = [
+    // top loft row of 5 cream cabinets
+    ...Array.from({ length:5 }, (_, i) =>
+      cab({ type:'loft', w:L/5, h:loftH, x:(L/5)*i, z:loftY, tag:'LOFT', name:'Loft', handle:'none', material:CR })),
+    // wardrobe zone (two-tone w/ vertical black stripes)
+    cab({ type:'door', w:450, h:H-loftH, x:0, z:0, tag:'SHUTTER', name:'Two-tone L', handle:'vbar', material:{ ...TT, fluted:true } }),
+    cab({ type:'door', w:750, h:H-loftH, x:450, z:0, tag:'SHUTTER', name:'Two-tone wide', handle:'vbar', material:TT }),
+    cab({ type:'door', w:700, h:H-loftH, x:1200, z:0, tag:'SHUTTER', name:'Cream center', handle:'vbar', material:{ callout:'CREAM W/ 2 VERTICAL BLACK STRIPES', fluted:true } }),
+    cab({ type:'drawer', w:200, h:300, x:1900, z:0, tag:'DRAWER', name:'Drawer stack', handle:'knob', material:TT }),
+    // study zone: glass cabinet + lit uppers + corkboard niche + desk
+    cab({ type:'door', w:420, h:H-loftH, x:wW, z:0, tag:'GLASS', name:'Glass tall', handle:'vbar', material:{ callout:'BLACK FRAME + FLUTED GLASS', glass:true, glassCols:1, glassRows:4 }, lighting:'WARM INTERIOR LED' }),
+    cab({ type:'wall', w:480, h:600, x:wW+420, z:H-loftH-600, tag:'GLASS', name:'Glass upper', handle:'none', material:{ callout:'BLACK FRAME GLASS', glass:true, glassCols:1, glassRows:2 }, lighting:'WARM INTERIOR LED' }),
+    cab({ type:'open', w:1020, h:350, x:wW+900, z:H-loftH-350, tag:'OPEN UNIT', name:'Corkboard niche', handle:'none', material:{ callout:'CORKBOARD BACKING' } }),
+    cab({ type:'wall', w:540, h:600, x:wW+900, z:H-loftH-350-600, tag:'GLASS', name:'Glass upper L', handle:'none', material:{ callout:'BLACK FRAME GLASS', glass:true, glassCols:1, glassRows:2 }, lighting:'WARM INTERIOR LED' }),
+    cab({ type:'door', w:sW, h:25, x:wW, z:600, tag:'COUNTER', name:'White desk', handle:'none', material:{ callout:'WHITE LAMINATE DESK' } }),
+  ];
+  return baseModel('WARDROBE-STUDY-NOOK','WARDROBE + STUDY NOOK ELEVATION',L,H,600,T,c,[]);
+}
+
+// PHOTO 3: two-tone wardrobe with stepped cream center + dark wood doors.
+export function wardrobeSteppedModel() {
+  const L = 3000, H = 2400, T = 75;
+  const loftH = 420, loftY = H - loftH;
+  const colW = L / 5;
+  const D = { callout: 'DARK WOOD / ESPRESSO' };
+  const CR = { callout: 'MATTE CREAM LAMINATE' };
+  const c = [
+    // top loft row of 5 cream cabinets
+    ...Array.from({ length:5 }, (_, i) =>
+      cab({ type:'loft', w:colW, h:loftH, x:colW*i, z:loftY, tag:'LOFT', name:'Loft', handle:'none', material:CR })),
+    // far-left dark door (handle on left edge, facing center)
+    cab({ type:'door', w:colW, h:H-loftH, x:0, z:0, tag:'SHUTTER', name:'Dark door L', handle:'vbar', material:D }),
+    // dark center-right panel
+    cab({ type:'door', w:colW*1.2, x:colW*2.8, z:0, h:H-loftH, tag:'SHUTTER', name:'Dark panel', handle:'vbar', material:D }),
+    // far-right dark door (handle on left edge, facing center)
+    cab({ type:'door', w:colW, h:H-loftH, x:colW*4, z:0, tag:'SHUTTER', name:'Dark door R', handle:'vbar', material:D }),
+    // stepped cream center (tall rect on right + short rect bottom-left)
+    cab({ type:'door', w:colW*1.6, h:H-loftH, x:colW*1.2, z:0, tag:'SHUTTER', name:'Cream stepped tall', handle:'none', material:CR }),
+    cab({ type:'door', w:colW*1.6, h:(H-loftH)*0.4, x:colW*1.2, z:0, tag:'SHUTTER', name:'Cream stepped base', handle:'none', material:CR }),
+    cab({ type:'door', w:colW, h:(H-loftH)*0.6, x:colW*2.8, z:0, tag:'SHUTTER', name:'Cream stepped short', handle:'none', material:CR }),
+  ];
+  return baseModel('WARDROBE-STEPPED','TWO-TONE WARDROBE (STEPPED CENTER) ELEVATION',L,H,600,T,c,[]);
+}
+
 function baseModel(unitType, wallName, L, H, D, T, cabinets, openings) {
   return {
     unitType, projectId:'RENDER-DECODE', wallName,
@@ -308,6 +385,9 @@ export const DECODED_UNITS = {
   'vanity-arch': vanityArchModel,
   'kitchen-wall-a': kitchenWallAModel,
   'kitchen-wall-b': kitchenWallBModel,
+  'wardrobe-vanity': wardrobeVanityModel,
+  'wardrobe-study-nook': wardrobeStudyNookModel,
+  'wardrobe-stepped': wardrobeSteppedModel,
 };
 
 export function getAllDecodedModels() {
