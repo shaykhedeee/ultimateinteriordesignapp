@@ -42,6 +42,7 @@ function liveEnabled(provider) {
 
 export { isNativeOpenAiKey, openAiKeyType } from './provider-config.js';
 export { resolveKey };
+export { enhanceInteriorPrompt };
 
 const PROVIDER_COSTS = {
   'gemini-imagen': { perImage: 0.03, currency: 'USD' },
@@ -58,13 +59,39 @@ const PROVIDER_COSTS = {
 };
 
 const palettes = {
-  living: ['#7a4c2a', '#b88a2f', '#f4efe3', '#26312d'],
-  kitchen: ['#8da48c', '#f5f0df', '#2f6f61', '#3f4742'],
-  master: ['#2b2d2b', '#b88a2f', '#ded2bc', '#6f7269'],
-  kids: ['#9fb59e', '#eabf9f', '#fff7e8', '#8b5c35'],
-  pooja: ['#8b5c35', '#f7f2e8', '#b88a2f', '#6f2f1e'],
-  foyer: ['#7a4c2a', '#f5f0df', '#b88a2f', '#1d211d'],
-  'whole-home': ['#7a4c2a', '#8da48c', '#b88a2f', '#f7f2e8']
+  // Aligned to ULTIDA reference render system: warm white/cream + beige marble
+  // + warm walnut/teak + charcoal ribbed + sage/seafoam accent + brass LED + black hw
+  living: ['#F4EFE3', '#C9A227', '#2B2D2B', '#7FB0A3'],   // cream, brass, charcoal, sage
+  kitchen: ['#F5F0DF', '#8C6A4E', '#B98AA6', '#3F4742'],  // cream, walnut, mauve, charcoal
+  master: ['#EDE6D6', '#3A4F4A', '#2B2D2B', '#B98AA6'],   // cream, teal/sage, charcoal, mauve accent
+  kids: ['#EABF9F', '#9FB59E', '#FFF7E8', '#8B5C35'],
+  pooja: ['#F7F2E8', '#8B5C35', '#C9A227', '#6F2F1E'],    // cream, teak, brass, deep accent
+  foyer: ['#F5F0DF', '#2B2D2B', '#C9A227', '#1D211D'],
+  'whole-home': ['#F4EFE3', '#7FB0A3', '#C9A227', '#2B2D2B']
+};
+
+// ULTIDA signature interior-design language (derived from the studio's
+// reference renders). Every photoreal render inherits these so output matches
+// the approved visual system: warm-white + beige marble-vein floors, warm
+// walnut/teak + charcoal ribbed/fluted two-tone cabinetry, arched mirrors with
+// warm halo LED backlight, cove perimeter lighting, channel-tufted headboards,
+// sage/seafoam accents, black hardware, Hindu pooja niche with diyas.
+const ULTIDA_DESIGN_LANGUAGE = [
+  'ULTIDA signature luxury Indian-modern interior language:',
+  'warm-white and cream plaster walls, large-format beige/cream marble-veined floors with subtle grey veining and soft reflections,',
+  'two-tone cabinetry in warm walnut/teak veneer paired with matte cream and charcoal ribbed/fluted panels, slim black bar handles,',
+  'integrated warm (2700K) LED: cove perimeter strip, under-cabinet glow, arched-mirror halo backlight, hidden glow behind wood slats,',
+  'channel-tufted upholstered headboard in sage/seafoam or deep teal, black-and-white houndstooth throw, brass accents,',
+  'recessed warm downlights, glass-front display cabinets with internal warm lighting, no clutter, editorial styling, photoreal materials.'
+].join(' ');
+
+const ROOM_LANGUAGE = {
+  master: 'Floor-to-ceiling two-tone wardrobe (cream × charcoal ribbed), arched mirror with warm LED halo, channel-tufted sage/teal headboard, houndstooth throws, marble-vein floor.',
+  pooja: 'Dedicated home altar niche in polished teak/walnut with recessed warm spotlight on a brass Ganesha idol, brass diyas with lit flames on a tiered cream platform, gold geometric backsplash, warm ambient glow.',
+  kitchen: 'Two-tone modular kitchen: white frosted-glass upper cabinets, mauve/charcoal lower cabinets with long black handles, stainless steel appliances, warm under-cabinet lighting, marble counter, traditional Indian jali/lotus woodwork accent if present.',
+  living: 'Wall-to-wall TV feature: warm wood slat panel with arched cutout and hidden LED glow, statutario marble panel, floating beige media console, L-sectional sofa in cream with sage/teal pillows, marble coffee table.',
+  foyer: 'Two-tone shoe cabinet (cream upper + dark wood open shoe rack) with warm under-base LED, arched mirror, marble-vein floor, eucalyptus in ribbed vase, Kinfolk-style stacked books.',
+  'whole-home': 'Cohesive warm-white luxury: cream walls, beige marble floors, walnut/charcoal ribbed two-tone storage, cove + arched-mirror LED, sage accents, black hardware.'
 };
 
 export async function generateInteriorAsset({ projectId, room, title, prompt, style, budgetTier, tags, model = 'auto', reuseFirst = true }) {
@@ -957,12 +984,15 @@ function geminiImageKeys() {
 }
 
 function enhanceInteriorPrompt(prompt, room) {
+  const roomLanguage = ROOM_LANGUAGE[room] || ROOM_LANGUAGE['whole-home'];
   return [
     prompt,
     `Render as a Lumion-like professional 3D architectural interior visualization for ${room}.`,
-    'Indian contemporary residential context, realistic scale, real materials, corrected perspective, straight verticals, natural daylight and warm ambient lighting.',
-    'Show clear laminate, veneer, stone, upholstery, lighting, storage, and styling details.',
-    'Strict exclusions: no humans, no human figures, no silhouettes, no mannequins, no pets, no watermark, no text labels, no logos, no distorted furniture, no impossible architecture, no unrequested objects.'
+    ULTIDA_DESIGN_LANGUAGE,
+    `Room-specific composition: ${roomLanguage}`,
+    'Indian contemporary luxury residential context, realistic scale, real materials, corrected perspective, straight verticals, natural daylight balanced with warm ambient lighting and editorial styling.',
+    'Show clear laminate, veneer, fluted/ribbed wood, stone, upholstery, integrated LED lighting, storage, and styling details with photoreal surface response.',
+    'Strict exclusions: no humans, no human figures, no silhouettes, no mannequins, no pets, no watermark, no text labels, no logos, no distorted furniture, no impossible architecture, no unrequested objects, no cold blue corporate palette, no cheap flat renders.'
   ].join(' ');
 }
 

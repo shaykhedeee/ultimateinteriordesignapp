@@ -25,6 +25,19 @@ const ROOM_GUIDE = {
   study: 'Study: desk 700–750mm high, 700mm depth, monitor at eye level, task lighting 300–500 lux, acoustic treatment optional.'
 };
 
+// ULTIDA signature interior language — extracted from the studio's approved
+// reference renders (wardrobes, living, pooja, kitchen, foyer). Injected into
+// every AURA + render prompt so generated output matches the premium system.
+const ULTIDA_SIGNATURE = [
+  'ULTIDA luxury Indian-modern signature:',
+  'warm-white/cream plaster walls, large-format beige marble-vein floors with soft reflection,',
+  'two-tone cabinetry — warm walnut/teak veneer + matte cream + charcoal ribbed/fluted panels, slim black bar handles,',
+  'integrated warm 2700K LED: cove perimeter strip, under-cabinet glow, arched-mirror halo backlight, hidden glow behind wood slats,',
+  'channel-tufted sage/seafoam or deep-teal headboard, black-and-white houndstooth throw, brass accents,',
+  'glass-front display cabinets with internal warm light; Hindu pooja niche with brass Ganesha idol + lit diyas when applicable;',
+  'editorial, uncluttered styling, photoreal PBR materials, corrected perspective, straight verticals, no cold corporate palette.'
+].join(' ');
+
 export function buildRoomStylePayload({ roomType = 'living', style = 'modern', budgetTier = 'standard', provider = 'pollinations', aspectRatio = '16:9', customInstruction = '', count = 1 } = {}) {
   const roomText = ROOM_GUIDE[roomType] || ROOM_GUIDE.living;
   const styleText = STYLE_GUIDE[style] || STYLE_GUIDE.modern;
@@ -41,6 +54,7 @@ export function buildRoomStylePayload({ roomType = 'living', style = 'modern', b
   const guidance = [
     `[ROOM RULES] ${roomText}`,
     `[STYLE RULES] ${styleText}`,
+    `[ULTIDA SIGNATURE] ${ULTIDA_SIGNATURE}`,
     '[COMPOSITION] Follow rule of thirds, focal point on primary furniture group, 24–35mm lens equivalent feel, low angle, eye-level horizon.',
     '[LIGHTING] Warm white 2700–3000K, layered: ambient + task + accent.',
     '[MATERIALS] Realistic PBR: matte, satin, brushed metal, oak grain, marble veining.',
