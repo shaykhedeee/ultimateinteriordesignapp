@@ -257,7 +257,7 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
 
 // REAL image -> measured 2D elevation (Magicplan/RoomGPT move)
 // Body (multipart or JSON): image file OR { imageB64 }, dimsText, unitTypeHint, projectId
-app.post('/api/elevation/from-photo', express.json(), upload.single('image'), async (req, res) => {
+app.post('/api/elevation/from-photo', express.json({ limit: '25mb' }), upload.single('image'), async (req, res) => {
   try {
     let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '', projectId = req.body?.projectId || '';
     if (req.file) imageB64 = req.file.buffer.toString('base64');
@@ -270,6 +270,7 @@ app.post('/api/elevation/from-photo', express.json(), upload.single('image'), as
     const model = {
       lengthMm: m.lengthMm || 0,
       heightMm: m.heightMm || 2400,
+      depthMm: m.depthMm || 600,
       thicknessMm: m.thicknessMm || 75,
       openings: m.openings || [],
       cabinets: m.cabinets || [],
@@ -305,7 +306,7 @@ app.post('/api/elevation/from-photo', express.json(), upload.single('image'), as
 });
 
 // Download the DXF for a photo-derived elevation
-app.post('/api/elevation/from-photo/dxf', express.json(), upload.single('image'), async (req, res) => {
+app.post('/api/elevation/from-photo/dxf', express.json({ limit: '25mb' }), upload.single('image'), async (req, res) => {
   try {
     let imageB64 = null, dimsText = req.body?.dimsText || '', unitTypeHint = req.body?.unitTypeHint || '', projectId = req.body?.projectId || '';
     if (req.file) imageB64 = req.file.buffer.toString('base64');
@@ -316,7 +317,7 @@ app.post('/api/elevation/from-photo/dxf', express.json(), upload.single('image')
     if (!result.success) return res.status(422).json({ error: result.error });
     const m = result.model || {};
     const model = { lengthMm: m.lengthMm || 0, heightMm: m.heightMm || 2400, thicknessMm: m.thicknessMm || 75, openings: m.openings || [], cabinets: m.cabinets || [], coverage: m.coverage || { utilPercent: 60, usedMm: 0, freeMm: m.lengthMm || 0 } };
-    const dxf = generateElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: projectId || '', sheetName: m.wallName || ((result.unitType || 'ELEVATION').toUpperCase()) });
+    const dxf = buildElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: projectId || '', sheet: m.wallName || ((result.unitType || 'ELEVATION').toUpperCase()) });
     res.setHeader('Content-Type', 'application/dxf');
     res.setHeader('Content-Disposition', `attachment; filename="${(result.unitType || 'elevation').toLowerCase()}-elevation.dxf"`);
     res.send(dxf);
@@ -329,7 +330,7 @@ app.get('/api/elevation/learning', (req, res) => {
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 app.use('/storage', express.static(storageDir));
 
 
@@ -2210,12 +2211,12 @@ app.get('/api/projects/:id/drawings/elevations/:wallId/dxf', (req, res) => {
       sheetName: `ELEVATION ${wallId}`
     });
 
-    const dxfContent = generateElevationDXF(model, {
+    const dxfContent = buildElevationDXF(model, {
       scale: '1:25',
       topView: analyzeProjectElevations(cad, { projectId }).topView,
       rev: '1.0',
       projectId,
-      sheetName: `ELEVATION ${wallId}`
+      sheet: `ELEVATION ${wallId}`
     });
 
     res.setHeader('Content-Type', 'application/dxf');
@@ -2231,7 +2232,7 @@ app.get('/api/projects/:id/photo-elevations/:elevationId/dxf', async (req, res) 
     const row = db.prepare("SELECT * FROM photo_elevations WHERE id = ? AND project_id = ?").get(req.params.elevationId, req.params.id);
     if (!row) return res.status(404).json({ error: 'Elevation not found' });
     const model = JSON.parse(row.model_json || '{}');
-    const dxf = generateElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: row.project_id, sheetName: row.wall_name || 'PHOTO ELEVATION' });
+    const dxf = buildElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: row.project_id, sheet: row.wall_name || 'PHOTO ELEVATION' });
     res.setHeader('Content-Type', 'application/dxf');
     res.setHeader('Content-Disposition', `attachment; filename="${(row.unit_type || 'elevation').toLowerCase()}-elevation.dxf"`);
     res.send(dxf);
