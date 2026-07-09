@@ -85,8 +85,9 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
       if (res.ok) {
         const data = await res.json();
-        setLaminateCatalog(data.filter(item => item.category === 'laminate'));
-        setHardwareCatalog(data.filter(item => item.category === 'hardware'));
+        const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+        setLaminateCatalog(items.filter(item => item.category === 'laminate'));
+        setHardwareCatalog(items.filter(item => item.category === 'hardware'));
       }
     } catch (err) {
       console.error(err);

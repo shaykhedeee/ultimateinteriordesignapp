@@ -26,7 +26,8 @@ export default function JobsScreen({ projectId }) {
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`);
       const data = await res.json();
-      setJobs(data || []);
+      const jobs = Array.isArray(data) ? data : Array.isArray(data?.jobs) ? data.jobs : [];
+      setJobs(jobs);
     } catch (err) {
       console.error(err);
     }

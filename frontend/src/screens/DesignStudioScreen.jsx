@@ -36,8 +36,9 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes`);
       if (res.ok) {
         const data = await res.json();
-        setVersions(data);
-        const unique = Array.from(new Set(data.map(v => v.branch_name || 'main')));
+        const versions = Array.isArray(data) ? data : Array.isArray(data?.versions) ? data.versions : [];
+        setVersions(versions);
+        const unique = Array.from(new Set(versions.map(v => v.branch_name || 'main')));
         setBranches(unique);
       }
     } catch(err) {

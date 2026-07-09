@@ -313,7 +313,7 @@ export function App() {
     const fetchJobs = async () => {
       try {
         const res = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/jobs`);
-        if (res.ok) { const d = await res.json(); setActiveJobs(d.filter(j => j.status === 'running')); }
+        if (res.ok) { const d = await res.json(); const jobs = Array.isArray(d) ? d : Array.isArray(d?.jobs) ? d.jobs : []; setActiveJobs(jobs.filter(j => j.status === 'running')); }
       } catch {}
     };
     fetchJobs();
