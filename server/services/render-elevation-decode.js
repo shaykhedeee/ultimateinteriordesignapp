@@ -99,6 +99,32 @@ export function vanityModel() {
   return baseModel('VANITY','VANITY ELEVATION',L,H,550,T,c,[]);
 }
 
+// 3-bay kitchen / crockery / pooja unit decoded from the user's shared render
+// (composer_2026-07-09_17-18-36...png): LEFT jali tall, CENTER open-niche
+// crockery, RIGHT aluminium-profile glass display. Detailed jali + glass + niche
+// overlays are added by scripts/generate-kitchen-pantry-elevation.mjs.
+export function kitchenPantryModel() {
+  const L = 3000, H = 2400, T = 75;
+  const baseTop = 900, wallH = 720, nicheH = 540;
+  const c = [
+    cab({ type:'door', w:1000, h:H, x:0, z:0, tag:'JALI', name:'Jali tall', handle:'bar',
+          material:{ callout:'MEDIUM WALNUT + CNC LOTUS/JALI LATTICE', cane:true } }),
+    cab({ type:'base', w:1400, h:baseTop, x:1000, z:0, tag:'BASE', name:'Crockery base', handle:'bar',
+          material:{ callout:'MATTE CREAM LAMINATE' } }),
+    cab({ type:'drawer', w:600, h:200, x:1200, z:0, tag:'DRAWER', name:'Wood drawer', handle:'bar',
+          material:{ callout:'DARK WOOD DRAWER FRONT' } }),
+    cab({ type:'open', w:1400, h:nicheH, x:1000, z:baseTop, tag:'OPEN UNIT', name:'Open niche', handle:'bar',
+          material:{ callout:'DIAMOND PATTERN TILE BACKSPLASH + DARK WOOD SHELF' }, lighting:'WARM UNDER-SHELF LED' }),
+    cab({ type:'wall', w:700, h:wallH, x:1000, z:H-wallH, tag:'WALL', name:'Upper L', handle:'bar',
+          material:{ callout:'MATTE CREAM LAMINATE' } }),
+    cab({ type:'wall', w:700, h:wallH, x:1700, z:H-wallH, tag:'WALL', name:'Upper R', handle:'bar',
+          material:{ callout:'MATTE CREAM LAMINATE' } }),
+    cab({ type:'door', w:600, h:H, x:2400, z:0, tag:'GLASS', name:'Glass display', handle:'bar',
+          material:{ callout:'ALUMINIUM PROFILE GLASS SHUTTER (3 GLASS SHELVES)', glass:true }, lighting:'WARM LED STRIP (LHS)' }),
+  ];
+  return baseModel('KITCHEN-PANTRY','KITCHEN / CROCKERY / POOJA ELEVATION',L,H,600,T,c,[]);
+}
+
 function baseModel(unitType, wallName, L, H, D, T, cabinets, openings) {
   return {
     unitType, projectId:'RENDER-DECODE', wallName,
@@ -116,6 +142,7 @@ export const DECODED_UNITS = {
   'tv-unit': tvUnitModel,
   'entry': entryModel,
   'vanity': vanityModel,
+  'kitchen-pantry': kitchenPantryModel,
 };
 
 export function getAllDecodedModels() {
