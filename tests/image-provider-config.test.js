@@ -10,7 +10,10 @@ import assert from 'node:assert/strict';
 import { geminiImageModels, generationProviderPriority } from '../server/services/image-provider.js';
 import db from '../server/database/database.js';
 
-test('geminiImageModels honours explicit GEMINI_IMAGE_MODELS list', () => {
+// DB allow-list takes priority over env; clear it so this test isolates env behaviour.
+db.prepare("DELETE FROM provider_models WHERE id = 'default'").run();
+
+test('geminiImageModels honours explicit GEMINI_IMAGE_MODELS list (when DB allow-list empty)', () => {
   const prev = process.env.GEMINI_IMAGE_MODELS;
   process.env.GEMINI_IMAGE_MODELS = 'gemini-2.0-flash-image,imagen-3.0-generate-001';
   try {
