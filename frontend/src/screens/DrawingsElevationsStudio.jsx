@@ -170,7 +170,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/from-renders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ units: units || ['kitchen-pantry', 'wardrobe', 'kitchen', 'pooja', 'tv-unit', 'entry', 'vanity', 'wardrobe-fluted', 'wardrobe-study', 'pooja-ganesha', 'vanity-arch', 'kitchen-wall-a', 'kitchen-wall-b'] })
+        body: JSON.stringify({ units: units || ['kitchen-pantry', 'wardrobe', 'kitchen', 'pooja', 'tv-unit', 'entry', 'vanity', 'wardrobe-fluted', 'wardrobe-study', 'pooja-ganesha', 'vanity-arch', 'kitchen-wall-a', 'kitchen-wall-b', 'wardrobe-vanity', 'wardrobe-study-nook', 'wardrobe-stepped'] })
       });
       const data = await res.json();
       if (data.success) {
@@ -1069,6 +1069,9 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               ['vanity-arch', 'Arched Mirror Vanity'],
               ['kitchen-wall-a', 'Kitchen Wall A (Fridge)'],
               ['kitchen-wall-b', 'Kitchen Wall B (Sink)'],
+              ['wardrobe-vanity', 'Wardrobe + Vanity'],
+              ['wardrobe-study-nook', 'Wardrobe + Study'],
+              ['wardrobe-stepped', 'Stepped Wardrobe'],
             ].map(([u, label]) => (
               <button
                 key={u}
