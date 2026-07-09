@@ -33,9 +33,9 @@ function parseDims(text = '') {
   const out = {};
   if (!text) return out;
   const low = String(text).toLowerCase();
-  const toUnit = (v, u) => u === 'cm' ? Math.round(v * MM_PER_CM)
-    : u === "'" ? Math.round(v * MM_PER_FOOT)
-    : Math.round(v * MM_PER_INCH); // bare number or " -> inches
+const toUnit = (v, u) => u === 'cm' ? Math.round(v * MM_PER_CM)
+    : u === '"' ? Math.round(v * MM_PER_INCH)   // inch mark 86"  -> 86 * 25.4 mm
+    : Math.round(v * MM_PER_INCH); // bare number or ' -> inches
 
   // Explicit labels win (width/height/depth can appear in any order)
   const widthM = low.match(/width[^\d]*(\d+(?:\.\d+)?)\s*(cm|"|in|inch|')?/);
@@ -176,6 +176,7 @@ function learn(type, ai, dims) {
     fs.appendFileSync(LEARN_FILE, JSON.stringify(rec) + '\n');
   } catch (e) { /* learning is best-effort */ }
 }
+export { parseDims };
 export function learningSummary() {
   try {
     if (!fs.existsSync(LEARN_FILE)) return { runs: 0, byType: {} };
