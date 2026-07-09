@@ -4,9 +4,18 @@ import { fileURLToPath } from 'node:url';
 import { nanoid } from 'nanoid';
 import db from '../database/database.js';
 import { findReusableAssets, getProject, matchLaminates } from './design-engine.js';
-import { generateInteriorAsset, isNativeOpenAiKey, recordGenerationCost } from './image-provider.js';
+import { generateInteriorAsset, isNativeOpenAiKey, recordGenerationCost, resolveKey, generationProviderPriority } from './image-provider.js';
 import { refineRenderPromptWithGemini } from './gemini-service.js';
 import { buildRoomStylePayload, buildVisionPayload } from './prompt-harness.js';
+
+// Resolve a provider's API key from the BYOK api_keys DB table OR env (in that
+// order). This is what makes keys linked via the Settings UI actually drive the
+// render pipeline, instead of only process.env.* being honoured.
+const openAiKey = () => resolveKey('openai');
+const hasOpenAi = () => isNativeOpenAiKey(openAiKey());
+const hfKey = () => resolveKey('huggingface') || process.env.HUGGINGFACE_API_KEY;
+const replicateKey = () => resolveKey('replicate') || process.env.REPLICATE_API_KEY;
+const freepikKey = () => resolveKey('freepik') || process.env.FREEPIK_API_KEY;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -207,12 +216,12 @@ function generateSimulatedAgentDialogue(params, designStandardsText, avoidanceIn
 
 // Agent 3 (Optional Live compiler): Call OpenAI to compile dynamic multi-agent dialogue log
 async function runMultiAgentPromptCompiler(params, designStandardsText, avoidanceInstructionsText) {
-  if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (!isNativeOpenAiKey(openAiKey())) {
     return null;
   }
   try {
     const { default: OpenAI } = await import('openai');
-    const openai = new OpenAI();
+    const openai = new OpenAI({ apiKey: openAiKey() });
 
     const systemPrompt = `You are a Multi-Agent Prompt Compiler for Spacious Venture Design Studio.
 Your goal is to simulate a professional design collaboration between different AI Agents:
@@ -280,7 +289,7 @@ export async function generateStudioRender(projectId, params) {
   let zoomedPlanDescription = '';
   let fullPlanDescription = '';
 
-  if (isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (isNativeOpenAiKey(openAiKey())) {
     try {
       if (params.sitePhoto) {
         siteStructureDescription = await analyzeMultimodalImage(params.sitePhoto, 
@@ -325,7 +334,7 @@ export async function generateStudioRender(projectId, params) {
 
   // Generate the multi-agent dialogue log
   let agentDialogueLog = '';
-  if (isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (isNativeOpenAiKey(openAiKey())) {
     agentDialogueLog = await runMultiAgentPromptCompiler(params, designStandardsText, avoidanceInstructionsText);
   }
   if (!agentDialogueLog) {
@@ -345,10 +354,10 @@ export async function generateStudioRender(projectId, params) {
   let success = false;
 
   // Provider 1: OpenAI DALL-E 3
-  if (process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(openAiKey())) {
     try {
       const { default: OpenAI } = await import('openai');
-      const openai = new OpenAI();
+      const openai = new OpenAI({ apiKey: openAiKey() });
       const response = await openai.images.generate({
         model: process.env.OPENAI_IMAGE_MODEL || 'dall-e-3',
         prompt: basePrompt,
@@ -368,7 +377,7 @@ export async function generateStudioRender(projectId, params) {
   }
 
   // Provider 2: Hugging Face Serverless API (Flux / SDXL)
-  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && process.env.HUGGINGFACE_API_KEY) {
+  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && hfKey()) {
     try {
       console.log("Hugging Face live image generation triggered...");
       const model = process.env.HUGGINGFACE_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
@@ -376,7 +385,7 @@ export async function generateStudioRender(projectId, params) {
       const hfResponse = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+          'Authorization': `Bearer ${hfKey()}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ inputs: basePrompt })
@@ -396,14 +405,14 @@ export async function generateStudioRender(projectId, params) {
   }
 
   // Provider 3: Replicate API (Flux / SDXL)
-  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && process.env.REPLICATE_API_KEY) {
+  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && replicateKey()) {
     try {
       console.log("Replicate live image generation triggered...");
       const model = process.env.REPLICATE_IMAGE_MODEL || 'black-forest-labs/flux-schnell';
       const replResponse = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {
-          'Authorization': `Token ${process.env.REPLICATE_API_KEY}`,
+          'Authorization': `Token ${replicateKey()}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -419,7 +428,7 @@ export async function generateStudioRender(projectId, params) {
         while (!completed && pollAttempts < 30) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           const checkResp = await fetch(getPredictionUrl, {
-            headers: { 'Authorization': `Token ${process.env.REPLICATE_API_KEY}` }
+            headers: { 'Authorization': `Token ${replicateKey()}` }
           });
           if (checkResp.ok) {
             prediction = await checkResp.json();
@@ -445,7 +454,7 @@ export async function generateStudioRender(projectId, params) {
   }
 
   // Provider 4: Freepik API
-  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && process.env.FREEPIK_API_KEY) {
+  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && freepikKey()) {
     try {
       const endpoint = process.env.FREEPIK_IMAGE_ENDPOINT || 'https://api.freepik.com/v1/ai/text-to-image/flux-dev';
       const response = await fetch(endpoint, {
@@ -453,7 +462,7 @@ export async function generateStudioRender(projectId, params) {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'x-freepik-api-key': process.env.FREEPIK_API_KEY
+          'x-freepik-api-key': freepikKey()
         },
         body: JSON.stringify({
           prompt: basePrompt,
@@ -551,7 +560,7 @@ export async function generateStudioRender(projectId, params) {
   let currentRelativePath = relativePath;
   let validationResult = { valid: true, critique: 'Pass' };
 
-  if (success && process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (success && process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(openAiKey())) {
     validationResult = await runVisualValidatorAgent(currentRelativePath, params.sitePhoto, params);
     
     while (!validationResult.valid && retries < 3) {
@@ -643,10 +652,10 @@ export async function editStudioRender(projectId, assetId, params) {
 
   let success = false;
   
-  if (process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(openAiKey())) {
     try {
       const { default: OpenAI } = await import('openai');
-      const openai = new OpenAI();
+      const openai = new OpenAI({ apiKey: openAiKey() });
       const response = await openai.images.generate({
         model: 'dall-e-3',
         prompt: refinedPrompt,
@@ -725,7 +734,7 @@ export async function editStudioRender(projectId, assetId, params) {
 
 // Agent 5: Visual Validator Agent (Critique Generated Images via GPT-4o Vision)
 async function runVisualValidatorAgent(renderPath, sitePhotoBase64OrPath, params) {
-  if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (!isNativeOpenAiKey(openAiKey())) {
     return { valid: true, critique: 'Pass (Validator bypassed - no API key)' };
   }
 
@@ -816,7 +825,7 @@ Provide exactly a JSON block matching this structure with NO extra markdown form
     }
 
     const { default: OpenAI } = await import('openai');
-    const openai = new OpenAI();
+    const openai = new OpenAI({ apiKey: openAiKey() });
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: messages,
@@ -834,7 +843,7 @@ Provide exactly a JSON block matching this structure with NO extra markdown form
 
 // Executes an Image Edit/Refine API request
 async function executeRenderRefinement(projectId, baseRenderRelativePath, basePrompt, params) {
-  if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) return null;
+  if (!isNativeOpenAiKey(openAiKey())) return null;
 
   const id = nanoid(12);
   const fileName = `visualizer-refine-${id}.png`;
@@ -843,7 +852,7 @@ async function executeRenderRefinement(projectId, baseRenderRelativePath, basePr
 
   try {
     const { default: OpenAI } = await import('openai');
-    const openai = new OpenAI();
+    const openai = new OpenAI({ apiKey: openAiKey() });
 
     const refinedPrompt = [
       `Refine this previous render based on the critique.`,
@@ -871,7 +880,7 @@ async function executeRenderRefinement(projectId, baseRenderRelativePath, basePr
 }
 
 async function analyzeMultimodalImage(imagePathOrBase64, systemInstructions) {
-  if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) return '';
+  if (!isNativeOpenAiKey(openAiKey())) return '';
 
   let base64Image = '';
   if (imagePathOrBase64.startsWith('data:image/')) {
@@ -888,7 +897,7 @@ async function analyzeMultimodalImage(imagePathOrBase64, systemInstructions) {
   }
 
   const { default: OpenAI } = await import('openai');
-  const openai = new OpenAI();
+  const openai = new OpenAI({ apiKey: openAiKey() });
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -1752,14 +1761,14 @@ export async function analyseRenderComponents(base64Image, roomType = 'living') 
     ],
   };
 
-  if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (!isNativeOpenAiKey(openAiKey())) {
     // Return smart defaults without API call
     return (defaultComponents[roomType] || defaultComponents.living);
   }
 
   try {
     const { default: OpenAI } = await import('openai');
-    const openai = new OpenAI();
+    const openai = new OpenAI({ apiKey: openAiKey() });
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -1886,10 +1895,10 @@ export async function performLaminateSwap(projectId, renderBase64, laminateBase6
   const swapPrompt = buildLaminateSwapPrompt(params, laminateSwatchContext);
 
   // ── Provider 1: OpenAI GPT-Image-1 (best inpainting fidelity) ──
-  if (!success && isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+  if (!success && isNativeOpenAiKey(openAiKey())) {
     try {
       const { default: OpenAI } = await import('openai');
-      const openai = new OpenAI();
+      const openai = new OpenAI({ apiKey: openAiKey() });
 
       // Convert base64 to buffer for file upload
       const renderBuffer = Buffer.from(renderBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
@@ -1963,7 +1972,7 @@ export async function performLaminateSwap(projectId, renderBase64, laminateBase6
   }
 
   // ── Provider 3: HuggingFace SDXL img2img fallback ──
-  if (!success && process.env.HUGGINGFACE_API_KEY) {
+  if (!success && hfKey()) {
     try {
       // Build a text-only condensed prompt for HF (no image input on free tier)
       const hfPrompt = [
@@ -1979,7 +1988,7 @@ export async function performLaminateSwap(projectId, renderBase64, laminateBase6
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+            Authorization: `Bearer ${hfKey()}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ inputs: hfPrompt })

@@ -50,8 +50,8 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
     setIsLoading(true);
     try {
       const [resProj, resLeads] = await Promise.all([
-        fetch('http://127.0.0.1:5055/api/projects'),
-        fetch('http://127.0.0.1:5055/api/leads')
+        fetch('http://127.0.0.1:8787/api/projects'),
+        fetch('http://127.0.0.1:8787/api/leads')
       ]);
       const projs = await resProj.json();
       const leadsData = await resLeads.json();
@@ -67,7 +67,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
   const fetchReadiness = async (projId) => {
     setIsReadinessLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projId}/readiness`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projId}/readiness`);
       const data = await res.json();
       setReadinessData(data);
     } catch (err) {
@@ -79,7 +79,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
 
   const handleUpdateStatus = async (projectId, newStatus) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/status`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })

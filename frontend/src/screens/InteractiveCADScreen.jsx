@@ -130,7 +130,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const loadPhotoElevations = async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/photo-elevations`);
       const rows = await res.json();
       if (Array.isArray(rows)) setPhotoElevations(rows.reverse().slice(0, 20));
     } catch (e) { /* silent */ }
@@ -139,7 +139,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const loadCADData = async () => {
     try {
       // 1. Fetch CAD vector drawing
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`);
       const data = await res.json();
       const safe = data && typeof data === 'object' ? data : {};
       const loadedWalls = JSON.parse(safe.walls_json || '[]');
@@ -172,12 +172,12 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
       // 2. Fetch Project Brief to extract floorplan underlay background image
       try {
-        const resProj = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+        const resProj = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}`);
         const projData = await resProj.json();
         if (projData.client_brief_json) {
           const briefData = JSON.parse(projData.client_brief_json);
           if (briefData.floorplanImageUrl) {
-            setSketchUrl(`http://127.0.0.1:5055${briefData.floorplanImageUrl}`);
+            setSketchUrl(`http://127.0.0.1:8787${briefData.floorplanImageUrl}`);
           }
         }
       } catch (errProj) {
@@ -265,7 +265,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const triggerAiDetect = async () => {
     setIsDetectingLayout(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/ai-detect`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad/ai-detect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -334,7 +334,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const runVastuCheck = async () => {
     setVastuBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/vastu/preview`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/vastu/preview`);
       const data = await res.json();
       if (res.ok) setVastuDiff(data);
     } catch (e) {
@@ -347,14 +347,14 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const applyVastuFix = async () => {
     setVastuBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/vastu/auto-apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/vastu/auto-apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const data = await res.json();
       if (res.ok && data.applied?.length) {
         window.__toast?.show(`Vastu applied: ${data.applied.length} fix(es)`);
         setVastuApplied(true);
         setVastuDiff({ ...(vastuDiff || {}), needsApply: false });
         // reload furniture so the canvas reflects the change
-        const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json();
+        const cad = await (await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`)).json();
         if (cad?.furniture) setFurniture(cad.furniture);
       }
     } catch (e) {
@@ -380,11 +380,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   // --- Kitchen template picker (canonical step 7) ---
   const applyKitchenShape = async (shape) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/kitchen/template`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/kitchen/template`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shape })
       });
       const data = await res.json();
-      if (res.ok) { window.__toast?.show(`Kitchen ${shape}-shape applied`); const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
+      if (res.ok) { window.__toast?.show(`Kitchen ${shape}-shape applied`); const cad = await (await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
     } catch (e) { console.error(e); }
   };
 
@@ -392,21 +392,21 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [tvUnits, setTvUnits] = useState([]);
   const [tvBusy, setTvBusy] = useState(false);
   const loadTvUnits = async () => {
-    try { const d = await (await fetch('http://127.0.0.1:5055/api/tv-units')).json(); setTvUnits(d); } catch (e) { console.error(e); }
+    try { const d = await (await fetch('http://127.0.0.1:8787/api/tv-units')).json(); setTvUnits(d); } catch (e) { console.error(e); }
   };
   const applyTvUnitStyle = async (unitId) => {
     setTvBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/tv-unit/apply`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/tv-unit/apply`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unitId })
       });
       const data = await res.json();
-      if (res.ok) { window.__toast?.show('TV unit style applied'); const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
+      if (res.ok) { window.__toast?.show('TV unit style applied'); const cad = await (await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
     } catch (e) { console.error(e); } finally { setTvBusy(false); }
   };
   const saveCADToServer = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -449,7 +449,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         setUploadProgress(prev => Math.min(prev + 12, 90));
       }, 300);
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/video`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad/video`, {
         method: 'POST',
         body: formData
       });
@@ -1061,7 +1061,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 </div>
                 <button
                   onClick={() => {
-                    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedObj.id}/dxf`);
+                    window.open(`http://127.0.0.1:8787/api/projects/${projectId}/drawings/elevations/${selectedObj.id}/dxf`);
                   }}
                   className="w-full mt-2 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[#C9A84C] font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition shadow-sm"
                 >
@@ -1447,7 +1447,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   __toast?.info?.("Auto-tracing DXF/DWG plan…");
                   const formData = new FormData();
                   formData.append('floorplan', file);
-                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/auto-trace`, {
+                  const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/floorplan/auto-trace`, {
                     method: 'POST',
                     body: formData
                   });
@@ -1473,13 +1473,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               try {
                 const formData = new FormData();
                 formData.append('floorplan', file);
-                const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/floorplan`, {
                   method: 'POST',
                   body: formData
                 });
                 const data = await res.json();
                 if (data.success) {
-                  setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+                  setSketchUrl(`http://127.0.0.1:8787${data.floorplanUrl}`);
                   __toast?.success("Floorplan underlay attached — trace walls over it.");
                 }
               } catch (err) {
@@ -1677,7 +1677,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             <textarea id="render-dims-text" placeholder="Paste dimensions from render..." className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-[10px] text-slate-200 h-16"></textarea>
             <button onClick={async ()=> {
               const txt = document.getElementById('render-dims-text')?.value || '';
-              const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/render-to-dxf`, {
+              const r = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad/render-to-dxf`, {
                 method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dimsText: txt })
               });
               const d = await r.json();
@@ -1696,7 +1696,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               const h = Number(document.getElementById('rtp-height')?.value);
               if (!file || !w || !h) { __toast?.warn('Upload photo + enter width/height'); return; }
               const fd = new FormData(); fd.append('image', file); fd.append('widthMm', String(w)); fd.append('heightMm', String(h)); fd.append('projectId', String(projectId));
-              const r = await fetch(`http://127.0.0.1:5055/api/elevation/from-photo`, { method:'POST', body: fd });
+              const r = await fetch(`http://127.0.0.1:8787/api/elevation/from-photo`, { method:'POST', body: fd });
               const d = await r.json();
               if (d?.success) {
                 __toast?.success('Elevation generated');

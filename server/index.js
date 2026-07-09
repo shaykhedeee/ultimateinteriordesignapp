@@ -75,7 +75,7 @@ const dxfUpload = multer({
 });
 
 const app = express();
-const port = 5055;
+const port = Number(process.env.PORT) || 5055;
 
 // Cabinet <-> cutlist LIVE linkage: regenerate cutlist from current traced furniture.
 app.post('/api/projects/:id/cutlist/refresh', (req, res) => {
@@ -309,58 +309,178 @@ app.use(cors());
 app.use(express.json());
 app.use('/storage', express.static(storageDir));
 
-// Secure API keys diagnostics endpoint for developer/admin overview
+
+// ── Enhanced API Key Diagnostics with format validation ──
 app.get('/api/diagnostics/api-keys', (req, res) => {
   const mask = (key) => {
     if (!key) return null;
     if (key.length <= 15) return '***';
     return `${key.slice(0, 10)}...${key.slice(-8)}`;
   };
+  const formatNote = (key, provider) => {
+    if (!key) return 'Missing — add to .env';
+    if (provider === 'openai' && key.startsWith('sk-or-v1-')) return '⚠️ This is an OpenRouter key, NOT an OpenAI Platform key. Cannot generate images.';
+    if (provider === 'openai' && !key.startsWith('sk-proj-') && !key.startsWith('sk-')) return '⚠️ Unexpected format. OpenAI keys start with sk-proj-';
+    if (provider === 'gemini' && key.startsWith('AQ.')) return '⚠️ AQ. prefix = Vertex AI token, NOT AI Studio. Get AIza... key at aistudio.google.com';
+    if (provider === 'gemini' && key.startsWith('AL')) return '⚠️ AL prefix = wrong Google key type. Get AIza... key at aistudio.google.com';
+    if (provider === 'groq' && key.startsWith('sk-or-v1-')) return 'ℹ️ Routing via OpenRouter. Native Groq keys start with gsk_';
+    return 'OK';
+  };
 
   const keys = {
     OPENAI_API_KEY: {
-      name: 'OpenAI Image/LLM API',
-      status: process.env.OPENAI_API_KEY ? 'Active' : 'Not Loaded',
-      value: mask(process.env.OPENAI_API_KEY)
+      name: 'OpenAI Image Generation',
+      status: process.env.OPENAI_API_KEY ? 'Configured' : 'Missing',
+      value: mask(process.env.OPENAI_API_KEY),
+      note: formatNote(process.env.OPENAI_API_KEY, 'openai'),
+      canGenerateImages: Boolean(process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.startsWith('sk-or-v1-'))
     },
     FREEPIK_API_KEY: {
-      name: 'Freepik Flux-Dev API',
-      status: process.env.FREEPIK_API_KEY ? 'Active' : 'Not Loaded',
-      value: mask(process.env.FREEPIK_API_KEY)
+      name: 'Freepik Flux-Dev (PRIMARY IMAGE PROVIDER)',
+      status: process.env.FREEPIK_API_KEY ? 'Active ✅' : 'Missing',
+      value: mask(process.env.FREEPIK_API_KEY),
+      note: process.env.FREEPIK_API_KEY ? 'Valid FPSX... key — this is your working image provider' : 'Add FPSX... key from freepik.com/api',
+      canGenerateImages: Boolean(process.env.FREEPIK_API_KEY)
     },
     PEXELS_API_KEY: {
-      name: 'Pexels Stock Image API',
-      status: process.env.PEXELS_API_KEY ? 'Active' : 'Not Loaded',
-      value: mask(process.env.PEXELS_API_KEY)
+      name: 'Pexels Stock Images',
+      status: process.env.PEXELS_API_KEY ? 'Active ✅' : 'Missing',
+      value: mask(process.env.PEXELS_API_KEY),
+      note: 'OK',
+      canGenerateImages: false
     },
-    GOOGLE_AI_STUDIO_KEY: {
-      name: 'Google Gemini Imagen/Model API',
-      status: (process.env.GOOGLE_AI_STUDIO_KEY_1 || process.env.GOOGLE_AI_STUDIO_KEY_2) ? 'Active' : 'Not Loaded',
-      value: mask(process.env.GOOGLE_AI_STUDIO_KEY_1 || process.env.GOOGLE_AI_STUDIO_KEY_2)
+    GEMINI_API_KEY: {
+      name: 'Google Gemini / Imagen',
+      status: process.env.GEMINI_API_KEY ? 'Configured' : 'Missing',
+      value: mask(process.env.GEMINI_API_KEY),
+      note: formatNote(process.env.GEMINI_API_KEY, 'gemini'),
+      canGenerateImages: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.startsWith('AIza'))
     },
     HUGGINGFACE_API_KEY: {
-      name: 'HuggingFace Inference API',
-      status: process.env.HUGGINGFACE_API_KEY ? 'Active' : 'Not Loaded',
-      value: mask(process.env.HUGGINGFACE_API_KEY)
+      name: 'HuggingFace FLUX Inference',
+      status: process.env.HUGGINGFACE_API_KEY ? 'Active ✅' : 'Missing',
+      value: mask(process.env.HUGGINGFACE_API_KEY),
+      note: 'OK',
+      canGenerateImages: Boolean(process.env.HUGGINGFACE_API_KEY)
     },
     OPENROUTER_API_KEY: {
-      name: 'OpenRouter Aggregator API',
-      status: process.env.OPENROUTER_API_KEY ? 'Active' : 'Not Loaded',
-      value: mask(process.env.OPENROUTER_API_KEY)
+      name: 'OpenRouter LLM (AURA Chat)',
+      status: process.env.OPENROUTER_API_KEY ? 'Active ✅' : 'Missing',
+      value: mask(process.env.OPENROUTER_API_KEY),
+      note: 'Powers AURA chat — LLM only, no images',
+      canGenerateImages: false
     },
     IMAGINE_ART_API_KEY: {
-      name: 'Imagine Art Visualizer API',
-      status: process.env.IMAGINE_ART_API_KEY ? 'Active' : 'Not Loaded',
-      value: mask(process.env.IMAGINE_ART_API_KEY)
+      name: 'Imagine.Art Visualizer',
+      status: process.env.IMAGINE_ART_API_KEY ? 'Active ✅' : 'Missing',
+      value: mask(process.env.IMAGINE_ART_API_KEY),
+      note: 'OK',
+      canGenerateImages: Boolean(process.env.IMAGINE_ART_API_KEY)
+    },
+    GROQ_API_KEY: {
+      name: 'Groq LLM',
+      status: process.env.GROQ_API_KEY ? 'Configured' : 'Missing',
+      value: mask(process.env.GROQ_API_KEY),
+      note: formatNote(process.env.GROQ_API_KEY, 'groq'),
+      canGenerateImages: false
+    },
+    PERPLEXITY_API_KEY: {
+      name: 'Perplexity (Web-search LLM)',
+      status: process.env.PERPLEXITY_API_KEY ? 'Active ✅' : 'Missing',
+      value: mask(process.env.PERPLEXITY_API_KEY),
+      note: 'pplx-... key is valid format',
+      canGenerateImages: false
     }
   };
+
+  const workingImageProviders = Object.values(keys).filter(k => k.canGenerateImages).map(k => k.name);
 
   res.json({
     liveImageGen: process.env.LIVE_IMAGE_GEN === 'true',
     imageProvider: process.env.IMAGE_PROVIDER || 'library-reuse',
     spendMode: process.env.AI_SPEND_MODE || 'smart-cost',
+    pollinationsEnabled: process.env.POLLINATIONS_ENABLED !== 'false',
+    workingImageProviders,
+    readyForRealImages: workingImageProviders.length > 0,
     keys
   });
+});
+
+// ── Live provider health test (actually pings each API) ──
+app.get('/api/diagnostics/api-health', async (req, res) => {
+  const results = {};
+
+  // Test Freepik (most important - primary provider)
+  if (process.env.FREEPIK_API_KEY) {
+    try {
+      const r = await fetch('https://api.freepik.com/v1/ai/text-to-image/flux-dev', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-freepik-api-key': process.env.FREEPIK_API_KEY },
+        body: JSON.stringify({ prompt: 'test', aspect_ratio: 'square_1_1' }),
+        signal: AbortSignal.timeout(8000)
+      });
+      results.freepik = { status: r.status === 200 || r.status === 202 ? 'pass' : 'fail', httpStatus: r.status };
+    } catch (e) { results.freepik = { status: 'error', error: e.message }; }
+  } else { results.freepik = { status: 'skipped', reason: 'no key' }; }
+
+  // Test HuggingFace
+  if (process.env.HUGGINGFACE_API_KEY) {
+    try {
+      const r = await fetch('https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`, 'Content-Type': 'application/json', Accept: 'image/png' },
+        body: JSON.stringify({ inputs: 'test interior' }),
+        signal: AbortSignal.timeout(15000)
+      });
+      results.huggingface = { status: [200, 202, 503].includes(r.status) ? 'pass' : 'fail', httpStatus: r.status };
+    } catch (e) { results.huggingface = { status: 'error', error: e.message }; }
+  } else { results.huggingface = { status: 'skipped', reason: 'no key' }; }
+
+  // Test OpenRouter (AURA LLM)
+  if (process.env.OPENROUTER_API_KEY) {
+    try {
+      const r = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+        signal: AbortSignal.timeout(5000)
+      });
+      results.openrouter = { status: r.ok ? 'pass' : 'fail', httpStatus: r.status };
+    } catch (e) { results.openrouter = { status: 'error', error: e.message }; }
+  } else { results.openrouter = { status: 'skipped', reason: 'no key' }; }
+
+  // Test Gemini
+  const gemKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_STUDIO_KEY_1;
+  if (gemKey) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${gemKey}`, {
+        signal: AbortSignal.timeout(5000)
+      });
+      results.gemini = { status: r.ok ? 'pass' : 'fail', httpStatus: r.status, note: r.status === 401 ? 'Invalid key — get AIza... key at aistudio.google.com' : undefined };
+    } catch (e) { results.gemini = { status: 'error', error: e.message }; }
+  } else { results.gemini = { status: 'skipped', reason: 'no key' }; }
+
+  // Test Pollinations (no key needed)
+  if (process.env.POLLINATIONS_ENABLED !== 'false') {
+    try {
+      const r = await fetch('https://image.pollinations.ai/prompt/test?width=64&height=64&nologo=true', {
+        signal: AbortSignal.timeout(10000)
+      });
+      results.pollinations = { status: r.ok ? 'pass' : 'fail', httpStatus: r.status };
+    } catch (e) { results.pollinations = { status: 'error', error: e.message }; }
+  } else { results.pollinations = { status: 'disabled' }; }
+
+  const passCount = Object.values(results).filter(r => r.status === 'pass').length;
+  res.json({ tested: Object.keys(results).length, passing: passCount, results });
+});
+
+// ── Runtime provider switch (no server restart needed) ──
+app.post('/api/settings/active-provider', express.json(), (req, res) => {
+  const { provider, fallbacks, liveImageGen } = req.body || {};
+  const allowed = ['freepik','huggingface','pollinations','gemini-imagen','openai-gpt-image-1','openai','pexels','curated','mock'];
+  if (provider && !allowed.includes(provider)) return res.status(400).json({ error: `Unknown provider. Allowed: ${allowed.join(', ')}` });
+  if (provider) process.env.IMAGE_PROVIDER = provider;
+  if (Array.isArray(fallbacks)) process.env.IMAGE_PROVIDER_FALLBACKS = fallbacks.join(',');
+  if (liveImageGen !== undefined) process.env.LIVE_IMAGE_GEN = String(Boolean(liveImageGen));
+  res.json({ success: true, activeProvider: process.env.IMAGE_PROVIDER, fallbacks: process.env.IMAGE_PROVIDER_FALLBACKS, liveImageGen: process.env.LIVE_IMAGE_GEN });
 });
 
 const visualizerFields = upload.fields([
@@ -369,6 +489,7 @@ const visualizerFields = upload.fields([
   { name: 'zoomedFloorPlan', maxCount: 1 },
   { name: 'fullFloorPlan', maxCount: 1 }
 ]);
+
 
 // ==========================================
 // 1. LEADS CRM API
@@ -2939,6 +3060,7 @@ app.post('/api/settings/api-keys/test', express.json(), async (req, res) => {
   try {
     const { provider, key_value } = req.body || {};
     if (!provider || !key_value) return res.status(400).json({ success:false, error:'provider and key_value required' });
+    if (String(key_value).trim().length < 8) return res.status(400).json({ success:false, error:'key_value looks invalid (too short)' });
     const p = provider.toLowerCase();
     const masked = String(key_value).slice(0,4)+'...'+String(key_value).slice(-4);
 

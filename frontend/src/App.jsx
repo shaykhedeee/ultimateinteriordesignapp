@@ -265,8 +265,8 @@ export function App() {
     const fn = async () => {
       try {
         const [settingsRes, brandRaw] = await Promise.all([
-          fetch('http://127.0.0.1:5055/api/settings/app-settings'),
-          fetch('http://127.0.0.1:5055/api/settings/app-settings')
+          fetch('http://127.0.0.1:8787/api/settings/app-settings'),
+          fetch('http://127.0.0.1:8787/api/settings/app-settings')
         ]);
         const settings = (await settingsRes.json())?.settings || {};
         const b = {
@@ -312,7 +312,7 @@ export function App() {
     if (!selectedProjectId) { setActiveJobs([]); return; }
     const fetchJobs = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/jobs`);
+        const res = await fetch(`http://127.0.0.1:8787/api/projects/${selectedProjectId}/jobs`);
         if (res.ok) { const d = await res.json(); const jobs = Array.isArray(d) ? d : Array.isArray(d?.jobs) ? d.jobs : []; setActiveJobs(jobs.filter(j => j.status === 'running')); }
       } catch {}
     };
@@ -329,8 +329,8 @@ export function App() {
   const fetchData = async () => {
     try {
       const [leadsRes, projRes] = await Promise.all([
-        fetch('http://127.0.0.1:5055/api/leads'),
-        fetch('http://127.0.0.1:5055/api/projects')
+        fetch('http://127.0.0.1:8787/api/leads'),
+        fetch('http://127.0.0.1:8787/api/projects')
       ]);
       setApiOnline(leadsRes.ok);
       const leads    = leadsRes.ok ? await leadsRes.json() : [];
@@ -357,7 +357,7 @@ export function App() {
   const stepPct   = Math.round(Math.min((stepIndex / 7) * 100, 100));
 
   // ── AURA chat ──
-  const AURA_API = 'http://127.0.0.1:5055/api/aura/chat';
+  const AURA_API = 'http://127.0.0.1:8787/api/aura/chat';
   const handleSendMessage = async (text) => {
     const userMsg = { id:`u-${Date.now()}`, sender:'user', text, timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) };
     setChatMessages(p => [...p, userMsg]);
@@ -383,7 +383,7 @@ export function App() {
       const route = routeMap[actionId];
       if (!route) { if (target) setActiveTab(target); return; }
       const opts = { method: route.includes('client-share') ? 'POST' : 'POST', headers:{'Content-Type':'application/json'} };
-      try { await fetch(`http://127.0.0.1:5055${route}`, opts); if (target) setActiveTab(target); } catch (e) { window.__toast?.error(e.message || 'AURA action failed'); }
+      try { await fetch(`http://127.0.0.1:8787${route}`, opts); if (target) setActiveTab(target); } catch (e) { window.__toast?.error(e.message || 'AURA action failed'); }
       return;
     }
     if (target) setActiveTab(target);

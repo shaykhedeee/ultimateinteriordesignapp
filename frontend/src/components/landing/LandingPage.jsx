@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles, Layers, Ruler, Palette, FileText, Zap, ArrowRight, Check, Star } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = 'http://127.0.0.1:8787';
 
 const FEATURES = [
   { icon: Ruler,    title:'Plan Intelligence',     desc:'Upload a floor plan; AI extracts rooms, walls, openings, scale and Vastu zones automatically.' },

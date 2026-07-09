@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Zap, CheckCircle2, AlertTriangle, CircleSlash, ChevronRight, X } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = 'http://127.0.0.1:8787';
 
 const MODE_META = {
   live:          { label:'AI Live',        color:'var(--emerald)', bg:'rgba(45,212,170,0.10)', border:'rgba(45,212,170,0.30)', Icon: CheckCircle2, glow: '0 0 18px rgba(45,212,170,0.25)' },

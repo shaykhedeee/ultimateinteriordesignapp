@@ -55,7 +55,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   // 1. DATA LOADING
   // ==========================================
   useEffect(() => {
-    fetch('http://127.0.0.1:5055/api/projects')
+    fetch('http://127.0.0.1:8787/api/projects')
       .then(res => res.json())
       .then(data => {
         const projects = Array.isArray(data) ? data : Array.isArray(data?.projects) ? data.projects : [];
@@ -66,12 +66,12 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       })
       .catch(console.error);
 
-    fetch('http://127.0.0.1:5055/api/leads')
+    fetch('http://127.0.0.1:8787/api/leads')
       .then(res => res.json())
       .then(setLeads)
       .catch(console.error);
 
-    fetch('http://127.0.0.1:5055/api/material-catalog')
+    fetch('http://127.0.0.1:8787/api/material-catalog')
       .then(res => res.json())
       .then(setMaterialsCatalog)
       .catch(console.error);
@@ -305,7 +305,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                     onClick={async () => {
                       if (!newProj.name.trim()) { alert('Project name is required'); return; }
                       try {
-                        const res = await fetch('http://127.0.0.1:5055/api/projects', {
+                        const res = await fetch('http://127.0.0.1:8787/api/projects', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ name: newProj.name.trim(), client_name: newProj.client_name.trim(), budget: newProj.budget ? Number(newProj.budget) : '' })
                         });
@@ -361,7 +361,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!window.confirm(`Delete project "${p.name}" and all its data? This cannot be undone.`)) return;
-                            fetch(`http://127.0.0.1:5055/api/projects/${p.id}`, { method: 'DELETE' })
+                            fetch(`http://127.0.0.1:8787/api/projects/${p.id}`, { method: 'DELETE' })
                               .then(r => r.json())
                               .then(d => {
                                 if (d.success) {
@@ -469,10 +469,10 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
         try {
           const fd = new FormData();
           fd.append('floorplan', file);
-          const res = await fetch(`http://127.0.0.1:5055/api/projects/${pid}/floorplan`, { method: 'POST', body: fd });
+          const res = await fetch(`http://127.0.0.1:8787/api/projects/${pid}/floorplan`, { method: 'POST', body: fd });
           const data = await res.json();
           if (data?.success && data.floorplanUrl) {
-            setUploadedImageUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+            setUploadedImageUrl(`http://127.0.0.1:8787${data.floorplanUrl}`);
             window.__toast?.success('Floor plan uploaded & linked to project.');
           }
         } catch (err) {
@@ -871,7 +871,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             </div>
             <button 
               onClick={() => {
-                fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/cad`, {
+                fetch(`http://127.0.0.1:8787/api/projects/${selectedProjectId}/cad`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -2652,9 +2652,9 @@ function SettingsWorkspace() {
   const [brand, setBrand] = React.useState({
     studioName: '', tagline: '', designerName: '', phone: '', email: '', logoColor:'#C9A84C'
   });
-  const API = 'http://127.0.0.1:5055/api/settings/api-keys';
-  const APP_API = 'http://127.0.0.1:5055/api/settings/app-settings';
-  const MODELS_API = 'http://127.0.0.1:5055/api/settings/provider-models';
+  const API = 'http://127.0.0.1:8787/api/settings/api-keys';
+  const APP_API = 'http://127.0.0.1:8787/api/settings/app-settings';
+  const MODELS_API = 'http://127.0.0.1:8787/api/settings/provider-models';
 
   const [geminiModels, setGeminiModels] = React.useState([]);
   const [openaiModels, setOpenaiModels] = React.useState([]);
