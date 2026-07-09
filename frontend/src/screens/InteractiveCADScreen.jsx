@@ -1424,18 +1424,20 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       <div className="w-full xl:w-80 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0 overflow-y-auto max-h-[80vh]">
         
         {/* AutoCAD IMAGEATTACH Underlay Layer Panel */}
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-            <Compass className="w-4 h-4 text-[#D4AF37]" /> Floorplan Underlay (IMAGEATTACH)
+        <div className="panel">
+          <h3 className="panel-head">
+            <Compass className="ph-icon" /> Floorplan Underlay (IMAGEATTACH)
           </h3>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
+          <p className="panel-sub">
             Attach your client's handdrawn layout or PNG blueprint, adjust position and trace walls directly.
           </p>
 
-          <input
-            type="file"
-            accept="image/*,.dxf,.dwg,.pdf"
-            onChange={async (e) => {
+          <label className="btn-gold w-full cursor-pointer">
+            Choose Floor Plan File
+            <input
+              type="file"
+              accept="image/*,.dxf,.dwg,.pdf"
+              onChange={async (e) => {
               const file = e.target.files[0];
               if (!file) return;
               const isVector = /\.(dxf|dwg)$/i.test(file.name);
@@ -1484,18 +1486,19 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 console.error("Error uploading floorplan from CAD screen:", err);
                 __toast?.error("Failed to save floorplan to server.");
               }
-            }}
-            className="w-full bg-slate-900 text-[10px] text-slate-400 file:bg-[#D4AF37]/15 file:text-[#D4AF37] file:border-none file:px-2.5 file:py-1 file:rounded-lg cursor-pointer"
-          />
+              }}
+              className="hidden"
+            />
+          </label>
 
           {sketchUrl && (
-            <div className="space-y-2 text-[10px] text-slate-400">
+            <div className="space-y-3 mt-4 pt-4 border-t border-white/5">
               <div className="space-y-1">
-                <div className="flex justify-between">
+                <div className="flex justify-between text-[10px] text-slate-400">
                   <span>Opacity: {Math.round(sketchOpacity * 100)}%</span>
                   <button onClick={() => setSketchUrl('')} className="text-red-400 hover:text-red-300">Remove</button>
                 </div>
-                <input 
+                <input
                   type="range" min="0" max="1" step="0.05"
                   value={sketchOpacity} onChange={(e) => setSketchOpacity(parseFloat(e.target.value))}
                   className="w-full accent-[#D4AF37]"
@@ -1503,8 +1506,8 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               </div>
 
               <div className="space-y-1">
-                <span>Scale: {sketchScale.toFixed(2)}x</span>
-                <input 
+                <span className="text-[10px] text-slate-400">Scale: {sketchScale.toFixed(2)}x</span>
+                <input
                   type="range" min="0.2" max="3" step="0.05"
                   value={sketchScale} onChange={(e) => setSketchScale(parseFloat(e.target.value))}
                   className="w-full accent-[#D4AF37]"
@@ -1513,16 +1516,16 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <span>Offset X: {sketchX}px</span>
-                  <input 
+                  <span className="text-[10px] text-slate-400">Offset X: {sketchX}px</span>
+                  <input
                     type="range" min="-500" max="500" step="10"
                     value={sketchX} onChange={(e) => setSketchX(parseInt(e.target.value))}
                     className="w-full accent-[#D4AF37]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <span>Offset Y: {sketchY}px</span>
-                  <input 
+                  <span className="text-[10px] text-slate-400">Offset Y: {sketchY}px</span>
+                  <input
                     type="range" min="-500" max="500" step="10"
                     value={sketchY} onChange={(e) => setSketchY(parseInt(e.target.value))}
                     className="w-full accent-[#D4AF37]"
@@ -1534,11 +1537,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         </div>
 
         {/* Room Reference Images */}
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-            <Layers className="w-4 h-4 text-[#D4AF37]" /> Room Reference Images
+        <div className="panel">
+          <h3 className="panel-head">
+            <Layers className="ph-icon" /> Room Reference Images
           </h3>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
+          <p className="panel-sub">
             Attach style reference photos for each room zone to guide the 3D model generation.
           </p>
 

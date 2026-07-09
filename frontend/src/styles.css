@@ -434,6 +434,127 @@ body {
   overflow: hidden;
 }
 
+/* ════════════════════════════════════════════════
+   REUSABLE PANEL / TYPOGRAPHY PRIMITIVES
+   Use these instead of ad-hoc text-[9px]/[10px] so every
+   surface reads with consistent spacing + rhythm.
+   ════════════════════════════════════════════════ */
+
+.panel {
+  background: var(--surface-1);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: var(--shadow-card);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-bottom: 8px;
+}
+.panel-head .ph-icon { width: 15px; height: 15px; color: var(--gold); flex-shrink: 0; }
+
+.panel-sub {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.eyebrow {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+
+.micro {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.field-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.input-lux {
+  width: 100%;
+  background: var(--base-200);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.input-lux:focus {
+  border-color: var(--gold-border);
+  box-shadow: 0 0 0 3px rgba(201,168,76,0.10);
+}
+.input-lux::placeholder { color: var(--text-muted); }
+
+.btn-gold {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  color: #0A0A0D; font-weight: 800; font-size: 11px;
+  border: none; border-radius: 10px; padding: 9px 14px; cursor: pointer;
+  letter-spacing: 0.03em; transition: filter 0.18s, transform 0.18s, box-shadow 0.18s;
+  box-shadow: 0 4px 18px rgba(201,168,76,0.22);
+}
+.btn-gold:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-secondary); font-weight: 700; font-size: 10px;
+  border-radius: 10px; padding: 8px 12px; cursor: pointer;
+  letter-spacing: 0.03em; text-transform: uppercase; transition: all 0.18s;
+}
+.btn-ghost:hover { color: var(--text-primary); border-color: var(--gold-border); background: rgba(201,168,76,0.06); }
+
+.btn-emerald {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: linear-gradient(135deg, #34D399, #059669);
+  color: #04130D; font-weight: 900; font-size: 10px;
+  border: none; border-radius: 10px; padding: 8px 12px; cursor: pointer;
+  letter-spacing: 0.03em; text-transform: uppercase; transition: filter 0.18s, transform 0.18s;
+}
+.btn-emerald:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+.chip {
+  padding: 6px 11px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.08);
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  background: var(--base-200); color: var(--text-secondary); cursor: pointer;
+  transition: all 0.18s;
+}
+.chip:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.14); }
+.chip.active {
+  background: rgba(201,168,76,0.16); border-color: var(--gold-border); color: var(--gold-bright);
+}
+
+.divider {
+  height: 1px; width: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  margin: 4px 0;
+}
+
 @media (max-width: 720px) {
   :root {
     --sidebar-w: 68px;
