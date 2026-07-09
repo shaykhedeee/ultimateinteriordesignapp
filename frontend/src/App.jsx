@@ -31,6 +31,28 @@ const WhiteLabelStudio          = lazy(() => import('./screens/WhiteLabelStudio.
 const LandingPage               = lazy(() => import('./components/landing/LandingPage.jsx'));
 
 
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('Screen error:', error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 40, color: 'var(--text-primary)', maxWidth: 640 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold)', marginBottom: 8 }}>Something broke on this screen</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
+            The panel hit a runtime error but the rest of ULTIDA is still running. You can switch tabs safely.
+          </div>
+          <pre style={{ background: 'rgba(0,0,0,0.35)', padding: 12, borderRadius: 8, fontSize: 11, overflow: 'auto', color: '#fca5a5' }}>{String(this.state.error && this.state.error.stack || this.state.error)}</pre>
+          <button onClick={() => this.setState({ error: null })} style={{ marginTop: 16, padding: '8px 16px', background: 'var(--gold)', color: '#111', border: 0, borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Retry screen</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const STATUS_ORDER = ['brief','cad_approved','scene_ready','materials_selected','renders_approved','production','billing'];
 
 const NAV_CONFIG = [
@@ -708,7 +730,9 @@ export function App() {
             </div>
             <div className="workflow-screen">
               <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-secondary)' }}>Loading…</div>}>
+                <ErrorBoundary>
                 {renderScreen()}
+                </ErrorBoundary>
               </Suspense>
             </div>
           </div>
