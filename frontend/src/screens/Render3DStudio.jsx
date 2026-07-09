@@ -506,7 +506,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       const data = await res.json();
       if (data.success) {
         window.__toast?.show(`Instant Recolor: ${componentType} changed to ${colorName}. SAM component mask recolored in 3.5 seconds!`);
-        if (data.suggestions) {
+        if (Array.isArray(data.suggestions)) {
           setColorSuggestions(data.suggestions);
         }
       }

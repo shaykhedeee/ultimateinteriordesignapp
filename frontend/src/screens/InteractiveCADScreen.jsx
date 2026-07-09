@@ -458,10 +458,10 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
       const data = await res.json();
       
-      if (data.detectedPoints) {
+      if (Array.isArray(data.detectedPoints)) {
         setDetectedPoints(data.detectedPoints);
       }
-      if (data.warnings) {
+      if (Array.isArray(data.warnings)) {
         setVideoWarnings(data.warnings);
       }
       if (data.calibrationSuggestion) {
