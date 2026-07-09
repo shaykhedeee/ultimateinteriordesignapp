@@ -2,15 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
   BarChart3, CheckCircle2, ChevronRight, Activity, Zap, Info, Plus, 
-  Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee
+  Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee, Pencil
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
+import ProjectSettingsModal from '../components/ProjectSettingsModal.jsx';
 
 export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [projects, setProjects] = useState([]);
   const [leads, setLeads] = useState([]);
   const [activeWorkflowTab, setActiveWorkflowTab] = useState('smart'); // 'smart', 'generate', 'photo', 'layout', 'product'
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
+  const [editingProject, setEditingProject] = useState(null);
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
   const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'brand' | 'realestate'
 
@@ -277,10 +279,19 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                     onMouseLeave={e => { if(!isActive){ e.currentTarget.style.background='rgba(255,255,255,0.02)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.04)'; }}}
                   >
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
-                      <span style={{ fontSize:'11.5px', fontWeight:700, color: isActive ? 'var(--gold-bright)' : 'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'130px' }}>{p.name}</span>
-                      <span style={{ fontSize:'8px', fontWeight:900, textTransform:'uppercase', letterSpacing:'0.08em', padding:'2px 7px', borderRadius:'5px', background:'rgba(201,168,76,0.1)', color:'var(--gold)', border:'1px solid var(--gold-border)' }}>
-                        {(p.status||'onboarding').replace(/_/g,' ')}
-                      </span>
+                      <span style={{ fontSize:'11.5px', fontWeight:700, color: isActive ? 'var(--gold-bright)' : 'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'108px' }}>{p.name}</span>
+                      <div style={{ display:'flex', alignItems:'center', gap:'4px' }}>
+                        <button
+                          title="Edit project"
+                          onClick={(e) => { e.stopPropagation(); setEditingProject(p); }}
+                          style={{ background:'transparent', border:'1px solid var(--gold-border)', borderRadius:'5px', padding:'2px 5px', cursor:'pointer', color:'var(--gold)', display:'flex', alignItems:'center' }}
+                        >
+                          <Pencil style={{ width:9, height:9 }} />
+                        </button>
+                        <span style={{ fontSize:'8px', fontWeight:900, textTransform:'uppercase', letterSpacing:'0.08em', padding:'2px 7px', borderRadius:'5px', background:'rgba(201,168,76,0.1)', color:'var(--gold)', border:'1px solid var(--gold-border)' }}>
+                          {(p.status||'onboarding').replace(/_/g,' ')}
+                        </span>
+                      </div>
                     </div>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', fontSize:'9.5px', color:'var(--text-muted)', fontWeight:500 }}>
                       <span>{p.client_name || '—'}</span>
@@ -295,6 +306,17 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
         </div>
 
       </div>
+
+      {editingProject && (
+        <ProjectSettingsModal
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSaved={(updated) => {
+            setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+            if (updated.id === selectedProjectId) setSelectedProjectId(updated.id);
+          }}
+        />
+      )}
 
     </div>
   );
