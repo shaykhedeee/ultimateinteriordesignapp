@@ -29,6 +29,17 @@ function resolveKey(provider) {
   return process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY || null;
 }
 
+// A user-supplied key (BYOK UI -> api_keys table, or .env) implies consent to
+// live generation. This lets the BYOK system actually drive photoreal renders
+// without requiring a separate LIVE_IMAGE_GEN env flag.
+function liveEnabled(provider) {
+  if (process.env.LIVE_IMAGE_GEN === 'true') return true;
+  // provider-specific key present?
+  if (provider && resolveKey(provider)) return true;
+  // any universal key present?
+  return Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.STABILITY_API_KEY);
+}
+
 export { isNativeOpenAiKey, openAiKeyType } from './provider-config.js';
 export { resolveKey };
 
@@ -225,7 +236,7 @@ async function tryGenerateGeminiImagen({ id, projectId, room, safeRoom, title, p
   const resolved = resolveKey('gemini') || process.env.GEMINI_API_KEY;
   try {
     const keys = geminiImageKeys();
-    if (process.env.LIVE_IMAGE_GEN !== 'true' || !keys.length) return null;
+    if (!liveEnabled('gemini') || !keys.length) return null;
     const models = geminiImageModels();
     for (const apiKey of keys) {
       for (const model of models) {
@@ -321,7 +332,7 @@ async function callGeminiImageGenerateContent({ apiKey, model, prompt }) {
 async function tryGenerateOpenAiImage({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags }) {
   const resolved = resolveKey('openai') || process.env.OPENAI_API_KEY;
   try {
-    if (process.env.LIVE_IMAGE_GEN !== 'true' || !resolved) return null;
+    if (!liveEnabled('openai') || !resolved) return null;
     if (!isNativeOpenAiKey(resolved)) {
       console.warn('OpenAI image generation skipped: configured key is not an OpenAI Platform image key.');
       return null;
@@ -582,7 +593,7 @@ async function tryDownloadPexelsImage({ id, projectId, room, safeRoom, title, pr
 async function tryGenerateStabilityImage({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags, model = 'sdxl' }) {
   const resolved = resolveKey('stability') || process.env.STABILITY_API_KEY;
   try {
-    if (process.env.LIVE_IMAGE_GEN !== 'true' || !resolved) return null;
+    if (!liveEnabled('stability') || !resolved) return null;
     const modelMap = {
       'sdxl': 'stable-diffusion-xl-1024-v1-0',
       'flux': 'stable-diffusion-3-large'
@@ -641,13 +652,14 @@ async function tryGenerateStabilityImage({ id, projectId, room, safeRoom, title,
 
 async function tryGenerateOpenAiGptImage1({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags }) {
   try {
-    if (process.env.LIVE_IMAGE_GEN !== 'true' || !process.env.OPENAI_API_KEY) return null;
-    if (!isNativeOpenAiKey(process.env.OPENAI_API_KEY)) {
+    const gptKey = resolveKey('openai') || process.env.OPENAI_API_KEY;
+    if (!liveEnabled('openai') || !gptKey) return null;
+    if (!isNativeOpenAiKey(gptKey)) {
       console.warn('OpenAI gpt-image-1 skipped: configured key is not an OpenAI Platform image key.');
       return null;
     }
     const { default: OpenAI } = await import('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: gptKey });
     const response = await openai.images.generate({
       model: 'gpt-image-1',
       prompt,
@@ -922,7 +934,9 @@ function geminiImageKeys() {
     process.env.GEMINI_API_KEY,
     process.env.GOOGLE_API_KEY,
     process.env.GOOGLE_AI_STUDIO_KEY_1,
-    process.env.GOOGLE_AI_STUDIO_KEY_2
+    process.env.GOOGLE_AI_STUDIO_KEY_2,
+    resolveKey('gemini'),
+    resolveKey('google')
   ].filter(Boolean);
 }
 
