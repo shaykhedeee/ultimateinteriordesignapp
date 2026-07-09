@@ -34,7 +34,7 @@ test('POST /elevations/from-renders emits real DXF+PDF per unit', async () => {
   assert.equal(res.status, 200, `expected 200, got ${res.status}`);
   const body = await res.json();
   assert.equal(body.success, true);
-  assert.equal(body.count, 6);
+  assert.equal(body.count, 7);
   for (const f of body.files) {
     const dxfPath = path.join(__dirname, '..', f.dxf);
     const pdfPath = path.join(__dirname, '..', f.pdf);

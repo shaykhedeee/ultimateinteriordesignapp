@@ -34,6 +34,7 @@ import { generateElevationDXF } from './services/dxf-generator.js';
 import { buildElevationDXF } from './services/dxf-writer.js';
 import { renderElevationPDF, renderCombinedElevationsPDF } from './services/pdf-elevation.js';
 import { getAllDecodedModels, DECODED_UNITS } from './services/render-elevation-decode.js';
+import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu } from './services/vastu-auto.js';
@@ -142,6 +143,27 @@ app.post('/api/projects/:id/elevations/from-renders', express.json(), async (req
       files.push({ unit: key, dxf: `/storage/elevations/${dxfName}`, pdf: `/storage/elevations/${pdfName}`, widthMm: model.lengthMm, heightMm: model.heightMm, components: model.cabinets.length });
     }
     res.json({ success: true, count: files.length, files });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Generate a standalone CNC JALI / lattice panel DXF + PDF (reusable jali front)
+app.post('/api/projects/:id/elevations/jali-panel', express.json(), async (req, res) => {
+  try {
+    const widthMm = Number(req.body?.widthMm) || 600;
+    const heightMm = Number(req.body?.heightMm) || 2000;
+    const name = (req.body?.name || 'Jali Panel').toString().slice(0, 40);
+    if (widthMm < 100 || widthMm > 3000 || heightMm < 100 || heightMm > 4000) {
+      return res.status(400).json({ success: false, error: 'width 100-3000mm, height 100-4000mm' });
+    }
+    const outDir = path.join(__dirname, '..', 'storage', 'elevations');
+    fs.mkdirSync(outDir, { recursive: true });
+    const ts = Date.now().toString(36);
+    const dxfName = `jali-panel-${ts}.dxf`;
+    const pdfName = `jali-panel-${ts}.pdf`;
+    fs.writeFileSync(path.join(outDir, dxfName), buildJaliPanelDXF({ widthMm, heightMm, name, projectId: req.params.id }), 'utf8');
+    const pdf = await buildJaliPanelPDF({ widthMm, heightMm, name, projectId: req.params.id });
+    fs.writeFileSync(path.join(outDir, pdfName), pdf);
+    res.json({ success: true, dxf: `/storage/elevations/${dxfName}`, pdf: `/storage/elevations/${pdfName}`, widthMm, heightMm, name });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
@@ -452,6 +474,21 @@ app.patch('/api/projects/:id', express.json(), (req, res) => {
     db.prepare("UPDATE projects SET name = ?, client_name = ?, budget = ?, status = ? WHERE id = ?")
       .run(name, client_name, budget, status, req.params.id);
     res.json({ success: true, project: db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Delete a project (and cascade its child records)
+app.delete('/api/projects/:id', (req, res) => {
+  try {
+    const existing = db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: "Project not found" });
+    // Cascade delete child tables that reference project_id (best-effort; ignore missing tables)
+    const childTables = ['cad_data','client_briefs','quotations','budgets','cutlists','jobs','floor_plans','floor_plan_versions','style_references','renders','photo_elevations','material_selections','project_versions','aura_memory','generation_costs','furniture_catalog','intake_records','measurements','signoffs','delivery_packages','pipeline_runs'];
+    for (const t of childTables) {
+      try { db.prepare(`DELETE FROM ${t} WHERE project_id = ?`).run(req.params.id); } catch (_) { /* table may not exist */ }
+    }
+    db.prepare("DELETE FROM projects WHERE id = ?").run(req.params.id);
+    res.json({ success: true, id: req.params.id });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
