@@ -142,9 +142,10 @@ export default function CRMLeadDashboard({ onProjectClosed }) {
     try {
       const res = await fetch('http://127.0.0.1:5055/api/leads');
       const data = await res.json();
-      setLeads(data);
-      if (data.length > 0 && !selectedLead) {
-        setSelectedLead(data[0]);
+      const leads = Array.isArray(data) ? data : Array.isArray(data?.leads) ? data.leads : [];
+      setLeads(leads);
+      if (leads.length > 0 && !selectedLead) {
+        setSelectedLead(leads[0]);
       }
     } catch (err) {
       console.error("Error loading leads:", err);

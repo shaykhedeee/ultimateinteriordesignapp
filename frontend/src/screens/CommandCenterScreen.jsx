@@ -54,9 +54,10 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
     fetch('http://127.0.0.1:5055/api/projects')
       .then(res => res.json())
       .then(data => {
-        setProjects(data);
-        if (data.length > 0 && !selectedProjectId) {
-          setSelectedProjectId(data[0].id);
+        const projects = Array.isArray(data) ? data : Array.isArray(data?.projects) ? data.projects : [];
+        setProjects(projects);
+        if (projects.length > 0 && !selectedProjectId) {
+          setSelectedProjectId(projects[0].id);
         }
       })
       .catch(console.error);

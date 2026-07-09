@@ -32,9 +32,9 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
     try {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`);
       const data = await res.json();
-      
-      const loadedParts = JSON.parse(data.cutlist_data_json || '[]');
-      const loadedNesting = JSON.parse(data.optimized_sheets_json || '{}');
+      const safe = data && typeof data === 'object' ? data : {};
+      const loadedParts = JSON.parse(safe.cutlist_data_json || '[]');
+      const loadedNesting = JSON.parse(safe.optimized_sheets_json || '{}');
       
       setParts(loadedParts);
       setNestingSheets(loadedNesting);

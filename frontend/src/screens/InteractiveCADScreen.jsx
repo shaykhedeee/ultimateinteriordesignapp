@@ -141,13 +141,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       // 1. Fetch CAD vector drawing
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
       const data = await res.json();
-      
-      const loadedWalls = JSON.parse(data.walls_json || '[]');
-      const loadedOpenings = JSON.parse(data.openings_json || '[]');
-      const loadedFurniture = JSON.parse(data.furniture_json || '[]');
-      const loadedRooms = JSON.parse(data.rooms_json || '[]');
-      const loadedMeasures = JSON.parse(data.measures_json || '[]');
-      const ppm = data.pixels_per_meter || 40.0;
+      const safe = data && typeof data === 'object' ? data : {};
+      const loadedWalls = JSON.parse(safe.walls_json || '[]');
+      const loadedOpenings = JSON.parse(safe.openings_json || '[]');
+      const loadedFurniture = JSON.parse(safe.furniture_json || '[]');
+      const loadedRooms = JSON.parse(safe.rooms_json || '[]');
+      const loadedMeasures = JSON.parse(safe.measures_json || '[]');
+      const ppm = safe.pixels_per_meter || 40.0;
       
       setWalls(loadedWalls);
       setOpenings(loadedOpenings);

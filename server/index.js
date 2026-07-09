@@ -29,6 +29,7 @@ import { analyzeRCP } from './services/rcp-analyzer.js';
 import { generateElevationDXF } from './services/dxf-generator.js';
 import { buildElevationDXF } from './services/dxf-writer.js';
 import { renderElevationPDF, renderCombinedElevationsPDF } from './services/pdf-elevation.js';
+import { getAllDecodedModels, DECODED_UNITS } from './services/render-elevation-decode.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu } from './services/vastu-auto.js';
@@ -115,7 +116,32 @@ app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
     res.send(dxf);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-app.post('/api/projects/:id/plan/detect-furniture', express.json(), (req, res)=>{
+
+// Decode the user's shared 3D renders into accurate, dimensioned 2D
+// elevation DXF+PDF (wardrobe/kitchen/pooja/tv-unit/entry/vanity).
+app.post('/api/projects/:id/elevations/from-renders', express.json(), async (req, res) => {
+  try {
+    const units = Array.isArray(req.body?.units) ? req.body.units : Object.keys(DECODED_UNITS);
+    const outDir = path.join(__dirname, '..', 'storage', 'elevations');
+    fs.mkdirSync(outDir, { recursive: true });
+    const files = [];
+    for (const key of units) {
+      const fn = DECODED_UNITS[key];
+      if (!fn) continue;
+      const model = fn();
+      const dxf = buildElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: req.params.id, sheet: model.wallName });
+      const dxfName = `render-${key}-elevation.dxf`;
+      fs.writeFileSync(path.join(outDir, dxfName), dxf, 'utf8');
+      const pdf = await renderElevationPDF(model, { scale: '1:25', rev: '1.0' });
+      const pdfName = `render-${key}-elevation.pdf`;
+      fs.writeFileSync(path.join(outDir, pdfName), pdf);
+      files.push({ unit: key, dxf: `/storage/elevations/${dxfName}`, pdf: `/storage/elevations/${pdfName}`, widthMm: model.lengthMm, heightMm: model.heightMm, components: model.cabinets.length });
+    }
+    res.json({ success: true, count: files.length, files });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/projects/:id/plan/detect-furniture', express.json(), (req, res) => {
   try {
     const pid = req.params.id;
     const imageB64 = String(req.body?.imageB64 || '');
@@ -2723,95 +2749,16 @@ app.post('/api/projects/:id/purchase-orders', (req, res) => {
 });
 
 // ==========================================
-// FURNITURE CATALOG API
+// FURNITURE CATALOG API (served from the static FURNITURE_CATALOG in
+// room-templates.js; the legacy DB-backed furniture_catalog table is unused —
+// see getCatalog()).
 // ==========================================
-app.get('/api/furniture-catalog', (req, res) => {
-  const { category, style, trend, roomType, query } = req.query;
-  let sql = "SELECT * FROM furniture_catalog WHERE 1=1";
-  const params = [];
-
-  if (category && category !== 'all') {
-    sql += " AND category = ?";
-    params.push(category);
-  }
-  if (roomType && roomType !== 'all') {
-    sql += " AND room_types LIKE ?";
-    params.push(`%${roomType}%`);
-  }
-  if (style && style !== 'all') {
-    sql += " AND style_tags LIKE ?";
-    params.push(`%${style}%`);
-  }
-  if (trend && trend !== 'all') {
-    sql += " AND trend_tags LIKE ?";
-    params.push(`%${trend}%`);
-  }
-  if (query) {
-    sql += " AND (label LIKE ? OR style_tags LIKE ? OR category LIKE ?)";
-    params.push(`%${query}%`, `%${query}%`, `%${query}%`);
-  }
-
-  try {
-    const rows = db.prepare(sql).all(params);
-    res.json(rows.map(r => ({
-      key: r.key,
-      label: r.label,
-      category: r.category,
-      styleTags: r.style_tags ? r.style_tags.split(',') : [],
-      trendTags: r.trend_tags ? r.trend_tags.split(',') : [],
-      roomTypes: r.room_types ? r.room_types.split(',') : [],
-      params: JSON.parse(r.params_json || '{}'),
-      gltfAssetPath: r.gltf_asset_path,
-      previewColor: r.preview_color,
-      previewLabel: r.preview_label,
-      placementType: r.placement_type,
-      snapOrigin: r.snap_origin,
-      materialZones: r.material_zones ? r.material_zones.split(',') : [],
-      priceBand: r.price_band,
-      price: r.price,
-      dimensions: JSON.parse(r.dimensions_json || '{}'),
-      thumbnail: r.thumbnail
-    })));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/furniture-catalog/:key', (req, res) => {
-  try {
-    const row = db.prepare("SELECT * FROM furniture_catalog WHERE key = ?").get(req.params.key);
-    if (!row) return res.status(404).json({ error: "Item not found in catalog" });
-    res.json({
-      key: row.key,
-      label: row.label,
-      category: row.category,
-      styleTags: row.style_tags ? row.style_tags.split(',') : [],
-      trendTags: row.trend_tags ? row.trend_tags.split(',') : [],
-      roomTypes: row.room_types ? row.room_types.split(',') : [],
-      params: JSON.parse(row.params_json || '{}'),
-      gltfAssetPath: row.gltf_asset_path,
-      previewColor: row.preview_color,
-      previewLabel: row.preview_label,
-      placementType: row.placement_type,
-      snapOrigin: row.snap_origin,
-      materialZones: row.material_zones ? row.material_zones.split(',') : [],
-      priceBand: row.price_band,
-      price: row.price,
-      dimensions: JSON.parse(row.dimensions_json || '{}'),
-      thumbnail: row.thumbnail
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
 // AURA AI orchestrator chat route
 app.get('/api/aura/memory', (req, res) => {
   try {
     const projectId = req.query.projectId;
     if (!projectId) return res.status(400).json({ success:false, error:'projectId required' });
-    const rows = (require('../services/aura-orchestrator.js')).getMemory(String(projectId), 24);
+    const rows = auraOrchestrator.getMemory(String(projectId), 24);
     res.json({ success:true, memory: rows });
   } catch (err) { res.status(500).json({ success:false, error: err.message }); }
 });
