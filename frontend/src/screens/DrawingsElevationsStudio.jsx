@@ -21,6 +21,12 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [photoUpload, setPhotoUpload] = useState(null);
   const [photoDims, setPhotoDims] = useState('86" wide 90" tall 24" deep');
   const [photoGenerating, setPhotoGenerating] = useState(false);
+  const [generatedElevations, setGeneratedElevations] = useState([]); // from-renders output
+  const [genLoading, setGenLoading] = useState(false);
+  const [jaliW, setJaliW] = useState(600);
+  const [jaliH, setJaliH] = useState(2000);
+  const [jaliLoading, setJaliLoading] = useState(false);
+  const [jaliResult, setJaliResult] = useState(null);
   
   // Elevation-specific parameters
   const [wallHeight, setWallHeight] = useState(2700); // mm
@@ -144,6 +150,52 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
       showToast('Generation failed', 'error');
     } finally {
       setPhotoGenerating(false);
+    }
+  };
+
+  // Generate DXF+PDF elevations from the decoded 3D-render unit library
+  const handleGenerateFromRenders = async (units) => {
+    setGenLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/from-renders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ units: units || ['kitchen-pantry', 'wardrobe', 'kitchen', 'pooja', 'tv-unit', 'entry', 'vanity'] })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setGeneratedElevations(data.files);
+        showToast(`Generated ${data.count} elevation${data.count === 1 ? '' : 's'} (DXF + PDF)`, 'success');
+      } else {
+        showToast(data.error || 'Generation failed', 'error');
+      }
+    } catch (err) {
+      showToast('Generation failed: ' + err.message, 'error');
+    } finally {
+      setGenLoading(false);
+    }
+  };
+
+  // Generate a standalone CNC jali panel DXF + PDF
+  const handleGenerateJali = async () => {
+    setJaliLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/jali-panel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ widthMm: Number(jaliW) || 600, heightMm: Number(jaliH) || 2000, name: 'Jali Panel' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setJaliResult(data);
+        showToast('Jali panel DXF generated', 'success');
+      } else {
+        showToast(data.error || 'Generation failed', 'error');
+      }
+    } catch (err) {
+      showToast('Generation failed: ' + err.message, 'error');
+    } finally {
+      setJaliLoading(false);
     }
   };
 
@@ -958,6 +1010,69 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         >
           Proceed to Materials <ArrowRight className="w-4 h-4" />
         </button>
+      </div>
+
+      {/* Column 5: Render → Elevation + Jali Panel Generator (wired DXF pipeline) */}
+      <div className="xl:col-span-4 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">
+        <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] flex items-center gap-2">
+          <Package className="w-4.5 h-4.5" /> CNC Elevation Generator
+        </h2>
+        <p className="text-[10px] text-slate-400 leading-relaxed">
+          Generate professional DXF + PDF shop drawings from the decoded 3D-render unit library and a standalone CNC jali/lattice panel. Files open in AutoCAD / LibreCAD.
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => handleGenerateFromRenders()}
+            disabled={genLoading}
+            className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
+          >
+            {genLoading ? 'Generating…' : 'Generate All Unit Elevations (DXF + PDF)'}
+          </button>
+          {generatedElevations.length > 0 && (
+            <div className="flex flex-col gap-1.5 mt-1">
+              {generatedElevations.map(f => (
+                <div key={f.unit} className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5">
+                  <span className="text-[11px] font-bold text-slate-200 uppercase">{f.unit}</span>
+                  <div className="flex gap-1.5">
+                    <a href={`http://127.0.0.1:5055${f.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                    <a href={`http://127.0.0.1:5055${f.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-800 pt-3 flex flex-col gap-2">
+          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Jali / Lattice Panel (cut-through CNC)</label>
+          <div className="flex gap-2">
+            <div className="flex flex-col gap-1 flex-1">
+              <span className="text-[9px] text-slate-500 uppercase">Width mm</span>
+              <input type="number" value={jaliW} onChange={e => setJaliW(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+            <div className="flex flex-col gap-1 flex-1">
+              <span className="text-[9px] text-slate-500 uppercase">Height mm</span>
+              <input type="number" value={jaliH} onChange={e => setJaliH(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+          </div>
+          <button
+            onClick={handleGenerateJali}
+            disabled={jaliLoading}
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#D4AF37] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
+          >
+            {jaliLoading ? 'Cutting…' : 'Generate Jali Panel (DXF + PDF)'}
+          </button>
+          {jaliResult && (
+            <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 mt-1">
+              <span className="text-[11px] font-bold text-slate-200">{jaliResult.widthMm}×{jaliResult.heightMm}mm</span>
+              <div className="flex gap-1.5">
+                <a href={`http://127.0.0.1:5055${jaliResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                <a href={`http://127.0.0.1:5055${jaliResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
     </div>

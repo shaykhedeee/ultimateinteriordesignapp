@@ -13,6 +13,8 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [activeWorkflowTab, setActiveWorkflowTab] = useState('smart'); // 'smart', 'generate', 'photo', 'layout', 'product'
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [editingProject, setEditingProject] = useState(null);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProj, setNewProj] = useState({ name: '', client_name: '', budget: '' });
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
   const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'brand' | 'realestate'
 
@@ -256,11 +258,70 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 
           {/* Active Projects List */}
           <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'18px', boxShadow:'var(--shadow-card)' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:'7px', marginBottom:'14px' }}>
-              <FolderOpen style={{ width:13, height:13, color:'var(--gold)' }} />
-              <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Project Pipeline</span>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'14px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'7px' }}>
+                <FolderOpen style={{ width:13, height:13, color:'var(--gold)' }} />
+                <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Project Pipeline</span>
+              </div>
+              <button
+                title="New project"
+                onClick={() => setShowNewProject(v => !v)}
+                style={{ background:'var(--gold)', border:'none', borderRadius:'7px', padding:'4px 9px', cursor:'pointer', color:'#0b0b0b', fontSize:'10px', fontWeight:800, display:'flex', alignItems:'center', gap:'4px' }}
+              >
+                <Plus style={{ width:11, height:11 }} /> New
+              </button>
             </div>
-            
+
+            {showNewProject && (
+              <div style={{ background:'rgba(201,168,76,0.06)', border:'1px solid var(--gold-border)', borderRadius:'12px', padding:'10px', marginBottom:'10px', display:'flex', flexDirection:'column', gap:'6px' }}>
+                <input
+                  autoFocus
+                  placeholder="Project name *"
+                  value={newProj.name}
+                  onChange={e => setNewProj({ ...newProj, name: e.target.value })}
+                  style={{ background:'var(--surface-2)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'7px', padding:'6px 8px', color:'var(--text-primary)', fontSize:'11px' }}
+                />
+                <input
+                  placeholder="Client name"
+                  value={newProj.client_name}
+                  onChange={e => setNewProj({ ...newProj, client_name: e.target.value })}
+                  style={{ background:'var(--surface-2)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'7px', padding:'6px 8px', color:'var(--text-primary)', fontSize:'11px' }}
+                />
+                <input
+                  placeholder="Budget (₹, e.g. 1500000)"
+                  value={newProj.budget}
+                  onChange={e => setNewProj({ ...newProj, budget: e.target.value })}
+                  style={{ background:'var(--surface-2)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'7px', padding:'6px 8px', color:'var(--text-primary)', fontSize:'11px' }}
+                />
+                <div style={{ display:'flex', gap:'6px' }}>
+                  <button
+                    onClick={async () => {
+                      if (!newProj.name.trim()) { alert('Project name is required'); return; }
+                      try {
+                        const res = await fetch('http://127.0.0.1:5055/api/projects', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ name: newProj.name.trim(), client_name: newProj.client_name.trim(), budget: newProj.budget ? Number(newProj.budget) : '' })
+                        });
+                        const data = await res.json();
+                        if (data.id || data.success) {
+                          const created = data.id ? data : data.project;
+                          setProjects(prev => [created, ...prev]);
+                          setSelectedProjectId(created.id);
+                          setNewProj({ name: '', client_name: '', budget: '' });
+                          setShowNewProject(false);
+                        } else { alert('Create failed: ' + (data.error || 'unknown')); }
+                      } catch (err) { alert('Create error: ' + err.message); }
+                    }}
+                    style={{ flex:1, background:'var(--gold)', border:'none', borderRadius:'7px', padding:'6px', cursor:'pointer', color:'#0b0b0b', fontSize:'11px', fontWeight:800 }}
+                  >Create</button>
+                  <button
+                    onClick={() => { setShowNewProject(false); setNewProj({ name:'', client_name:'', budget:'' }); }}
+                    style={{ background:'transparent', border:'1px solid rgba(255,255,255,0.12)', borderRadius:'7px', padding:'6px 10px', cursor:'pointer', color:'var(--text-muted)', fontSize:'11px' }}
+                  >Cancel</button>
+                </div>
+              </div>
+            )}
+
             <div style={{ display:'flex', flexDirection:'column', gap:'6px', maxHeight:'280px', overflowY:'auto' }}>
               {projects.map(p => {
                 const isActive = p.id === selectedProjectId;
@@ -287,6 +348,28 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                           style={{ background:'transparent', border:'1px solid var(--gold-border)', borderRadius:'5px', padding:'2px 5px', cursor:'pointer', color:'var(--gold)', display:'flex', alignItems:'center' }}
                         >
                           <Pencil style={{ width:9, height:9 }} />
+                        </button>
+                        <button
+                          title="Delete project"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!window.confirm(`Delete project "${p.name}" and all its data? This cannot be undone.`)) return;
+                            fetch(`http://127.0.0.1:5055/api/projects/${p.id}`, { method: 'DELETE' })
+                              .then(r => r.json())
+                              .then(d => {
+                                if (d.success) {
+                                  setProjects(prev => prev.filter(x => x.id !== p.id));
+                                  if (selectedProjectId === p.id) setSelectedProjectId('');
+                                  showToast ? showToast('Project deleted') : null;
+                                } else {
+                                  alert('Delete failed: ' + (d.error || 'unknown'));
+                                }
+                              })
+                              .catch(err => alert('Delete error: ' + err.message));
+                          }}
+                          style={{ background:'transparent', border:'1px solid rgba(220,80,80,0.4)', borderRadius:'5px', padding:'2px 5px', cursor:'pointer', color:'#e07a7a', display:'flex', alignItems:'center' }}
+                        >
+                          <Trash2 style={{ width:9, height:9 }} />
                         </button>
                         <span style={{ fontSize:'8px', fontWeight:900, textTransform:'uppercase', letterSpacing:'0.08em', padding:'2px 7px', borderRadius:'5px', background:'rgba(201,168,76,0.1)', color:'var(--gold)', border:'1px solid var(--gold-border)' }}>
                           {(p.status||'onboarding').replace(/_/g,' ')}
