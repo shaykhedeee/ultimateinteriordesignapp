@@ -27,6 +27,16 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [jaliH, setJaliH] = useState(2000);
   const [jaliLoading, setJaliLoading] = useState(false);
   const [jaliResult, setJaliResult] = useState(null);
+  const [shoeTallW, setShoeTallW] = useState(1200);
+  const [shoeBenchW, setShoeBenchW] = useState(900);
+  const [shoeHeight, setShoeHeight] = useState(2000);
+  const [shoeBenchH, setShoeBenchH] = useState(450);
+  const [shoeDepth, setShoeDepth] = useState(400);
+  const [shoeShelves, setShoeShelves] = useState(3);
+  const [shoeHandle, setShoeHandle] = useState('bar');
+  const [shoeLed, setShoeLed] = useState(true);
+  const [shoeLoading, setShoeLoading] = useState(false);
+  const [shoeResult, setShoeResult] = useState(null);
   
   // Elevation-specific parameters
   const [wallHeight, setWallHeight] = useState(2700); // mm
@@ -196,6 +206,38 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
       showToast('Generation failed: ' + err.message, 'error');
     } finally {
       setJaliLoading(false);
+    }
+  };
+
+  // Generate the parametric shoe-rack / entry cabinet (photo-accurate, standard dims)
+  const handleGenerateShoeRack = async () => {
+    setShoeLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/shoe-rack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tallWidth: Number(shoeTallW) || 1200,
+          benchWidth: Number(shoeBenchW) || 900,
+          totalHeight: Number(shoeHeight) || 2000,
+          benchHeight: Number(shoeBenchH) || 450,
+          depth: Number(shoeDepth) || 400,
+          shoeShelves: Number(shoeShelves) || 3,
+          handleStyle: shoeHandle,
+          led: shoeLed,
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShoeResult(data);
+        showToast('Shoe rack DXF + PDF generated', 'success');
+      } else {
+        showToast(data.error || 'Generation failed', 'error');
+      }
+    } catch (err) {
+      showToast('Generation failed: ' + err.message, 'error');
+    } finally {
+      setShoeLoading(false);
     }
   };
 
@@ -1069,6 +1111,65 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               <div className="flex gap-1.5">
                 <a href={`http://127.0.0.1:5055${jaliResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
                 <a href={`http://127.0.0.1:5055${jaliResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-800 pt-3 flex flex-col gap-2">
+          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Shoe Rack / Entry Cabinet (photo-accurate, standard dims)</label>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-[9px] text-slate-500 uppercase">Tall W mm</span>
+              <input type="number" value={shoeTallW} onChange={e => setShoeTallW(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[9px] text-slate-500 uppercase">Bench W mm</span>
+              <input type="number" value={shoeBenchW} onChange={e => setShoeBenchW(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[9px] text-slate-500 uppercase">Total H mm</span>
+              <input type="number" value={shoeHeight} onChange={e => setShoeHeight(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[9px] text-slate-500 uppercase">Bench H mm</span>
+              <input type="number" value={shoeBenchH} onChange={e => setShoeBenchH(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[9px] text-slate-500 uppercase">Depth mm</span>
+              <input type="number" value={shoeDepth} onChange={e => setShoeDepth(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-[9px] text-slate-500 uppercase">Shelves</span>
+              <input type="number" value={shoeShelves} onChange={e => setShoeShelves(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
+            </div>
+          </div>
+          <div className="flex gap-2 items-center">
+            <div className="flex flex-col gap-1 flex-1">
+              <span className="text-[9px] text-slate-500 uppercase">Handle</span>
+              <select value={shoeHandle} onChange={e => setShoeHandle(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]">
+                <option value="bar">Bar</option>
+                <option value="knob">Knob</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-1.5 text-[10px] text-slate-300 mt-4">
+              <input type="checkbox" checked={shoeLed} onChange={e => setShoeLed(e.target.checked)} className="accent-[#D4AF37]" /> LED strip
+            </label>
+          </div>
+          <button
+            onClick={handleGenerateShoeRack}
+            disabled={shoeLoading}
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#D4AF37] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
+          >
+            {shoeLoading ? 'Generating…' : 'Generate Shoe Rack (DXF + PDF)'}
+          </button>
+          {shoeResult && (
+            <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 mt-1">
+              <span className="text-[11px] font-bold text-slate-200">{(shoeResult.opts.tallWidth||1200)+(shoeResult.opts.benchWidth||900)}×{shoeResult.opts.totalHeight||2000}mm</span>
+              <div className="flex gap-1.5">
+                <a href={`http://127.0.0.1:5055${shoeResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                <a href={`http://127.0.0.1:5055${shoeResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
               </div>
             </div>
           )}
