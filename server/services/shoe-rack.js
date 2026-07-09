@@ -211,10 +211,20 @@ export function buildShoeRackPDF(opts = {}) {
   doc.rect(px(o.tallWidth), py(o.benchHeight), o.benchWidth * sc, o.benchHeight * sc).stroke();
   doc.lineWidth(0.6).strokeColor(GREY);
   doc.rect(px(T), py(o.plinthH), (o.tallWidth - 2 * T) * sc, (o.plinthH) * sc).stroke();
-  // cupboard doors
+  // cupboard doors + centre stile + bar handles
   doc.lineWidth(1).strokeColor(BLK);
+  const cupBot = o.totalHeight - o.topCabH;
   doc.rect(px(0), py(o.totalHeight), (o.tallWidth / 2) * sc, o.topCabH * sc).stroke();
   doc.rect(px(o.tallWidth / 2), py(o.totalHeight), (o.tallWidth / 2) * sc, o.topCabH * sc).stroke();
+  doc.moveTo(px(o.tallWidth / 2), py(o.totalHeight)).lineTo(px(o.tallWidth / 2), py(cupBot)).stroke();
+  const barH = 300 * sc;
+  if (o.handleStyle !== 'none') {
+    doc.lineWidth(2.4).strokeColor(BLK);
+    // two vertical bar handles on the doors (matte black, per photo)
+    const hy = py(cupBot + o.topCabH / 2) - barH / 2;
+    doc.moveTo(px(o.tallWidth / 2) - 6, hy).lineTo(px(o.tallWidth / 2) - 6, hy + barH).stroke();
+    doc.moveTo(px(o.tallWidth / 2) + 6, hy).lineTo(px(o.tallWidth / 2) + 6, hy + barH).stroke();
+  }
   // shoe shelves
   const sh = shoeBayH / o.shoeShelves;
   doc.lineWidth(2).strokeColor(BLUE);
@@ -222,10 +232,22 @@ export function buildShoeRackPDF(opts = {}) {
     const sy = o.plinthH + i * sh;
     doc.moveTo(px(T), py(sy)).lineTo(px(o.tallWidth - T), py(sy)).stroke();
   }
-  // bench drawer
+  doc.fontSize(6.5).fillColor(GREY).text('SHOE SHELVES', px(T) + 3, py(o.plinthH + sh * 0.5));
+  // bench: drawer on top + open shoe shelf below (matches photo)
   doc.lineWidth(1).strokeColor(BLK);
-  const drY = o.benchHeight - o.drawerH;
+  const drY = o.benchHeight;              // drawer front sits at bench top band
   doc.rect(px(o.tallWidth), py(o.benchHeight), o.benchWidth * sc, o.drawerH * sc).stroke();
+  if (o.handleStyle !== 'none') {
+    // single horizontal bar handle on the drawer (per photo)
+    doc.lineWidth(2.4).strokeColor(BLK);
+    const hcy = py(o.benchHeight - o.drawerH / 2);
+    doc.moveTo(px(o.tallWidth) + o.benchWidth * sc / 2 - 22, hcy)
+       .lineTo(px(o.tallWidth) + o.benchWidth * sc / 2 + 22, hcy).stroke();
+  }
+  // bench open shoe shelf (below drawer, above plinth)
+  doc.lineWidth(2).strokeColor(BLUE);
+  doc.moveTo(px(o.tallWidth + T), py(o.plinthH + 8)).lineTo(px(totalW - T), py(o.plinthH + 8)).stroke();
+  doc.fontSize(6.5).fillColor(GREY).text('DRAWER', px(o.tallWidth) + 3, py(o.benchHeight) + 3);
   // LED
   if (o.led) {
     doc.lineWidth(2).strokeColor(GOLD).dash(3, 2);
