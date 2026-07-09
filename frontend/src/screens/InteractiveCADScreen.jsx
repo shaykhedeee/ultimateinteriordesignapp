@@ -1434,27 +1434,55 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,.dxf,.dwg,.pdf"
             onChange={async (e) => {
               const file = e.target.files[0];
-              if (file) {
-                setSketchUrl(URL.createObjectURL(file));
+              if (!file) return;
+              const isVector = /\.(dxf|dwg)$/i.test(file.name);
+              if (isVector) {
+                // Vector plan: auto-trace walls in TRUE mm — no manual tracing needed.
                 try {
+                  __toast?.info?.("Auto-tracing DXF/DWG plan…");
                   const formData = new FormData();
                   formData.append('floorplan', file);
-                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/auto-trace`, {
                     method: 'POST',
                     body: formData
                   });
                   const data = await res.json();
                   if (data.success) {
-                    setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
-                    __toast?.success("Floorplan underlay attached.");
+                    const w = (data.interpretation?.walls || []).map(seg => ({
+                      id: seg.id, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2,
+                      thickness: seg.thicknessMm || 230, wallId: ''
+                    }));
+                    if (w.length) { setWalls(w); saveToHistory(w, openings, furniture, rooms, measures); }
+                    __toast?.success(`Auto-traced ${data.walls} walls (${data.unit}). Rooms: ${(data.interpretation?.rooms || []).length}.`);
+                  } else {
+                    __toast?.error(data.message || "No walls found in DXF. Trace manually.");
                   }
                 } catch (err) {
-                  console.error("Error uploading floorplan from CAD screen:", err);
-                  __toast?.error("Failed to save floorplan to server.");
+                  console.error("DXF auto-trace failed:", err);
+                  __toast?.error("Auto-trace failed. Try manual tracing.");
                 }
+                return;
+              }
+              // Raster (image/PDF): attach as underlay for manual tracing.
+              setSketchUrl(URL.createObjectURL(file));
+              try {
+                const formData = new FormData();
+                formData.append('floorplan', file);
+                const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                  method: 'POST',
+                  body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                  setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+                  __toast?.success("Floorplan underlay attached — trace walls over it.");
+                }
+              } catch (err) {
+                console.error("Error uploading floorplan from CAD screen:", err);
+                __toast?.error("Failed to save floorplan to server.");
               }
             }}
             className="w-full bg-slate-900 text-[10px] text-slate-400 file:bg-[#D4AF37]/15 file:text-[#D4AF37] file:border-none file:px-2.5 file:py-1 file:rounded-lg cursor-pointer"
