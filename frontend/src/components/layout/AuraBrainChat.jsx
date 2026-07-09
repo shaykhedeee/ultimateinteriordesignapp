@@ -192,9 +192,18 @@ export default function AuraBrainChat({
           <div>
             <div style={{ fontSize:'11px', fontWeight:800, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-primary)', display:'flex', alignItems:'center', gap:6 }}>
               AURA BRAIN
-              <span style={{ fontSize:'8px', fontFamily:'monospace', fontWeight:700, padding:'2px 7px', borderRadius:'5px', background:'rgba(45,212,170,0.12)', color:'var(--emerald)', border:'1px solid rgba(45,212,170,0.2)' }}>ONLINE</span>
+              {(() => {
+                const lastAura = [...messages].reverse().find(m => m.sender === 'aura');
+                const live = lastAura?.llmPowered;
+                return (
+                  <span style={{ fontSize:'8px', fontFamily:'monospace', fontWeight:700, padding:'2px 7px', borderRadius:'5px', background: live ? 'rgba(45,212,170,0.12)' : 'rgba(250,204,21,0.12)', color: live ? 'var(--emerald)' : '#facc15', border: `1px solid ${live ? 'rgba(45,212,170,0.2)' : 'rgba(250,204,21,0.25)'}` }}>{live ? 'ONLINE' : 'LOCAL'}</span>
+                );
+              })()}
             </div>
-            <div style={{ fontSize:'9.5px', color:'var(--text-muted)', marginTop:'1px' }}>LLaMA 3.1 70B Orchestrator</div>
+            <div style={{ fontSize:'9.5px', color:'var(--text-muted)', marginTop:'1px' }}>{(() => {
+              const lastAura = [...messages].reverse().find(m => m.sender === 'aura');
+              return lastAura?.model ? String(lastAura.model).replace('meta-llama/', 'LLaMA ') : 'LLaMA 3.3 70B Orchestrator';
+            })()}</div>
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>

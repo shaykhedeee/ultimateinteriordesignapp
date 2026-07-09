@@ -12,6 +12,7 @@
 
 import db from '../database/database.js';
 import { buildRoomStylePayload } from './prompt-harness.js';
+import { chatWithAura } from './gemini-service.js';
 
 const TOOLS = [
   { id:'rag_search',         label:'Search knowledge base',   intent:/search|find|show|list|what|where/i, action:'project_search' },
@@ -130,7 +131,29 @@ async function recall(projectId, limit = 12) {
 export async function handleChatMessage(message, projectId = null) {
   const intent = resolveIntent(message);
   const memory = await recall(projectId);
-  const { text, actions } = await toolReply(intent.tool, { query: message }, projectId);
+
+  // Preferred path: a real conversational LLM (OpenRouter llama-3.3-70b).
+  // It can answer freely AND decide an action (toolId). When it picks an
+  // action we still run the real tool side-effect via toolReply so the
+  // frontend gets actionable buttons + the backend API call fires.
+  const llm = projectId ? await chatWithAura({ message, history: memory, tools: TOOLS }) : null;
+  let text;
+  let actions = [];
+
+  if (llm) {
+    text = llm.text;
+    const chosenTool = llm.toolId ? TOOLS.find(t => t.id === llm.toolId) : (intent.tool || null);
+    if (chosenTool) {
+      const toolOut = await toolReply(chosenTool, { query: message, projectId }, projectId);
+      text = text || toolOut.text;
+      actions = toolOut.actions || [];
+    }
+  } else {
+    // Fallback: deterministic keyword routing (no LLM key available).
+    const { text: fbText, actions: fbActions } = await toolReply(intent.tool, { query: message }, projectId);
+    text = fbText;
+    actions = fbActions;
+  }
 
   await remember(projectId, 'user', message);
   await remember(projectId, 'aura', text);
@@ -145,7 +168,9 @@ export async function handleChatMessage(message, projectId = null) {
       actions,
       intent: intent.tool ? intent.tool.id : null,
       next: intent.tool ? { screen: 'command', action: intent.tool.action } : null,
-      memory: memory.map(m => ({ sender: m.role, text: m.text.slice(0, 120) }))
+      memory: memory.map(m => ({ sender: m.role, text: m.text.slice(0, 120) })),
+      llmPowered: Boolean(llm),
+      model: llm?.model || (projectId ? 'offline-rule-engine' : 'unavailable')
     }
   };
 }
