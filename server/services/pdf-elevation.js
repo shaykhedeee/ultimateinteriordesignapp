@@ -83,33 +83,82 @@ function drawElevation(doc, model, opts = {}) {
   // Cabinets (detail + handle + material callouts)
   for (const c of model.cabinets) {
     const x = toX(c.xOffsetMm), y = toY(c.zOffsetMm + c.heightMm), w = c.widthMm * scale, h = c.heightMm * scale;
+    const m = c.material || {};
+    const isOpen = m.openShelf || c.tag === 'OPEN' || c.tag === 'OPEN UNIT';
     doc.lineWidth(1.5).strokeColor(BLK).rect(x, y, w, h).stroke();
-    if (c.tag === 'DRAWER' || /drawer/i.test(c.name)) {
-      const n = Math.max(2, Math.round(c.heightMm / 250));
-      for (let i = 1; i < n; i++) doc.lineWidth(0.7).moveTo(x, y + (h * i) / n).lineTo(x + w, y + (h * i) / n).stroke();
-    } else if (c.widthMm > 500) {
-      doc.lineWidth(0.7).moveTo(x + w / 2, y).lineTo(x + w / 2, y + h).stroke();
-      doc.lineWidth(0.4).dash(2, 2);
-      const r2 = w / 2, cx2 = x + w / 2, cy2 = y + h / 2;
-      for (let a = 0; a <= Math.PI / 2; a += Math.PI / 24) doc.moveTo(cx2 - r2 * Math.cos(a), cy2 - r2 * Math.sin(a)).lineTo(cx2 - r2 * Math.cos(a + 0.01), cy2 - r2 * Math.sin(a + 0.01));
-      doc.stroke(); doc.undash();
-    } else {
-      doc.lineWidth(0.4).dash(2, 2);
-      const r3 = w, cx3 = x + w, cy3 = y + h / 2;
-      for (let a = 0; a <= Math.PI / 2; a += Math.PI / 24) doc.moveTo(cx3 - r3 * Math.cos(a), cy3 - r3 * Math.sin(a)).lineTo(cx3 - r3 * Math.cos(a + 0.01), cy3 - r3 * Math.sin(a + 0.01));
+    // two-tone split
+    if (m.twoTone) {
+      const sy = y + h * (1 - (m.splitRatio || 0.5));
+      doc.lineWidth(0.9).strokeColor(BLK).moveTo(x, sy).lineTo(x + w, sy).stroke();
+    }
+    // vertical fluting
+    if (m.fluted) {
+      doc.lineWidth(0.4).strokeColor(GREY);
+      const pitch = Math.max(3, (m.flutePitch || 45) * scale);
+      for (let fx = x + pitch; fx < x + w - 1; fx += pitch) doc.moveTo(fx, y + 3).lineTo(fx, y + h - 3).stroke();
+    }
+    // appliance glyphs
+    if (m.appliance === 'fridge') {
+      doc.lineWidth(0.7).strokeColor(BLK).moveTo(x, y + h * 0.38).lineTo(x + w, y + h * 0.38).stroke();
+      doc.moveTo(x + w / 2, y).lineTo(x + w / 2, y + h * 0.38).stroke();
+      doc.rect(x + w * 0.08, y + h * 0.14, w * 0.28, h * 0.16).stroke();
+      doc.fontSize(7).fillColor(BLK).text('FRIDGE', x + w / 2 - 14, y + h / 2);
+    } else if (m.appliance === 'hood') {
+      doc.lineWidth(0.7).strokeColor(BLK).moveTo(x, y + h).lineTo(x + w * 0.28, y).lineTo(x + w * 0.72, y).lineTo(x + w, y + h).stroke();
+      doc.fontSize(7).fillColor(BLK).text('HOOD', x + w / 2 - 10, y + h / 2);
+    } else if (m.appliance === 'cooktop') {
+      doc.lineWidth(0.7).strokeColor(BLK);
+      for (const fx of [0.3, 0.7]) doc.circle(x + w * fx, y + h * 0.5, Math.min(w, h) * 0.16).stroke();
+      doc.fontSize(7).fillColor(BLK).text('HOB', x + w / 2 - 8, y + h * 0.1);
+    } else if (m.appliance === 'sink') {
+      doc.lineWidth(0.7).strokeColor(BLK).rect(x + w * 0.12, y + h * 0.25, w * 0.76, h * 0.55).stroke();
+      doc.circle(x + w / 2, y + h * 0.52, 3).stroke();
+      doc.moveTo(x + w * 0.5, y + h * 0.25).lineTo(x + w * 0.5, y).stroke();
+      doc.fontSize(7).fillColor(BLK).text('SINK', x + w / 2 - 9, y + h * 0.85);
+    }
+    // arched top
+    if (m.arch) {
+      doc.lineWidth(1).strokeColor(BLK).dash(1, 0);
+      const r = w / 2, cx = x + w / 2;
+      doc.moveTo(x, y);
+      for (let a = Math.PI; a >= 0; a -= Math.PI / 24) doc.lineTo(cx + r * Math.cos(a), y - r * Math.sin(a) * 0.35);
       doc.stroke(); doc.undash();
     }
+    if (isOpen) {
+      const shelves = m.shelves || Math.max(1, Math.round(c.heightMm / 350));
+      doc.lineWidth(0.7).strokeColor(GREY);
+      for (let i = 1; i < shelves; i++) doc.moveTo(x + 3, y + (h * i) / shelves).lineTo(x + w - 3, y + (h * i) / shelves).stroke();
+    } else if (c.tag === 'DRAWER' || /drawer/i.test(c.name)) {
+      const n = Math.max(2, Math.round(c.heightMm / 250));
+      for (let i = 1; i < n; i++) doc.lineWidth(0.7).moveTo(x, y + (h * i) / n).lineTo(x + w, y + (h * i) / n).stroke();
+    } else if (!m.appliance && c.widthMm > 500) {
+      doc.lineWidth(0.7).moveTo(x + w / 2, y).lineTo(x + w / 2, y + h).stroke();
+    }
+    // glass grid muntins
+    if ((m.glass || m.glassGrid) && w > 24 && h > 24) {
+      const cols = m.glassCols || 1, rows = m.glassRows || 3;
+      doc.lineWidth(0.4).strokeColor(BLUE);
+      for (let i = 1; i < cols; i++) doc.moveTo(x + (w * i) / cols, y + 4).lineTo(x + (w * i) / cols, y + h - 4).stroke();
+      for (let j = 1; j < rows; j++) doc.moveTo(x + 4, y + (h * j) / rows).lineTo(x + w - 4, y + (h * j) / rows).stroke();
+    }
     // handle glyph
-    if (c.handleType === 'bar') {
-      doc.lineWidth(1).strokeColor(BLK).moveTo(x + w * 0.3, y + h / 2).lineTo(x + w * 0.7, y + h / 2).stroke();
+    if (c.handleType === 'none' || m.appliance || isOpen) {
+      // none
+    } else if (c.handleType === 'vbar') {
+      const vw = Math.max(3, w * 0.06);
+      doc.rect(x + w - vw - 4, y + h * 0.18, vw, h * 0.64).fill(BLK);
+    } else if (c.handleType === 'knob') {
+      doc.lineWidth(1).strokeColor(BLK).circle(x + w - 12, y + h / 2, 2.4).stroke();
+    } else if (c.handleType === 'bar') {
+      doc.lineWidth(1.2).strokeColor(BLK).moveTo(x + w * 0.3, y + h / 2).lineTo(x + w * 0.7, y + h / 2).stroke();
     } else {
       doc.lineWidth(1).strokeColor(BLK).moveTo(x + w * 0.5, y + h * 0.25).lineTo(x + w * 0.5, y + h * 0.75).stroke();
     }
     doc.fontSize(8).fillColor(BLK).text(c.tag, x + w / 2 - 14, y + h / 2 - 4);
     doc.fontSize(6).fillColor(GREY).text(`${Math.round(c.widthMm)}x${Math.round(c.heightMm)}`, x + w / 2 - 18, y + h - 12);
-    if (c.material?.callout) {
+    if (m.callout) {
       doc.lineWidth(0.5).strokeColor(RED).moveTo(x + w / 2, y + 8).lineTo(x + w + 24, y - 6).stroke();
-      doc.fontSize(6).fillColor(RED).text(c.material.callout, x + w + 28, y - 8);
+      doc.fontSize(6).fillColor(RED).text(m.callout, x + w + 28, y - 8);
     }
   }
 

@@ -170,7 +170,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/from-renders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ units: units || ['kitchen-pantry', 'wardrobe', 'kitchen', 'pooja', 'tv-unit', 'entry', 'vanity'] })
+        body: JSON.stringify({ units: units || ['kitchen-pantry', 'wardrobe', 'kitchen', 'pooja', 'tv-unit', 'entry', 'vanity', 'wardrobe-fluted', 'wardrobe-study', 'pooja-ganesha', 'vanity-arch', 'kitchen-wall-a', 'kitchen-wall-b'] })
       });
       const data = await res.json();
       if (data.success) {
@@ -450,30 +450,25 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
       )}
 
       {/* Column 1: Wall List & Properties */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh]">
+      <div className="panel flex flex-col gap-5 h-[75vh]">
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] flex items-center gap-2">
-              <Layers className="w-4.5 h-4.5" /> Plan Intelligence Filters
-            </h2>
-            <div className="flex gap-1">
-              {['walls','openings','furniture','rugs'].map(k=>filters[k]?null:null)}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-1">
+          <h2 className="panel-head">
+            <Layers className="ph-icon" /> Plan Intelligence Filters
+          </h2>
+          <div className="flex flex-wrap gap-1.5 mt-1">
             {[ ['walls','Walls'], ['openings','Openings'], ['furniture','Furniture'], ['rugs','Rugs'], ['cabinets','Cabinets'] ].map(([k,label])=>(
-              <button key={k} onClick={()=>setFilters(f=>({...f,[k]:!f[k]}))} className={`px-2 py-1 rounded-md border text-[9px] font-bold uppercase transition ${filters[k]?'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]':'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{label}</button>
+              <button key={k} onClick={()=>setFilters(f=>({...f,[k]:!f[k]}))} className={`chip ${filters[k]?'active':''}`}>{label}</button>
             ))}
           </div>
-          <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] mb-1 flex items-center gap-2 mt-3">
-            <Layers className="w-4.5 h-4.5" /> Wall Layouts
+          <h2 className="panel-head mt-4">
+            <Layers className="ph-icon" /> Wall Layouts
           </h2>
-          <p className="text-[10px] text-slate-400">Select a partition wall to view its 2D elevation</p>
+          <p className="micro">Select a partition wall to view its 2D elevation</p>
         </div>
 
         {/* Detection toolbox */}
         <div className="space-y-2">
-          <div className="text-[10px] font-black text-[#D4AF37] uppercase tracking-widest">Detection</div>
+          <div className="eyebrow">Detection</div>
           <button onClick={async () => {
             try {
               const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/plan/detect-furniture`, { method:'POST', headers:{'Content-Type':'application/json'} });
@@ -481,27 +476,27 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               setFurniture(d?.detected || []);
               showToast((d?.detected?.length ? `Detected ${d.detected.length} items` : 'No furniture detected'), d?.detected?.length ? 'success' : 'error');
             } catch (err) { showToast('Detection failed', 'error'); }
-          }} className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-[10px] font-bold uppercase flex items-center justify-center gap-2 transition">Detect Furniture + Rug</button>
-          <div className="text-[9px] text-slate-500 leading-tight">Detects furniture footprints and rugs from the traced plan. Uses heuristics + CV when enabled.</div>
+          }} className="btn-ghost w-full">Detect Furniture + Rug</button>
+          <p className="micro">Detects furniture footprints and rugs from the traced plan. Uses heuristics + CV when enabled.</p>
         </div>
 
         {/* Preset + material selector */}
-        <div className="space-y-1">
-          <div className="text-[9px] font-black text-[#D4AF37] uppercase tracking-widest">Preset</div>
-          <div className="flex gap-1 overflow-x-auto pb-1">
+        <div className="space-y-2">
+          <div className="eyebrow">Preset</div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
             {presets.map(pr=>(
-              <button key={pr.id} onClick={()=>setStylePreset(pr.id)} className={`shrink-0 px-2 py-1 rounded-lg border text-[9px] font-bold uppercase transition ${stylePreset===pr.id?'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]':'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{pr.title}</button>
+              <button key={pr.id} onClick={()=>setStylePreset(pr.id)} className={`chip shrink-0 ${stylePreset===pr.id?'active':''}`}>{pr.title}</button>
             ))}
           </div>
-          <div className="flex items-center gap-1">
-            <select value={materialTag} onChange={e=>setMaterialTag(e.target.value)} className="bg-slate-950 border border-slate-800 text-[10px] text-slate-200 rounded-lg px-2 py-1.5">
+          <div className="flex items-center gap-2">
+            <select value={materialTag} onChange={e=>setMaterialTag(e.target.value)} className="input-lux">
               <option value="laminate">Laminate Sheets</option>
               <option value="glass">Glass</option>
               <option value="cane">Cane</option>
               <option value="marble">Marble</option>
               <option value="metal">Metal</option>
             </select>
-            <button onClick={async()=>{ showToast(`Applied ${preset.title} → ${materialTag} sheet`,'success'); }} className="px-2 py-1.5 bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-200 rounded-lg">Apply</button>
+            <button onClick={async()=>{ showToast(`Applied ${preset.title} → ${materialTag} sheet`,'success'); }} className="btn-ghost shrink-0">Apply</button>
           </div>
         </div>
 
@@ -1062,6 +1057,30 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         <p className="text-[10px] text-slate-400 leading-relaxed">
           Generate professional DXF + PDF shop drawings from the decoded 3D-render unit library and a standalone CNC jali/lattice panel. Files open in AutoCAD / LibreCAD.
         </p>
+
+        {/* Photo-traced styled units (from your July reference photos) */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Photo-Traced Styled Units</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              ['wardrobe-fluted', '2-Tone Fluted Wardrobe'],
+              ['wardrobe-study', 'Wardrobe + Study Nook'],
+              ['pooja-ganesha', 'Pooja / Ganesha Niche'],
+              ['vanity-arch', 'Arched Mirror Vanity'],
+              ['kitchen-wall-a', 'Kitchen Wall A (Fridge)'],
+              ['kitchen-wall-b', 'Kitchen Wall B (Sink)'],
+            ].map(([u, label]) => (
+              <button
+                key={u}
+                onClick={() => handleGenerateFromRenders([u])}
+                disabled={genLoading}
+                className="py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-[10px] rounded-md transition disabled:opacity-50"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="flex flex-col gap-2">
           <button

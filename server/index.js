@@ -617,18 +617,19 @@ app.post('/api/projects/:id/plan/measure', (req, res) => {
     res.json({ success: true, scaleRef: result.scaleRef, interpretation: result.interpretation, overallConfidence: result.overallConfidence });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/projects/:id/floorplan', upload.single('floorplan'), (req, res) => {
+app.post('/api/projects/:id/floorplan', upload.any(), (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No floorplan file provided" });
+    const file = req.files && req.files[0];
+    if (!file) return res.status(400).json({ error: "No floorplan file provided" });
     const projectId = req.params.id;
-    const floorplanUrl = `/storage/uploads/${req.file.filename}`;
+    const floorplanUrl = `/storage/uploads/${file.filename}`;
     
     // Check project exists
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     if (!project) return res.status(404).json({ error: "Project not found" });
 
     // 1. Ingestion Phase
-    const ingestResult = planIntelligenceCore.ingestFloorPlan(req.file.filename, req.file.mimetype);
+    const ingestResult = planIntelligenceCore.ingestFloorPlan(file.filename, file.mimetype);
 
     // Get current version number
     const lastVerRow = db.prepare("SELECT MAX(version_number) as max_v FROM floor_plan_versions WHERE project_id = ?").get(projectId);
@@ -651,7 +652,7 @@ app.post('/api/projects/:id/floorplan', upload.single('floorplan'), (req, res) =
       VALUES (?, ?, 'plan-analysis', 'queued', 0, 'floor_plan_version', ?)
     `).run(jobId, projectId, floorPlanVersionId);
 
-    logTimelineEvent(projectId, 'floorplan.upload', `Floorplan uploaded: ${req.file.originalname}`, `Version: #${nextVer}`);
+    logTimelineEvent(projectId, 'floorplan.upload', `Floorplan uploaded: ${file.originalname}`, `Version: #${nextVer}`);
     logTimelineEvent(projectId, 'job.started', `Plan Analysis Job Started`, `Job ID: ${jobId}`);
 
     // Asynchronous simulated runner for Interpretation & Review Items generation

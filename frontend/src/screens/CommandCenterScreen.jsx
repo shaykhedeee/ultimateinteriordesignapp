@@ -237,22 +237,29 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
             </div>
             
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-              {specialistTools.map((tool, idx) => (
+              {allSpecialistTools.map((tool, idx) => {
+                const inRole = tool.roles.includes(workspaceMode);
+                return (
                 <button
                   key={idx}
-                  onClick={() => onNavigateToTab(tool.tab)}
+                  onClick={() => { if (!inRole) setWorkspaceMode(tool.roles[0]); onNavigateToTab(tool.tab); }}
                   style={{
-                    background:'rgba(0,0,0,0.25)', border:'1px solid rgba(255,255,255,0.05)',
+                    background: inRole ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.02)',
+                    border: inRole ? '1px solid rgba(255,255,255,0.05)' : '1px dashed rgba(255,255,255,0.10)',
                     borderRadius:'12px', padding:'10px 12px', textAlign:'left',
                     cursor:'pointer', transition:'all 0.18s', display:'flex', flexDirection:'column', gap:'3px'
                   }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gold-border)'; e.currentTarget.style.background='rgba(201,168,76,0.05)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor='rgba(255,255,255,0.05)'; e.currentTarget.style.background='rgba(0,0,0,0.25)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor= inRole ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.10)'; e.currentTarget.style.background= inRole ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.02)'; }}
                 >
-                  <span style={{ fontSize:'11px', fontWeight:700, color:'var(--text-primary)' }}>{tool.title}</span>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+                    <span style={{ fontSize:'11px', fontWeight:700, color: inRole ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{tool.title}</span>
+                    <span style={{ fontSize:'7.5px', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase', color: inRole ? 'var(--gold)' : 'var(--text-muted)', border:`1px solid ${inRole ? 'var(--gold-border)' : 'rgba(255,255,255,0.08)'}`, borderRadius:'99px', padding:'2px 6px', whiteSpace:'nowrap' }}>{inRole ? 'Open' : (tool.roles[0]==='designer'?'DS':tool.roles[0]==='brand'?'BR':'RE')}</span>
+                  </div>
                   <span style={{ fontSize:'9px', color:'var(--text-muted)', fontWeight:500 }}>{tool.desc}</span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -414,6 +421,8 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
   
   const [projectName, setProjectName] = useState('Verona Heights 3BHK Residence');
   const [fileUploaded, setFileUploaded] = useState(false);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState('');   // REAL uploaded floorplan (data/object URL or server URL)
+  const [uploadedFileName, setUploadedFileName] = useState('');
   const [isEnhanced, setIsEnhanced] = useState(false);
   const [scaleDistance, setScaleDistance] = useState('4500');
   const [calibrationPoints, setCalibrationPoints] = useState([]);
@@ -445,9 +454,42 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
   };
 
   const handleUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Show the REAL uploaded image immediately (no stock placeholder).
+    const localUrl = URL.createObjectURL(file);
+    setUploadedImageUrl(localUrl);
+    setUploadedFileName(file.name);
     setFileUploaded(true);
     setWizardStep('enhance_view');
+    // Persist to backend so the CAD screen / detection can reuse it.
+    const pid = project?.id;
+    if (pid && /\.(png|jpe?g|pdf)$/i.test(file.name)) {
+      (async () => {
+        try {
+          const fd = new FormData();
+          fd.append('floorplan', file);
+          const res = await fetch(`http://127.0.0.1:5055/api/projects/${pid}/floorplan`, { method: 'POST', body: fd });
+          const data = await res.json();
+          if (data?.success && data.floorplanUrl) {
+            setUploadedImageUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+            window.__toast?.success('Floor plan uploaded & linked to project.');
+          }
+        } catch (err) {
+          console.error('Command Center floorplan upload failed:', err);
+          window.__toast?.show('Saved locally — backend link failed, will retry in CAD tab.');
+        }
+      })();
+    }
   };
+  // Fallback to a neutral in-app SVG grid (never a random stock room photo).
+  const PLAN_FALLBACK = "data:image/svg+xml;utf8," + encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='560'><rect width='800' height='560' fill='#0b0f1a'/>" +
+    "<g stroke='#1e293b' stroke-width='1'>" +
+    Array.from({ length: 20 }, (_, i) => `<line x1='${i * 40}' y1='0' x2='${i * 40}' y2='560'/>`).join('') +
+    Array.from({ length: 14 }, (_, i) => `<line x1='0' y1='${i * 40}' x2='800' y2='${i * 40}'/>`).join('') +
+    "</g><text x='400' y='285' fill='#334155' font-family='monospace' font-size='16' text-anchor='middle'>UPLOAD A FLOOR PLAN TO BEGIN</text></svg>"
+  );
 
   const handleCanvasClick = (e) => {
     if (wizardStep !== 'scale_calibrate' || !canvasRef.current) return;
@@ -545,8 +587,8 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-slate-950/60 border border-slate-850 rounded-2xl p-4 flex items-center justify-center min-h-[300px] relative overflow-hidden">
             <img 
-              src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80" 
-              alt="Floor Plan Underlay" 
+              src={uploadedImageUrl || PLAN_FALLBACK}
+              alt="Floor Plan Underlay"
               className={`w-full max-w-[400px] h-auto object-contain opacity-75 transition-all ${isEnhanced ? 'contrast-125 saturate-110 filter brightness-110' : ''}`} 
             />
             {isEnhanced && (
@@ -599,8 +641,8 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               className="w-full h-[320px] bg-slate-900 border border-slate-850 rounded-2xl relative overflow-hidden cursor-crosshair flex items-center justify-center"
             >
               <img 
-                src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80" 
-                alt="Calibration Underlay" 
+                src={uploadedImageUrl || PLAN_FALLBACK}
+                alt="Calibration Underlay"
                 className="absolute w-full max-w-[360px] h-auto object-contain opacity-50 select-none pointer-events-none" 
               />
               
@@ -705,8 +747,8 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             </div>
             <div className="w-full h-[320px] bg-slate-900 border border-slate-850 rounded-2xl relative overflow-hidden flex items-center justify-center">
               <img 
-                src="https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80" 
-                alt="Zonation Underlay" 
+                src={uploadedImageUrl || PLAN_FALLBACK}
+                alt="Zonation Underlay"
                 className="absolute w-full max-w-[360px] h-auto object-contain opacity-50 select-none pointer-events-none" 
               />
               

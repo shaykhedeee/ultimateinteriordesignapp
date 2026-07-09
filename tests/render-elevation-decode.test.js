@@ -1,7 +1,7 @@
 /**
  * tests/render-elevation-decode.test.js
  * Proves the decoded-3D-render elevation pipeline works end-to-end:
- *   - the service exposes 7 decoded unit builders (incl. kitchen-pantry)
+ *   - the service exposes 14 decoded unit builders (incl. kitchen-pantry + 6 photo-traced styled units)
  *   - the API route produces real DXF (SECTION/EOF) + real PDF (%PDF-)
  *     files for each unit on demand.
  * (Server must be running on 127.0.0.1:5055.)
@@ -18,7 +18,7 @@ const OUT = path.join(__dirname, '..', 'storage', 'elevations');
 
 test('decode service exposes >=6 decoded unit builders (incl. kitchen-pantry)', async () => {
   const mod = await import('../server/services/render-elevation-decode.js');
-  assert.equal(Object.keys(mod.DECODED_UNITS).length, 8);
+  assert.equal(Object.keys(mod.DECODED_UNITS).length, 14);
   assert.ok(mod.DECODED_UNITS['kitchen-pantry'], 'kitchen-pantry registered');
   for (const [k, fn] of Object.entries(mod.DECODED_UNITS)) {
     const m = fn();
@@ -34,7 +34,7 @@ test('POST /elevations/from-renders emits real DXF+PDF per unit', async () => {
   assert.equal(res.status, 200, `expected 200, got ${res.status}`);
   const body = await res.json();
   assert.equal(body.success, true);
-  assert.equal(body.count, 8);
+  assert.equal(body.count, 14);
   for (const f of body.files) {
     const dxfPath = path.join(__dirname, '..', f.dxf);
     const pdfPath = path.join(__dirname, '..', f.pdf);
