@@ -46,9 +46,9 @@ function solid(arr, x1, y1, x2, y2, x3, y3, layer, color) {
   arr.push('  0', 'SOLID', '  8', layer);
   if (color != null) arr.push(' 62', String(color));
   arr.push(' 10', num(x1), ' 20', num(y1), ' 30', '0.0');
-  arr.push(' 11', num(x2), ' 20', num(y2), ' 30', '0.0');
-  arr.push(' 12', num(x3), ' 20', num(y3), ' 30', '0.0');
-  arr.push(' 13', num(x1), ' 20', num(y1), ' 30', '0.0');
+  arr.push(' 11', num(x2), ' 21', num(y2), ' 31', '0.0');
+  arr.push(' 12', num(x3), ' 22', num(y3), ' 32', '0.0');
+  arr.push(' 13', num(x1), ' 23', num(y1), ' 33', '0.0');
 }
 function hatch(arr, x1, y1, x2, y2, layer) {
   // simple diagonal-line hatch inside a rectangle (x1,y1)-(x2,y2)

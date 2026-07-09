@@ -750,3 +750,16 @@
 {"ts":"2026-07-09T21:04:37.047Z","unitType":"vanity","dims":{"widthMm":1829,"heightMm":2667,"depthMm":533},"components":0,"material":null}
 {"ts":"2026-07-09T21:04:37.058Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667},"components":0,"material":null}
 {"ts":"2026-07-09T21:04:37.074Z","unitType":"tv-unit","dims":{"widthMm":2286,"heightMm":2032},"components":0,"material":null}
+{"ts":"2026-07-09T21:15:23.313Z","unitType":"kitchen","dims":{"widthMm":76200,"heightMm":60960,"depthMm":15240},"components":0,"material":null}
+{"ts":"2026-07-09T21:23:33.879Z","unitType":"kitchen","dims":{"widthMm":3000,"heightMm":2400,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-09T21:23:45.589Z","unitType":"kitchen","dims":{"widthMm":3000,"heightMm":2400,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-09T21:24:15.457Z","unitType":"kitchen","dims":{"widthMm":3000,"heightMm":2400,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-09T21:26:06.178Z","unitType":"kitchen","dims":{"widthMm":3000,"heightMm":2400,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-09T21:27:19.032Z","unitType":"kitchen","dims":{"widthMm":3000,"heightMm":2400,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-09T21:30:36.734Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667,"depthMm":559},"components":0,"material":null}
+{"ts":"2026-07-09T21:30:36.748Z","unitType":"wardrobe","dims":{"widthMm":1600,"heightMm":2667},"components":0,"material":null}
+{"ts":"2026-07-09T21:30:36.755Z","unitType":"vanity","dims":{"widthMm":1829,"heightMm":2667,"depthMm":533},"components":0,"material":null}
+{"ts":"2026-07-09T21:30:36.763Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667},"components":0,"material":null}
+{"ts":"2026-07-09T21:30:36.769Z","unitType":"tv-unit","dims":{"widthMm":2286,"heightMm":2032},"components":0,"material":null}
+{"ts":"2026-07-09T21:31:39.042Z","unitType":"kitchen","dims":{"widthMm":3000,"heightMm":2400,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-09T21:31:56.412Z","unitType":"kitchen","dims":{"widthMm":3000,"heightMm":2400,"depthMm":600},"components":0,"material":null}

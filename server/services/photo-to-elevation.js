@@ -33,14 +33,21 @@ function parseDims(text = '') {
   const out = {};
   if (!text) return out;
   const low = String(text).toLowerCase();
-const toUnit = (v, u) => u === 'cm' ? Math.round(v * MM_PER_CM)
-    : u === '"' ? Math.round(v * MM_PER_INCH)   // inch mark 86"  -> 86 * 25.4 mm
-    : Math.round(v * MM_PER_INCH); // bare number or ' -> inches
+const toUnit = (v, u) => {
+    if (u === 'cm') return Math.round(v * MM_PER_CM);
+    if (u === '"' || u === 'in' || u === 'inch') return Math.round(v * MM_PER_INCH);
+    if (u === "'" || u === 'ft' || u === 'foot' || u === 'feet') return Math.round(v * MM_PER_FOOT);
+    if (u === 'mm' || u === 'm') return u === 'm' ? Math.round(v * 1000) : Math.round(v);
+    // No explicit unit: use a domain heuristic. Interior millwork in mm is
+    // typically 300-4000; a bare number >= 400 is almost certainly mm (e.g.
+    // "width 3000" = 3 m), while small bare numbers (e.g. 86, 72) are inches.
+    return v >= 400 ? Math.round(v) : Math.round(v * MM_PER_INCH);
+  };
 
   // Explicit labels win (width/height/depth can appear in any order)
-  const widthM = low.match(/width[^\d]*(\d+(?:\.\d+)?)\s*(cm|"|in|inch|')?/);
-  const heightM = low.match(/(?:height|total|tall)[^\d]*(\d+(?:\.\d+)?)\s*(cm|"|in|inch|')?/);
-  const depthM = low.match(/(?<![\d\s]height\s)(?<!\d)(\d+(?:\.\d+)?)\s*(cm|"|in|inch|')?\s*depth/) || low.match(/depth[^\d]*(\d+(?:\.\d+)?)\s*(cm|"|in|inch|')?/);
+  const widthM = low.match(/width[^\d]*(\d+(?:\.\d+)?)\s*(mm|cm|m|"|in|inch|'|ft|feet)?/);
+  const heightM = low.match(/(?:height|total|tall)[^\d]*(\d+(?:\.\d+)?)\s*(mm|cm|m|"|in|inch|'|ft|feet)?/);
+  const depthM = low.match(/(?<![\d\s]height\s)(?<!\d)(\d+(?:\.\d+)?)\s*(mm|cm|m|"|in|inch|'|ft|feet)?\s*depth/) || low.match(/depth[^\d]*(\d+(?:\.\d+)?)\s*(mm|cm|m|"|in|inch|'|ft|feet)?/);
 
   if (widthM) out.widthMm = toUnit(+widthM[1], widthM[2]);
   if (heightM) out.heightMm = toUnit(+heightM[1], heightM[2]);
@@ -67,10 +74,8 @@ function geminiKeys() {
 }
 function geminiModel() { return process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash'; }
 
-async function callGeminiVision(imageB64, dimsText) {
-  const keys = geminiKeys();
-  if (!keys.length) return null;
-  const prompt = `You are a millwork shop-drawing expert. Analyse this 3D interior render/photo of a fitted furniture unit and output a STRICT JSON elevation model.
+// Strict JSON prompt shared by all vision providers
+const VISION_PROMPT = (dimsText) => `You are a millwork shop-drawing expert. Analyse this 3D interior render/photo of a fitted furniture unit and output a STRICT JSON elevation model.
 
 The user's handwritten dimension notes (ground truth, may be inches or cm): "${dimsText}".
 Prioritise the user's written dimensions for OVERALL width/height/depth. Detect the unit TYPE and internal components.
@@ -82,13 +87,69 @@ Return ONLY this JSON (no markdown):
   "components": [
     { "kind": "drawer|door|shelf|glass-door|open-shelf|shutter|appliance|sink|handle|loft",
       "xStartMm": 0, "xEndMm": 0, "yStartMm": 0, "yEndMm": 0,
-      "label": "short text", "leafCount": 1|2, "note": "" }
+      "label": "short text", "leafCount": 1, "note": "" }
   ],
   "detectedMaterial": "wood|mdf|glass|cane|laminate|metal",
   "notes": "one line"
 }
 Rules: coordinates in millimetres from the unit's bottom-left. Do not invent dimensions that contradict the user notes. If unsure of a sub-component size, estimate proportionally from overall size.`;
 
+function isNativeOpenAiKey(k) {
+  return typeof k === 'string' && /^sk-(proj-|[A-Za-z0-9])/.test(k) && !k.startsWith('sk-or-') && k.length > 20;
+}
+function openAiKey() {
+  return process.env.OPENAI_API_KEY;
+}
+
+// PRIMARY vision path: OpenAI GPT-4o (works with the standard sk-proj- key).
+async function callOpenAiVision(imageB64, dimsText) {
+  const key = openAiKey();
+  if (!isNativeOpenAiKey(key)) return null;
+  const model = process.env.OPENAI_VISION_MODEL || 'gpt-4o';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          max_tokens: 1800,
+          response_format: { type: 'json_object' },
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: VISION_PROMPT(dimsText) },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageB64}` } }
+            ]
+          }]
+        })
+      });
+      if (res.ok) {
+        const j = await res.json();
+        const txt = j?.choices?.[0]?.message?.content || '';
+        const parsed = JSON.parse(txt.replace(/```json|```/g, '').trim());
+        if (parsed && Array.isArray(parsed.components)) return parsed;
+        return null;
+      }
+      if (res.status === 429 || res.status >= 500) {
+        // rate limited / transient — back off and retry
+        const wait = 1500 * (attempt + 1);
+        console.warn(`openai vision ${res.status}, retry in ${wait}ms (attempt ${attempt + 1}/3)`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      console.warn('openai vision failed:', res.status, (await res.text()).slice(0, 200));
+      return null;
+    } catch (e) { console.warn('openai vision error:', e.message); return null; }
+  }
+  return null;
+}
+
+async function callGeminiVision(imageB64, dimsText) {
+  const keys = geminiKeys();
+  if (!keys.length) return null;
+  const prompt = VISION_PROMPT(dimsText);
   for (const key of keys) {
     try {
       const res = await fetch(new URL(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel()}:generateContent`), {
@@ -206,8 +267,13 @@ export async function analyzePhotoToElevation({ imagePath, imageB64, dimsText = 
 
   let ai = null, source = 'deterministic';
   if (b64) {
-    ai = await callGeminiVision(b64, dimsText);
-    if (ai) source = 'gemini-vision';
+    // Primary: OpenAI GPT-4o vision (native sk-proj- key). Fallback: Gemini.
+    ai = await callOpenAiVision(b64, dimsText);
+    if (ai) source = 'openai-vision';
+    if (!ai) {
+      ai = await callGeminiVision(b64, dimsText);
+      if (ai) source = 'gemini-vision';
+    }
   }
 
   const model = ai ? componentsToModel(ai, dims) : archetypeFor(type, dims);
