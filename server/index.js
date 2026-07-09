@@ -34,6 +34,7 @@ import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu } from './services/vastu-auto.js';
 import { applyKitchenTemplate } from './services/kitchen-templates.js';
 import { getTvUnitLibrary, applyTvUnit } from './services/tv-unit-library.js';
+import { traceDxf } from './services/dxf-trace.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,15 @@ const multerStorage = multer.diskStorage({
   }
 });
 const upload = multer({ storage: multerStorage });
+
+// DXF / DWG / PDF floor-plan upload (vector plans trace exactly)
+const dxfUpload = multer({
+  storage: multerStorage,
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(dxf|dwg|pdf|png|jpe?g)$/i.test(file.originalname || '');
+    cb(null, ok);
+  }
+});
 
 const app = express();
 const port = 5055;
@@ -576,6 +586,51 @@ app.post('/api/projects/:id/floorplan', upload.single('floorplan'), (req, res) =
     }, 1500);
 
     res.json({ success: true, floorplanUrl, floorPlanVersionId, jobId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Auto-trace an uploaded DXF/DWG floor plan into traced walls.
+// REAL: parses the DXF entity stream (LINE / LWPOLYLINE) to true-mm wall
+// segments, writes cad_drawings.walls_json + pixels_per_meter, then runs
+// interpretFloorPlan so the canonical journey proceeds without manual tracing.
+app.post('/api/projects/:id/floorplan/auto-trace', dxfUpload.single('floorplan'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No floorplan file provided' });
+    const projectId = req.params.id;
+    const ext = (req.file.originalname || '').split('.').pop().toLowerCase();
+    if (ext !== 'dxf' && ext !== 'dwg') {
+      return res.status(400).json({ error: 'auto-trace currently supports DXF/DWG (ASCII). For PDF/PNG, use manual trace in the CAD editor.' });
+    }
+    const text = fs.readFileSync(req.file.path, 'utf8');
+    const knownRealMm = Number(req.body.knownRealMm || 0);
+    const knownDrawingUnits = Number(req.body.knownDrawingUnits || 0);
+    const traced = traceDxf({ text, knownRealMm: knownRealMm || undefined, knownDrawingUnits: knownDrawingUnits || undefined });
+    if (!traced.success || traced.walls.length === 0) {
+      return res.status(422).json({ success: false, error: 'NO_WALLS_IN_DXF', message: 'No LINE/LWPOLYLINE wall entities found in the DXF.' });
+    }
+    // Persist traced walls to the project's cad_drawings so interpretFloorPlan reads them.
+    const cad = db.prepare('SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    if (cad) {
+      db.prepare('UPDATE cad_drawings SET walls_json = ?, pixels_per_meter = ?, openings_json = ? WHERE id = ?')
+        .run(JSON.stringify(traced.walls), traced.pixelPerMeter, JSON.stringify([]), cad.id);
+    } else {
+      db.prepare(`INSERT INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, pixels_per_meter, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('cad_' + nanoid(8), projectId, JSON.stringify(traced.walls), JSON.stringify([]), JSON.stringify([]), JSON.stringify([]), traced.pixelPerMeter, new Date().toISOString());
+    }
+    // Run REAL interpretation on the traced walls.
+    const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+    logTimelineEvent(projectId, 'floorplan.autotrace', `DXF auto-traced: ${traced.walls.length} walls (${traced.unit})`, `Confidence: ${(interp.overallConfidence * 100).toFixed(0)}%`);
+    res.json({
+      success: true,
+      walls: traced.walls.length,
+      unit: traced.unit,
+      mmPerUnit: traced.mmPerUnit,
+      interpretation: interp.success ? interp.interpretation : null,
+      overallConfidence: interp.overallConfidence,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
