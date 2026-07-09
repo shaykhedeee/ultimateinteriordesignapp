@@ -4,13 +4,13 @@
  *  - DELETE /api/projects/:id (cascade + 404 on missing)
  *  - POST /api/projects/:id/elevations/jali-panel (CNC jali DXF + PDF)
  *  - server/services/jali-panel.js produces valid DXF (closed-polylines + EOF)
- * (Server must be running on 127.0.0.1:5055.)
+ * (Server must be running on 127.0.0.1:8787.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildJaliPanelDXF } from '../server/services/jali-panel.js';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:5055';
+const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
 const isHtml = (t) => typeof t === 'string' && t.includes('<!DOCTYPE');
 
 test('jali-panel service: valid DXF with lotus + lattice (closed polylines)', () => {

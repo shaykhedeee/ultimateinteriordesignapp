@@ -19,7 +19,7 @@ export default function RoomAnnotator({ image, onRoomsDefined, projectId }) {
   // Prefill marked zones from the project's CAD rooms (canonical flow step 10)
   useEffect(() => {
     if (typeof window === 'undefined' || !projectId) return;
-    fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`).then(r => r.json()).then(cad => {
+    fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`).then(r => r.json()).then(cad => {
       const existing = JSON.parse(cad?.rooms_json || '[]');
       if (existing.length) {
         setRooms(existing.map(r => ({
@@ -65,7 +65,7 @@ export default function RoomAnnotator({ image, onRoomsDefined, projectId }) {
     onRoomsDefined && onRoomsDefined(payload);
     // Persist marked zones back to cad_drawings so the AI re-studies the altered plan
     if (projectId) {
-      fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
+      fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rooms: payload })
       }).catch(() => {}).finally(() => { onComplete && onComplete(); });

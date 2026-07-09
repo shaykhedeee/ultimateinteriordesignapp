@@ -33,7 +33,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
 
   const fetchBranches = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/scenes`);
       if (res.ok) {
         const data = await res.json();
         const versions = Array.isArray(data) ? data : Array.isArray(data?.versions) ? data.versions : [];
@@ -71,7 +71,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     if (isLocked) {
       const ok = await window.__auraConfirm?.confirm?.('Unlock Scene', 'Are you sure you want to unlock this scene?') || Promise.resolve(false);
       if (ok) {
-        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
+        const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/scenes/${sceneId}/unlock`, { method: 'POST' });
         if (res.ok) {
           useEditorStore.setState({ isLocked: false, lockReason: '' });
         }
@@ -80,7 +80,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
       const reason = await window.__auraConfirm?.open?.('Lock Scene', 'Enter lock reason:') ?? 'Approved by Client';
       const value = String(reason).trim();
       if (value) {
-        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/scenes/${sceneId}/lock`, {
+        const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/scenes/${sceneId}/lock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reason: value })

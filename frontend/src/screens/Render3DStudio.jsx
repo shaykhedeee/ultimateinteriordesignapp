@@ -61,7 +61,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
+        const res = await fetch('http://127.0.0.1:8787/api/material-catalog');
         if (res.ok) {
           const data = await res.json();
           setCatalogLaminates(data.filter(item => item.category === 'laminate'));
@@ -373,7 +373,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         { type: 'shutter_facade', name, code, color }
       ];
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -401,7 +401,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [modelTier, setModelTier] = useState('precision');
   const [spendMode, setSpendMode] = useState('smart-cost');
   const [cameraAngle, setCameraAngle] = useState('diagonal');
-  const [activeProvider, setActiveProvider] = useState('auto');
+  const [activeProvider, setActiveProvider] = useState('freepik');
   const [renderStyle, setRenderStyle] = useState('photoreal');
   const [variantCount, setVariantCount] = useState(1);
   const [removePeople, setRemovePeople] = useState(true);
@@ -409,6 +409,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [furnitureRequirement, setFurnitureRequirement] = useState('');
   const [customInstruction, setCustomInstruction] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  // SSE render progress
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderProgressMsg, setRenderProgressMsg] = useState('');
+  // Provider health status
+  const [providerHealth, setProviderHealth] = useState(null);
+  const sseRef = React.useRef(null);
 
   // Recolor & Color Swap States
   const [selectedComponent, setSelectedComponent] = useState(null);
@@ -491,7 +497,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setActiveColor(colorName);
     setIsGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/change-color`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/change-color`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -579,12 +585,44 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchProviderStatus = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/providers/status');
+      // Use the enhanced diagnostics endpoint
+      const res = await fetch('http://127.0.0.1:8787/api/diagnostics/api-keys');
       const data = await res.json();
       setProviderStatus(data);
+      // Set the active provider to match server config
+      if (data.imageProvider && data.imageProvider !== 'library-reuse') {
+        setActiveProvider(data.imageProvider);
+      }
     } catch (err) {
       console.warn("Failed to load provider status:", err);
     }
+  };
+
+  const fetchProviderHealth = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:8787/api/diagnostics/api-health');
+      const data = await res.json();
+      setProviderHealth(data);
+    } catch (err) {
+      console.warn('Provider health check failed:', err);
+    }
+  };
+
+  // Start SSE progress stream for render pipeline
+  const startRenderProgressSSE = (pid) => {
+    if (sseRef.current) sseRef.current.close();
+    const es = new EventSource(`http://127.0.0.1:8787/api/projects/${pid}/renders/progress`);
+    es.onmessage = (e) => {
+      try {
+        const { percentage, message } = JSON.parse(e.data);
+        setRenderProgress(percentage || 0);
+        setRenderProgressMsg(message || '');
+        if (percentage >= 100) { setTimeout(() => { setRenderProgress(0); setRenderProgressMsg(''); }, 2500); es.close(); }
+      } catch {}
+    };
+    es.onerror = () => es.close();
+    sseRef.current = es;
+    return es;
   };
 
   useEffect(() => {
@@ -594,7 +632,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
       fetchRenders();
       loadCorrections();
       fetchProviderStatus();
+      fetchProviderHealth();
     }
+    return () => { if (sseRef.current) sseRef.current.close(); };
   }, [projectId]);
 
   useEffect(() => {
@@ -605,7 +645,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadProjectData = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}`);
       const data = await res.json();
       setProject(data);
       if (data.client_brief_json) {
@@ -626,7 +666,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     try {
       const yes = await window.__auraConfirm?.confirm('Regenerate Renders', 'Regenerating all renders may consume API credits. Continue?');
       if (!yes) return;
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
+      await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -646,11 +686,11 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCADAndMaterials = async () => {
     try {
-      const resCAD = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
+      const resCAD = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`);
       const drawing = await resCAD.json();
       setCadDrawing(drawing);
 
-      const resMat = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`);
+      const resMat = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`);
       const materials = await resMat.json();
       setSelectedLaminates(JSON.parse(materials.laminates_json || '[]'));
 
@@ -662,7 +702,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders`);
       const data = await res.json();
       setRendersList(data);
       if (data.length > 0) {
@@ -675,7 +715,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCorrections = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
       const data = await res.json();
       setCorrectionsList(data.items || []);
     } catch (err) {
@@ -685,6 +725,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const generateAIRender = async () => {
     setIsGenerating(true);
+    setRenderProgress(5);
+    setRenderProgressMsg('Starting render pipeline...');
+    const sse = startRenderProgressSSE(projectId);
     try {
       const formData = new FormData();
       formData.append('room', targetRoom);
@@ -698,10 +741,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('aspectRatio', aspectRatio);
       formData.append('furnitureRequirement', furnitureRequirement);
       formData.append('customInstruction', customInstruction);
-      formData.append('cameraAngle', cameraAngle);
       formData.append('activeProvider', activeProvider);
       formData.append('renderStyle', renderStyle);
-      
+
       // Append kitchen rules
       formData.append('hobSinkSwapped', String(kitchenRules.hobSinkSwapped));
       formData.append('chimneyOverHob', String(kitchenRules.chimneyOverHob));
@@ -716,12 +758,10 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       // Append uploaded files
       Object.entries(uploads).forEach(([key, val]) => {
-        if (val?.file) {
-          formData.append(key, val.file);
-        }
+        if (val?.file) formData.append(key, val.file);
       });
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/generate`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/generate`, {
         method: 'POST',
         body: formData
       });
@@ -730,19 +770,41 @@ export default function Render3DStudio({ projectId, onComplete }) {
         await fetchRenders();
         if (data.render) {
           setSelectedRender(data.render);
+          // Show real source type toast
+          const src = data.render.source_type || data.render.sourceType || '';
+          const isMock = src.includes('mock') || src.includes('svg');
+          const providerLabel = src.includes('freepik') ? '🎨 Freepik Flux'
+            : src.includes('huggingface') ? '⚡ HuggingFace FLUX'
+            : src.includes('pollinations') ? '🌸 Pollinations'
+            : src.includes('pexels') ? '📷 Pexels Stock'
+            : src.includes('gemini') ? '✨ Gemini Imagen'
+            : src.includes('openai') ? '🤖 OpenAI'
+            : isMock ? '⚠️ Mock SVG (no real key active)' : '✅ Real render';
+          if (isMock) {
+            window.__toast?.warn?.(`Render complete — but using mock placeholder (${providerLabel}). Add a valid API key in Settings to get real images.`);
+          } else {
+            window.__toast?.success?.(`Real render generated via ${providerLabel}!`);
+          }
         }
+        // Refresh provider health after a render
+        fetchProviderHealth();
+      } else {
+        window.__toast?.error?.(data.error || 'Render generation failed');
       }
     } catch (err) {
-      console.error("AI Generation failed:", err);
+      console.error('AI Generation failed:', err);
+      window.__toast?.error?.('Render request failed: ' + err.message);
     } finally {
       setIsGenerating(false);
+      sse.close();
+      setTimeout(() => { setRenderProgress(0); setRenderProgressMsg(''); }, 1500);
     }
   };
 
   const downloadSelectedRender = async () => {
     if (!selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/download`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/${selectedRender.id}/download`);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
@@ -765,7 +827,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     if (!selectedRender || !revisionRequest.trim()) return;
     setIsGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/edit`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -791,7 +853,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleReview = async (status) => {
     if (!selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, note: reviewNote })
@@ -810,7 +872,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleLogCorrection = async () => {
     if (!mistakeDescription.trim() || !mistakeCorrection.trim() || !selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistake`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/mistake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -834,7 +896,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchCatalogMaterials = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
+      const res = await fetch('http://127.0.0.1:8787/api/material-catalog');
       if (res.ok) {
         const data = await res.json();
         setCatalogMaterials(data);
@@ -850,7 +912,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     try {
       // Fetch render image from server and convert to blob
       const imgUrl = selectedRender.image_url?.startsWith('/storage')
-        ? `http://127.0.0.1:5055${selectedRender.image_url}`
+        ? `http://127.0.0.1:8787${selectedRender.image_url}`
         : selectedRender.image_url;
 
       const imgRes = await fetch(imgUrl);
@@ -860,7 +922,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('renderImage', imgBlob, 'render.png');
       formData.append('room', selectedRender.room || targetRoom);
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/analyse-components`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/analyse-components`, {
         method: 'POST',
         body: formData
       });
@@ -897,7 +959,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       // 1. Fetch render image blob
       setSwapperStepMessage('Downloading active render image...');
       const renderImgUrl = selectedRender.image_url.startsWith('/storage') 
-        ? `http://127.0.0.1:5055${selectedRender.image_url}` 
+        ? `http://127.0.0.1:8787${selectedRender.image_url}` 
         : selectedRender.image_url;
       const renderImgRes = await fetch(renderImgUrl);
       const renderImgBlob = await renderImgRes.blob();
@@ -929,7 +991,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       // 3. Post to laminate-swap API
       setSwapperStepMessage('Running visual editor pipeline. Recolor, lighting & shadow matching in progress...');
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/laminate-swap`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/laminate-swap`, {
         method: 'POST',
         body: formData
       });
@@ -1039,7 +1101,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const approveRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`, {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -1220,6 +1282,48 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+
+      {/* ── Real-time SSE Render Progress Bar ── */}
+      {renderProgress > 0 && (
+        <div className="shrink-0 bg-slate-950 border-b border-[#C9A84C]/30 px-6 py-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-bold text-[#E8C97A] uppercase tracking-widest flex items-center gap-2">
+              <Sparkles className="w-3 h-3 animate-pulse" /> {renderProgressMsg || 'Generating render...'}
+            </span>
+            <span className="text-[10px] font-mono text-[#C9A84C]">{renderProgress}%</span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#C9A84C] to-[#E8C97A] transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${renderProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Provider Status Banner ── */}
+      {providerStatus && (
+        <div className="shrink-0 bg-slate-950/80 border-b border-slate-800/60 px-6 py-1.5 flex items-center gap-3 text-[9px] font-mono">
+          <span className="text-slate-500 uppercase tracking-widest">AI Engine:</span>
+          <span className={`font-bold uppercase tracking-wider ${
+            providerStatus.readyForRealImages ? 'text-emerald-400' : 'text-amber-400'
+          }`}>
+            {providerStatus.readyForRealImages ? '● LIVE' : '○ MOCK'}
+          </span>
+          <span className="text-slate-400">{providerStatus.imageProvider || 'auto'}</span>
+          {providerStatus.workingImageProviders?.length > 0 && (
+            <span className="text-slate-600">({providerStatus.workingImageProviders.length} working providers)</span>
+          )}
+          {providerHealth && (
+            <span className={`ml-auto px-2 py-0.5 rounded text-[8px] font-bold ${
+              providerHealth.passing > 0 ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-400'
+            }`}>
+              {providerHealth.passing}/{providerHealth.tested} APIs passing
+            </span>
+          )}
+        </div>
+      )}
+
       {project?.stale_renders === 1 && (
         <div className="bg-amber-950/20 border-b border-amber-900/40 px-6 py-3 text-xs text-amber-400 flex items-center justify-between font-bold shrink-0">
           <span className="flex items-center gap-2">
@@ -1524,7 +1628,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-slate-800 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-slate-400">Before</span>
                           <img 
-                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
+                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
                             alt="Original Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1532,7 +1636,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-[#D4AF37]/50 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-[#D4AF37]">After (Swapped)</span>
                           <img 
-                            src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                            src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : selectedRender.image_url} 
                             alt="Swapped Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1540,7 +1644,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       </div>
                     ) : (
                       <img 
-                        src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                        src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : selectedRender.image_url} 
                         alt="Design View"
                         className="w-full h-full object-cover"
                       />
@@ -1689,7 +1793,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
               <div className="flex-grow flex items-center justify-center relative min-w-0 h-full">
                 {selectedRender ? (
                   <img 
-                    src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : (selectedRender.image_url || '')} 
+                    src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : (selectedRender.image_url || '')} 
                     alt="Bespoke Design Render"
                     className="w-full h-full object-cover"
                   />
@@ -1882,7 +1986,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 }`}
               >
                 <img 
-                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${ren.image_url}` : (ren.image_url || '')} 
+                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${ren.image_url}` : (ren.image_url || '')} 
                   alt="Variant swatch"
                   className="w-full h-full object-cover"
                 />

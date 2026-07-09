@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Palette, RotateCcw, Save, Check, Sparkles } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = 'http://127.0.0.1:8787';
 
 const PRESETS = [
   { name:'ULTIDA Gold',  accent:'#C9A84C', surface:'#0F0F14', text:'#F0EEE8', muted:'#5C5C72', font:'Outfit' },

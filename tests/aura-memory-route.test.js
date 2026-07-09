@@ -4,12 +4,12 @@
  * "require is not defined" because the ESM module was loaded via require().
  * We assert the route resolves via the imported orchestrator and returns 200
  * with success:true and a (possibly empty) memory object.
- * (The server must be running on 127.0.0.1:5055.)
+ * (The server must be running on 127.0.0.1:8787.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:5055';
+const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
 
 test('GET /api/aura/memory returns 200 (no require-is-not-defined crash)', async () => {
   const res = await fetch(`${BASE}/api/aura/memory?projectId=proj_1`);

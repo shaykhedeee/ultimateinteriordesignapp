@@ -5,12 +5,12 @@
  *  - create project -> PATCH name/client_name/budget/status -> fields updated
  *  - budget '' is stored as null (cleared), not 0
  *  - empty/invalid id -> 404 JSON (never HTML)
- * (Server must be running on 127.0.0.1:5055.)
+ * (Server must be running on 127.0.0.1:8787.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:5055';
+const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
 
 function isHtml(t) { return typeof t === 'string' && t.includes('<!DOCTYPE'); }
 

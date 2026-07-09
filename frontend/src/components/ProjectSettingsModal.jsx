@@ -13,7 +13,7 @@ const STATUS_OPTIONS = [
   { value: 'closed', label: 'Closed' },
 ];
 
-const API = 'http://127.0.0.1:5055';
+const API = 'http://127.0.0.1:8787';
 
 export default function ProjectSettingsModal({ project, onClose, onSaved }) {
   const [name, setName] = useState('');

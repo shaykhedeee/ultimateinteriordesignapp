@@ -50,7 +50,7 @@ test('shoe-rack is fully parametric (defaults + custom dims)', async () => {
 });
 
 test('live POST /api/projects/:id/elevations/shoe-rack returns valid DXF+PDF', async () => {
-  const base = 'http://127.0.0.1:5055';
+  const base = 'http://127.0.0.1:8787';
   const create = await fetch(`${base}/api/projects`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'Shoe Rack Test' }),

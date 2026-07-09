@@ -4,7 +4,7 @@
  *   - the service exposes 14 decoded unit builders (incl. kitchen-pantry + 6 photo-traced styled units)
  *   - the API route produces real DXF (SECTION/EOF) + real PDF (%PDF-)
  *     files for each unit on demand.
- * (Server must be running on 127.0.0.1:5055.)
+ * (Server must be running on 127.0.0.1:8787.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +13,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE = process.env.APP_URL || 'http://127.0.0.1:5055';
+const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
 const OUT = path.join(__dirname, '..', 'storage', 'elevations');
 
 test('decode service exposes >=6 decoded unit builders (incl. kitchen-pantry)', async () => {

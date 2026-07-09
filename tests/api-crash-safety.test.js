@@ -6,12 +6,12 @@
  *  - POST /api/projects/:id/jobs with no jobType must return 400 JSON (was NOT NULL 500)
  *  - POST /api/settings/app-settings must succeed (was "no column studio_name")
  *  - an endpoint that throws must respond with JSON {success:false} (global handler)
- * (Server must be running on 127.0.0.1:5055.)
+ * (Server must be running on 127.0.0.1:8787.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:5055';
+const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
 
 async function firstProjectId() {
   const res = await fetch(`${BASE}/api/projects`);

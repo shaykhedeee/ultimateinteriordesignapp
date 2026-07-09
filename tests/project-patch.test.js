@@ -2,12 +2,12 @@
  * tests/project-patch.test.js
  * Proves PATCH /api/projects/:id updates core fields (name, budget, status)
  * and guards against the single-letter "T" placeholder-name regression.
- * (Server must be running on 127.0.0.1:5055.)
+ * (Server must be running on 127.0.0.1:8787.)
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:5055';
+const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
 
 test('PATCH /api/projects/:id updates name + budget + status', async () => {
   // create a throwaway project
