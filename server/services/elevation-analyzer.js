@@ -69,10 +69,10 @@ function normCabinet(f, wallLengthMm) {
   }
   // --- Material / finish derivation (matches professional shop-drawing callouts) ---
   const finishRaw = (f.customization?.shutterFinish || f.finish || '').toString().toLowerCase();
-  const isGlass = /glass|fluted|mirror|acrylic|lacquer/i.test(finishRaw) && /glass|fluted|mirror/i.test(finishRaw);
-  const isFluted = /fluted|groov|ribb/i.test(finishRaw);
+  const isGlass = /\b(glass|mirror|acrylic)\b/i.test(finishRaw); // fluted is glass-with-grooving, not plain glass
+  const isFluted = /fluted|groov|rib/i.test(finishRaw);
   const isGranite = /granite|stone|quartz/i.test(finishRaw);
-  const isPaint = /paint|matte| PU |pu |duco/i.test(finishRaw);
+  const isPaint = /\b(paint|matte|pu|duco)\b/i.test(finishRaw);
 
   // Component tag per benchmark convention
   let tag = 'CAB';
