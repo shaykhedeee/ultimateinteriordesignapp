@@ -75,8 +75,8 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
       });
       const data = await res.json();
       
-      setParts(data.parts);
-      setNestingSheets(data.nesting);
+      setParts(Array.isArray(data.parts) ? data.parts : []);
+      setNestingSheets(data.nesting && typeof data.nesting === 'object' && !Array.isArray(data.nesting) ? data.nesting : {});
       setIsCalculating(false);
     } catch (err) {
       console.error("Calculation failed:", err);

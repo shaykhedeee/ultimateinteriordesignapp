@@ -48,7 +48,7 @@ export default function PipelineStudio({ projectId: projectIdProp }){
   const pushLog = useCallback((msg) => setLog(prev => [...prev.slice(-80), { t: Date.now(), msg }]), []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/furniture-catalog`).then(r=>r.json()).then(d=>setCatalog(d.catalog)).catch(()=>{});
+    fetch(`${API_BASE}/api/furniture-catalog`).then(r=>r.json()).then(d=>setCatalog(d && d.catalog && typeof d.catalog === 'object' ? d.catalog : {})).catch(()=>{});
     fetch(`${API_BASE}/api/room-templates`).then(r=>r.json()).then(d=>setTemplates(d.templates||[])).catch(()=>{});
     fetch(`${API_BASE}/api/projects/${pid}`).then(r=>r.json()).then(d=>{
       if (d?.floorplan_url || d?.floorplanUrl) setFloorplanImage(d.floorplan_url || d.floorplanUrl);
@@ -305,7 +305,7 @@ export default function PipelineStudio({ projectId: projectIdProp }){
                   <div className="mt-3">
                     <div className="text-xs text-slate-400 mb-1">Modular furniture modules</div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {Object.entries(catalog).flatMap(([cat, items]) => items.map(it => (
+                      {Object.entries(catalog).flatMap(([cat, items]) => (Array.isArray(items) ? items : []).map(it => (
                         <label key={it.id} className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/10 cursor-pointer">
                           <input type="checkbox" checked={(r.furniture||[]).some(f=>f.id===it.id)} onChange={e=>{
                             const cur = r.furniture || [];
