@@ -259,12 +259,33 @@ function detectRooms(segs, toMm) {
 
   // keep leaf faces (real rooms): drop any face fully containing another
   faces.sort((a, b) => b.area - a.area);
+
+  // Dedup the inner/outer traversal pair: a single closed loop produces TWO
+  // faces (interior + reverse-wound outer boundary) with IDENTICAL centroid and
+  // area. Genuinely distinct rooms have distinct centroids, so keying on
+  // (centroid, area) collapses the duplicate pair to one without merging real
+  // rooms. Fixes "one room detected as two".
+  const centroid = (pts) => {
+    let cx = 0, cy = 0;
+    for (const p of pts) { cx += p.x; cy += p.y; }
+    return { cx: Math.round(cx / pts.length / 10) * 10, cy: Math.round(cy / pts.length / 10) * 10 };
+  };
+  const seenFace = new Set();
+  const dedupFaces = [];
+  for (const f of faces) {
+    const c = centroid(f.pts);
+    const fk = `${c.cx},${c.cy},${Math.round(f.area / 100) * 100}`;
+    if (seenFace.has(fk)) continue;
+    seenFace.add(fk);
+    dedupFaces.push(f);
+  }
+
   const rooms = [];
   const palette = ['#3182CE', '#38A169', '#D69E2E', '#E53E3E', '#805AD5'];
   let ri = 0;
-  for (const f of faces) {
+  for (const f of dedupFaces) {
     const contains = (px, py) => pointInPoly(px, py, f.pts);
-    const hasInner = faces.some(other => other !== f && other.area < f.area && f.pts.length && other.pts.length && contains(other.pts[0].x, other.pts[0].y));
+    const hasInner = dedupFaces.some(other => other !== f && other.area < f.area && f.pts.length && other.pts.length && contains(other.pts[0].x, other.pts[0].y));
     if (hasInner) continue; // super-room, not a real room
     const wMm = toMm(bboxW(f.pts)), hMm = toMm(bboxH(f.pts)), aMm = toMm(Math.sqrt(f.area)) * toMm(Math.sqrt(f.area));
     rooms.push({
