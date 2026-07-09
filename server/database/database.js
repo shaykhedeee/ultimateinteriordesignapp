@@ -660,15 +660,28 @@ console.log("Ultimate Interior Design SQLite Database initialized at:", dbPath);
 
 // ── Idempotent schema additions for: app_settings, shared_links, api_keys ──
 try {
-  db.prepare(`CREATE TABLE IF NOT EXISTS app_settings (
-    id TEXT PRIMARY KEY,
-    studio_name TEXT,
-    tagline TEXT,
-    logo_text TEXT,
-    accent_color TEXT DEFAULT '#C9A84C',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  );`).run();
-} catch (e) { console.warn("app_settings schema warn:", e.message); }
+  const cols = db.prepare("PRAGMA table_info(app_settings)").all().map(c => c.name);
+  if (!cols.includes('studio_name')) {
+    // Old key-value schema (id, value, updated_at) → migrate to columnar schema.
+    db.prepare("ALTER TABLE app_settings RENAME TO app_settings_legacy").run();
+    db.prepare(`CREATE TABLE app_settings (
+      id TEXT PRIMARY KEY,
+      studio_name TEXT,
+      tagline TEXT,
+      logo_text TEXT,
+      accent_color TEXT DEFAULT '#C9A84C',
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );`).run();
+    const legacy = db.prepare("SELECT id, value, updated_at FROM app_settings_legacy").all();
+    const ins = db.prepare("INSERT OR REPLACE INTO app_settings (id, studio_name, tagline, logo_text, accent_color, updated_at) VALUES (?,?,?,?,?,?)");
+    for (const row of legacy) {
+      let v = {};
+      try { v = JSON.parse(row.value || '{}'); } catch {}
+      ins.run(row.id, v.studio_name || v.studioName || 'ULTIDA', v.tagline || '', v.logo_text || v.logoText || 'U', v.accent_color || v.accentColor || '#C9A84C', row.updated_at || new Date().toISOString());
+    }
+    db.prepare("DROP TABLE app_settings_legacy").run();
+  }
+} catch (e) { console.warn("app_settings migration warn:", e.message); }
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS shared_links (
     id TEXT PRIMARY KEY,

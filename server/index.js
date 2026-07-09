@@ -8,6 +8,10 @@ import { fileURLToPath } from 'url';
 import { nanoid } from 'nanoid';
 import db from './database/database.js';
 
+// Global async error wrapper: any thrown error in an async route is forwarded
+// to the error handler below (so clients get JSON, never an HTML 500 page).
+const wrapAsync = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
 // Services
 import voiceCallService from './services/voice-call-service.js';
 import leadScorer from './services/lead-scorer.js';
@@ -1678,7 +1682,7 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
 
 // List all scene versions for a project
 app.get('/api/projects/:id/scenes', (req, res) => {
-  const scenes = db.prepare("SELECT id, project_id, version_number, branch_name, is_current, is_locked, lock_reason, created_at, summary_json FROM scene_versions WHERE project_id = ? ORDER BY version_number DESC").all();
+  const scenes = db.prepare("SELECT id, project_id, version_number, branch_name, is_current, is_locked, lock_reason, created_at, summary_json FROM scene_versions WHERE project_id = ? ORDER BY version_number DESC").all(req.params.id);
   res.json(scenes);
 });
 
@@ -2462,8 +2466,9 @@ app.get('/api/projects/:id/jobs', (req, res) => {
 app.post('/api/projects/:id/jobs', (req, res) => {
   const projectId = req.params.id;
   const { jobType, sourceEntityType, sourceEntityId } = req.body;
+  if (!jobType) return res.status(400).json({ success: false, error: 'jobType is required' });
   const id = 'job_' + nanoid(6);
-  
+
   db.prepare(`
     INSERT INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id)
     VALUES (?, ?, ?, 'running', 0, ?, ?)
@@ -3030,6 +3035,16 @@ if (fs.existsSync(frontendDistDir)) {
     res.sendFile(path.join(frontendDistDir, 'index.html'));
   });
 }
+
+// Global error handler — MUST be the last middleware. Converts any uncaught
+// error into clean JSON so the frontend never receives an HTML error page
+// (which would crash res.json() and white-screen the app).
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const msg = err && err.message ? err.message : 'Internal server error';
+  if (process.env.NODE_ENV !== 'test') console.error('[route error]', req.method, req.originalUrl, '-', msg);
+  res.status(err && err.status ? err.status : 500).json({ success: false, error: msg });
+});
 
 // Seed DB and start Express
 app.listen(port, () => {
