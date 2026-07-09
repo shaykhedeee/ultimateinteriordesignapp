@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { safeParse } from '../lib/safe.js';
 import { 
   Palette, BookOpen, Layers, Save, CheckCircle, 
   ArrowRight, Download, Plus, ShoppingBag, Eye, 
@@ -99,7 +100,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation`);
       const data = await res.json();
       if (data && data.quotation_json) {
-        const q = JSON.parse(data.quotation_json);
+        const q = safeParse(data?.quotation_json, {});
         setQuoteItems(q.items || []);
         setIsGstEnabled(q.isGstEnabled !== false);
         setDiscount(q.discount || 0);

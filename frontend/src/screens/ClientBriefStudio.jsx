@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { safeParse } from '../lib/safe.js';
 import { 
   FileText, Save, Download, Plus, Trash2, LayoutGrid, 
   Sparkles, CheckCircle2, ChevronLeft, ChevronRight, Upload, X, HelpCircle
@@ -66,7 +67,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
       const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
       const data = await res.json();
       if (data.client_brief_json) {
-        const loadedBrief = JSON.parse(data.client_brief_json);
+        const loadedBrief = safeParse(data?.client_brief_json, {});
         // Ensure defaults for arrays
         setBrief(prev => ({
           ...prev,

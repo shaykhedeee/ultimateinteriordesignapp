@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { safeParse } from '../lib/safe.js';
 import { 
   Plus, Trash2, Save, X, PlusCircle, ChevronDown, Percent, 
   IndianRupee, FileText, CheckCircle2, ShoppingBag, TrendingUp, 
@@ -162,7 +163,7 @@ export default function FinanceScreen({ projectId }) {
 
       const quoteData = await resQuotation.json();
       if (quoteData && quoteData.quotation_json) {
-        const q = JSON.parse(quoteData.quotation_json);
+        const q = safeParse(quoteData?.quotation_json, {});
         setQuoteItems(q.items || []);
         setDiscount(q.discount || 0);
         setIsGstEnabled(q.isGstEnabled !== false);
