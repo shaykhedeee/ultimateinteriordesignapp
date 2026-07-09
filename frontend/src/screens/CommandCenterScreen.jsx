@@ -2506,6 +2506,20 @@ function SettingsWorkspace() {
   });
   const API = 'http://127.0.0.1:5055/api/settings/api-keys';
   const APP_API = 'http://127.0.0.1:5055/api/settings/app-settings';
+  const MODELS_API = 'http://127.0.0.1:5055/api/settings/provider-models';
+
+  const [geminiModels, setGeminiModels] = React.useState([]);
+  const [openaiModels, setOpenaiModels] = React.useState([]);
+  const [testResult, setTestResult] = React.useState(null);
+
+  const loadModels = async () => {
+    try {
+      const r = await fetch(MODELS_API); const d = await r.json();
+      const m = d.models || {};
+      setGeminiModels(Array.isArray(m.gemini) ? m.gemini : []);
+      setOpenaiModels(Array.isArray(m.openai) ? m.openai : []);
+    } catch (e) { console.error(e); }
+  };
 
   const loadKeys = async () => {
     try {
@@ -2528,18 +2542,44 @@ function SettingsWorkspace() {
       });
     } catch (e) { console.error('load brand failed', e); }
   };
-  React.useEffect(() => { loadKeys(); }, []);
+  React.useEffect(() => { loadKeys(); loadModels(); }, []);
   React.useEffect(() => { loadBrand(); }, []);
 
   const saveKey = async () => {
     if (!keyValue.trim() || !provider.trim()) return;
-    setBusy(true);
+    setBusy(true); setTestResult(null);
     try {
       const r = await fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider, key_value: keyValue.trim() }) });
       const d = await r.json();
       if (d.success) { setKeyValue(''); await loadKeys(); }
     } finally { setBusy(false); }
   };
+
+  const testKey = async () => {
+    if (!keyValue.trim() || !provider.trim()) { setTestResult({ status:'error', note:'Enter a provider and key first.' }); return; }
+    setBusy(true); setTestResult({ status:'testing', note:'Validating against the provider…' });
+    try {
+      const r = await fetch(`${API}/test`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ provider, key_value: keyValue.trim() }) });
+      const d = await r.json();
+      setTestResult({ status: d.status || (d.success ? 'ok' : 'error'), note: d.note || (d.success ? 'OK' : 'Failed') });
+    } catch (e) {
+      setTestResult({ status:'error', note: e.message });
+    } finally { setBusy(false); }
+  };
+
+  const saveModels = async () => {
+    try {
+      const r = await fetch(MODELS_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ models: { gemini: geminiModels, openai: openaiModels } }) });
+      const d = await r.json();
+      if (d.success) setTestResult({ status:'ok', note:'Model allow-list saved.' });
+    } catch (e) { console.error(e); }
+  };
+
+  const toggleModel = (providerKey, setList, list, model) => {
+    if (list.includes(model)) setList(list.filter((m) => m !== model));
+    else setList([...list, model]);
+  };
+
   const deleteKey = async (id) => {
     setBusy(true);
     try {
@@ -2575,7 +2615,15 @@ function SettingsWorkspace() {
             <input className="sm:col-span-1" value={provider} onChange={e=>setProvider(e.target.value)} placeholder="provider" style={inputStyle} />
             <input className="sm:col-span-2" value={keyValue} onChange={e=>setKeyValue(e.target.value)} placeholder="sk-..." style={inputStyle} />
           </div>
-          <button onClick={saveKey} disabled={busy} className="px-4 py-2 rounded-xl bg-[var(--gold)] text-[#0A0A0D] text-xs font-semibold tracking-wide disabled:opacity-50">{busy ? 'Saving…' : 'Save Key'}</button>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={saveKey} disabled={busy} className="px-4 py-2 rounded-xl bg-[var(--gold)] text-[#0A0A0D] text-xs font-semibold tracking-wide disabled:opacity-50">{busy ? 'Working…' : 'Save Key'}</button>
+            <button onClick={testKey} disabled={busy} className="px-4 py-2 rounded-xl border border-[#C9A84C] text-[#C9A84C] text-xs font-semibold tracking-wide disabled:opacity-50 hover:bg-[#C9A84C1a]">Test Key</button>
+          </div>
+          {testResult && (
+            <div className={`text-[11px] rounded-xl px-3 py-2 border ${testResult.status==='live_ok'||testResult.status==='ok' ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10' : testResult.status==='testing' ? 'border-slate-700 text-slate-300' : 'border-amber-500/40 text-amber-300 bg-amber-500/10'}`}>
+              <strong>{String(testResult.status).toUpperCase()}</strong> — {testResult.note}
+            </div>
+          )}
           <div className="space-y-2">
             {keys.map(k => (
               <div key={k.id} className="flex items-center justify-between bg-slate-950/60 border border-slate-850 rounded-xl px-3 py-2">
@@ -2587,6 +2635,32 @@ function SettingsWorkspace() {
               </div>
             ))}
             {keys.length === 0 && <div className="text-[10px] text-slate-500">No stored keys yet.</div>}
+          </div>
+        </div>
+
+        <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-4">
+          <div className="text-[10px] font-black text-[#C9A84C] uppercase tracking-widest">Allowed Models (per key)</div>
+          <p className="text-[10px] text-slate-500">Pick the models your key is permitted to call. Only selected models are used for generation — avoids 401s on restricted plans. Save to apply.</p>
+          <div className="space-y-3">
+            <div>
+              <div className="text-[10px] font-bold text-slate-300 mb-1">Gemini</div>
+              <div className="flex flex-wrap gap-1.5">
+                {['gemini-2.5-flash-image','gemini-3.1-flash-image','imagen-4.0-generate-001','gemini-2.0-flash-image'].map(m => (
+                  <button key={m} onClick={() => toggleModel('gemini', setGeminiModels, geminiModels, m)}
+                    className={`text-[10px] px-2.5 py-1 rounded-lg border ${geminiModels.includes(m) ? 'border-[#C9A84C] bg-[#C9A84C22] text-[#C9A84C]' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{m}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-slate-300 mb-1">OpenAI</div>
+              <div className="flex flex-wrap gap-1.5">
+                {['gpt-image-1','dall-e-3','gpt-image-1-mini'].map(m => (
+                  <button key={m} onClick={() => toggleModel('openai', setOpenaiModels, openaiModels, m)}
+                    className={`text-[10px] px-2.5 py-1 rounded-lg border ${openaiModels.includes(m) ? 'border-[#C9A84C] bg-[#C9A84C22] text-[#C9A84C]' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>{m}</button>
+                ))}
+              </div>
+            </div>
+            <button onClick={saveModels} className="px-4 py-2 rounded-xl border border-[#C9A84C] text-[#C9A84C] text-xs font-semibold tracking-wide hover:bg-[#C9A84C1a]">Save Model List</button>
           </div>
         </div>
 

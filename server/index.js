@@ -2785,6 +2785,38 @@ const ensureApiKeysTable = () => {
 };
 ensureApiKeysTable();
 
+// Per-provider model allow-list (DB-backed so the UI picker drives generation,
+// overriding the GEMINI_IMAGE_MODELS / OPENAI env defaults).
+const ensureProviderModelsTable = () => {
+  try {
+    db.prepare('CREATE TABLE IF NOT EXISTS provider_models (id TEXT PRIMARY KEY, models_json TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)').run();
+  } catch (e) { /* exists */ }
+};
+ensureProviderModelsTable();
+
+function getProviderModels() {
+  try {
+    const row = db.prepare('SELECT models_json FROM provider_models WHERE id = ?').get('default');
+    if (row?.models_json) return JSON.parse(row.models_json);
+  } catch (e) { /* ignore */ }
+  return {};
+}
+
+app.get('/api/settings/provider-models', (req, res) => {
+  try { res.json({ success: true, models: getProviderModels() }); }
+  catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.post('/api/settings/provider-models', express.json(), (req, res) => {
+  try {
+    const models = req.body?.models || {};
+    if (typeof models !== 'object') return res.status(400).json({ success: false, error: 'models must be an object' });
+    db.prepare('INSERT OR REPLACE INTO provider_models (id, models_json, updated_at) VALUES (?, ?, ?)')
+      .run('default', JSON.stringify(models), new Date().toISOString());
+    res.json({ success: true, models });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 app.get('/api/settings/api-keys', (req, res) => {
   try {
     const rows = db.prepare('SELECT id, provider, label, created_at, last_used_at FROM api_keys').all();

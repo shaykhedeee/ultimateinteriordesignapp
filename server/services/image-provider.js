@@ -661,7 +661,7 @@ async function tryGenerateOpenAiGptImage1({ id, projectId, room, safeRoom, title
     const { default: OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: gptKey });
     const response = await openai.images.generate({
-      model: 'gpt-image-1',
+      model: (getProviderModels().openai && getProviderModels().openai[0]) || process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
       prompt,
       size: process.env.OPENAI_IMAGE_SIZE || '1536x1024',
       quality: process.env.OPENAI_IMAGE_QUALITY || 'high',
@@ -863,9 +863,11 @@ function generationProviderPriority({ reuseFirst = true } = {}) {
 }
 
 function geminiImageModels() {
-  // Allow the user to pin an exact, key-authorized model list (comma-separated).
-  // Users on restricted plans set GEMINI_IMAGE_MODELS to only the models their
-  // key is permitted to call, avoiding 401s on unavailable model IDs.
+  // Prefer the DB-backed allow-list (set via the BYOK UI picker). This lets a
+  // user pin exactly the models their key is permitted to call, avoiding 401s.
+  const dbModels = getProviderModels().gemini;
+  if (Array.isArray(dbModels) && dbModels.length) return [...new Set(dbModels.map((m) => String(m).trim()).filter(Boolean))];
+  // Allow the user to pin an exact, key-authorized model list via env (comma-separated).
   const explicit = (process.env.GEMINI_IMAGE_MODELS || '').split(',').map((m) => m.trim()).filter(Boolean);
   if (explicit.length) return [...new Set(explicit)];
   const configured = process.env.GEMINI_IMAGE_MODEL || '';
@@ -880,6 +882,14 @@ function geminiImageModels() {
     'imagen-4.0-generate-001'
   ];
   return [...new Set([...nativeModels, ...imagenModels].filter(Boolean))];
+}
+
+function getProviderModels() {
+  try {
+    const row = db.prepare('SELECT models_json FROM provider_models WHERE id = ?').get('default');
+    if (row?.models_json) return JSON.parse(row.models_json);
+  } catch (e) { /* table may not exist yet */ }
+  return {};
 }
 
 function isImagenModel(model = '') {
