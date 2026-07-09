@@ -855,13 +855,19 @@ function generationProviderPriority({ reuseFirst = true } = {}) {
     : providerPriority();
   return providers.filter((provider) => {
     if (provider === 'openai' || provider === 'openai-gpt-image-1') {
-      return isNativeOpenAiKey(process.env.OPENAI_API_KEY);
+      // Honour a key entered via the BYOK UI (api_keys table) too, not just env.
+      return Boolean(resolveKey('openai'));
     }
     return true;
   });
 }
 
 function geminiImageModels() {
+  // Allow the user to pin an exact, key-authorized model list (comma-separated).
+  // Users on restricted plans set GEMINI_IMAGE_MODELS to only the models their
+  // key is permitted to call, avoiding 401s on unavailable model IDs.
+  const explicit = (process.env.GEMINI_IMAGE_MODELS || '').split(',').map((m) => m.trim()).filter(Boolean);
+  if (explicit.length) return [...new Set(explicit)];
   const configured = process.env.GEMINI_IMAGE_MODEL || '';
   const nativeModels = [
     !isImagenModel(configured) ? configured : '',
@@ -1083,6 +1089,8 @@ function hashString(value = '') {
 export function getProviderCost(sourceType) {
   return PROVIDER_COSTS[sourceType] || { perImage: 0, currency: 'USD' };
 }
+
+export { geminiImageModels, generationProviderPriority };
 
 export async function recordGenerationCost({ projectId, assetId, sourceType, count = 1 }) {
   const costInfo = getProviderCost(sourceType);
