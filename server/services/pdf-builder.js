@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import { fileURLToPath } from 'url';
+import QRCode from 'qrcode';
 import db from '../database/database.js';
 import { buildStandardModel } from './standards.js';
 import { drawElevation } from './pdf-elevation.js';
@@ -10,24 +11,84 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const storageDir = path.join(__dirname, '../../storage');
 
+// Render a QR code (PNG data URL) for a given URL — used for share-link QR on covers.
+async function qrDataUrl(url) {
+  try {
+    return await QRCode.toDataURL(url, { margin: 1, width: 220, errorCorrectionLevel: 'M' });
+  } catch {
+    return null;
+  }
+}
+
+// Branded cover sheet — GRID OS identity, project meta, and a QR to the client-share link.
+async function addCoverSheet(doc, project, opts = {}) {
+  const title = (opts.title || 'PROJECT DOCUMENT').toUpperCase();
+  const sub = opts.subtitle || 'PROFESSIONAL INTERIOR DESIGN DELIVERABLE';
+  const shareUrl = opts.shareUrl || '';
+
+  // Full-bleed dark banner top
+  doc.rect(0, 0, 595, 150).fill('#020617');
+  doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(13).text('GRID OS', 42, 34);
+  doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text('PROFESSIONAL INTERIOR DESIGN OS  ·  AUTHENTIC CARCASS SYSTEM', 42, 52);
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(26).text(title, 42, 78);
+  doc.fillColor('#CBD5E1').font('Helvetica').fontSize(11).text(sub, 42, 116);
+
+  // Left meta block
+  doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(13).text('PROJECT DETAILS', 42, 190);
+  doc.moveTo(42, 206).lineTo(553, 206).lineWidth(1).strokeColor('#CBD5E1').stroke();
+  const rows = [
+    ['Project', project.name || '—'],
+    ['Client', project.client_name || '—'],
+    ['Document', sub],
+    ['Date', new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })],
+    ['Revision', opts.revision || '1.0'],
+    ['Prepared by', 'GRID OS (AURA)'],
+  ];
+  let y = 218;
+  for (const [k, v] of rows) {
+    doc.fillColor('#64748B').font('Helvetica').fontSize(9).text(k.toUpperCase(), 42, y);
+    doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(10).text(String(v), 170, y, { width: 360 });
+    y += 22;
+  }
+
+  // Right QR block
+  if (shareUrl) {
+    const q = await qrDataUrl(shareUrl);
+    if (q) {
+      const qx = 470, qy = 360, qsize = 120;
+      doc.rect(qx - 10, qy - 10, qsize + 20, qsize + 44).strokeColor('#CBD5E1').lineWidth(1).stroke();
+      doc.image(q, qx, qy, { fit: [qsize, qsize] });
+      doc.fillColor('#334155').font('Helvetica').fontSize(7).text('SCAN TO OPEN LIVE CLIENT SHARE', qx - 10, qy + qsize + 4, { width: qsize + 20, align: 'center' });
+    }
+  }
+
+  // Footer strip
+  doc.rect(0, 780, 595, 17).fill('#020617');
+  doc.fillColor('#94A3B8').font('Helvetica').fontSize(8).text('GRID OS — CONFIDENTIAL CLIENT DOCUMENT. ALL DIMENSIONS IN MILLIMETRES.', 42, 784);
+
+  doc.addPage();
+}
+
 class PDFBuilder {
   /**
    * Generates a comprehensive Client Design Brief PDF
    * @param {string} projectId 
    * @param {string} destPath 
    */
-  async generateBriefPDF(projectId, destPath) {
+  async generateBriefPDF(projectId, destPath, _ignored, opts = {}) {
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     if (!project) throw new Error("Project not found");
 
     const brief = JSON.parse(project.client_brief_json || '{}');
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 42, bufferPages: true });
       const stream = fs.createWriteStream(destPath);
       stream.on('finish', () => resolve(destPath));
       stream.on('error', reject);
       doc.pipe(stream);
+
+      await addCoverSheet(doc, project, { title: 'Client Design Brief', subtitle: 'ONBOARDING REQUIREMENT RECORD', revision: '1.0', shareUrl: opts?.shareUrl || '' });
 
       // Header Banner
       doc.fillColor('#020617').rect(0, 0, 595, 110).fill();
@@ -101,7 +162,7 @@ class PDFBuilder {
    * @param {string} projectId 
    * @param {string} destPath 
    */
-  async generateSignoffPDF(projectId, destPath) {
+  async generateSignoffPDF(projectId, destPath, opts = {}) {
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     const drawing = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
     const selection = db.prepare("SELECT * FROM material_selections WHERE project_id = ?").get(projectId);
@@ -116,12 +177,14 @@ class PDFBuilder {
     const laminates = JSON.parse(selection?.laminates_json || '[]');
     const hardware = JSON.parse(selection?.hardware_json || '[]');
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 42, bufferPages: true });
       const stream = fs.createWriteStream(destPath);
       stream.on('finish', () => resolve(destPath));
       stream.on('error', reject);
       doc.pipe(stream);
+
+      await addCoverSheet(doc, project, { title: 'Production Sign-Off Contract', subtitle: 'COMPREHENSIVE FINAL TECHNICAL SPECIFICATIONS & DRAWINGS', revision: '1.0', shareUrl: opts?.shareUrl || '' });
 
       // Page 1: Cover Contract Block
       doc.fillColor('#020617').rect(0, 0, 595, 140).fill();
@@ -350,7 +413,7 @@ class PDFBuilder {
    * @param {string} destPath 
    * @param {object} quotation 
    */
-  async generateQuotationPDF(projectId, destPath, quotation) {
+  async generateQuotationPDF(projectId, destPath, quotation, opts = {}) {
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     if (!project) throw new Error("Project not found");
 
@@ -363,12 +426,14 @@ class PDFBuilder {
     const gstValue = quotation.gstValue || 0;
     const grandTotal = quotation.grandTotal || 0;
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 42, bufferPages: true });
       const stream = fs.createWriteStream(destPath);
       stream.on('finish', () => resolve(destPath));
       stream.on('error', reject);
       doc.pipe(stream);
+
+      await addCoverSheet(doc, project, { title: 'Quotation Proposal', subtitle: 'ITEMIZED BILLING ENGINE', revision: '1.0', shareUrl: (quotation && quotation.shareUrl) || '' });
 
       // Header Banner
       doc.fillColor('#020617').rect(0, 0, 595, 120).fill();

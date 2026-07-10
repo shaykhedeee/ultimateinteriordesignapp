@@ -1889,20 +1889,23 @@ app.post('/api/projects/:id/client-share', async (req, res) => {
     const fileName = `${projectId}-client-share-${token}.pdf`;
     const destPath = path.join(storageDir, 'uploads', fileName);
 
-    // Build the selected client-facing pack.
+    const shareUrl = `/storage/uploads/${fileName}`;
+    const absShareUrl = `${req.protocol}://${req.get('host')}${shareUrl}`;
+
+    // Build the selected client-facing pack (with QR to the live share link on the cover).
+    const packOpts = { shareUrl: absShareUrl };
     if (pack === 'brief') {
-      await pdfBuilder.generateBriefPDF(projectId, destPath);
+      await pdfBuilder.generateBriefPDF(projectId, destPath, undefined, packOpts);
     } else if (pack === 'quotation') {
-      await pdfBuilder.generateQuotationPDF(projectId, destPath);
+      await pdfBuilder.generateQuotationPDF(projectId, destPath, {}, packOpts);
     } else {
-      await pdfBuilder.generateSignoffPDF(projectId, destPath);
+      await pdfBuilder.generateSignoffPDF(projectId, destPath, packOpts);
     }
 
     db.prepare('INSERT INTO shared_links (id, project_id, file_name, created_at) VALUES (?, ?, ?, ?)')
       .run(token, projectId, fileName, new Date().toISOString());
     logTimelineEvent(projectId, 'client.share', `Client share link generated (${pack})`, fileName);
 
-    const shareUrl = `/storage/uploads/${fileName}`;
     res.json({ success: true, token, pack, shareUrl, fileName, downloadUrl: `/api/projects/${projectId}/client-share/${token}/download` });
   } catch (err) {
     res.status(500).json({ error: err.message });
