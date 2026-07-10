@@ -71,3 +71,29 @@ test('coordinates in mm (large values present)', () => {
   const dxf = buildElevationDXF(sampleModel());
   assert.match(dxf, /(1|2|3|4|5|6)\d{3}\.\d{3}/);
 });
+
+test('enhanced layers declared (ROD / DATUM / SCHEDULE)', () => {
+  const dxf = buildElevationDXF(sampleModel(), { scale: '1:25' });
+  for (const l of ['ROD', 'DATUM', 'SCHEDULE'])
+    assert.match(dxf, new RegExp('LAYER[\\s\\S]*?\\n  2\\n' + l), `layer ${l} missing`);
+});
+
+test('left-edge datum markers (PLINTH/CTOP/LINTEL) present', () => {
+  const dxf = buildElevationDXF(sampleModel(), { scale: '1:25' });
+  assert.match(dxf, /PLINTH/);
+  assert.match(dxf, /CTOP/);
+  assert.match(dxf, /LINTEL/);
+});
+
+test('opening schedule table emitted when openings exist', () => {
+  const dxf = buildElevationDXF(sampleModel(), { scale: '1:25' });
+  assert.match(dxf, /MARK/);
+  // text() sanitizer converts '/' -> '-' (avoids fake DXF group codes)
+  assert.match(dxf, /SILL - HEAD/);
+});
+
+test('title block rebranded to GRID OS', () => {
+  const dxf = buildElevationDXF(sampleModel(), { scale: '1:25' });
+  assert.match(dxf, /GRID OS/);
+  assert.ok(!dxf.includes('AURABRAIN'), 'legacy AURABRAIN brand should be removed');
+});

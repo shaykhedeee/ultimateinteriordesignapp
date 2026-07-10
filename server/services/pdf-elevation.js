@@ -160,44 +160,47 @@ export function drawElevation(doc, model, opts = {}) {
     // shelves or door swing representations
     if (isOpen) {
       const shelves = m.shelves || Math.max(2, Math.round(c.heightMm / 350));
-      doc.lineWidth(1).strokeColor('#444444');
+      // Double lines representing actual 18mm board thickness
+      const boardThickPx = 18 * scale;
+      doc.lineWidth(0.6).strokeColor('#444444');
       for (let i = 1; i < shelves; i++) {
         const sy = y + (h * i) / shelves;
-        doc.moveTo(x + 2, sy).lineTo(x + w - 2, sy).stroke();
-      }
-      // faint shelf-end ticks for depth cue
-      doc.lineWidth(0.5).strokeColor(GREY);
-      for (let i = 1; i < shelves; i++) {
-        const sy = y + (h * i) / shelves;
-        doc.moveTo(x + 2, sy - 2).lineTo(x + 2, sy + 2).moveTo(x + w - 2, sy - 2).lineTo(x + w - 2, sy + 2).stroke();
+        doc.moveTo(x + 2, sy - boardThickPx / 2).lineTo(x + w - 2, sy - boardThickPx / 2).stroke();
+        doc.moveTo(x + 2, sy + boardThickPx / 2).lineTo(x + w - 2, sy + boardThickPx / 2).stroke();
       }
     }
-    // hanger space: hanging rod near the TOP of the section + brackets
-    if (m.hanger || c.hanger) {
+    // hanger space: double-line hanging rod near the TOP of the section + brackets
+    if (m.hanger || c.hanger || (c.name && c.name.toLowerCase().includes('hanging'))) {
       const rodY = y + Math.min(h * 0.16, 18);
-      doc.lineWidth(1.4).strokeColor('#222222').moveTo(x + 4, rodY).lineTo(x + w - 4, rodY).stroke();
-      doc.lineWidth(0.8).strokeColor('#222222').moveTo(x + 4, rodY - 4).lineTo(x + 4, rodY + 4).moveTo(x + w - 4, rodY - 4).lineTo(x + w - 4, rodY + 4).stroke();
-      // small hook glyphs
-      doc.lineWidth(0.6).strokeColor('#222222');
-      for (let hx = x + 12; hx < x + w - 8; hx += 28) doc.moveTo(hx, rodY).lineTo(hx, rodY + 6).stroke();
+      doc.lineWidth(0.8).strokeColor('#222222');
+      doc.moveTo(x + 4, rodY - 1.2).lineTo(x + w - 4, rodY - 1.2).stroke();
+      doc.moveTo(x + 4, rodY + 1.2).lineTo(x + w - 4, rodY + 1.2).stroke();
+      // Brackets
+      doc.lineWidth(1).strokeColor('#222222').moveTo(x + 4, rodY - 4).lineTo(x + 4, rodY + 4).moveTo(x + w - 4, rodY - 4).lineTo(x + w - 4, rodY + 4).stroke();
     } else if (tag === 'DRAWER' || tag === 'BASE' || /drawer/i.test(c.name)) {
       const n = (tag === 'BASE') ? Math.max(2, Math.round(c.heightMm / 220)) : Math.max(2, Math.round(c.heightMm / 250));
       doc.lineWidth(0.8).strokeColor('#333333');
       for (let i = 1; i < n; i++) {
         const dy = y + (h * i) / n;
         doc.moveTo(x + 2, dy).lineTo(x + w - 2, dy).stroke();
-        // drawer pull (small vertical tick centered)
-        doc.moveTo(x + w / 2, dy - Math.min(6, h / n / 2) + 2).lineTo(x + w / 2, dy - 1).stroke();
       }
     } else if (!m.appliance && tag !== 'FILLER' && tag !== 'VOID') {
-      // V-swing dash overlays
       doc.lineWidth(0.5).dash(2, 2).strokeColor(GREY);
-      if (c.widthMm > 500) {
-        // Double shutter swings
-        doc.moveTo(x, y).lineTo(x + w / 4, y + h / 2).lineTo(x, y + h).stroke();
-        doc.moveTo(x + w, y).lineTo(x + w * 0.75, y + h / 2).lineTo(x + w, y + h).stroke();
+      const isLoft = tag === 'LOFT' || (c.name && c.name.toLowerCase().includes('loft'));
+      if (isLoft) {
+        // Diamond swing for lofts
+        doc.moveTo(x, y + h / 2)
+           .lineTo(x + w / 2, y)
+           .lineTo(x + w, y + h / 2)
+           .lineTo(x + w / 2, y + h)
+           .lineTo(x, y + h / 2)
+           .stroke();
+      } else if (c.widthMm > 500) {
+        // Double shutter swings (center-split) pointing to hinges
+        doc.moveTo(x + w / 2, y).lineTo(x, y + h / 2).lineTo(x + w / 2, y + h).stroke();
+        doc.moveTo(x + w / 2, y).lineTo(x + w, y + h / 2).lineTo(x + w / 2, y + h).stroke();
       } else {
-        // Single shutter swing
+        // Single shutter swing pointing to hinges
         doc.moveTo(x + w, y).lineTo(x, y + h / 2).lineTo(x + w, y + h).stroke();
       }
       doc.undash();
@@ -209,18 +212,34 @@ export function drawElevation(doc, model, opts = {}) {
       for (let i = 1; i < cols; i++) doc.moveTo(x + (w * i) / cols, y + 4).lineTo(x + (w * i) / cols, y + h - 4).stroke();
       for (let j = 1; j < rows; j++) doc.moveTo(x + 4, y + (h * j) / rows).lineTo(x + w - 4, y + (h * j) / rows).stroke();
     }
-    // handle glyph
-    if (c.handleType === 'none' || m.appliance || isOpen || tag === 'FILLER' || tag === 'VOID') {
+    // Vanity Mirror reflection strokes & frame
+    if (c.name && (c.name.toLowerCase().includes('mirror') || c.name.toLowerCase().includes('vanity') || c.name.toLowerCase().includes('dresser'))) {
+      const frameOffset = Math.min(10 * scale, 3);
+      doc.lineWidth(0.6).strokeColor(BLK).rect(x + frameOffset, y + frameOffset, w - 2 * frameOffset, h - 2 * frameOffset).stroke();
+      // Render diagonal reflection strokes (//)
+      doc.lineWidth(0.4).strokeColor(BLUE);
+      doc.moveTo(x + w * 0.35, y + h * 0.4).lineTo(x + w * 0.45, y + h * 0.6).stroke();
+      doc.moveTo(x + w * 0.45, y + h * 0.4).lineTo(x + w * 0.55, y + h * 0.6).stroke();
+      doc.moveTo(x + w * 0.55, y + h * 0.4).lineTo(x + w * 0.65, y + h * 0.6).stroke();
+    }
+    // handle glyph (thick solid-filled rectangles)
+    if (m.appliance || isOpen || tag === 'FILLER' || tag === 'VOID' || c.handleType === 'none') {
       // none
-    } else if (c.handleType === 'vbar') {
-      const vw = Math.max(3, w * 0.06);
-      doc.rect(x + w - vw - 4, y + h * 0.18, vw, h * 0.64).fill(BLK);
-    } else if (c.handleType === 'knob') {
-      doc.lineWidth(1).strokeColor(BLK).circle(x + w - 12, y + h / 2, 2.4).stroke();
-    } else if (c.handleType === 'bar') {
-      doc.lineWidth(1.2).strokeColor(BLK).moveTo(x + w * 0.3, y + h / 2).lineTo(x + w * 0.7, y + h / 2).stroke();
     } else {
-      doc.lineWidth(1).strokeColor(BLK).moveTo(x + w * 0.5, y + h * 0.25).lineTo(x + w * 0.5, y + h * 0.75).stroke();
+      const isDrawer = tag === 'DRAWER' || /drawer/i.test(c.name || '');
+      doc.fillColor(BLK);
+      if (isDrawer) {
+        // Horizontal solid-filled pull bar
+        const pullW = Math.max(16, w * 0.25);
+        const pullH = 3;
+        doc.rect(x + w / 2 - pullW / 2, y + h / 2 - pullH / 2, pullW, pullH).fill();
+      } else {
+        // Vertical solid-filled pull bar for shutters
+        const pullW = 3;
+        const pullH = Math.max(16, h * 0.15);
+        const hx = c.widthMm > 500 ? x + w / 2 - pullW / 2 : x + w - 8;
+        doc.rect(hx, y + h / 2 - pullH / 2, pullW, pullH).fill();
+      }
     }
     
     // Counter slab (thin band sitting just ABOVE the cabinet top edge)
@@ -268,23 +287,24 @@ export function drawElevation(doc, model, opts = {}) {
   }
 
   // Overall dimensions (Red, arrowheads)
+  // Overall dimensions (Red, arrowheads)
   if (!opts.noDimensions) {
     doc.lineWidth(0.8).strokeColor(RED)
-      .moveTo(toX(0), toY(H) - 16).lineTo(toX(0), toY(H) - 26)
-      .moveTo(toX(L), toY(H) - 16).lineTo(toX(L), toY(H) - 26)
+      .moveTo(toX(0), toY(H)).lineTo(toX(0), toY(H) - 26)
+      .moveTo(toX(L), toY(H)).lineTo(toX(L), toY(H) - 26)
       .moveTo(toX(0), toY(H) - 21).lineTo(toX(L), toY(H) - 21).stroke();
     drawObliqueTick(doc, toX(0), toY(H) - 21);
     drawObliqueTick(doc, toX(L), toY(H) - 21);
     doc.font('Helvetica-Bold').fontSize(9).fillColor(RED).text(`${L} MM`, (toX(0) + toX(L)) / 2 - 18, toY(H) - 34);
     
     doc.lineWidth(0.8)
-      .moveTo(toX(L) + 16, toY(0)).lineTo(toX(L) + 26, toY(0))
-      .moveTo(toX(L) + 16, toY(H)).lineTo(toX(L) + 26, toY(H))
+      .moveTo(toX(L), toY(0)).lineTo(toX(L) + 26, toY(0))
+      .moveTo(toX(L), toY(H)).lineTo(toX(L) + 26, toY(H))
       .moveTo(toX(L) + 21, toY(0)).lineTo(toX(L) + 21, toY(H)).stroke();
     drawObliqueTick(doc, toX(L) + 21, toY(0));
     drawObliqueTick(doc, toX(L) + 21, toY(H));
     doc.font('Helvetica-Bold').fontSize(9).fillColor(RED).text(`${H} MM`, toX(L) + 32, (toY(0) + toY(H)) / 2 - 4);
-
+  
     // LEFT vertical DATUM dimension (red) with key reference heights — section marker
     const dx = toX(0) - 30;
     doc.lineWidth(0.8).strokeColor(RED)
@@ -309,15 +329,15 @@ export function drawElevation(doc, model, opts = {}) {
 
   // Per-bay dimension chains (each module width) — AutoCAD-style, below elevation
   if (!opts.noDimensions && !embed) {
-    const dimY = toY(0) + 26;            // below floor line
+    // TIER 1: individual cabinet widths in a chain
+    const dimY1 = toY(0) + 20;
     doc.lineWidth(0.6).strokeColor(RED);
-    doc.moveTo(toX(0), dimY - 6).lineTo(toX(0), dimY + 6);
-    doc.moveTo(toX(L), dimY - 6).lineTo(toX(L), dimY + 6);
-    doc.moveTo(toX(0), dimY).lineTo(toX(L), dimY).stroke();
-    drawObliqueTick(doc, toX(0), dimY);
-    drawObliqueTick(doc, toX(L), dimY);
-    // segment ticks + labels per bay (collapse tiny fillers)
-    let cx = 0;
+    doc.moveTo(toX(0), toY(0)).lineTo(toX(0), dimY1 + 4);
+    doc.moveTo(toX(L), toY(0)).lineTo(toX(L), dimY1 + 4);
+    doc.moveTo(toX(0), dimY1).lineTo(toX(L), dimY1).stroke();
+    drawObliqueTick(doc, toX(0), dimY1);
+    drawObliqueTick(doc, toX(L), dimY1);
+
     const bayWidths = [];
     for (const c of cabinets) {
       if (c.zOffsetMm !== 0) continue;
@@ -334,13 +354,23 @@ export function drawElevation(doc, model, opts = {}) {
     }
     for (const b of bayWidths) {
       const bx = toX(b.start), bx2 = toX(b.end);
-      doc.moveTo(bx, dimY - 4).lineTo(bx, dimY + 4);
-      doc.moveTo(bx2, dimY - 4).lineTo(bx2, dimY + 4);
-      doc.moveTo(bx, dimY).lineTo(bx2, dimY).stroke();
-      drawObliqueTick(doc, bx, dimY);
-      drawObliqueTick(doc, bx2, dimY);
-      doc.font('Helvetica').fontSize(6).fillColor(RED).text(String(Math.round(b.w)), (bx + bx2) / 2 - 16, dimY + 8, { width: 32, align: 'center' });
+      doc.moveTo(bx, toY(0)).lineTo(bx, dimY1 + 4);
+      doc.moveTo(bx2, toY(0)).lineTo(bx2, dimY1 + 4);
+      doc.moveTo(bx, dimY1).lineTo(bx2, dimY1).stroke();
+      drawObliqueTick(doc, bx, dimY1);
+      drawObliqueTick(doc, bx2, dimY1);
+      doc.font('Helvetica').fontSize(6).fillColor(RED).text(String(Math.round(b.w)), (bx + bx2) / 2 - 16, dimY1 + 6, { width: 32, align: 'center' });
     }
+
+    // TIER 2: overall wall carcass run
+    const dimY2 = toY(0) + 38;
+    doc.lineWidth(0.6).strokeColor(RED);
+    doc.moveTo(toX(0), toY(0)).lineTo(toX(0), dimY2 + 4);
+    doc.moveTo(toX(L), toY(0)).lineTo(toX(L), dimY2 + 4);
+    doc.moveTo(toX(0), dimY2).lineTo(toX(L), dimY2).stroke();
+    drawObliqueTick(doc, toX(0), dimY2);
+    drawObliqueTick(doc, toX(L), dimY2);
+    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(RED).text(String(Math.round(L)), (toX(0) + toX(L)) / 2 - 16, dimY2 + 6, { width: 32, align: 'center' });
   }
 
   // Graphical SCALE BAR (1:25) — essential for a real drawing sheet (skip when embedded)
