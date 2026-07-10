@@ -89,23 +89,26 @@ function kitchen(L, H, D) {
   const cabinets = [];
   const baseH = 900, baseD = 600;
   const wallH = 720, wallD = 350;
-  const loftH = H - (baseH + wallH + 100) > 0 ? Math.min(600, H - (baseH + wallH + 100)) : 0; // loft only if room above wall units
-  // Base run split into standard bays (sink 900, others 600/450)
+  // Base run split into standard bays; first bay = sink, second = hob.
   const baseBays = layoutBays(L, 600);
   let x = 0;
-  for (const b of baseBays) {
-    pushCab(cabinets, { type: 'base', widthMm: b.w, heightMm: baseH, depthMm: baseD, xOffsetMm: x, zOffsetMm: 0, tag: 'BASE', name: b.filler ? 'Filler' : 'Base unit', material: { appliance: b.filler ? null : null } });
+  baseBays.forEach((b, i) => {
+    const mat = { counter: true };
+    if (i === 0) mat.sink = true;
+    else if (i === 1) mat.hob = true;
+    pushCab(cabinets, { type: 'base', widthMm: b.w, heightMm: baseH, depthMm: baseD, xOffsetMm: x, zOffsetMm: 0, tag: 'BASE', name: b.filler ? 'Filler' : 'Base unit', material: mat });
     x += b.w;
-  }
-  // Wall units (leave 100mm gap above counter backsplash implied)
+  });
+  // Wall units at the top (full width)
   x = 0;
   const wallBays = layoutBays(L, 600);
   for (const b of wallBays) {
     pushCab(cabinets, { type: 'wall', widthMm: b.w, heightMm: wallH, depthMm: wallD, xOffsetMm: x, zOffsetMm: H - wallH, tag: 'WALL', name: b.filler ? 'Filler' : 'Wall unit' });
     x += b.w;
   }
-  // Loft (full width, top)
-  if (loftH > 0) pushCab(cabinets, { type: 'loft', widthMm: L, heightMm: loftH, depthMm: 350, xOffsetMm: 0, zOffsetMm: H - wallH - loftH, tag: 'LOFT', name: 'Loft' });
+  // Loft fills the gap between base top and wall-unit bottom (standard overhead storage)
+  const loftH = H - baseH - wallH;
+  if (loftH > 100) pushCab(cabinets, { type: 'loft', widthMm: L, heightMm: loftH, depthMm: 350, xOffsetMm: 0, zOffsetMm: baseH, tag: 'LOFT', name: 'Loft' });
   return { lengthMm: L, heightMm: H, depthMm: D, cabinets, openings: [] };
 }
 
