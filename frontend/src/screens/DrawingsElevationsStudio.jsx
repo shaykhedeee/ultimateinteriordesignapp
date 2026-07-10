@@ -150,7 +150,12 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        showToast('Photo elevation generated', 'success');
+        const src = data.elevation?.source || 'deterministic';
+        const conf = data.elevation?.confidence != null ? Math.round(data.elevation.confidence * 100) + '%' : '—';
+        const label = src === 'openai-vision' ? `AI vision (GPT-4o · ${conf})`
+          : src === 'gemini-vision' ? `AI vision (Gemini · ${conf})`
+          : 'Standard archetype (no AI vision — check API key)';
+        showToast(`Elevation generated · ${label}`, src === 'deterministic' ? 'info' : 'success');
         await loadPhotoElevations();
       } else {
         showToast(data.error || 'Generation failed', 'error');
@@ -867,10 +872,18 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               ) : photoElevations.length === 0 ? (
                 <div className="text-center py-10 text-xs text-slate-500">No photo elevations yet. Upload a unit photo above.</div>
               ) : (
-                photoElevations.map((e) => (
+                photoElevations.map((e) => {
+                  const src = e.source || (e.model_json ? (JSON.parse(e.model_json).source) : null) || 'deterministic';
+                  const srcBadge = src === 'openai-vision' ? { t: 'GPT-4o', c: 'text-emerald-400 border-emerald-500/40' }
+                    : src === 'gemini-vision' ? { t: 'Gemini', c: 'text-sky-400 border-sky-500/40' }
+                    : { t: 'Archetype', c: 'text-amber-400 border-amber-500/40' };
+                  return (
                   <div key={e.id} className="bg-slate-950/40 border border-slate-850 rounded-lg p-3 flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-semibold text-slate-200">{e.wall_name || (e.unit_type || 'ELEVATION').toUpperCase()}</div>
+                      <div className="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                        {e.wall_name || (e.unit_type || 'ELEVATION').toUpperCase()}
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded border ${srcBadge.c}`} title={`Detection source: ${src}`}>{srcBadge.t}</span>
+                      </div>
                       <div className="text-[9px] text-slate-500 font-mono">{(e.model_json ? JSON.parse(e.model_json).lengthMm : 0) || '—'} mm · conf {e.confidence ?? '—'}</div>
                     </div>
                     <div className="flex gap-1">
@@ -878,7 +891,8 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                       <button onClick={() => window.open(`http://127.0.0.1:8787/api/projects/${projectId}/photo-elevations/${e.id}/pdf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>
                     </div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
