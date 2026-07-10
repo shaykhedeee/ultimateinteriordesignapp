@@ -30,7 +30,7 @@ class PDFBuilder {
       // Header Banner
       doc.fillColor('#020617').rect(0, 0, 595, 110).fill();
       doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(22).text('CLIENT DESIGN BRIEF', 42, 35);
-      doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('SPACETRACE OS - ONBOARDING REQUIREMENT RECORD', 42, 65);
+      doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('GRID OS - ONBOARDING REQUIREMENT RECORD', 42, 65);
 
       // Project Cover Section
       doc.moveDown(4);
@@ -127,7 +127,7 @@ class PDFBuilder {
       doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('COMPREHENSIVE FINAL TECHNICAL SPECIFICATIONS & DRAWINGS', 42, 80);
 
       doc.moveDown(5);
-      doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(16).text(' Sharma HSR Flat Project Scope Summary', 42, 170);
+      doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(16).text(`${project.client_name || 'Client'} — ${project.name || 'Project'} Scope Summary`, 42, 170);
       doc.fillColor('#475569').font('Helvetica').fontSize(10).text(`Designed For: ${project.client_name} | Contact: ${project.phone}`, 42, 195);
       doc.text(`Agreement Date: ${new Date().toLocaleDateString()} | Total Estimated Budget: INR ${project.total_cost?.toLocaleString()}`, 42, 210);
 
@@ -146,9 +146,18 @@ class PDFBuilder {
 
       rooms.forEach(room => {
         doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(9.5).text(room.name, 42, y);
-        doc.fillColor('#475569').font('Helvetica').fontSize(8.5).text('High Gloss Laminate / Custom partitions', 180, y, { width: 250 });
-        // Calculate mock area
-        doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(9.5).text('14.2 sq m', 450, y, { align: 'right', width: 100 });
+        const finishNote = (room.finishes && room.finishes.length)
+          ? room.finishes.join(', ')
+          : (room.notes || 'As per approved material schedule');
+        doc.fillColor('#475569').font('Helvetica').fontSize(8.5).text(finishNote, 180, y, { width: 250 });
+        // Compute real area from room bounds (metres) when available
+        let area = '—';
+        const b = room.bounds || room.rect;
+        if (b && b.w && b.h) {
+          const sqm = (b.w * b.h);
+          area = `${sqm >= 100 ? (sqm / 10000).toFixed(1) : sqm.toFixed(1)} sq m`;
+        }
+        doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(9.5).text(area, 450, y, { align: 'right', width: 100 });
         y += 24;
       });
 
@@ -195,52 +204,63 @@ class PDFBuilder {
       // Draw border box for floor plan canvas
       doc.strokeColor('#CBD5E0').lineWidth(0.5).rect(42, 150, 511, 350).stroke();
 
+      const planX = 62, planY = 175, planW = 470, planH = 300;
+      const norm = (v, max) => v / (max || 1);
+
       if (walls.length > 0) {
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        let maxWX = 1, maxWY = 1;
         walls.forEach(w => {
-          minX = Math.min(minX, w.x1, w.x2);
-          maxX = Math.max(maxX, w.x1, w.x2);
-          minY = Math.min(minY, w.y1, w.y2);
-          maxY = Math.max(maxY, w.y1, w.y2);
+          maxWX = Math.max(maxWX, w.x1, w.x2);
+          maxWY = Math.max(maxWY, w.y1, w.y2);
         });
+        const sx = v => planX + norm(v, maxWX) * planW;
+        const sy = v => planY + norm(v, maxWY) * planH;
 
-        const wWidth = maxX - minX;
-        const wHeight = maxY - minY;
-        const targetWidth = 470;
-        const targetHeight = 310;
-        const scale = Math.min(targetWidth / (wWidth || 1), targetHeight / (wHeight || 1));
-
-        const transformX = (x) => 62 + (x - minX) * scale;
-        const transformY = (y) => 170 + (y - minY) * scale;
-
-        // Draw rooms centroids / text labels first
+        // Draw rooms as zoned rectangles (bounds normalized 0..1 of plan).
+        // When several rooms share the same bounds (AI stacked them), subdivide
+        // the rectangle into stacked cells so every room is visible.
+        const groups = {};
         rooms.forEach(r => {
-          doc.fillColor('#F1F5F9').rect(transformX(r.x) - 45, transformY(r.y) - 12, 90, 24).fill();
-          doc.strokeColor('#D4AF37').lineWidth(1).rect(transformX(r.x) - 45, transformY(r.y) - 12, 90, 24).stroke();
-          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(8.5).text(`${r.name} (${r.vastu || 'NE'})`, transformX(r.x) - 45, transformY(r.y) - 4, { width: 90, align: 'center' });
+          const b = r.bounds || r.rect;
+          if (!b || !b.w || !b.h) return;
+          const key = `${b.x}_${b.y}_${b.w}_${b.h}`;
+          (groups[key] = groups[key] || []).push({ r, b });
+        });
+        Object.values(groups).forEach(list => {
+          list.forEach((item, idx) => {
+            const { r, b } = item;
+            const cellH = (b.h * planH) / list.length;
+            const bx = planX + b.x * planW;
+            const by = planY + b.y * planH + idx * cellH;
+            const bw = b.w * planW;
+            const bh = cellH;
+            doc.fillColor('#F8FAFC').rect(bx, by, bw, bh).fill();
+            doc.strokeColor('#D4AF37').lineWidth(1).rect(bx, by, bw, bh).stroke();
+            doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(list.length > 1 ? 6.5 : 7.5).text(r.name, bx, by + bh / 2 - 5, { width: bw, align: 'center' });
+            doc.fillColor('#64748B').font('Helvetica').fontSize(5).text((r.vastu || 'NE'), bx, by + bh / 2 + 4, { width: bw, align: 'center' });
+          });
         });
 
-        // Draw walls
-        doc.lineWidth(4.5).strokeColor('#1e293b');
+        // Draw walls on top (outline)
+        doc.lineWidth(4).strokeColor('#1e293b');
         walls.forEach(w => {
-          doc.moveTo(transformX(w.x1), transformY(w.y1))
-             .lineTo(transformX(w.x2), transformY(w.y2))
-             .stroke();
+          doc.moveTo(sx(w.x1), sy(w.y1)).lineTo(sx(w.x2), sy(w.y2)).stroke();
         });
 
         // Draw openings
-        doc.lineWidth(1.5).strokeColor('#fbbf24');
         openings.forEach(op => {
-          doc.circle(transformX(op.x), transformY(op.y), 4.5).fillAndStroke('#ffffff', '#fbbf24');
+          if (op.x == null || op.y == null) return;
+          doc.lineWidth(1.5).strokeColor('#fbbf24').circle(sx(op.x), sy(op.y), 4.5).fillAndStroke('#ffffff', '#fbbf24');
         });
 
-        // Draw placed cabinet modules footprints
-        doc.lineWidth(1).strokeColor('#475569');
+        // Draw furniture footprints (centroid in 0..1000 grid)
         furniture.forEach(f => {
-          const w = (f.width || 60) * scale;
-          const h = (f.height || 60) * scale;
-          doc.rect(transformX(f.x) - w/2, transformY(f.y) - h/2, w, h).stroke();
-          doc.fillColor('#475569').font('Helvetica-Bold').fontSize(6).text(f.name.substring(0, 10), transformX(f.x) - w/2, transformY(f.y) - 3, { width: w, align: 'center' });
+          const cx = planX + (f.x / 1000) * planW;
+          const cy = planY + (f.y / 1000) * planH;
+          const w = ((f.width || 60) / 1000) * planW;
+          const h = ((f.height || 60) / 1000) * planH;
+          doc.lineWidth(0.8).strokeColor('#475569').rect(cx - w / 2, cy - h / 2, w, h).stroke();
+          doc.fillColor('#475569').font('Helvetica-Bold').fontSize(5).text((f.name || '').substring(0, 12), cx - w / 2, cy - 3, { width: w, align: 'center' });
         });
       } else {
         doc.fillColor('#94A3B8').font('Helvetica-Oblique').fontSize(10).text('No walls or rooms defined in layout database.', 120, 300);
@@ -383,7 +403,7 @@ class PDFBuilder {
       // Header Banner
       doc.fillColor('#020617').rect(0, 0, 595, 120).fill();
       doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(22).text('QUOTATION PROPOSAL', 42, 35);
-      doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('SPACETRACE OS - ITEMIZED BILLING ENGINE', 42, 65);
+      doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('GRID OS - ITEMIZED BILLING ENGINE', 42, 65);
 
       // Project & Client Details
       doc.moveDown(4);
@@ -409,9 +429,9 @@ class PDFBuilder {
       items.forEach((item) => {
         doc.fillColor('#0F172A').font('Helvetica-Bold').text(`[${item.room || 'General'}] ${item.name}`, 42, y, { width: 200 });
         doc.fillColor('#475569').font('Helvetica').text(item.dimensions || 'Lump Sum', 250, y);
-        doc.text(`₹${item.rate?.toLocaleString()}`, 350, y);
+        doc.text(`Rs. ${item.rate?.toLocaleString()}`, 350, y);
         doc.text(item.isLumpSum ? '1' : `${item.sqft?.toFixed(1)} sqft`, 430, y);
-        doc.fillColor('#0F172A').font('Helvetica-Bold').text(`₹${item.amount?.toLocaleString()}`, 500, y, { align: 'right', width: 53 });
+        doc.fillColor('#0F172A').font('Helvetica-Bold').text(`Rs. ${item.amount?.toLocaleString()}`, 500, y, { align: 'right', width: 53 });
         y += 24;
 
         if (y > 700) {
@@ -438,16 +458,16 @@ class PDFBuilder {
         y += 20;
       };
 
-      addTotalRow('Subtotal:', `₹${subTotal.toLocaleString()}`);
+      addTotalRow('Subtotal:', `Rs. ${subTotal.toLocaleString()}`);
       if (discount > 0) {
-        addTotalRow('Discount:', `-₹${discount.toLocaleString()}`);
+        addTotalRow('Discount:', `-Rs. ${discount.toLocaleString()}`);
       }
       if (isGstEnabled) {
-        addTotalRow(`GST (${gstPercentage}%):`, `₹${gstValue.toLocaleString()}`);
+        addTotalRow(`GST (${gstPercentage}%):`, `Rs. ${gstValue.toLocaleString()}`);
       }
       doc.rect(rightLabelX, y - 4, 203, 1).fill('#CBD5E0');
       y += 5;
-      addTotalRow('Grand Total:', `₹${grandTotal.toLocaleString()}`, true);
+      addTotalRow('Grand Total:', `Rs. ${grandTotal.toLocaleString()}`, true);
 
       // Payment Milestones
       y += 15;
@@ -456,7 +476,7 @@ class PDFBuilder {
 
       milestones.forEach((m) => {
         doc.fillColor('#475569').font('Helvetica').fontSize(9).text(m.stage, 42, y);
-        doc.fillColor('#0F172A').font('Helvetica-Bold').text(`₹${m.amount?.toLocaleString()}`, 500, y, { align: 'right', width: 53 });
+        doc.fillColor('#0F172A').font('Helvetica-Bold').text(`Rs. ${m.amount?.toLocaleString()}`, 500, y, { align: 'right', width: 53 });
         y += 18;
       });
 
@@ -469,13 +489,13 @@ class PDFBuilder {
       doc.moveTo(42, y + 40).lineTo(240, y + 40).stroke('#475569');
       doc.moveTo(330, y + 40).lineTo(540, y + 40).stroke('#475569');
       
-      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0F172A').text('Prepared By (SpaceTrace OS)', 42, y + 48);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0F172A').text('Prepared By (GRID OS)', 42, y + 48);
       doc.text('Client Acceptance Signature', 330, y + 48);
 
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - SpaceTrace Invoice Proposal`, 42, 815, { align: 'center' });
+        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - GRID OS Invoice Proposal`, 42, 815, { align: 'center' });
       }
 
       doc.end();
