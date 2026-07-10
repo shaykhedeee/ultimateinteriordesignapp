@@ -58,20 +58,27 @@ function layoutBays(totalMm, preferredBay) {
 function pushCab(cabinets, o) { cabinets.push(o); }
 
 // ---------------- WARDROBE ----------------
+// Mirrors a real Indian residential wardrobe elevation:
+//  loft (top) + hanging section (hanger rod) + shelf section + drawer bank.
+// All bays are STANDARD 600mm (or 900 sliding); sections sized to standards so
+// the drawing is detailed AND every dimension sums exactly (no overlap/gaps).
 function wardrobe(L, H, D) {
   const cabinets = [];
   const loftH = H >= 2400 ? 600 : (H > 2100 ? Math.min(450, H - 2050) : 0);
-  const baseH = Math.min(750, H - loftH > 0 ? 700 : 0); // drawer bank at bottom
-  const shutterH = H - loftH - baseH;
+  const drawerH = 750;                       // bottom drawer bank (standard)
+  const hangerH = Math.min(1200, H - loftH - drawerH - 300); // hanging section
+  const shelfH = H - loftH - drawerH - hangerH;              // mid shelf section
   const bays = layoutBays(L, 600).map(b => b.w);
   let x = 0;
   for (const w of bays) {
-    // loft (top)
-    if (loftH > 0) pushCab(cabinets, { type: 'door', widthMm: w, heightMm: loftH, depthMm: D, xOffsetMm: x, zOffsetMm: H - loftH, tag: 'LOFT', name: 'Loft' });
-    // shutter body
-    pushCab(cabinets, { type: 'door', widthMm: w, heightMm: shutterH, depthMm: D, xOffsetMm: x, zOffsetMm: baseH, tag: 'SHUTTER', name: 'Wardrobe shutter', material: { fluted: w >= 600 } });
+    // loft (top) — accessed from above
+    if (loftH > 0) pushCab(cabinets, { type: 'door', widthMm: w, heightMm: loftH, depthMm: D, xOffsetMm: x, zOffsetMm: H - loftH, tag: 'LOFT', name: 'Loft', material: { fluted: w >= 600 } });
+    // hanging section (hanger rod)
+    if (hangerH > 0) pushCab(cabinets, { type: 'open', widthMm: w, heightMm: hangerH, depthMm: D, xOffsetMm: x, zOffsetMm: drawerH + shelfH, tag: 'OPEN UNIT', name: 'Hanger space', material: { hanger: true } });
+    // shelf section (fixed shelves) above the drawers
+    if (shelfH > 0) pushCab(cabinets, { type: 'open', widthMm: w, heightMm: shelfH, depthMm: D, xOffsetMm: x, zOffsetMm: drawerH, tag: 'OPEN UNIT', name: 'Shelf section', material: { openShelf: true, shelves: Math.max(2, Math.round(shelfH / 300)) } });
     // drawer bank at bottom
-    if (baseH > 0) pushCab(cabinets, { type: 'drawer', widthMm: w, heightMm: baseH, depthMm: D, xOffsetMm: x, zOffsetMm: 0, tag: 'DRAWER', name: 'Drawer bank' });
+    if (drawerH > 0) pushCab(cabinets, { type: 'drawer', widthMm: w, heightMm: drawerH, depthMm: D, xOffsetMm: x, zOffsetMm: 0, tag: 'DRAWER', name: 'Drawer bank' });
     x += w;
   }
   return { lengthMm: L, heightMm: H, depthMm: D, cabinets, openings: [] };
