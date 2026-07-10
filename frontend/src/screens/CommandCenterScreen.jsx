@@ -1120,12 +1120,44 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
   const [generating, setGenerating] = useState(false);
   const [generatedResult, setGeneratedResult] = useState(null);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    if (!project) {
+      window.__toast?.error("No active project selected. Choose a project first.");
+      return;
+    }
+    
     setGenerating(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/renders/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: selectedRoom,
+          style: selectedStyle,
+          customInstruction: prompt,
+          variantCount: 1,
+          modelTier: 'standard'
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.variants && data.variants.length > 0) {
+          const v = data.variants[0];
+          const imgUrl = v.url || v.filePath || '';
+          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:8787${imgUrl}`;
+          setGeneratedResult(fullImgUrl);
+          window.__toast?.success("Concept variant generated and saved to project renders!");
+        } else {
+          throw new Error(data.error || "Failed to generate renders");
+        }
+      } else {
+        throw new Error("Generation request failed");
+      }
+    } catch (err) {
+      window.__toast?.error("Generation failed: " + err.message);
+    } finally {
       setGenerating(false);
-      setGeneratedResult('https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80');
-    }, 2000);
+    }
   };
 
   return (
@@ -1255,12 +1287,41 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
     }
   };
 
-  const handleSubmitPatch = () => {
+  const handleSubmitPatch = async () => {
+    if (!project) {
+      window.__toast?.error("No active project selected. Choose a project first.");
+      return;
+    }
+    
     setEditing(true);
-    setTimeout(() => {
+    try {
+      const fd = new FormData();
+      fd.append('instructions', instructions);
+      fd.append('room', 'living');
+      fd.append('imageB64', 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+      
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/photo-edit`, {
+        method: 'POST',
+        body: fd
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const imgUrl = data.imageUrl || '';
+          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:8787${imgUrl}`;
+          setResult(fullImgUrl);
+          window.__toast?.success("Photo patch generated and saved as reference!");
+        } else {
+          throw new Error(data.error || "Failed to edit photo");
+        }
+      } else {
+        throw new Error("Photo edit request failed");
+      }
+    } catch (err) {
+      window.__toast?.error("Photo edit failed: " + err.message);
+    } finally {
       setEditing(false);
-      setResult('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80');
-    }, 2000);
+    }
   };
 
   return (

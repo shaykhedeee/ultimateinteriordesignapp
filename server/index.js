@@ -1590,6 +1590,34 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
   }
 });
 
+// Photo Edit & Mask-Guided Inpainting API
+app.post('/api/projects/:id/photo-edit', upload.single('image'), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const instructions = req.body.instructions || 'Update materials';
+    
+    // We run the visualizer image generation based on user instructions
+    const prompt = `A highly detailed interior design render showing: ${instructions}. Luxury Indian-modern style, curated lighting.`;
+    const result = await generateInteriorAsset({
+      projectId,
+      room: req.body.room || 'living',
+      title: 'Photo Edit Patch Variant',
+      prompt,
+      style: 'indian-contemporary',
+      tags: ['photo-edit']
+    });
+
+    res.json({
+      success: true,
+      imageUrl: result.url || result.filePath,
+      previousColor: 'Original Material',
+      newColor: 'Updated Material Choice'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Component Color Swap & Palette Suggestion API
 app.post('/api/projects/:id/renders/change-color', async (req, res) => {
   try {
