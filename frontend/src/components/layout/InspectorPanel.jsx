@@ -148,7 +148,7 @@ export default function InspectorPanel() {
         {/* 1. Selection Inspector */}
         <div className="space-y-3">
           <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5 border-b border-slate-800 pb-1.5 shrink-0">
-            <Sliders className="w-3.5 h-3.5 text-[#D4AF37]" /> Properties Inspector
+            <Sliders className="w-3.5 h-3.5 text-[var(--gold)]" /> Properties Inspector
           </h3>
 
           {!selectedEntity ? (
@@ -161,7 +161,7 @@ export default function InspectorPanel() {
               {/* Type tag */}
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Entity Type</span>
-                <span className="bg-[#D4AF37]/15 text-[#D4AF37] px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                <span className="bg-[var(--gold)]/15 text-[var(--gold)] px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider">
                   {selectedType}
                 </span>
               </div>
@@ -191,7 +191,7 @@ export default function InspectorPanel() {
                           value={selectedEntity.geometry.size.widthMm}
                           onChange={(e) => handleGeometryChange('width', e.target.value)}
                           disabled={isLocked}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[#D4AF37] outline-none"
+                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[var(--gold)] outline-none"
                         />
                       </div>
                       <div className="space-y-1">
@@ -201,7 +201,7 @@ export default function InspectorPanel() {
                           value={selectedEntity.geometry.size.heightMm}
                           onChange={(e) => handleGeometryChange('height', e.target.value)}
                           disabled={isLocked}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[#D4AF37] outline-none"
+                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[var(--gold)] outline-none"
                         />
                       </div>
                       <div className="space-y-1">
@@ -211,7 +211,7 @@ export default function InspectorPanel() {
                           value={selectedEntity.geometry.size.depthMm}
                           onChange={(e) => handleGeometryChange('depth', e.target.value)}
                           disabled={isLocked}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[#D4AF37] outline-none"
+                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[var(--gold)] outline-none"
                         />
                       </div>
                     </div>
@@ -228,7 +228,7 @@ export default function InspectorPanel() {
                           value={selectedEntity.geometry.anchor.x}
                           onChange={(e) => handleGeometryChange('x', e.target.value)}
                           disabled={isLocked}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[#D4AF37] outline-none"
+                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[var(--gold)] outline-none"
                         />
                       </div>
                       <div className="space-y-1">
@@ -238,7 +238,7 @@ export default function InspectorPanel() {
                           value={selectedEntity.geometry.anchor.y}
                           onChange={(e) => handleGeometryChange('y', e.target.value)}
                           disabled={isLocked}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[#D4AF37] outline-none"
+                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[var(--gold)] outline-none"
                         />
                       </div>
                       <div className="space-y-1">
@@ -248,7 +248,7 @@ export default function InspectorPanel() {
                           value={selectedEntity.geometry.rotationDeg || 0}
                           onChange={(e) => handleGeometryChange('rotation', e.target.value)}
                           disabled={isLocked}
-                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[#D4AF37] outline-none"
+                          className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1 text-center font-mono focus:border-[var(--gold)] outline-none"
                         />
                       </div>
                     </div>
@@ -273,13 +273,13 @@ export default function InspectorPanel() {
                               title={`${lam.brand} - ${lam.name}`}
                               className={`h-9 rounded-lg border relative transition ${
                                 isSelected 
-                                  ? 'border-[#D4AF37] scale-105 shadow-md shadow-[#D4AF37]/10' 
+                                  ? 'border-[var(--gold)] scale-105 shadow-md shadow-[var(--gold)]/10' 
                                   : 'border-slate-850 hover:border-slate-700'
                               }`}
                               style={{ backgroundColor: lam.color }}
                             >
                               {isSelected && (
-                                <span className="absolute bottom-0 right-0 bg-[#D4AF37] w-2.5 h-2.5 rounded-br-md flex items-center justify-center text-[7px] text-slate-950 font-black">✓</span>
+                                <span className="absolute bottom-0 right-0 bg-[var(--gold)] w-2.5 h-2.5 rounded-br-md flex items-center justify-center text-[7px] text-slate-950 font-black">✓</span>
                               )}
                             </button>
                           );
@@ -299,7 +299,7 @@ export default function InspectorPanel() {
                       className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
                         isLocked
                           ? 'bg-slate-800 text-slate-600 border-transparent cursor-not-allowed'
-                          : 'bg-slate-950 hover:bg-slate-850 text-[#D4AF37] border-slate-850 hover:border-[#D4AF37]/35'
+                          : 'bg-slate-950 hover:bg-slate-850 text-[var(--gold)] border-slate-850 hover:border-[var(--gold)]/35'
                       }`}
                     >
                       <Copy className="w-3.5 h-3.5" /> Duplicate
@@ -329,7 +329,7 @@ export default function InspectorPanel() {
                       value={selectedEntity.name || ""}
                       onChange={(e) => handleRoomMetaChange('name', e.target.value)}
                       disabled={isLocked}
-                      className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2.5 py-1.5 text-slate-200 focus:border-[#D4AF37] outline-none"
+                      className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2.5 py-1.5 text-slate-200 focus:border-[var(--gold)] outline-none"
                     />
                   </div>
 
@@ -387,26 +387,26 @@ export default function InspectorPanel() {
                       <button
                         onClick={() => applyBulkTemplate('kitchen_l_shape')}
                         disabled={isLocked}
-                        className="w-full py-2 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-[#D4AF37]/30 rounded-lg text-[10px] font-bold text-slate-350 transition text-left px-3 flex items-center justify-between"
+                        className="w-full py-2 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-[var(--gold)]/30 rounded-lg text-[10px] font-bold text-slate-350 transition text-left px-3 flex items-center justify-between"
                       >
                         <span>L-Shaped Kitchen Setup</span>
-                        <span className="text-[#D4AF37] font-mono font-normal">3 Units</span>
+                        <span className="text-[var(--gold)] font-mono font-normal">3 Units</span>
                       </button>
                       <button
                         onClick={() => applyBulkTemplate('bedroom_suite')}
                         disabled={isLocked}
-                        className="w-full py-2 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-[#D4AF37]/30 rounded-lg text-[10px] font-bold text-slate-350 transition text-left px-3 flex items-center justify-between"
+                        className="w-full py-2 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-[var(--gold)]/30 rounded-lg text-[10px] font-bold text-slate-350 transition text-left px-3 flex items-center justify-between"
                       >
                         <span>Standard Bedroom Combo</span>
-                        <span className="text-[#D4AF37] font-mono font-normal">2 Units</span>
+                        <span className="text-[var(--gold)] font-mono font-normal">2 Units</span>
                       </button>
                       <button
                         onClick={() => applyBulkTemplate('mandir_setup')}
                         disabled={isLocked}
-                        className="w-full py-2 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-[#D4AF37]/30 rounded-lg text-[10px] font-bold text-slate-350 transition text-left px-3 flex items-center justify-between"
+                        className="w-full py-2 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-[var(--gold)]/30 rounded-lg text-[10px] font-bold text-slate-350 transition text-left px-3 flex items-center justify-between"
                       >
                         <span>Vastu-Compliant Mandir</span>
-                        <span className="text-[#D4AF37] font-mono font-normal">1 Unit</span>
+                        <span className="text-[var(--gold)] font-mono font-normal">1 Unit</span>
                       </button>
                     </div>
                   </div>
@@ -446,7 +446,7 @@ export default function InspectorPanel() {
         {/* 2. Rule Engine Diagnostics */}
         <div className="space-y-2 shrink-0">
           <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5 border-b border-slate-800 pb-1.5">
-            <Compass className="w-3.5 h-3.5 text-[#D4AF37]" /> Rule Engine Checks
+            <Compass className="w-3.5 h-3.5 text-[var(--gold)]" /> Rule Engine Checks
           </h3>
           
           <div className="grid grid-cols-3 gap-1 text-[10px] font-bold">
@@ -499,9 +499,9 @@ export default function InspectorPanel() {
         <div className="bg-slate-950/40 border border-slate-800 p-3.5 rounded-2xl space-y-2 shrink-0">
           <div className="flex items-center justify-between text-xs font-bold text-slate-400">
             <span className="flex items-center gap-1.5 uppercase text-[9px] tracking-wider">
-              <BadgeIndianRupee className="w-4 h-4 text-[#D4AF37]" /> Live Estimation
+              <BadgeIndianRupee className="w-4 h-4 text-[var(--gold)]" /> Live Estimation
             </span>
-            <span className="bg-slate-900 border border-slate-850 px-2 py-0.5 rounded text-[9px] text-[#D4AF37] uppercase font-mono">Smart Cost</span>
+            <span className="bg-slate-900 border border-slate-850 px-2 py-0.5 rounded text-[9px] text-[var(--gold)] uppercase font-mono">Smart Cost</span>
           </div>
           
           <div className="flex justify-between items-baseline mt-1.5">

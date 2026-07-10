@@ -1399,10 +1399,12 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
     { id: 'f1', type: 'furniture', x: 250, y: 175, label: 'Double Bed Module' }
   ]);
   const [selectedTool, setSelectedTool] = useState('wall'); // 'select', 'wall', 'furniture'
+  const [wallStart, setWallStart] = useState(null);
   const canvasRef = useRef(null);
 
   const handleClear = () => {
     setCanvasItems([]);
+    setWallStart(null);
   };
 
   const handleCanvasClick = (e) => {
@@ -1411,7 +1413,24 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
     const x = Math.round(e.clientX - rect.left);
     const y = Math.round(e.clientY - rect.top);
 
-    if (selectedTool === 'furniture') {
+    if (selectedTool === 'wall') {
+      if (!wallStart) {
+        setWallStart({ x, y });
+        window.__toast?.info("Start point set. Click again to draw wall segment.");
+      } else {
+        const newWall = {
+          id: 'w_' + Math.random().toString(36).substring(2, 6),
+          type: 'wall',
+          x1: wallStart.x,
+          y1: wallStart.y,
+          x2: x,
+          y2: y
+        };
+        setCanvasItems([...canvasItems, newWall]);
+        setWallStart(null);
+        window.__toast?.success("Wall segment drawn.");
+      }
+    } else if (selectedTool === 'furniture') {
       setCanvasItems([...canvasItems, {
         id: 'f_' + Math.random().toString(36).substring(2, 6),
         type: 'furniture',
@@ -1422,9 +1441,64 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
     }
   };
 
-  const handleLockAndPromote = () => {
-    __toast?.success("Quick Layout promoted.");
-    onNavigateToTab('cad');
+  const handleLockAndPromote = async () => {
+    if (!project) {
+      window.__toast?.error("No active project selected. Choose a project first.");
+      return;
+    }
+
+    const scale = 10; // Convert pixels to real-world millimeters (e.g. 400px = 4000mm)
+    const walls = canvasItems
+      .filter(i => i.type === 'wall')
+      .map(w => ({
+        id: w.id,
+        x1: w.x1 * scale,
+        y1: w.y1 * scale,
+        x2: w.x2 * scale,
+        y2: w.y2 * scale,
+        thickness: 150
+      }));
+
+    const furniture = canvasItems
+      .filter(i => i.type === 'furniture')
+      .map(f => ({
+        id: f.id,
+        xOffsetMm: f.x * scale,
+        yOffsetMm: f.y * scale,
+        widthMm: 1200,
+        heightMm: 900,
+        depthMm: 600,
+        tag: f.label.toUpperCase().includes('BED') ? 'BED' : 'CABINET',
+        name: f.label
+      }));
+
+    const openings = [];
+    const rooms = [{ id: 'room_main', name: 'Main Room', x: 200 * scale, y: 150 * scale }];
+    const measures = [];
+    const pixelsPerMeter = 100;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/cad`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walls,
+          openings,
+          furniture,
+          rooms,
+          measures,
+          pixelsPerMeter
+        })
+      });
+      if (res.ok) {
+        window.__toast?.success("Quick Layout promoted & saved to project CAD drawing.");
+        onNavigateToTab('cad');
+      } else {
+        throw new Error("API responded with an error");
+      }
+    } catch (err) {
+      window.__toast?.error("Failed to promote layout: " + err.message);
+    }
   };
 
   return (
@@ -1459,12 +1533,12 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
           <div className="flex flex-col gap-2">
             {[
               { id: 'select', label: 'Select Entity', desc: 'Move/Rotate layout blocks' },
-              { id: 'wall', label: 'Draw Wall Node', desc: 'Point-to-point rectangle walls' },
+              { id: 'wall', label: 'Draw Wall Node', desc: 'Point-to-point wall segments (Click start, then end)' },
               { id: 'furniture', label: 'Place Furniture', desc: 'Place low-detail mock cabinet boxes' }
             ].map(t => (
               <button
                 key={t.id}
-                onClick={() => setSelectedTool(t.id)}
+                onClick={() => { setSelectedTool(t.id); setWallStart(null); }}
                 className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${
                   selectedTool === t.id
                     ? 'bg-[var(--gold)]/10 border-[#D4AF37]/50 text-[#D4AF37]'
@@ -1511,6 +1585,11 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
                 strokeLinecap="round"
               />
             ))}
+
+            {/* Visual start indicator for drawing wall */}
+            {wallStart && (
+              <circle cx={wallStart.x} cy={wallStart.y} r="5" fill="#f87171" />
+            )}
 
             {/* Render Furniture Boxes */}
             {canvasItems.filter(i => i.type === 'furniture').map(f => (
@@ -1580,6 +1659,63 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
   const [carcassMaterialId, setCarcassMaterialId] = useState('lam_1'); // Default CenturyPly Frosty White
   const [shutterMaterialId, setShutterMaterialId] = useState('lam_4'); // Default Bourbon Walnut
   const [hardwareId, setHardwareId] = useState('hw_1'); // Hettich sliders
+
+  const handleAddToScene = async () => {
+    if (!project) {
+      window.__toast?.error("No active project selected. Choose a project first.");
+      return;
+    }
+
+    try {
+      const cadRes = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/cad`);
+      if (!cadRes.ok) throw new Error("Could not fetch project CAD drawing");
+      const cadData = await cadRes.json();
+
+      const walls = JSON.parse(cadData.walls_json || '[]');
+      const openings = JSON.parse(cadData.openings_json || '[]');
+      const furniture = JSON.parse(cadData.furniture_json || '[]');
+      const rooms = JSON.parse(cadData.rooms_json || '[]');
+      const measures = JSON.parse(cadData.measures_json || '[]');
+      const pixelsPerMeter = cadData.pixels_per_meter || 100;
+
+      const newCabinet = {
+        id: 'cab_' + Math.random().toString(36).substring(2, 6),
+        name: selectedModule.name,
+        tag: selectedModule.category.includes('Kitchen') ? 'BASE' : selectedModule.category.includes('Mandir') ? 'POOJA UNIT' : 'CABINET',
+        widthMm: width,
+        heightMm: height,
+        depthMm: depth,
+        carcassMaterialId,
+        shutterMaterialId,
+        hardwareId,
+        xOffsetMm: 1500,
+        yOffsetMm: 1500
+      };
+
+      furniture.push(newCabinet);
+
+      const saveRes = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/cad`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walls,
+          openings,
+          furniture,
+          rooms,
+          measures,
+          pixelsPerMeter
+        })
+      });
+
+      if (saveRes.ok) {
+        window.__toast?.success(`Cabinet "${selectedModule.name}" saved & added to project CAD scene!`);
+      } else {
+        throw new Error("Failed to save cabinetry back to project CAD scene");
+      }
+    } catch (err) {
+      window.__toast?.error("Error adding cabinet: " + err.message);
+    }
+  };
 
   // Sync parameters when selected module changes
   useEffect(() => {
@@ -1873,6 +2009,12 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                 </div>
               </div>
 
+              <button
+                onClick={handleAddToScene}
+                className="w-full bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition shadow-md shadow-[#D4AF37]/10"
+              >
+                Save & Add to Scene
+              </button>
             </div>
 
           </div>

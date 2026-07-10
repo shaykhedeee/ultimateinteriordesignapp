@@ -180,6 +180,16 @@ export default function PresentationStudio({ projectId }) {
             ))}
           </div>
           <button
+            onClick={() => {
+              window.open(`${API}/projects/${projectId}/elevations/combined-pdf`, '_blank');
+              window.__toast?.success("Combined elevations PDF downloading…");
+            }}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:10, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'var(--text-secondary)', fontWeight:700, fontSize:11, cursor:'pointer' }}
+          >
+            <Download style={{ width:13, height:13 }} />
+            Combined A3 Elevations
+          </button>
+          <button
             onClick={handlePrint}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:10, background:'var(--gold)', color:'#060609', border:'none', fontWeight:800, fontSize:11, cursor:'pointer', letterSpacing:'0.06em' }}
           >

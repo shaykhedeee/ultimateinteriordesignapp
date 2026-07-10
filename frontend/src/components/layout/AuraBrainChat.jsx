@@ -253,29 +253,37 @@ export default function AuraBrainChat({
         </div>
       </div>
 
-      {/* ── Telemetry Drawer ── */}
-      {showTelemetry && (
-        <div style={{ background:'rgba(0,0,0,0.5)', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'12px 14px', fontFamily:'monospace', fontSize:'9.5px', color:'var(--text-secondary)', display:'flex', flexDirection:'column', gap:'6px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:'8px', color:'#a5b4fc', fontWeight:700, paddingBottom:'6px', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
-            <span>ACTIVE SUB-AGENTS</span>
-            <span>LATENCY 42ms</span>
-          </div>
-          {[
-            ['● DesignAgent',   'Style & Layout GNN',   '#2DD4AA'],
-            ['● SpatialAgent',  'Traffic Pathfinding',   '#67E8F9'],
-            ['● CommerceAgent', 'Live API Pricing',      '#C084FC']
-          ].map(([name, desc, color]) => (
-            <div key={name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ color }}>{name}</span>
-              <span style={{ color:'var(--text-muted)' }}>{desc}</span>
+      {/* ── Telemetry Drawer (honest, reflects real backend state) ── */}
+      {showTelemetry && (() => {
+        const lastAura = [...messages].reverse().find(m => m.sender === 'aura');
+        const online = lastAura?.llmPowered;
+        const model = lastAura?.model || 'offline-rule-engine';
+        const toolCount = (lastAura?.toolCalls || []).length;
+        return (
+          <div style={{ background:'rgba(0,0,0,0.5)', borderBottom:'1px solid rgba(255,255,255,0.05)', padding:'12px 14px', fontFamily:'monospace', fontSize:'9.5px', color:'var(--text-secondary)', display:'flex', flexDirection:'column', gap:'6px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:'8px', color:'#a5b4fc', fontWeight:700, paddingBottom:'6px', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+              <span>ENGINE</span>
+              <span style={{ color: online ? 'var(--emerald)' : '#facc15' }}>{online ? 'LLM ONLINE' : 'LOCAL RULE MODE'}</span>
             </div>
-          ))}
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:'8.5px', color:'var(--text-muted)', paddingTop:'6px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
-            <span>Pinecone Vector RAG</span>
-            <span>50M+ Embeddings</span>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ color:'#a5b4fc' }}>● AURA Orchestrator</span>
+              <span style={{ color:'var(--text-muted)' }}>{String(model).replace('meta-llama/','LLaMA ')}</span>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ color:'#2DD4AA' }}>● Tool Router</span>
+              <span style={{ color:'var(--text-muted)' }}>{toolCount} tool{toolCount===1?'':'s'} last turn</span>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ color:'#67E8F9' }}>● Project Memory</span>
+              <span style={{ color:'var(--text-muted)' }}>{project?.name ? 'scoped' : 'global'}</span>
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:'8.5px', color:'var(--text-muted)', paddingTop:'6px', borderTop:'1px solid rgba(255,255,255,0.04)' }}>
+              <span>Backend</span>
+              <span>Express · SQLite</span>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Messages ── */}
       <div style={S.msgArea}>

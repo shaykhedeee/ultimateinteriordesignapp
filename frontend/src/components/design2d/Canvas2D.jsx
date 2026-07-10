@@ -199,7 +199,7 @@ export default function Canvas2D() {
       </div>
 
       <div className="absolute top-3 right-3 z-10 bg-slate-900/90 border border-slate-800/80 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg text-[9px] font-bold text-slate-400 tracking-wider uppercase">
-        <Eye className="w-3.5 h-3.5 text-[#D4AF37]" />
+        <Eye className="w-3.5 h-3.5 text-[var(--gold)]" />
         <span>2D Floorplan layout</span>
       </div>
 
@@ -244,7 +244,7 @@ export default function Canvas2D() {
                 <polygon
                   points={pointsStr}
                   fill={isActive ? 'rgba(212, 175, 55, 0.02)' : 'transparent'}
-                  stroke={isSelected ? '#D4AF37' : isActive ? 'rgba(212, 175, 55, 0.2)' : 'transparent'}
+                  stroke={isSelected ? 'var(--gold)' : isActive ? 'rgba(212, 175, 55, 0.2)' : 'transparent'}
                   strokeWidth="1.5"
                   className="transition"
                 />
@@ -279,7 +279,7 @@ export default function Canvas2D() {
                 <polygon
                   points={cornersStr}
                   fill="#334155"
-                  stroke={isSelected ? '#D4AF37' : '#64748b'}
+                  stroke={isSelected ? 'var(--gold)' : '#64748b'}
                   strokeWidth={isSelected ? 1.5 : 1}
                 />
                 
@@ -385,7 +385,7 @@ export default function Canvas2D() {
                   width={widthMm}
                   height={depthMm}
                   fill={isSelected ? 'rgba(212, 175, 55, 0.15)' : 'rgba(15, 23, 42, 0.65)'}
-                  stroke={isSelected ? '#D4AF37' : '#94a3b8'}
+                  stroke={isSelected ? 'var(--gold)' : '#94a3b8'}
                   strokeWidth={isSelected ? 2 : 1.2}
                   rx="4"
                 />
@@ -396,7 +396,7 @@ export default function Canvas2D() {
                   y1={depthMm / 2 - 6}
                   x2={widthMm / 2 - 3}
                   y2={depthMm / 2 - 6}
-                  stroke={isSelected ? '#D4AF37' : '#64748b'}
+                  stroke={isSelected ? 'var(--gold)' : '#64748b'}
                   strokeWidth="1"
                 />
                 
@@ -404,7 +404,7 @@ export default function Canvas2D() {
                 <text
                   x="0"
                   y="-4"
-                  fill={isSelected ? '#D4AF37' : '#cbd5e1'}
+                  fill={isSelected ? 'var(--gold)' : '#cbd5e1'}
                   fontSize="9px"
                   fontWeight="bold"
                   textAnchor="middle"
@@ -459,7 +459,7 @@ export default function Canvas2D() {
                   rx="6"
                   fill="#0b0f19"
                   fillOpacity="0.8"
-                  stroke={isSelected ? '#D4AF37' : 'rgba(51, 65, 85, 0.4)'}
+                  stroke={isSelected ? 'var(--gold)' : 'rgba(51, 65, 85, 0.4)'}
                   strokeWidth="1"
                 />
                 <text

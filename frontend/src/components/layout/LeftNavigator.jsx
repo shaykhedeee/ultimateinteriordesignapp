@@ -79,7 +79,7 @@ export default function LeftNavigator() {
           onClick={() => setActiveTab('library')}
           className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
             activeTab === 'library'
-              ? 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20'
+              ? 'bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -89,7 +89,7 @@ export default function LeftNavigator() {
           onClick={() => setActiveTab('rooms')}
           className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
             activeTab === 'rooms'
-              ? 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20'
+              ? 'bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20'
               : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -115,7 +115,7 @@ export default function LeftNavigator() {
                     }}
                     className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-left flex items-center justify-between transition ${
                       activeRoomId === room.roomId
-                        ? 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20'
+                        ? 'bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20'
                         : 'bg-slate-950/20 border border-transparent hover:border-slate-800 text-slate-300'
                     }`}
                   >
@@ -124,7 +124,7 @@ export default function LeftNavigator() {
                       <span className="text-[9px] text-slate-500 ml-1.5 block font-medium uppercase tracking-wider">{room.roomType.replace('_', ' ')}</span>
                     </div>
                     {room.constraints?.vastuZone && (
-                      <span className="text-[9px] bg-slate-850 px-1.5 py-0.5 rounded font-bold font-mono text-[#D4AF37]">
+                      <span className="text-[9px] bg-slate-850 px-1.5 py-0.5 rounded font-bold font-mono text-[var(--gold)]">
                         {room.constraints.vastuZone}
                       </span>
                     )}
@@ -134,30 +134,30 @@ export default function LeftNavigator() {
             )}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {MODULE_LIBRARY.map((cat, idx) => (
-              <div key={idx} className="space-y-2">
-                <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-800/60 pb-1">{cat.category}</h4>
-                <div className="space-y-1.5">
+              <div key={idx} className="space-y-2.5">
+                <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-800/60 pb-1.5">{cat.category}</h4>
+                <div className="space-y-2">
                   {cat.items.map((item, i) => (
                     <div
                       key={i}
-                      className="bg-slate-950/30 border border-slate-850/60 p-2.5 rounded-xl flex flex-col justify-between hover:border-slate-700 transition"
+                      className="bg-slate-950/30 border border-slate-850/60 p-3.5 rounded-2xl flex flex-col justify-between hover:border-[var(--gold)]/25 hover:bg-slate-950/50 transition-all duration-200"
                     >
                       <div>
                         <div className="text-xs font-bold text-slate-200">{item.name}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{item.desc}</div>
-                        <div className="text-[9px] text-slate-500 font-mono mt-1">
-                          Size: {item.w} x {item.h} x {item.d} mm
+                        <div className="text-[10px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">{item.desc}</div>
+                        <div className="text-[9px] text-slate-500 font-mono mt-1.5">
+                          Size: {item.w} × {item.h} × {item.d} mm
                         </div>
                       </div>
                       <button
                         onClick={() => handlePlaceModule(item)}
                         disabled={isLocked}
-                        className={`mt-2.5 py-1 px-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition ${
+                        className={`mt-3 py-1.5 px-3 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all duration-200 ${
                           isLocked
                             ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                            : 'bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/20'
+                            : 'bg-[var(--gold)]/10 hover:bg-[var(--gold)]/20 text-[var(--gold)] border border-[var(--gold)]/20'
                         }`}
                       >
                         <Plus className="w-3 h-3" /> Place Module
@@ -173,7 +173,7 @@ export default function LeftNavigator() {
 
       {/* Info Footnote */}
       <div className="p-3 bg-slate-950/40 border-t border-slate-800 text-[10px] text-slate-500 shrink-0 flex items-center gap-1.5">
-        <Compass className="w-3.5 h-3.5 text-[#D4AF37]" />
+        <Compass className="w-3.5 h-3.5 text-[var(--gold)]" />
         <span>Indian Modular Standards Enforced</span>
       </div>
     </div>
