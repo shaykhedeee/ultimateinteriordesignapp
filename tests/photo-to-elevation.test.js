@@ -50,18 +50,19 @@ test('wardrobe uses STANDARD 600mm bays scaled to width (not arbitrary sizes)', 
     unitTypeHint: 'wardrobe'
   });
   // 2184mm -> ~4 standard 600mm bays (remainder is a FILLER, never an arbitrary size)
-  const shutters = r.model.cabinets.filter(c => c.tag === 'SHUTTER');
-  assert.ok(shutters.length >= 3, 'at least 3 standard shutter bays');
-  // every shutter must be a valid standard bay width (450/500/600/750/900) or a filler
-  for (const s of shutters) {
+  // Each bay emits one LOFT cabinet (top of every bay) carrying the exact bay width.
+  const bays = r.model.cabinets.filter(c => c.tag === 'LOFT');
+  assert.ok(bays.length >= 3, 'at least 3 standard bays');
+  // every bay must be a valid standard bay width (450/500/600/750/900) or a filler
+  for (const b of bays) {
     const std = [450, 500, 600, 750, 900];
-    const isStd = std.includes(s.widthMm);
-    const isFiller = s.widthMm < 450;
-    assert.ok(isStd || isFiller, `shutter width ${s.widthMm} must be standard or filler, not arbitrary`);
+    const isStd = std.includes(b.widthMm);
+    const isFiller = b.widthMm < 450;
+    assert.ok(isStd || isFiller, `bay width ${b.widthMm} must be standard or filler, not arbitrary`);
   }
   // bays must exactly fill the unit width (no gap, no overflow)
-  const sumW = shutters.reduce((a, c) => a + c.widthMm, 0);
-  assert.equal(sumW, r.model.lengthMm, 'shutter bays must sum to unit width');
+  const sumW = bays.reduce((a, c) => a + c.widthMm, 0);
+  assert.equal(sumW, r.model.lengthMm, 'bays must sum to unit width');
 });
 
 test('deterministic fallback always yields a valid measured model (no AI needed)', async () => {

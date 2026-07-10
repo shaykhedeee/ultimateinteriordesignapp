@@ -73,6 +73,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const isDraggingCanvasRef = useRef(false);
   const canvasDragStartRef = useRef({ x: 0, y: 0 });
   const hiddenCanvasRef = useRef(null);
+  const detectImageInputRef = useRef(null);
 
   // Theme Colors dictionary
   const themeColors = {
@@ -189,13 +190,30 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     }
   };
 
-  const triggerCvDetect = async () => {
-    if (!sketchUrl) {
-      window.__toast?.show("Attach a floorplan / sketch image first (Floorplan Underlay), then run wall detection.");
-      return;
-    }
+  const triggerCvDetect = async (file) => {
     setIsDetectingLayout(true);
     try {
+      // PRIORITY 1: user uploaded a floorplan/room image -> server-side CV (works with ANY image)
+      if (file) {
+        const fd = new FormData();
+        fd.append('image', file);
+        window.__toast?.show('Running offline CV wall detection on your image…');
+        const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad/detect-walls-vision`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+          window.__toast?.show(`Detected ${data.walls} wall segment(s) via ${data.source}. Refine in the editor, then run AI Auto-Detect Layout.`);
+          loadCADData();
+        } else {
+          window.__toast?.show(data.message || 'Wall detection failed. Trace manually in the editor.');
+        }
+        return;
+      }
+      // PRIORITY 2: an attached underlay exists -> client-side CV (legacy path)
+      if (!sketchUrl) {
+        // No image at all: open the file picker so the user can supply one.
+        detectImageInputRef.current?.click();
+        return;
+      }
       // 1. Load the underlay image into an offscreen canvas
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -224,7 +242,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       const result = CVProcessor.detectWallsAndOpenings(binCanvas, { lineThicknessGap: 15, snapTolerance: 25 });
 
       if (!result.walls || result.walls.length === 0) {
-        window.__toast?.show("No walls detected in the image. Try a higher-contrast sketch, or trace manually.");
+        window.__toast?.show("No walls detected in the image. Try a higher-contrast sketch, or upload one via 'Detect Walls From Image'.");
         return;
       }
 
@@ -262,6 +280,12 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     }
   };
 
+  const onDetectImagePicked = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) triggerCvDetect(f);
+    e.target.value = '';
+  };
+
   const triggerAiDetect = async () => {
     setIsDetectingLayout(true);
     try {
@@ -271,7 +295,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       });
       const data = await res.json();
       if (data.success) {
-        window.__toast?.show("Floorplan interpreted from your traced walls: rooms detected and cabinet modules placed. Review the result in the CAD editor.");
+        if (data.fallback) {
+          window.__toast?.show("AI generated a standards-based starter layout (no walls traced yet). Upload a floorplan or trace walls for a custom plan.");
+        } else {
+          window.__toast?.show("Floorplan interpreted: rooms detected and cabinet modules placed. Review the result in the CAD editor.");
+        }
         loadCADData();
       } else if (res.status === 422) {
         window.__toast?.show(data.message || "Trace the walls and openings in the CAD editor first, then run interpretation.");
@@ -1017,14 +1045,15 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             AI Auto-Detect Layout
           </button>
           <button
-            onClick={triggerCvDetect}
-            disabled={isDetectingLayout || !sketchUrl}
-            title={sketchUrl ? 'Detect walls from the attached floorplan image' : 'Attach a floorplan underlay first'}
+            onClick={() => triggerCvDetect()}
+            disabled={isDetectingLayout}
+            title="Detect walls from an uploaded floorplan/room image (works with any image), or the attached underlay"
             className="w-full py-2 bg-[#2DD4AA]/10 hover:bg-[#2DD4AA]/20 border border-[#2DD4AA]/45 text-[#2DD4AA] text-xs font-bold rounded-lg uppercase tracking-wider transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Image className="w-3.5 h-3.5" />
             Detect Walls From Image
           </button>
+          <input ref={detectImageInputRef} type="file" accept="image/*" className="hidden" onChange={onDetectImagePicked} />
         </div>
 
         {/* Selected Item Properties Panel */}
