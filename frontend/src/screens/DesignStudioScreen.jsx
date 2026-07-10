@@ -105,7 +105,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   if (!scene) {
     return (
       <div className="w-full h-[80vh] flex flex-col items-center justify-center text-slate-400 gap-3">
-        <RefreshCw className="w-8 h-8 animate-spin text-[#D4AF37]" />
+        <RefreshCw className="w-8 h-8 animate-spin text-[var(--gold)]" />
         <span className="text-xs font-bold uppercase tracking-wider">Loading Spatial Scene Graph...</span>
       </div>
     );
@@ -404,7 +404,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             <div className="p-4 bg-slate-950/40 border-t border-slate-850 flex justify-end">
               <button
                 onClick={() => setShowBranchModal(false)}
-                className="bg-slate-800 hover:bg-slate-755 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition"
+                className="bg-slate-800 hover:bg-slate-820 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition"
               >
                 Close Manager
               </button>
