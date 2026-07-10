@@ -3,6 +3,8 @@ import path from 'path';
 import PDFDocument from 'pdfkit';
 import { fileURLToPath } from 'url';
 import db from '../database/database.js';
+import { buildStandardModel } from './standards.js';
+import { drawElevation } from './pdf-elevation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -282,67 +284,35 @@ class PDFBuilder {
             currentY = 50;
           }
 
-          // Draw elevation frame
-          doc.strokeColor('#CBD5E0').lineWidth(0.5).rect(42, currentY, 511, 150).stroke();
-          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(9.5).text(`ELEVATION VIEW ${idx + 1}: ${f.name.toUpperCase()} FRONT FACE`, 55, currentY + 12);
-          
-          const widthMm = (f.width * 25.0) || 1800; // convert pixel width back to mm
-          const scaleElev = 105.0 / 2700.0; // scale 2.7m ceiling height to 105 points
-          const wPoints = widthMm * scaleElev;
-          const hPoints = 2700 * scaleElev;
-          
-          const startX = 260 - wPoints / 2;
-          const startY = currentY + 130 - hPoints;
+          const widthMm = Math.max(600, (f.width * 25.0) || 1800); // convert pixel width back to mm
+          const typeMap = {
+            wardrobe: 'wardrobe', bed: 'wardrobe', pooja: 'wardrobe',
+            counter: 'kitchen', 'kitchen-base': 'kitchen', 'kitchen-island': 'kitchen',
+            'kitchen-wall': 'kitchen', 'kitchen-tall': 'kitchen',
+            table: 'tv-unit', 'tv-unit': 'tv-unit',
+            sink: 'vanity', vanity: 'vanity',
+            bookshelf: 'bookcase', bookcase: 'bookcase'
+          };
+          const unitType = typeMap[f.type] || 'wardrobe';
+          const heightMm = (unitType === 'wardrobe' || unitType === 'kitchen' || unitType === 'bookcase') ? 2400 : 2100;
+          const elevModel = buildStandardModel(unitType, { widthMm, heightMm, depthMm: 600 });
+          elevModel.projectId = project.client_name || 'Client';
+          elevModel.wallName = (f.name || 'Unit').toUpperCase();
 
-          // Draw ground baseline
-          doc.strokeColor('#94A3B8').lineWidth(1.5).moveTo(50, currentY + 130).lineTo(540, currentY + 130).stroke();
+          // Elevation title — show resolved carcass type, not loose detected object name
+          const typeLabel = unitType.toUpperCase();
+          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(9.5).text(`ELEVATION VIEW ${idx + 1}: ${typeLabel} — ${Math.round(widthMm)} × ${heightMm} mm`, 55, currentY + 12);
 
-          // Draw cabinet box
-          doc.strokeColor('#1E293B').lineWidth(1.2).rect(startX, startY, wPoints, hPoints).stroke();
+          // Embed a real, detailed elevation drawing inside a taller frame
+          const frameX = 42, frameY = currentY, frameW = 511, frameH = 300;
+          doc.strokeColor('#CBD5E0').lineWidth(0.5).rect(frameX, frameY, frameW, frameH).stroke();
+          const pad = 24;
+          const escale = Math.min((frameW - pad * 2) / widthMm, (frameH - pad * 2) / heightMm);
+          const eox = frameX + (frameW - widthMm * escale) / 2;
+          const eoy = frameY + frameH - pad;
+          drawElevation(doc, elevModel, { embed: true, offsetX: eox, offsetY: eoy, embedScale: escale, noDimensions: true });
 
-          // Draw plinths/shutters detail
-          const plinthH = 100 * scaleElev;
-          const loftH = 600 * scaleElev;
-
-          // Draw plinth base
-          doc.rect(startX, currentY + 130 - plinthH, wPoints, plinthH).fill('#F1F5F9');
-          doc.strokeColor('#1E293B').lineWidth(1).rect(startX, currentY + 130 - plinthH, wPoints, plinthH).stroke();
-
-          if (f.type === 'wardrobe') {
-            // Draw Loft panels
-            doc.strokeColor('#1E293B').rect(startX, startY, wPoints, loftH).stroke();
-            doc.fillColor('#475569').font('Helvetica').fontSize(6).text('LOFT', startX, startY + 4, { width: wPoints, align: 'center' });
-            // Vertical shutters line
-            doc.moveTo(startX + wPoints/2, startY + loftH).lineTo(startX + wPoints/2, currentY + 130 - plinthH).stroke();
-            doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(6.5).text('SWING DOOR WARDROBE', startX, startY + 35, { width: wPoints, align: 'center' });
-          } else if (f.type === 'counter') {
-            // Draw Countertop Slab line
-            const counterH = 750 * scaleElev;
-            const counterTopY = currentY + 130 - plinthH - counterH;
-            doc.rect(startX, counterTopY - 4, wPoints, 4).fill('#334155');
-            doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(6.5).text('MODULAR BASE COUNTER', startX, counterTopY + 18, { width: wPoints, align: 'center' });
-          } else {
-            doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(6.5).text('PARAMETRIC UNIT', startX, startY + 30, { width: wPoints, align: 'center' });
-          }
-
-          // Elevation guidelines
-          doc.strokeColor('#D4AF37').lineWidth(0.5);
-          const heights = [
-            { val: 100, label: '100 PLINTH' },
-            { val: 850, label: '850 COUNTER' },
-            { val: 2100, label: '2100 LINTEL' },
-            { val: 2700, label: '2700 CEILING' }
-          ];
-          heights.forEach(h => {
-            const gy = currentY + 130 - h.val * scaleElev;
-            doc.moveTo(startX - 15, gy).lineTo(startX - 4, gy).stroke();
-            doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(5.5).text(h.label, startX - 80, gy - 2);
-          });
-
-          // Width guide
-          doc.fillColor('#475569').font('Helvetica').fontSize(7).text(`Width: ${widthMm} mm`, startX, currentY + 134, { width: wPoints, align: 'center' });
-
-          currentY += 170;
+          currentY += 320;
         });
       }
 

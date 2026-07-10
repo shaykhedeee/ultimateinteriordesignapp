@@ -26,31 +26,43 @@ function drawObliqueTick(doc, x, y, size = 4) {
     .stroke();
 }
 
-function drawElevation(doc, model, opts = {}) {
+export function drawElevation(doc, model, opts = {}) {
   const L = model.lengthMm;
   const H = model.heightMm;
-  const startX = 120;
-  const baseY = 560;               // floor line (mm 0)
-  const scale = 0.16;              // px per mm
+  const embed = !!opts.embed;
+  const ox = opts.offsetX || 0;          // x offset (pt) for embedding
+  const oy = opts.offsetY || 0;          // y offset (pt) for embedding
+  const effScale = opts.embedScale || 0.16;
+  const startX = embed ? ox : 120;
+  const baseY = embed ? oy : 560;        // floor line (mm 0)
+  const scale = effScale;
   const toX = mm => startX + mm * scale;
   const toY = mm => baseY - mm * scale;
 
-  // Double sheet border (clean style)
-  doc.lineWidth(2).strokeColor(BLK).rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke();
-  doc.lineWidth(0.5).strokeColor(BLUE).rect(36, 36, doc.page.width - 72, doc.page.height - 72).stroke();
+  // Page chrome (skipped when embedding into another document)
+  if (!embed) {
+    // Double sheet border (clean style)
+    doc.lineWidth(2).strokeColor(BLK).rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke();
+    doc.lineWidth(0.5).strokeColor(BLUE).rect(36, 36, doc.page.width - 72, doc.page.height - 72).stroke();
 
-  // Wall outline (thick dark line)
-  doc.lineWidth(2.5).strokeColor(BLK).rect(toX(0), toY(H), L * scale, H * scale).stroke();
+    // Wall outline (thick dark line)
+    doc.lineWidth(2.5).strokeColor(BLK).rect(toX(0), toY(H), L * scale, H * scale).stroke();
 
-  // Beam hatch + label
-  doc.lineWidth(0.4).strokeColor(GREY);
-  for (let x = toX(0); x < toX(L); x += 6) doc.moveTo(x, toY(H) - 14).lineTo(x + 10, toY(H)).stroke();
-  doc.font('Helvetica-Bold').fontSize(8).fillColor(BLK).text('BEAM', toX(L) - 30, toY(H) - 26);
+    // Beam hatch + label
+    doc.lineWidth(0.4).strokeColor(GREY);
+    for (let x = toX(0); x < toX(L); x += 6) doc.moveTo(x, toY(H) - 14).lineTo(x + 10, toY(H)).stroke();
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(BLK).text('BEAM', toX(L) - 30, toY(H) - 26);
 
-  // Plinth datum + label
-  doc.lineWidth(1.2).strokeColor(GREY).dash(4, 4).moveTo(toX(0) - 20, baseY).lineTo(toX(L) + 20, baseY).stroke();
-  doc.undash();
-  doc.font('Helvetica-Oblique').fontSize(7).fillColor(GREY).text('PLINTH LEVEL (100mm)', toX(0) + 30, baseY + 2);
+    // Plinth datum + label
+    doc.lineWidth(1.2).strokeColor(GREY).dash(4, 4).moveTo(toX(0) - 20, baseY).lineTo(toX(L) + 20, baseY).stroke();
+    doc.undash();
+    doc.font('Helvetica-Oblique').fontSize(7).fillColor(GREY).text('PLINTH LEVEL (100mm)', toX(0) + 30, baseY + 2);
+  } else {
+    // In embed mode still draw the wall outline + plinth datum lightly
+    doc.lineWidth(1.2).strokeColor(BLK).rect(toX(0), toY(H), L * scale, H * scale).stroke();
+    doc.lineWidth(0.8).strokeColor(GREY).dash(4, 4).moveTo(toX(0) - 8, baseY).lineTo(toX(L) + 8, baseY).stroke();
+    doc.undash();
+  }
 
   // Openings (with swing arcs + dims)
   const openings = model.openings || [];
@@ -147,9 +159,18 @@ function drawElevation(doc, model, opts = {}) {
     
     // shelves or door swing representations
     if (isOpen) {
-      const shelves = m.shelves || Math.max(1, Math.round(c.heightMm / 350));
-      doc.lineWidth(0.7).strokeColor(GREY);
-      for (let i = 1; i < shelves; i++) doc.moveTo(x + 3, y + (h * i) / shelves).lineTo(x + w - 3, y + (h * i) / shelves).stroke();
+      const shelves = m.shelves || Math.max(2, Math.round(c.heightMm / 350));
+      doc.lineWidth(1).strokeColor('#444444');
+      for (let i = 1; i < shelves; i++) {
+        const sy = y + (h * i) / shelves;
+        doc.moveTo(x + 2, sy).lineTo(x + w - 2, sy).stroke();
+      }
+      // faint shelf-end ticks for depth cue
+      doc.lineWidth(0.5).strokeColor(GREY);
+      for (let i = 1; i < shelves; i++) {
+        const sy = y + (h * i) / shelves;
+        doc.moveTo(x + 2, sy - 2).lineTo(x + 2, sy + 2).moveTo(x + w - 2, sy - 2).lineTo(x + w - 2, sy + 2).stroke();
+      }
     }
     // hanger space: hanging rod near the TOP of the section + brackets
     if (m.hanger || c.hanger) {
@@ -159,9 +180,15 @@ function drawElevation(doc, model, opts = {}) {
       // small hook glyphs
       doc.lineWidth(0.6).strokeColor('#222222');
       for (let hx = x + 12; hx < x + w - 8; hx += 28) doc.moveTo(hx, rodY).lineTo(hx, rodY + 6).stroke();
-    } else if (tag === 'DRAWER' || /drawer/i.test(c.name)) {
-      const n = Math.max(2, Math.round(c.heightMm / 250));
-      for (let i = 1; i < n; i++) doc.lineWidth(0.7).moveTo(x, y + (h * i) / n).lineTo(x + w, y + (h * i) / n).stroke();
+    } else if (tag === 'DRAWER' || tag === 'BASE' || /drawer/i.test(c.name)) {
+      const n = (tag === 'BASE') ? Math.max(2, Math.round(c.heightMm / 220)) : Math.max(2, Math.round(c.heightMm / 250));
+      doc.lineWidth(0.8).strokeColor('#333333');
+      for (let i = 1; i < n; i++) {
+        const dy = y + (h * i) / n;
+        doc.moveTo(x + 2, dy).lineTo(x + w - 2, dy).stroke();
+        // drawer pull (small vertical tick centered)
+        doc.moveTo(x + w / 2, dy - Math.min(6, h / n / 2) + 2).lineTo(x + w / 2, dy - 1).stroke();
+      }
     } else if (!m.appliance && tag !== 'FILLER' && tag !== 'VOID') {
       // V-swing dash overlays
       doc.lineWidth(0.5).dash(2, 2).strokeColor(GREY);
@@ -284,8 +311,8 @@ function drawElevation(doc, model, opts = {}) {
     }
   }
 
-  // Graphical SCALE BAR (1:25) — essential for a real drawing sheet
-  {
+  // Graphical SCALE BAR (1:25) — essential for a real drawing sheet (skip when embedded)
+  if (!embed) {
     const sbX = toX(0), sbY = toY(0) + 64, segMm = 500, segPx = segMm * scale, segs = 4;
     doc.font('Helvetica-Bold').fontSize(6.5).fillColor(BLK).text('SCALE 1:25', sbX, sbY - 12);
     for (let i = 0; i < segs; i++) {
@@ -298,11 +325,12 @@ function drawElevation(doc, model, opts = {}) {
     doc.font('Helvetica').fontSize(5.5).fillColor(BLK).text(`${segs * segMm / 1000}m`, sbX + segs * segPx - 10, sbY + 7);
   }
 
-  // Coverage note
+  // Coverage note (skip when embedded)
   const cov = model.coverage;
-  if (cov) doc.font('Helvetica-Oblique').fontSize(7).fillColor(GREY).text(`UTILIZATION: ${cov.utilizationPct}%  |  USED: ${cov.usedMm}mm  |  FREE: ${cov.freeMm}mm`, toX(0), toY(H) + 30);
+  if (!embed && cov) doc.font('Helvetica-Oblique').fontSize(7).fillColor(GREY).text(`UTILIZATION: ${cov.utilizationPct}%  |  USED: ${cov.usedMm}mm  |  FREE: ${cov.freeMm}mm`, toX(0), toY(H) + 30);
 
   // ---- NOTES / LEGEND / COMPONENT SCHEDULE (right column) ----
+  if (!embed) {
   const nx = doc.page.width - 270, ny = 78, nw = 230;
   // Component schedule: group identical modules (tag + WxH)
   const groups = {};
@@ -393,6 +421,7 @@ function drawElevation(doc, model, opts = {}) {
   doc.font('Helvetica').fontSize(6).fillColor(GREY)
     .text('DRAWN BY: AURA', tbX + 12, tbY + tbH - 18)
     .text('CHECKED BY: __________', tbX + 150, tbY + tbH - 18);
+  } // end if (!embed)
 }
 
 export function renderElevationPDF(model, opts = {}) {
