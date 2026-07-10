@@ -154,7 +154,8 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
         const conf = data.elevation?.confidence != null ? Math.round(data.elevation.confidence * 100) + '%' : '—';
         const label = src === 'openai-vision' ? `AI vision (GPT-4o · ${conf})`
           : src === 'gemini-vision' ? `AI vision (Gemini · ${conf})`
-          : 'Standard archetype (no AI vision — check API key)';
+          : src === 'local-vision' ? `Local detection (offline · ${conf})`
+          : 'Standard archetype (no vision — check API key)';
         showToast(`Elevation generated · ${label}`, src === 'deterministic' ? 'info' : 'success');
         await loadPhotoElevations();
       } else {
@@ -876,6 +877,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                   const src = e.source || (e.model_json ? (JSON.parse(e.model_json).source) : null) || 'deterministic';
                   const srcBadge = src === 'openai-vision' ? { t: 'GPT-4o', c: 'text-emerald-400 border-emerald-500/40' }
                     : src === 'gemini-vision' ? { t: 'Gemini', c: 'text-sky-400 border-sky-500/40' }
+                    : src === 'local-vision' ? { t: 'Local CV', c: 'text-violet-400 border-violet-500/40' }
                     : { t: 'Archetype', c: 'text-amber-400 border-amber-500/40' };
                   return (
                   <div key={e.id} className="bg-slate-950/40 border border-slate-850 rounded-lg p-3 flex items-center justify-between">
