@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE = 'http://127.0.0.1:5055';
+const BASE = process.env.APP_URL || ('http://127.0.0.1:' + (process.env.PORT || 8787));
 const projectId = 'proj_smoke_001';
 
 function req(opt, body) {

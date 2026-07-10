@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Layers, Download, Save, RefreshCw, AlertTriangle, 
-  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2, FileText, Package
+import {
+  Layers, Download, Save, RefreshCw, AlertTriangle,
+  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2, FileText, Package, LayoutGrid, Loader2
 } from 'lucide-react';
 
 // Analyzer: SAME engine that drives the professional DXF export, so the
@@ -37,6 +37,8 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [shoeLed, setShoeLed] = useState(true);
   const [shoeLoading, setShoeLoading] = useState(false);
   const [shoeResult, setShoeResult] = useState(null);
+  const [drawingSet, setDrawingSet] = useState(null);
+  const [drawingSetLoading, setDrawingSetLoading] = useState(false);
   
   // Elevation-specific parameters
   const [wallHeight, setWallHeight] = useState(2700); // mm
@@ -597,6 +599,25 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             <button
               onClick={async () => {
                 try {
+                  setDrawingSetLoading(true);
+                  const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/drawings`);
+                  if (!res.ok) { showToast('Drawing set failed', 'error'); setDrawingSetLoading(false); return; }
+                  const set = await res.json();
+                  setDrawingSet(set);
+                  const walls = set.floorPlan?.walls?.length || 0;
+                  const elevs = set.elevations?.length || 0;
+                  const boms = set.schedule?.length || 0;
+                  showToast(`Drawing set ready — ${walls} walls, ${elevs} elevations, ${boms} BOM items`, 'success');
+                  setDrawingSetLoading(false);
+                } catch (e) { showToast('Drawing set failed', 'error'); setDrawingSetLoading(false); }
+              }}
+              className="bg-slate-800 border border-slate-700 hover:border-[var(--gold)]/40 px-2 py-1 text-slate-200 transition flex items-center gap-1 text-[10px] font-bold"
+            >
+              {drawingSetLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LayoutGrid className="w-3.5 h-3.5" />} FULL SET
+            </button>
+            <button
+              onClick={async () => {
+                try {
                   const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/delivery-package`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
                   if (!res.ok) { showToast('Delivery package failed', 'error'); return; }
                   const blob = await res.blob();
@@ -610,6 +631,36 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             >
               <Package className="w-3.5 h-3.5" /> HANDOFF
             </button>
+            {drawingSet && (
+              <div className="mt-3 mb-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-[11px]">
+                <div className="flex items-center gap-2 mb-2 text-[var(--gold)] font-bold">
+                  <LayoutGrid className="w-3.5 h-3.5" /> Full Drawing Set
+                  <span className="ml-auto text-slate-500 font-mono">{drawingSet.generatedAt ? new Date(drawingSet.generatedAt).toLocaleString('en-IN') : ''}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
+                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">Floor Plan</div>
+                    <div className="text-slate-100 font-bold">{drawingSet.floorPlan?.walls?.length || 0} walls</div>
+                    <div className="text-slate-500 text-[9px]">{drawingSet.floorPlan?.openings?.length || 0} openings</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
+                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">Elevations</div>
+                    <div className="text-slate-100 font-bold">{drawingSet.elevations?.length || 0} walls</div>
+                    <div className="text-slate-500 text-[9px]">from analyzer</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
+                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">RCP</div>
+                    <div className="text-slate-100 font-bold">{drawingSet.rcp?.fixtureCount || 0} fixtures</div>
+                    <div className="text-slate-500 text-[9px]">ceiling plan</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
+                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">BOM</div>
+                    <div className="text-slate-100 font-bold">{drawingSet.schedule?.length || 0} items</div>
+                    <div className="text-slate-500 text-[9px]">cabinet schedule</div>
+                  </div>
+                </div>
+              </div>
+            )}
             <button
               onClick={() => {
                 if (selectedWallId) {

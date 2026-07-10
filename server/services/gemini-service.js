@@ -114,8 +114,7 @@ export async function refineRenderPromptWithGemini({ prompt, room, style, budget
 
 /**
  * chatWithAura — real conversational LLM call for the AURA co-pilot.
- * Tries OpenRouter (meta-llama/llama-3.3-70b-instruct:free) first, falls back
- * to Gemini (gemini-2.5-flash) when OpenRouter is rate-limited/unavailable.
+ * Priority chain: OpenRouter → Gemini → OpenAI GPT-4o-mini → null (rule engine)
  * Returns { text, toolId, model } or null (caller then uses rule engine).
  */
 export async function chatWithAura({ message, history = [], tools = [] }) {
@@ -142,6 +141,10 @@ export async function chatWithAura({ message, history = [], tools = [] }) {
   // 2) Gemini fallback (higher free quota, avoids OpenRouter 429s)
   const gemResult = await callGeminiChat(system, message, history);
   if (gemResult) return gemResult;
+
+  // 3) OpenAI GPT-4o-mini final fallback (uses project OPENAI_API_KEY)
+  const oaiResult = await callOpenAiGptChat(messages);
+  if (oaiResult) return oaiResult;
 
   return null;
 }
@@ -209,6 +212,37 @@ async function callGeminiChat(system, message, history) {
     }
   }
   return null;
+}
+
+async function callOpenAiGptChat(messages) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key || !key.startsWith('sk-')) return null;
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.4,
+        max_tokens: 800
+      })
+    });
+    if (!response.ok) {
+      console.warn(`AURA GPT-4o-mini fallback: OpenAI returned ${response.status}`);
+      return null;
+    }
+    const payload = await response.json();
+    const content = payload?.choices?.[0]?.message?.content?.trim();
+    if (!content) return null;
+    return parseAuraReply(content, 'openai:gpt-4o-mini');
+  } catch (err) {
+    console.warn('AURA GPT-4o-mini error:', err.message);
+    return null;
+  }
 }
 
 function parseAuraReply(content, model) {

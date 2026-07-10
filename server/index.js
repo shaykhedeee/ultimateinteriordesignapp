@@ -44,6 +44,7 @@ import { applyKitchenTemplate } from './services/kitchen-templates.js';
 import { getTvUnitLibrary, applyTvUnit } from './services/tv-unit-library.js';
 import { traceDxf } from './services/dxf-trace.js';
 import { checkAccess, PRODUCTS } from './services/subscription-validator.js';
+import { executePythonScript, probePythonLibraries, computeDxfAreas } from './services/python-executor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2508,6 +2509,20 @@ app.get('/api/projects/:id/drawings/rcp', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET full drawing set: annotated floor plan + per-wall elevations + RCP + cabinet schedule (BOM).
+// Consumes the authoritative scene graph via drawing-generator (no invented geometry).
+app.get('/api/projects/:id/drawings', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(404).json({ error: "CAD drawings not found for project" });
+    const set = drawingGenerator.generateDrawings(cad, { projectId, wallHeightMm: 2700 });
+    res.json(set);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST to perform AI-assisted modifications on elevation cabinets
 app.post('/api/projects/:id/drawings/elevations/:wallId/ai-edit', (req, res) => {
   try {
@@ -3374,6 +3389,83 @@ if (fs.existsSync(frontendDistDir)) {
     res.sendFile(path.join(frontendDistDir, 'index.html'));
   });
 }
+
+// ─── Python Executor Routes ───────────────────────────────────────────────────
+// POST /api/python/execute  — run an arbitrary Python script
+app.post('/api/python/execute', express.json(), wrapAsync(async (req, res) => {
+  const { code, context } = req.body;
+  if (!code || typeof code !== 'string') return res.status(400).json({ success: false, error: 'code (string) is required' });
+  if (code.length > 50_000) return res.status(400).json({ success: false, error: 'code too large (max 50 KB)' });
+  const result = await executePythonScript(code, { context: context || {} });
+  res.json(result);
+}));
+
+// GET /api/python/probe  — detect which Python libs are installed
+app.get('/api/python/probe', wrapAsync(async (_req, res) => {
+  const result = await probePythonLibraries();
+  res.json(result);
+}));
+
+// POST /api/python/dxf-areas  — compute polygon areas in a DXF file
+app.post('/api/python/dxf-areas', express.json(), wrapAsync(async (req, res) => {
+  const { filePath } = req.body;
+  if (!filePath) return res.status(400).json({ success: false, error: 'filePath is required' });
+  const result = await computeDxfAreas(filePath);
+  res.json(result);
+}));
+
+// ─── API Key Management Routes (BYOK) ─────────────────────────────────────────
+// POST /api/keys  — save or update a provider API key from the Brand Studio UI
+app.post('/api/keys', express.json(), (req, res) => {
+  try {
+    const { provider, key } = req.body;
+    if (!provider || !key) return res.status(400).json({ success: false, error: 'provider and key are required' });
+    const stmt = db.prepare(`
+      INSERT INTO api_keys (provider, key_value, updated_at)
+      VALUES (?, ?, datetime('now'))
+      ON CONFLICT(provider) DO UPDATE SET key_value = excluded.key_value, updated_at = excluded.updated_at
+    `);
+    stmt.run(provider.toLowerCase(), key);
+    // Also inject into process.env for immediate use this session
+    const envMap = { openai: 'OPENAI_API_KEY', gemini: 'GEMINI_API_KEY', openrouter: 'OPENROUTER_API_KEY', freepik: 'FREEPIK_API_KEY', huggingface: 'HUGGINGFACE_API_KEY', stability: 'STABILITY_API_KEY' };
+    if (envMap[provider.toLowerCase()]) process.env[envMap[provider.toLowerCase()]] = key;
+    res.json({ success: true, provider, message: 'API key saved and activated for this session.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/keys  — return masked list of stored provider keys
+app.get('/api/keys', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT provider, substr(key_value, 1, 8) || '...' as key_preview, updated_at FROM api_keys").all();
+    const providers = ['openai', 'gemini', 'openrouter', 'freepik', 'huggingface', 'stability'];
+    const envMap = { openai: 'OPENAI_API_KEY', gemini: 'GEMINI_API_KEY', openrouter: 'OPENROUTER_API_KEY', freepik: 'FREEPIK_API_KEY', huggingface: 'HUGGINGFACE_API_KEY', stability: 'STABILITY_API_KEY' };
+    const result = providers.map(p => {
+      const dbRow = rows.find(r => r.provider === p);
+      const envKey = process.env[envMap[p]];
+      return {
+        provider: p,
+        configured: !!(dbRow || envKey),
+        source: dbRow ? 'database' : (envKey ? 'env' : 'none'),
+        preview: dbRow ? dbRow.key_preview : (envKey ? envKey.slice(0, 8) + '...' : null)
+      };
+    });
+    res.json({ success: true, keys: result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/keys/:provider  — remove a stored provider key
+app.delete('/api/keys/:provider', (req, res) => {
+  try {
+    db.prepare('DELETE FROM api_keys WHERE provider = ?').run(req.params.provider.toLowerCase());
+    res.json({ success: true, provider: req.params.provider });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Global error handler — MUST be the last middleware. Converts any uncaught
 // error into clean JSON so the frontend never receives an HTML error page
