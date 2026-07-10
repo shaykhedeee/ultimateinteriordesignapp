@@ -196,6 +196,18 @@ function drawElevation(doc, model, opts = {}) {
       doc.lineWidth(1).strokeColor(BLK).moveTo(x + w * 0.5, y + h * 0.25).lineTo(x + w * 0.5, y + h * 0.75).stroke();
     }
     
+    // Counter slab (thin top line) + basin cutout for vanities
+    if (m.counter) {
+      doc.lineWidth(1.6).strokeColor('#0F172A').moveTo(x, y + h - 3).lineTo(x + w, y + h - 3).stroke();
+      doc.lineWidth(0.6).strokeColor('#0F172A').moveTo(x, y + h - 7).lineTo(x + w, y + h - 7).stroke();
+    }
+    if (m.basin) {
+      const cx = x + w / 2, cy = y + h - 40, rx = Math.min(w * 0.32, 26), ry = Math.min(h * 0.16, 18);
+      doc.lineWidth(1).strokeColor('#0F172A').ellipse(cx, cy, rx, ry).stroke();
+      doc.lineWidth(0.6).strokeColor(GREY).ellipse(cx, cy, rx * 0.6, ry * 0.6).stroke();
+      doc.font('Helvetica').fontSize(5).fillColor(GREY).text('BASIN', cx - 12, cy + ry + 1, { width: 24, align: 'center' });
+    }
+
     // Label texts (centered natively via PDFKit)
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor(BLK).text(tag, x, y + h / 2 - 5, { width: w, align: 'center' });
     doc.font('Helvetica').fontSize(5.5).fillColor(GREY).text(`${Math.round(c.widthMm)}x${Math.round(c.heightMm)}`, x, y + h - 10, { width: w, align: 'center' });

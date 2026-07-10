@@ -131,13 +131,14 @@ function vanity(L, H, D) {
   const counterH = 850, counterD = 550;
   const bays = layoutBays(L, 600);
   let x = 0;
-  for (const b of bays) {
-    pushCab(cabinets, { type: 'base', widthMm: b.w, heightMm: counterH, depthMm: counterD, xOffsetMm: x, zOffsetMm: 0, tag: 'BASE', name: b.filler ? 'Filler' : 'Vanity base' });
+  bays.forEach((b, i) => {
+    // counter slab marker (thin top line) + drawer bank below
+    pushCab(cabinets, { type: 'base', widthMm: b.w, heightMm: counterH, depthMm: counterD, xOffsetMm: x, zOffsetMm: 0, tag: 'DRAWER', name: b.filler ? 'Filler' : 'Vanity drawer bank', material: { counter: true, basin: i === 0 } });
     // mirror / open above (not full wall height for vanity — only up to 1200mm)
     const aboveH = Math.min(1200 - counterH, H - counterH);
     if (aboveH > 150) pushCab(cabinets, { type: 'open', widthMm: b.w, heightMm: aboveH, depthMm: 150, xOffsetMm: x, zOffsetMm: counterH, tag: 'OPEN UNIT', name: 'Mirror cabinet', material: { openShelf: true, shelves: 1 } });
     x += b.w;
-  }
+  });
   return { lengthMm: L, heightMm: H, depthMm: D, cabinets, openings: [] };
 }
 
