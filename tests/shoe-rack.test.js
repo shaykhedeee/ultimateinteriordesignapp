@@ -71,5 +71,7 @@ test('live POST /api/projects/:id/elevations/shoe-rack returns valid DXF+PDF', a
     const r = ezdxfValidate(dxfPath);
     assert.ok(r.startsWith('OK'), 'dxf AutoCAD-valid: ' + r);
   }
-  await fetch(`${base}/api/projects/${pid}`, { method: 'DELETE' });
+  // teardown: best-effort cleanup of the temp project (network blip must not
+  // fail an otherwise-passing test — the DXF/PDF assertions above are the gate)
+  try { await fetch(`${base}/api/projects/${pid}`, { method: 'DELETE' }); } catch { /* ignore */ }
 });

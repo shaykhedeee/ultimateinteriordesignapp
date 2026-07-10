@@ -43,14 +43,25 @@ test('vanity archetype produces a real cabinet + valid DXF', async () => {
   assert.ok(dxf.includes('AC1024') && dxf.includes('EOF'), 'DXF must be valid R2010');
 });
 
-test('wardrobe splits into 4 doors by default (real subdivision)', async () => {
+test('wardrobe uses STANDARD 600mm bays scaled to width (not arbitrary sizes)', async () => {
   const r = await analyzePhotoToElevation({
     imageB64: TINY_PNG,
-    dimsText: 'wardrobe width 86" height 105"',
+    dimsText: 'wardrobe width 86" height 105"',   // 86" = 2184mm
     unitTypeHint: 'wardrobe'
   });
-  assert.equal(r.model.cabinets.length, 4);
-  assert.ok(r.model.cabinets.every(c => c.tag === 'DOOR'));
+  // 2184mm -> ~4 standard 600mm bays (remainder is a FILLER, never an arbitrary size)
+  const shutters = r.model.cabinets.filter(c => c.tag === 'SHUTTER');
+  assert.ok(shutters.length >= 3, 'at least 3 standard shutter bays');
+  // every shutter must be a valid standard bay width (450/500/600/750/900) or a filler
+  for (const s of shutters) {
+    const std = [450, 500, 600, 750, 900];
+    const isStd = std.includes(s.widthMm);
+    const isFiller = s.widthMm < 450;
+    assert.ok(isStd || isFiller, `shutter width ${s.widthMm} must be standard or filler, not arbitrary`);
+  }
+  // bays must exactly fill the unit width (no gap, no overflow)
+  const sumW = shutters.reduce((a, c) => a + c.widthMm, 0);
+  assert.equal(sumW, r.model.lengthMm, 'shutter bays must sum to unit width');
 });
 
 test('deterministic fallback always yields a valid measured model (no AI needed)', async () => {

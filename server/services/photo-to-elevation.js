@@ -21,6 +21,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
+import { buildStandardModel } from './standards.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LEARN_FILE = path.join(__dirname, '..', 'storage', 'elevation-learning.jsonl');
@@ -211,6 +212,9 @@ async function callLocalVision(imageB64, dims, unitType) {
 }
 
 // Convert AI components -> cabinets/openings for the DXF model
+// (DEPRECATED: raw detection sizes are no longer used — buildStandardModel
+//  in standards.js produces standards-compliant, dimension-scaled modules.
+//  Kept for reference/possible future AI refinement.)
 function componentsToModel(ai, dims) {
   const L = dims.widthMm || 2000;
   const H = dims.heightMm || 2400;
@@ -310,24 +314,27 @@ export async function analyzePhotoToElevation({ imagePath, imageB64, dimsText = 
       ai = await callGeminiVision(b64, dimsText);
       if (ai) source = 'gemini-vision';
     }
-    // Offline fallback: local projection-profile detection (better than a flat
-    // archetype when cloud vision is unavailable / rate-limited).
+    // Offline fallback: local projection-profile detection — used ONLY to
+    // corroborate module COUNT / material; it must NOT size panels (that
+    // produced arbitrary 223mm/1254mm gaps). Sizing always comes from
+    // standards.js, scaled to the real unit/room dimensions.
     if (!ai) {
       ai = await callLocalVision(b64, dims, type);
       if (ai) source = 'local-vision';
     }
   }
 
-  const model = ai ? componentsToModel(ai, dims) : archetypeFor(type, dims);
-  // user dims are ground truth — override overall if supplied
-  if (dims.widthMm) model.lengthMm = dims.widthMm;
-  if (dims.heightMm) model.heightMm = dims.heightMm;
-  if (dims.depthMm) model.depthMm = dims.depthMm;
+  // ALWAYS build a standards-compliant model from the REAL dimensions +
+  // Indian residential module standards (scaled to unit width). The scan/AI
+  // output is never passed through as raw panel sizes.
+  const model = buildStandardModel(type, dims);
   model.ceilingHeightMm = model.heightMm;
   model.thicknessMm = 75;
-  model.unitType = ai?.unitType || type;
+  model.unitType = type;
   model.projectId = '';
-  model.wallName = `${model.unitType.toUpperCase()} ELEVATION`;
+  model.wallName = `${type.toUpperCase()} ELEVATION`;
+  // Merge non-geometric AI hints safely (material / extra confidence only).
+  if (ai?.detectedMaterial) model.detectedMaterial = ai.detectedMaterial;
 
   learn(model.unitType, ai, dims);
   const summary = learningSummary();
@@ -340,7 +347,7 @@ export async function analyzePhotoToElevation({ imagePath, imageB64, dimsText = 
     model,
     dims,
     material: ai?.detectedMaterial || null,
-    notes: ai?.notes || `Archetype: ${type}`,
+    notes: `Standards-based model (${type}) scaled to ${Math.round(dims.widthMm || 0)}mm width` + (ai ? `; vision(${source}) refined material` : ''),
     learning: summary
   };
 }

@@ -1,27 +1,28 @@
 /**
- * pdf-elevation.js  (v2 — detailed, print-ready elevation sheet)
+ * pdf-elevation.js  (v3 — Ultra-Premium print-ready A3 landscape PDF elevation)
  * --------------------------------------------------------------------------
- * Renders a professional A3 landscape PDF elevation using pdfkit:
+ * Renders a state-of-the-art A3 landscape PDF elevation sheet using pdfkit:
  *   - mm-precise geometry from the ElevationModel
- *   - red dimension lines + witness lines + arrowheads + mm text
+ *   - gold dimension lines + witness lines + oblique tick marks
  *   - door-swing arcs, handle glyphs, component tags
  *   - BEAM + plinth hatch, material callouts + leader lines
- *   - a NOTES / LEGEND / MATERIAL SCHEDULE block
- *   - richer title block (project, client, sheet, scale, drawn-by, rev, date)
- * Pure + testable (returns a Buffer when no res is passed).
+ *   - Luxury Notes / Legend / Material Schedule tables using gold and dark accents
+ *   - Rich Title Block (Project, Client, Sheet, Scale, Drawn-By, Rev, Date)
  */
 import PDFDocument from 'pdfkit';
 
-const RED = '#e03a3a';
-const BLK = '#1a1a1a';
-const GREY = '#666666';
-const BLUE = '#2563eb';
+// Luxury Design Tokens
+const GOLD = '#C9A84C';
+const BLK = '#0A0A0B';
+const GREY = '#8A8899';
+const LINE_DARK = '#1E1E24';
+const LIGHT_CREAM = '#F9F8F6';
 
-function arrowHead(doc, x, y, ang, size) {
-  doc.moveTo(x, y)
-    .lineTo(x + size * Math.cos(ang + 0.4), y + size * Math.sin(ang + 0.4))
-    .moveTo(x, y)
-    .lineTo(x + size * Math.cos(ang - 0.4), y + size * Math.sin(ang - 0.4))
+// OBlique 45-degree architectural tick drawing helper
+function drawObliqueTick(doc, x, y, size = 4) {
+  doc.lineWidth(0.8).strokeColor(GOLD)
+    .moveTo(x - size, y + size)
+    .lineTo(x + size, y - size)
     .stroke();
 }
 
@@ -34,33 +35,34 @@ function drawElevation(doc, model, opts = {}) {
   const toX = mm => startX + mm * scale;
   const toY = mm => baseY - mm * scale;
 
-  // Sheet border (double)
-  doc.rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke(BLK);
-  doc.lineWidth(0.5).strokeColor(GREY).rect(38, 38, doc.page.width - 76, doc.page.height - 76).stroke();
+  // Double sheet border (luxury frame style)
+  doc.lineWidth(2).strokeColor(BLK).rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke();
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(36, 36, doc.page.width - 72, doc.page.height - 72).stroke();
 
-  // Wall outline (thick)
+  // Wall outline (thick dark line)
   doc.lineWidth(2.5).strokeColor(BLK).rect(toX(0), toY(H), L * scale, H * scale).stroke();
 
   // Beam hatch + label
   doc.lineWidth(0.4).strokeColor(GREY);
   for (let x = toX(0); x < toX(L); x += 6) doc.moveTo(x, toY(H) - 14).lineTo(x + 10, toY(H)).stroke();
-  doc.fontSize(8).fillColor(BLK).text('BEAM', toX(L) - 30, toY(H) - 26);
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(BLK).text('BEAM', toX(L) - 30, toY(H) - 26);
 
   // Plinth datum + label
-  doc.lineWidth(1.2).strokeColor(GREY).dash(4, 4).moveTo(toX(0) - 20, baseY).lineTo(toX(L) + 20, baseY).stroke();
+  doc.lineWidth(1.2).strokeColor(GOLD).dash(4, 4).moveTo(toX(0) - 20, baseY).lineTo(toX(L) + 20, baseY).stroke();
   doc.undash();
-  doc.fontSize(7).fillColor(GREY).text('PLINTH LVL (100)', toX(0) - 90, baseY + 2);
+  doc.font('Helvetica-Oblique').fontSize(7).fillColor(GOLD).text('PLINTH LEVEL (100mm)', toX(0) - 110, baseY + 2);
 
   // Openings (with swing arcs + dims)
-  for (const op of model.openings) {
+  const openings = model.openings || [];
+  for (const op of openings) {
     const x = toX(op.offsetMm), y = toY(op.headMm), w = op.widthMm * scale, h = (op.headMm - op.sillMm) * scale;
     doc.lineWidth(1.5).strokeColor(BLK).rect(x, y, w, h).stroke();
     doc.lineWidth(0.4).moveTo(x, y).lineTo(x + w, y + h).moveTo(x + w, y).lineTo(x, y + h).stroke();
     if (op.type === 'window') {
       for (let i = 0; i < w; i += 12) doc.moveTo(x + i, y).lineTo(x + i + h, y + h).stroke();
-      doc.fontSize(9).fillColor(BLK).text('WINDOW', x + w / 2 - 14, y + h / 2 - 4);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(BLK).text('WINDOW', x, y + h / 2 - 4, { width: w, align: 'center' });
     } else {
-      // door swing arc (quarter circle, dashed)
+      // door swing arc
       const sx = x, sy = y + h, r = w, steps = 24;
       doc.lineWidth(0.6).dash(2, 2).strokeColor(GREY);
       doc.moveTo(sx, sy);
@@ -70,22 +72,37 @@ function drawElevation(doc, model, opts = {}) {
       }
       doc.stroke();
       doc.undash();
-      doc.fontSize(9).fillColor(BLK).text('DOOR', x + w / 2 - 12, y + h / 2 - 4);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(BLK).text('DOOR', x, y + h / 2 - 4, { width: w, align: 'center' });
     }
-    // dimension (red, witness + arrowheads)
-    doc.lineWidth(0.6).strokeColor(RED);
-    doc.moveTo(x, y - 8).lineTo(x, y - 14).moveTo(x + w, y - 8).lineTo(x + w, y - 14).moveTo(x, y - 11).lineTo(x + w, y - 11).stroke();
-    arrowHead(doc, x, y - 11, Math.PI, 6);
-    arrowHead(doc, x + w, y - 11, 0, 6);
-    doc.fontSize(7).fillColor(RED).text(String(Math.round(op.widthMm)), x + w / 2 - 14, y - 22);
+    // dimension (Gold, witness + oblique ticks)
+    if (!opts.noDimensions) {
+      doc.lineWidth(0.6).strokeColor(GOLD);
+      doc.moveTo(x, y - 8).lineTo(x, y - 16).moveTo(x + w, y - 8).lineTo(x + w, y - 16).moveTo(x, y - 12).lineTo(x + w, y - 12).stroke();
+      drawObliqueTick(doc, x, y - 12);
+      drawObliqueTick(doc, x + w, y - 12);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(GOLD).text(String(Math.round(op.widthMm)), x, y - 22, { width: w, align: 'center' });
+    }
   }
 
   // Cabinets (detail + handle + material callouts)
-  for (const c of model.cabinets) {
+  const cabinets = model.cabinets || [];
+  for (const c of cabinets) {
     const x = toX(c.xOffsetMm), y = toY(c.zOffsetMm + c.heightMm), w = c.widthMm * scale, h = c.heightMm * scale;
     const m = c.material || {};
-    const isOpen = m.openShelf || c.tag === 'OPEN' || c.tag === 'OPEN UNIT';
+    const tag = c.tag || c.type || 'SHUTTER';
+    const isOpen = m.openShelf || tag === 'OPEN' || tag === 'OPEN UNIT' || tag === 'OPEN SHELF' || tag.includes('SHELVES') || tag.includes('NICHE');
+
+    // Fill background for cream/white shutters
+    doc.fillColor(LIGHT_CREAM).rect(x, y, w, h).fill();
+
     doc.lineWidth(1.5).strokeColor(BLK).rect(x, y, w, h).stroke();
+    
+    // Draw diagonal cross inside fillers/voids
+    if (c.widthMm < 300 || tag === 'FILLER' || tag === 'VOID') {
+      doc.lineWidth(0.4).strokeColor(GOLD);
+      doc.moveTo(x, y).lineTo(x + w, y + h).moveTo(x + w, y).lineTo(x, y + h).stroke();
+    }
+
     // two-tone split
     if (m.twoTone) {
       const sy = y + h * (1 - (m.splitRatio || 0.5));
@@ -102,47 +119,62 @@ function drawElevation(doc, model, opts = {}) {
       doc.lineWidth(0.7).strokeColor(BLK).moveTo(x, y + h * 0.38).lineTo(x + w, y + h * 0.38).stroke();
       doc.moveTo(x + w / 2, y).lineTo(x + w / 2, y + h * 0.38).stroke();
       doc.rect(x + w * 0.08, y + h * 0.14, w * 0.28, h * 0.16).stroke();
-      doc.fontSize(7).fillColor(BLK).text('FRIDGE', x + w / 2 - 14, y + h / 2);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(BLK).text('FRIDGE', x, y + h / 2, { width: w, align: 'center' });
     } else if (m.appliance === 'hood') {
       doc.lineWidth(0.7).strokeColor(BLK).moveTo(x, y + h).lineTo(x + w * 0.28, y).lineTo(x + w * 0.72, y).lineTo(x + w, y + h).stroke();
-      doc.fontSize(7).fillColor(BLK).text('HOOD', x + w / 2 - 10, y + h / 2);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(BLK).text('HOOD', x, y + h / 2, { width: w, align: 'center' });
     } else if (m.appliance === 'cooktop') {
       doc.lineWidth(0.7).strokeColor(BLK);
       for (const fx of [0.3, 0.7]) doc.circle(x + w * fx, y + h * 0.5, Math.min(w, h) * 0.16).stroke();
-      doc.fontSize(7).fillColor(BLK).text('HOB', x + w / 2 - 8, y + h * 0.1);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(BLK).text('HOB', x, y + h * 0.1, { width: w, align: 'center' });
     } else if (m.appliance === 'sink') {
       doc.lineWidth(0.7).strokeColor(BLK).rect(x + w * 0.12, y + h * 0.25, w * 0.76, h * 0.55).stroke();
       doc.circle(x + w / 2, y + h * 0.52, 3).stroke();
       doc.moveTo(x + w * 0.5, y + h * 0.25).lineTo(x + w * 0.5, y).stroke();
-      doc.fontSize(7).fillColor(BLK).text('SINK', x + w / 2 - 9, y + h * 0.85);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(BLK).text('SINK', x, y + h * 0.85, { width: w, align: 'center' });
     }
-    // arched top
+    
+    // arched top mirror / feature panels
     if (m.arch) {
-      doc.lineWidth(1).strokeColor(BLK).dash(1, 0);
+      doc.lineWidth(1).strokeColor(BLK);
       const r = w / 2, cx = x + w / 2;
-      doc.moveTo(x, y);
-      for (let a = Math.PI; a >= 0; a -= Math.PI / 24) doc.lineTo(cx + r * Math.cos(a), y - r * Math.sin(a) * 0.35);
-      doc.stroke(); doc.undash();
+      doc.moveTo(x, y + h);
+      doc.lineTo(x, y + r);
+      for (let a = Math.PI; a >= 0; a -= Math.PI / 24) doc.lineTo(cx + r * Math.cos(a), y + r - r * Math.sin(a));
+      doc.lineTo(x + w, y + h);
+      doc.stroke();
     }
+    
+    // shelves or door swing representations
     if (isOpen) {
       const shelves = m.shelves || Math.max(1, Math.round(c.heightMm / 350));
       doc.lineWidth(0.7).strokeColor(GREY);
       for (let i = 1; i < shelves; i++) doc.moveTo(x + 3, y + (h * i) / shelves).lineTo(x + w - 3, y + (h * i) / shelves).stroke();
-    } else if (c.tag === 'DRAWER' || /drawer/i.test(c.name)) {
+    } else if (tag === 'DRAWER' || /drawer/i.test(c.name)) {
       const n = Math.max(2, Math.round(c.heightMm / 250));
       for (let i = 1; i < n; i++) doc.lineWidth(0.7).moveTo(x, y + (h * i) / n).lineTo(x + w, y + (h * i) / n).stroke();
-    } else if (!m.appliance && c.widthMm > 500) {
-      doc.lineWidth(0.7).moveTo(x + w / 2, y).lineTo(x + w / 2, y + h).stroke();
+    } else if (!m.appliance && tag !== 'FILLER' && tag !== 'VOID') {
+      // V-swing dash overlays
+      doc.lineWidth(0.5).dash(2, 2).strokeColor(GOLD);
+      if (c.widthMm > 500) {
+        // Double shutter swings
+        doc.moveTo(x, y).lineTo(x + w / 4, y + h / 2).lineTo(x, y + h).stroke();
+        doc.moveTo(x + w, y).lineTo(x + w * 0.75, y + h / 2).lineTo(x + w, y + h).stroke();
+      } else {
+        // Single shutter swing
+        doc.moveTo(x + w, y).lineTo(x, y + h / 2).lineTo(x + w, y + h).stroke();
+      }
+      doc.undash();
     }
     // glass grid muntins
     if ((m.glass || m.glassGrid) && w > 24 && h > 24) {
       const cols = m.glassCols || 1, rows = m.glassRows || 3;
-      doc.lineWidth(0.4).strokeColor(BLUE);
+      doc.lineWidth(0.4).strokeColor(GOLD);
       for (let i = 1; i < cols; i++) doc.moveTo(x + (w * i) / cols, y + 4).lineTo(x + (w * i) / cols, y + h - 4).stroke();
       for (let j = 1; j < rows; j++) doc.moveTo(x + 4, y + (h * j) / rows).lineTo(x + w - 4, y + (h * j) / rows).stroke();
     }
     // handle glyph
-    if (c.handleType === 'none' || m.appliance || isOpen) {
+    if (c.handleType === 'none' || m.appliance || isOpen || tag === 'FILLER' || tag === 'VOID') {
       // none
     } else if (c.handleType === 'vbar') {
       const vw = Math.max(3, w * 0.06);
@@ -154,66 +186,85 @@ function drawElevation(doc, model, opts = {}) {
     } else {
       doc.lineWidth(1).strokeColor(BLK).moveTo(x + w * 0.5, y + h * 0.25).lineTo(x + w * 0.5, y + h * 0.75).stroke();
     }
-    doc.fontSize(8).fillColor(BLK).text(c.tag, x + w / 2 - 14, y + h / 2 - 4);
-    doc.fontSize(6).fillColor(GREY).text(`${Math.round(c.widthMm)}x${Math.round(c.heightMm)}`, x + w / 2 - 18, y + h - 12);
+    
+    // Label texts (centered natively via PDFKit)
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor(BLK).text(tag, x, y + h / 2 - 5, { width: w, align: 'center' });
+    doc.font('Helvetica').fontSize(5.5).fillColor(GREY).text(`${Math.round(c.widthMm)}x${Math.round(c.heightMm)}`, x, y + h - 10, { width: w, align: 'center' });
+    
+    // Leader lines to callouts (thin gold lines)
     if (m.callout) {
-      doc.lineWidth(0.5).strokeColor(RED).moveTo(x + w / 2, y + 8).lineTo(x + w + 24, y - 6).stroke();
-      doc.fontSize(6).fillColor(RED).text(m.callout, x + w + 28, y - 8);
+      doc.lineWidth(0.5).strokeColor(GOLD).moveTo(x + w / 2, y + 8).lineTo(x + w + 24, y - 6).stroke();
+      doc.font('Helvetica-Bold').fontSize(6).fillColor(GOLD).text(m.callout, x + w + 28, y - 8);
     }
   }
 
-  // Overall dimensions (red, arrowheads)
-  doc.lineWidth(0.8).strokeColor(RED)
-    .moveTo(toX(0), toY(H) - 16).lineTo(toX(0), toY(H) - 26)
-    .moveTo(toX(L), toY(H) - 16).lineTo(toX(L), toY(H) - 26)
-    .moveTo(toX(0), toY(H) - 21).lineTo(toX(L), toY(H) - 21).stroke();
-  arrowHead(doc, toX(0), toY(H) - 21, Math.PI, 6);
-  arrowHead(doc, toX(L), toY(H) - 21, 0, 6);
-  doc.fontSize(9).fillColor(RED).text(`${L} MM`, toX(L) / 2 - 18, toY(H) - 34);
-  doc.lineWidth(0.8).moveTo(toX(L) + 16, toY(0)).lineTo(toX(L) + 26, toY(0)).moveTo(toX(L) + 16, toY(H)).lineTo(toX(L) + 26, toY(H)).moveTo(toX(L) + 21, toY(0)).lineTo(toX(L) + 21, toY(H)).stroke();
-  arrowHead(doc, toX(L) + 21, toY(0), -Math.PI / 2, 6);
-  arrowHead(doc, toX(L) + 21, toY(H), Math.PI / 2, 6);
-  doc.fontSize(9).fillColor(RED).text(`${H} MM`, toX(L) + 32, toY(H) / 2);
+  // Overall dimensions (red/gold, arrowheads)
+  if (!opts.noDimensions) {
+    doc.lineWidth(0.8).strokeColor(GOLD)
+      .moveTo(toX(0), toY(H) - 16).lineTo(toX(0), toY(H) - 26)
+      .moveTo(toX(L), toY(H) - 16).lineTo(toX(L), toY(H) - 26)
+      .moveTo(toX(0), toY(H) - 21).lineTo(toX(L), toY(H) - 21).stroke();
+    drawObliqueTick(doc, toX(0), toY(H) - 21);
+    drawObliqueTick(doc, toX(L), toY(H) - 21);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text(`${L} MM`, (toX(0) + toX(L)) / 2 - 18, toY(H) - 34);
+    
+    doc.lineWidth(0.8)
+      .moveTo(toX(L) + 16, toY(0)).lineTo(toX(L) + 26, toY(0))
+      .moveTo(toX(L) + 16, toY(H)).lineTo(toX(L) + 26, toY(H))
+      .moveTo(toX(L) + 21, toY(0)).lineTo(toX(L) + 21, toY(H)).stroke();
+    drawObliqueTick(doc, toX(L) + 21, toY(0));
+    drawObliqueTick(doc, toX(L) + 21, toY(H));
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text(`${H} MM`, toX(L) + 32, (toY(0) + toY(H)) / 2 - 4);
+  }
 
   // Coverage note
   const cov = model.coverage;
-  if (cov) doc.fontSize(7).fillColor(GREY).text(`UTIL ${cov.utilizationPct}%  USED ${cov.usedMm}mm  FREE ${cov.freeMm}mm`, toX(0), toY(H) + 30);
+  if (cov) doc.font('Helvetica-Oblique').fontSize(7).fillColor(GREY).text(`UTILIZATION: ${cov.utilizationPct}%  |  USED: ${cov.usedMm}mm  |  FREE: ${cov.freeMm}mm`, toX(0), toY(H) + 30);
 
   // ---- NOTES / LEGEND / MATERIAL SCHEDULE (right column) ----
   const nx = doc.page.width - 250, ny = 90, nw = 200;
-  doc.lineWidth(1).strokeColor(BLUE).rect(nx, ny, nw, 250).stroke();
-  doc.fontSize(9).fillColor(BLUE).text('NOTES / LEGEND', nx + 8, ny + 6);
+  doc.lineWidth(1).strokeColor(BLK).rect(nx, ny, nw, 250).stroke();
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(nx + 3, ny + 3, nw - 6, 244).stroke();
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text('NOTES & LEGEND', nx + 12, ny + 10);
+  
   const noteLines = [
-    'All dims in mm.',
-    'Scale 1:25 unless noted.',
-    'JALI = CNC laser-cut MDF.',
-    'GLASS = 4mm fluted / clear.',
-    'HANDLES = SS brushed.',
-    'LED = warm 3000K profile.',
-    'Granite 20mm on counters.',
+    'All dimensions are in millimetres.',
+    'Drawing scale is 1:25.',
+    'JALI = CNC Laser-cut MDF panel.',
+    'GLASS = 4mm tinted / fluted safety glass.',
+    'HANDLES = Solid anodized black pulls.',
+    'LED = Warm 3000K vertical profile strip.',
+    'Carcass structures = 18mm MR ply.',
   ];
-  doc.fontSize(7).fillColor(BLK);
-  noteLines.forEach((t, i) => doc.text('• ' + t, nx + 8, ny + 22 + i * 14));
+  doc.font('Helvetica').fontSize(7).fillColor(BLK);
+  noteLines.forEach((t, i) => doc.text('• ' + t, nx + 12, ny + 32 + i * 16));
 
-  // Material schedule (bottom-right)
+  // Material schedule table (bottom-right)
   const mx = doc.page.width - 250, my = ny + 270, mw = 200;
-  doc.lineWidth(1).strokeColor(BLUE).rect(mx, my, mw, 120).stroke();
-  doc.fontSize(9).fillColor(BLUE).text('MATERIAL SCHEDULE', mx + 8, my + 6);
-  doc.fontSize(7).fillColor(BLK);
+  doc.lineWidth(1).strokeColor(BLK).rect(mx, my, mw, 120).stroke();
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(mx + 3, my + 3, mw - 6, 114).stroke();
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text('MATERIAL SCHEDULE', mx + 12, my + 10);
+  doc.font('Helvetica').fontSize(7).fillColor(BLK);
+  
   const mats = [];
   for (const c of model.cabinets) if (c.material?.callout && !mats.includes(c.material.callout)) mats.push(c.material.callout);
-  mats.slice(0, 5).forEach((m, i) => doc.text(`${i + 1}. ${m}`, mx + 8, my + 22 + i * 15));
+  mats.slice(0, 5).forEach((m, i) => doc.text(`${i + 1}. ${m}`, mx + 12, my + 30 + i * 16));
 
-  // Title block (bottom-left, richer)
+  // Premium Title block (bottom-left)
   const tbX = 40, tbY = doc.page.height - 110;
-  doc.lineWidth(1).strokeColor(BLUE).rect(tbX, tbY, 540, 75).stroke();
-  doc.lineWidth(0.4).strokeColor(BLUE).moveTo(tbX + 360, tbY).lineTo(tbX + 360, tbY + 75).stroke();
-  doc.fontSize(8).fillColor(BLK)
-    .text(`PROJECT: ${model.projectId || 'N/A'}`, tbX + 8, tbY + 6)
-    .text(`CLIENT: ${opts.client || 'Residential'}`, tbX + 8, tbY + 20)
-    .text(`SHEET: ${model.wallName}   SCALE: ${opts.scale || '1:25'}`, tbX + 8, tbY + 34)
-    .text(`DRAWN: AURABRAIN  REV ${opts.rev || '1.0'}  ${new Date().toISOString().slice(0, 10)}`, tbX + 8, tbY + 48)
-    .text(`GENERAL NOTES: see legend ↗`, tbX + 368, tbY + 20);
+  doc.lineWidth(1.2).strokeColor(BLK).rect(tbX, tbY, 540, 75).stroke();
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(tbX + 3, tbY + 3, 534, 69).stroke();
+  doc.lineWidth(0.6).strokeColor(GOLD).moveTo(tbX + 360, tbY + 3).lineTo(tbX + 360, tbY + 72).stroke();
+  
+  doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GOLD).text('GRID OS', tbX + 372, tbY + 12);
+  doc.font('Helvetica').fontSize(6.5).fillColor(GREY).text('PROFESSIONAL ARCHITECTURAL SHEET', tbX + 372, tbY + 28);
+  doc.font('Helvetica-Bold').fontSize(7).fillColor(BLK).text('AUTHENTIC CARCASS SYSTEM', tbX + 372, tbY + 48);
+
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(BLK)
+    .text(`PROJECT: ${model.projectId || 'N/A'}`, tbX + 12, tbY + 12)
+    .text(`CLIENT: ${opts.client || 'Residential client'}`, tbX + 12, tbY + 26)
+    .text(`SHEET: ${model.wallName}`, tbX + 12, tbY + 40)
+    .text(`SCALE: ${opts.scale || '1:25'}   |   REV: ${opts.rev || '1.2'}   |   DATE: ${new Date().toISOString().slice(0, 10)}`, tbX + 12, tbY + 54);
 }
 
 export function renderElevationPDF(model, opts = {}) {
@@ -237,10 +288,8 @@ export function renderCombinedElevationsPDF(models, opts = {}) {
     drawElevation(doc, m, opts);
   });
   if (!models || !models.length) {
-    doc.fontSize(14).fillColor(BLK).text('No wall elevations to combine.', 60, 60);
+    doc.font('Helvetica').fontSize(14).fillColor(BLK).text('No wall elevations to combine.', 60, 60);
   }
   doc.end();
   return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
 }
-
-export default { renderElevationPDF, renderCombinedElevationsPDF };
