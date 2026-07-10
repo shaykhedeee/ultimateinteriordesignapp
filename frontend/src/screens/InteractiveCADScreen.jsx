@@ -84,7 +84,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       gridMajor: '#1f2937',
       wallFill: '#374151',
       wallStroke: '#9ca3af',
-      furnitureStroke: '#D4AF37',
+      furnitureStroke: 'var(--gold)',
       furnitureFill: 'rgba(212, 175, 55, 0.05)',
       textLabel: '#f3f4f6',
       servicePlumbing: '#06b6d4',
@@ -929,9 +929,9 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       {/* Spoken floor-plan acknowledgement banner (canonical flow step 1) */}
       {ackText && (
         <div className="w-full xl:w-full bg-gradient-to-r from-[#1a1407] to-[#0b0f17] border border-[#C9A84C]/40 rounded-xl px-4 py-2.5 flex items-center gap-3 shrink-0">
-          <span className="text-[#D4AF37] text-lg">🛈</span>
+          <span className="text-[var(--gold)] text-lg">🛈</span>
           <span className="text-sm font-bold text-slate-100 tracking-wide flex-1">{ackText}</span>
-          <button onClick={() => speak(ackText)} className="text-[10px] uppercase font-bold text-[#D4AF37] border border-[#D4AF37]/40 rounded px-2 py-1 hover:bg-[#D4AF37]/10">🔊 Replay</button>
+          <button onClick={() => speak(ackText)} className="text-[10px] uppercase font-bold text-[var(--gold)] border border-[var(--gold)]/40 rounded px-2 py-1 hover:bg-[var(--gold)]/10">🔊 Replay</button>
         </div>
       )}
 
@@ -1123,8 +1123,8 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         {/* Auto-Vastu panel (canonical flow step 5-6) */}
         <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Auto-Vastu</label>
-            <button onClick={runVastuCheck} disabled={vastuBusy} className="text-[10px] uppercase font-bold text-slate-300 border border-slate-700 rounded px-2 py-1 hover:border-[#D4AF37]/50 disabled:opacity-40">Check</button>
+            <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Auto-Vastu</label>
+            <button onClick={runVastuCheck} disabled={vastuBusy} className="text-[10px] uppercase font-bold text-slate-300 border border-slate-700 rounded px-2 py-1 hover:border-[var(--gold)]/50 disabled:opacity-40">Check</button>
           </div>
           {vastuDiff && (
             <div className="space-y-1.5">
@@ -1135,7 +1135,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 <div key={i} className="text-[10px] text-amber-300/90">• {c.summary}</div>
               ))}
               {vastuDiff.needsApply ? (
-                <button onClick={applyVastuFix} disabled={vastuBusy} className="w-full mt-1 bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-slate-950 font-black py-1.5 rounded-lg text-[10px] uppercase transition disabled:opacity-40">
+                <button onClick={applyVastuFix} disabled={vastuBusy} className="w-full mt-1 bg-[var(--gold)] hover:bg-[var(--gold)]/90 text-slate-950 font-black py-1.5 rounded-lg text-[10px] uppercase transition disabled:opacity-40">
                   {vastuBusy ? 'Applying…' : 'Apply Vastu Fixes'}
                 </button>
               ) : (
@@ -1148,24 +1148,24 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
         {/* Kitchen template picker (canonical flow step 7) */}
         <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 space-y-2">
-          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Kitchen Layout</label>
+          <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Kitchen Layout</label>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => applyKitchenShape('L')} className="py-2 rounded-lg border border-slate-700 text-[10px] font-bold uppercase hover:border-[#D4AF37]/50 hover:text-[#D4AF37]">L-Shape</button>
-            <button onClick={() => applyKitchenShape('U')} className="py-2 rounded-lg border border-slate-700 text-[10px] font-bold uppercase hover:border-[#D4AF37]/50 hover:text-[#D4AF37]">U-Shape</button>
+            <button onClick={() => applyKitchenShape('L')} className="py-2 rounded-lg border border-slate-700 text-[10px] font-bold uppercase hover:border-[var(--gold)]/50 hover:text-[var(--gold)]">L-Shape</button>
+            <button onClick={() => applyKitchenShape('U')} className="py-2 rounded-lg border border-slate-700 text-[10px] font-bold uppercase hover:border-[var(--gold)]/50 hover:text-[var(--gold)]">U-Shape</button>
           </div>
         </div>
 
         {/* Modular TV-unit library (canonical flow step 8) */}
         <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">TV Unit Library</label>
-            <button onClick={loadTvUnits} className="text-[10px] uppercase font-bold text-slate-300 border border-slate-700 rounded px-2 py-0.5 hover:border-[#D4AF37]/50">Load</button>
+            <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">TV Unit Library</label>
+            <button onClick={loadTvUnits} className="text-[10px] uppercase font-bold text-slate-300 border border-slate-700 rounded px-2 py-0.5 hover:border-[var(--gold)]/50">Load</button>
           </div>
           {tvUnits.length > 0 && (
             <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
               {tvUnits.map(u => (
                 <button key={u.id} onClick={() => applyTvUnitStyle(u.id)} disabled={tvBusy}
-                  className="text-left rounded-lg border border-slate-800 hover:border-[#D4AF37]/60 p-1.5 flex items-center gap-2 disabled:opacity-50">
+                  className="text-left rounded-lg border border-slate-800 hover:border-[var(--gold)]/60 p-1.5 flex items-center gap-2 disabled:opacity-50">
                   <span className="w-4 h-4 rounded-sm shrink-0" style={{ background: u.color }} />
                   <span className="text-[9px] leading-tight text-slate-300">{u.name}</span>
                 </button>
@@ -1278,7 +1278,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   {/* Outer Wall Body */}
                   <line
                     x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
-                    stroke={isSelected ? '#D4AF37' : colors.wallStroke}
+                    stroke={isSelected ? 'var(--gold)' : colors.wallStroke}
                     strokeWidth={w.thickness}
                     strokeLinecap="round"
                     className="transition-all duration-150"
@@ -1311,15 +1311,15 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   {op.type === 'window' ? (
                     // Window Symbol
                     <g>
-                      <rect x={-op.width / 2} y="-6" width={op.width} height="12" fill={colors.svgBg} stroke={isSelected ? '#D4AF37' : '#0ea5e9'} strokeWidth="2" />
+                      <rect x={-op.width / 2} y="-6" width={op.width} height="12" fill={colors.svgBg} stroke={isSelected ? 'var(--gold)' : '#0ea5e9'} strokeWidth="2" />
                       <line x1={-op.width / 2} y1="0" x2={op.width / 2} y2="0" stroke="#0ea5e9" strokeWidth="1.5" />
                     </g>
                   ) : (
                     // Door Swing Arc Symbol
                     <g>
-                      <line x1="0" y1="0" x2={op.width} y2="0" stroke={isSelected ? '#D4AF37' : '#10b981'} strokeWidth="2.5" />
-                      <path d={`M 0 0 A ${op.width} ${op.width} 0 0 1 ${op.width} ${op.width}`} fill="none" stroke={isSelected ? '#D4AF37' : '#10b981'} strokeWidth="1" strokeDasharray="3,3" />
-                      <line x1="0" y1="0" x2="0" y2={op.width} stroke={isSelected ? '#D4AF37' : '#10b981'} strokeWidth="1" />
+                      <line x1="0" y1="0" x2={op.width} y2="0" stroke={isSelected ? 'var(--gold)' : '#10b981'} strokeWidth="2.5" />
+                      <path d={`M 0 0 A ${op.width} ${op.width} 0 0 1 ${op.width} ${op.width}`} fill="none" stroke={isSelected ? 'var(--gold)' : '#10b981'} strokeWidth="1" strokeDasharray="3,3" />
+                      <line x1="0" y1="0" x2="0" y2={op.width} stroke={isSelected ? 'var(--gold)' : '#10b981'} strokeWidth="1" />
                     </g>
                   )}
                 </g>
@@ -1336,7 +1336,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                     x={-f.width / 2} y={-f.height / 2}
                     width={f.width} height={f.height}
                     fill={colors.furnitureFill}
-                    stroke={isSelected ? '#D4AF37' : colors.furnitureStroke}
+                    stroke={isSelected ? 'var(--gold)' : colors.furnitureStroke}
                     strokeWidth="2"
                     rx="3"
                   />
@@ -1379,14 +1379,14 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               return (
                 <g key={m.id} className="cursor-pointer" onClick={() => setSelectedObj({ id: m.id, type: 'measure' })}>
                   {/* Line */}
-                  <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke="#D4AF37" strokeWidth="1.5" />
+                  <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke="var(--gold)" strokeWidth="1.5" />
                   {/* End Ticks */}
-                  <line x1={m.x1 - 5} y1={m.y1 - 5} x2={m.x1 + 5} y2={m.y1 + 5} stroke="#D4AF37" strokeWidth="1.5" />
-                  <line x1={m.x2 - 5} y1={m.y2 - 5} x2={m.x2 + 5} y2={m.y2 + 5} stroke="#D4AF37" strokeWidth="1.5" />
+                  <line x1={m.x1 - 5} y1={m.y1 - 5} x2={m.x1 + 5} y2={m.y1 + 5} stroke="var(--gold)" strokeWidth="1.5" />
+                  <line x1={m.x2 - 5} y1={m.y2 - 5} x2={m.x2 + 5} y2={m.y2 + 5} stroke="var(--gold)" strokeWidth="1.5" />
                   {/* Dimension Text block */}
                   <g transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
-                    <rect x="-22" y="-12" width="44" height="15" fill="#020617" rx="3" stroke="#D4AF37" strokeWidth="0.5" />
-                    <text x="0" y="-1" textAnchor="middle" fill="#D4AF37" fontSize="8" fontWeight="bold" fontFamily="monospace">
+                    <rect x="-22" y="-12" width="44" height="15" fill="#020617" rx="3" stroke="var(--gold)" strokeWidth="0.5" />
+                    <text x="0" y="-1" textAnchor="middle" fill="var(--gold)" fontSize="8" fontWeight="bold" fontFamily="monospace">
                       {formatMeters(len)}
                     </text>
                   </g>
@@ -1404,14 +1404,14 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                     {/* Node 1 handle */}
                     <circle
                       cx={w.x1} cy={w.y1} r="8"
-                      fill="#D4AF37" stroke="#000" strokeWidth="1.5"
+                      fill="var(--gold)" stroke="#000" strokeWidth="1.5"
                       data-id={w.id} data-node="1"
                       className="wall-joint-handle cursor-move"
                     />
                     {/* Node 2 handle */}
                     <circle
                       cx={w.x2} cy={w.y2} r="8"
-                      fill="#D4AF37" stroke="#000" strokeWidth="1.5"
+                      fill="var(--gold)" stroke="#000" strokeWidth="1.5"
                       data-id={w.id} data-node="2"
                       className="wall-joint-handle cursor-move"
                     />
@@ -1530,7 +1530,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 <input
                   type="range" min="0" max="1" step="0.05"
                   value={sketchOpacity} onChange={(e) => setSketchOpacity(parseFloat(e.target.value))}
-                  className="w-full accent-[#D4AF37]"
+                  className="w-full accent-[var(--gold)]"
                 />
               </div>
 
@@ -1539,7 +1539,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 <input
                   type="range" min="0.2" max="3" step="0.05"
                   value={sketchScale} onChange={(e) => setSketchScale(parseFloat(e.target.value))}
-                  className="w-full accent-[#D4AF37]"
+                  className="w-full accent-[var(--gold)]"
                 />
               </div>
 
@@ -1549,7 +1549,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   <input
                     type="range" min="-500" max="500" step="10"
                     value={sketchX} onChange={(e) => setSketchX(parseInt(e.target.value))}
-                    className="w-full accent-[#D4AF37]"
+                    className="w-full accent-[var(--gold)]"
                   />
                 </div>
                 <div className="space-y-1">
@@ -1557,7 +1557,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   <input
                     type="range" min="-500" max="500" step="10"
                     value={sketchY} onChange={(e) => setSketchY(parseInt(e.target.value))}
-                    className="w-full accent-[#D4AF37]"
+                    className="w-full accent-[var(--gold)]"
                   />
                 </div>
               </div>
@@ -1584,7 +1584,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 <div key={room.id} className="bg-slate-900 border border-slate-850 p-2 text-xs flex items-center justify-between gap-3 rounded-lg">
                   <div className="min-w-0">
                     <span className="font-bold text-slate-200 block truncate">{room.name}</span>
-                    <span className="text-[9px] text-[#D4AF37] font-semibold">{room.vastu} Facing</span>
+                    <span className="text-[9px] text-[var(--gold)] font-semibold">{room.vastu} Facing</span>
                   </div>
                   
                   {/* Reference Image Thumbnail / Upload Button */}
@@ -1739,7 +1739,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             <div className="text-[9px] font-black text-[#C9A84C] uppercase tracking-widest">Component Layers</div>
             <div className="flex flex-wrap gap-1.5">
               {['glass','cane','handle','frame'].map(k => (
-                <button key={k} onClick={() => setComponentLayers(s => ({ ...s, [k]: !s[k] }))} className={`px-2 py-1 rounded-md border text-[9px] font-bold uppercase transition ${componentLayers[k] ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{k}</button>
+                <button key={k} onClick={() => setComponentLayers(s => ({ ...s, [k]: !s[k] }))} className={`px-2 py-1 rounded-md border text-[9px] font-bold uppercase transition ${componentLayers[k] ? 'bg-[var(--gold)]/20 border-[var(--gold)] text-[var(--gold)]' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{k}</button>
               ))}
             </div>
             <div className="text-[9px] text-slate-500">Toggle symbolic DXF layers for glass, cane, handles, and frame brackets.</div>

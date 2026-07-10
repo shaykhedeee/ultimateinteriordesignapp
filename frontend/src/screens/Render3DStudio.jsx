@@ -308,7 +308,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
         <select 
           value={activeRoomId} 
           onChange={(e) => { setActiveRoomId(e.target.value); setSelectedCabinet(null); }}
-          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
+          className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[var(--gold)]"
         >
           {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
@@ -322,7 +322,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
         {selectedCabinet && (
           <div className="absolute top-3 right-3 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl w-60 z-20 space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider">Customize Finish</span>
+              <span className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-wider">Customize Finish</span>
               <button onClick={() => setSelectedCabinet(null)} className="text-slate-500 hover:text-slate-300 text-xs">✕</button>
             </div>
             <div>
@@ -1332,7 +1332,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
           </span>
           <button 
             onClick={handleRegenerateRenders}
-            className="bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
+            className="bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
           >
             Regenerate Renders
           </button>
@@ -1342,7 +1342,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       
       {/* 1. Renders Control Panel (Sidebar - 1/4 Column) */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-5 h-[80vh] overflow-y-auto">
-        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#D4AF37] flex items-center gap-1.5">
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[var(--gold)] flex items-center gap-1.5">
           <Sparkles className="w-4.5 h-4.5" /> visualizer console
         </h2>
 
@@ -1357,7 +1357,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         {providerStatus && (
           <div className="bg-slate-950/50 border border-slate-850 p-2.5 rounded-lg text-[10px] text-slate-400 flex justify-between items-center shrink-0">
             <span>IMAGE GENERATOR:</span>
-            <strong className="text-[#D4AF37] uppercase font-bold font-mono">
+            <strong className="text-[var(--gold)] uppercase font-bold font-mono">
               {providerStatus.activeLabel || 'mock'}
             </strong>
           </div>
@@ -1373,7 +1373,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 onClick={() => setTargetRoom(r.id)}
                 className={`py-2 px-1 rounded-lg border text-center transition ${
                   targetRoom === r.id 
-                    ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' 
+                    ? 'bg-[var(--gold)]/15 border-[var(--gold)] text-[var(--gold)]' 
                     : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
                 }`}
               >
@@ -1392,7 +1392,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
             <select
               value={style}
               onChange={(e) => setStyle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-[#D4AF37] outline-none"
+              className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-200 focus:border-[var(--gold)] outline-none"
             >
               {styleOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -1460,7 +1460,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
               type="checkbox" 
               checked={removePeople} 
               onChange={(e) => setRemovePeople(e.target.checked)} 
-              className="accent-[#D4AF37] rounded"
+              className="accent-[var(--gold)] rounded"
             />
             Remove people from generation
           </label>
@@ -1471,15 +1471,15 @@ export default function Render3DStudio({ projectId, onComplete }) {
           <div className="space-y-2 bg-slate-950 border border-slate-850 p-3.5 rounded-xl text-[10px] text-slate-400">
             <span className="font-bold text-slate-300 block mb-1">Kitchen Correction Rules</span>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={kitchenRules.hobSinkSwapped} onChange={(e) => setKitchenRules({...kitchenRules, hobSinkSwapped: e.target.checked})} className="accent-[#D4AF37]" />
+              <input type="checkbox" checked={kitchenRules.hobSinkSwapped} onChange={(e) => setKitchenRules({...kitchenRules, hobSinkSwapped: e.target.checked})} className="accent-[var(--gold)]" />
               Hob left, sink under window
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={kitchenRules.chimneyOverHob} onChange={(e) => setKitchenRules({...kitchenRules, chimneyOverHob: e.target.checked})} className="accent-[#D4AF37]" />
+              <input type="checkbox" checked={kitchenRules.chimneyOverHob} onChange={(e) => setKitchenRules({...kitchenRules, chimneyOverHob: e.target.checked})} className="accent-[var(--gold)]" />
               Chimney directly over hob
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={kitchenRules.loftAligned} onChange={(e) => setKitchenRules({...kitchenRules, loftAligned: e.target.checked})} className="accent-[#D4AF37]" />
+              <input type="checkbox" checked={kitchenRules.loftAligned} onChange={(e) => setKitchenRules({...kitchenRules, loftAligned: e.target.checked})} className="accent-[var(--gold)]" />
               Lofts stop at window trim
             </label>
           </div>
@@ -1497,7 +1497,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
               </select>
             </label>
             <label className="flex items-center gap-2 cursor-pointer text-[10px]">
-              <input type="checkbox" checked={livingRules.concealedRafterDoors} onChange={(e) => setLivingRules({...livingRules, concealedRafterDoors: e.target.checked})} className="accent-[#D4AF37]" />
+              <input type="checkbox" checked={livingRules.concealedRafterDoors} onChange={(e) => setLivingRules({...livingRules, concealedRafterDoors: e.target.checked})} className="accent-[var(--gold)]" />
               Concealed partition doors
             </label>
           </div>
@@ -1514,7 +1514,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
               { key: 'fullFloorPlan', label: 'Full Plan' }
             ].map(slot => (
               <div key={slot.key} className="relative group bg-slate-900 border border-slate-855 rounded-lg text-center">
-                <label className="cursor-pointer block truncate py-1.5 px-1 hover:text-[#D4AF37] transition">
+                <label className="cursor-pointer block truncate py-1.5 px-1 hover:text-[var(--gold)] transition">
                   {uploads[slot.key] ? `✓ ${slot.label}` : `+ ${slot.label}`}
                   <input type="file" accept="image/*,application/pdf" onChange={(e) => handlePhotoSelect(slot.key, e)} className="hidden" />
                 </label>
@@ -1540,7 +1540,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
             onChange={(e) => setFurnitureRequirement(e.target.value)}
             rows="2.5"
             placeholder="Describe walnut louvers, marble counters, LED stripes, custom parameters..."
-            className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 outline-none focus:border-[#D4AF37] resize-none"
+            className="w-full bg-slate-950 border border-slate-850 rounded-lg p-2.5 text-xs text-slate-200 outline-none focus:border-[var(--gold)] resize-none"
           />
           <textarea
             value={customInstruction}
@@ -1553,7 +1553,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
           <button
             onClick={generateAIRender}
             disabled={isGenerating}
-            className="w-full py-3 bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-lg transition"
+            className="w-full py-3 bg-gradient-to-r from-[var(--gold)] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 shadow-lg transition"
           >
             <Sparkles className="w-4 h-4" />
             Generate Renders
@@ -1568,26 +1568,26 @@ export default function Render3DStudio({ projectId, onComplete }) {
           <div className="flex items-center justify-between mb-3 shrink-0">
             <div className="flex items-center gap-4">
               <h2 className="text-sm font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-                <ImageIcon className="w-4.5 h-4.5 text-[#D4AF37]" />
+                <ImageIcon className="w-4.5 h-4.5 text-[var(--gold)]" />
                 Design Studio
               </h2>
               {/* Tab Selector */}
               <div className="flex border border-slate-800 rounded-lg p-0.5 bg-slate-950 text-[10px] font-extrabold uppercase shrink-0">
                 <button
                   onClick={() => setActiveTab3D('renders')}
-                  className={`px-3 py-1 rounded transition ${activeTab3D === 'renders' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`px-3 py-1 rounded transition ${activeTab3D === 'renders' ? 'bg-[var(--gold)]/15 text-[var(--gold)]' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   🖼️ AI Renders
                 </button>
                 <button
                   onClick={() => setActiveTab3D('walkthrough')}
-                  className={`px-3 py-1 rounded transition ${activeTab3D === 'walkthrough' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`px-3 py-1 rounded transition ${activeTab3D === 'walkthrough' ? 'bg-[var(--gold)]/15 text-[var(--gold)]' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   🌐 3D Walkthrough
                 </button>
                 <button
                   onClick={() => setActiveTab3D('swapper')}
-                  className={`px-3 py-1 rounded transition ${activeTab3D === 'swapper' ? 'bg-[#D4AF37]/15 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`px-3 py-1 rounded transition ${activeTab3D === 'swapper' ? 'bg-[var(--gold)]/15 text-[var(--gold)]' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   🎨 AI Laminate Swapper
                 </button>
@@ -1602,7 +1602,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   <ShieldAlert className="w-3.5 h-3.5" /> Teach AI
                 </button>
               )}
-              <span className="text-[10px] uppercase font-bold text-[#D4AF37] bg-[#D4AF37]/10 px-2.5 py-1 rounded">
+              <span className="text-[10px] uppercase font-bold text-[var(--gold)] bg-[var(--gold)]/10 px-2.5 py-1 rounded">
                 {activeTab3D === 'walkthrough' ? 'Interactive 3D Scene' : selectedRender ? `${selectedRender.room || 'living'} design` : 'empty viewport'}
               </span>
             </div>
@@ -1633,8 +1633,8 @@ export default function Render3DStudio({ projectId, onComplete }) {
                             className="w-full h-full object-cover flex-1"
                           />
                         </div>
-                        <div className="relative border border-[#D4AF37]/50 rounded-lg overflow-hidden flex flex-col">
-                          <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-[#D4AF37]">After (Swapped)</span>
+                        <div className="relative border border-[var(--gold)]/50 rounded-lg overflow-hidden flex flex-col">
+                          <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-[var(--gold)]">After (Swapped)</span>
                           <img 
                             src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : selectedRender.image_url} 
                             alt="Swapped Design"
@@ -1658,13 +1658,13 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
                   {isSwappingLaminate && (
                     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center gap-4 z-20 p-6 text-center">
-                      <RefreshCw className="w-10 h-10 text-[#D4AF37] animate-spin" />
+                      <RefreshCw className="w-10 h-10 text-[var(--gold)] animate-spin" />
                       <div className="space-y-1.5 max-w-sm">
-                        <span className="text-xs font-black text-[#D4AF37] uppercase tracking-widest block">AI Laminate Swapper Active</span>
+                        <span className="text-xs font-black text-[var(--gold)] uppercase tracking-widest block">AI Laminate Swapper Active</span>
                         <p className="text-[10px] text-slate-300 leading-normal animate-pulse">{swapperStepMessage || 'Performing inpainting swap...'}</p>
                       </div>
                       <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#D4AF37]" style={{ width: '60%' }}></div>
+                        <div className="h-full bg-[var(--gold)]" style={{ width: '60%' }}></div>
                       </div>
                     </div>
                   )}
@@ -1678,7 +1678,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       onClick={() => setBeforeAfterMode(!beforeAfterMode)}
                       className={`text-[9px] font-extrabold uppercase px-3 py-1 rounded transition border ${
                         beforeAfterMode 
-                          ? 'bg-[#D4AF37]/15 border-[#D4AF37] text-[#D4AF37]' 
+                          ? 'bg-[var(--gold)]/15 border-[var(--gold)] text-[var(--gold)]' 
                           : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
                       }`}
                     >
@@ -1692,7 +1692,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
               <div className="w-72 border-l border-slate-850 p-4 space-y-4 bg-slate-900/90 flex flex-col h-full shrink-0 overflow-y-auto z-10">
                 <div>
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                    <Palette className="w-4 h-4 text-[#D4AF37]" />
+                    <Palette className="w-4 h-4 text-[var(--gold)]" />
                     AI Material Swapper
                   </h3>
                   <p className="text-[10px] text-slate-400">Swap finishes, grain & textures with pixel-level precision</p>
@@ -1706,7 +1706,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       <button
                         onClick={handleAnalyseComponents}
                         disabled={isAnalyzingComponents}
-                        className="bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/20 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded transition"
+                        className="bg-[var(--gold)]/10 border border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/20 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded transition"
                       >
                         {isAnalyzingComponents ? 'Analyzing...' : 'Scan Image'}
                       </button>
@@ -1721,7 +1721,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                           onClick={() => setSelectedSwapComponent(c.component)}
                           className={`w-full text-left p-2 rounded-lg border text-[9px] transition flex justify-between items-center ${
                             selectedSwapComponent === c.component
-                              ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37]'
+                              ? 'bg-[var(--gold)]/10 border-[var(--gold)] text-[var(--gold)]'
                               : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
                           }`}
                         >
@@ -1729,7 +1729,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                             {c.component}
                           </div>
                           {c.confidence && (
-                            <span className="text-[8px] font-mono text-[#D4AF37]/80 bg-slate-900 px-1 rounded">
+                            <span className="text-[8px] font-mono text-[var(--gold)]/80 bg-slate-900 px-1 rounded">
                               {Math.round(c.confidence * 100)}%
                             </span>
                           )}
@@ -1779,7 +1779,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                     <button
                       onClick={handleLaminateSwap}
                       disabled={isSwappingLaminate || (!selectedCatalogMaterial && !customLaminateFile)}
-                      className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-[10px] uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-40"
+                      className="w-full py-2.5 bg-gradient-to-r from-[var(--gold)] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-[10px] uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition disabled:opacity-40"
                     >
                       <Sparkles className="w-3.5 h-3.5" /> Swap Material
                     </button>
@@ -1806,7 +1806,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
                 {isGenerating && (
                   <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center gap-3 z-20">
-                    <RefreshCw className="w-8 h-8 text-[#D4AF37] animate-spin" />
+                    <RefreshCw className="w-8 h-8 text-[var(--gold)] animate-spin" />
                     <span className="text-xs font-bold text-slate-300 uppercase tracking-widest animate-pulse">Running AI Space Projector...</span>
                   </div>
                 )}
@@ -1817,7 +1817,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 <div className="w-64 border-l border-slate-850 p-4 space-y-4 bg-slate-900/90 flex flex-col h-full shrink-0 overflow-y-auto z-10">
                   <div>
                     <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                      <Palette className="w-4 h-4 text-[#D4AF37]" />
+                      <Palette className="w-4 h-4 text-[var(--gold)]" />
                       3-Second Recolor
                     </h3>
                     <p className="text-[10px] text-slate-400">Recolor single parts instantly via SAM masks</p>
@@ -1833,7 +1833,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                           onClick={() => setSelectedComponent(comp.id)}
                           className={`py-1.5 px-2 rounded-lg border text-center transition ${
                             selectedComponent === comp.id
-                              ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37]'
+                              ? 'bg-[var(--gold)]/10 border-[var(--gold)] text-[var(--gold)]'
                               : 'bg-slate-950 border-slate-850 text-slate-400 hover:border-slate-700'
                           }`}
                         >
@@ -1855,7 +1855,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                             <button
                               key={i}
                               className={`w-8 h-8 rounded-lg border relative group flex items-center justify-center transition ${
-                                activeColor === color.name ? 'border-[#D4AF37] scale-95 ring-1 ring-[#D4AF37]' : 'border-slate-800 hover:border-slate-650'
+                                activeColor === color.name ? 'border-[var(--gold)] scale-95 ring-1 ring-[var(--gold)]' : 'border-slate-800 hover:border-slate-650'
                               }`}
                               style={{ backgroundColor: color.hex }}
                               title={color.name}
@@ -1873,7 +1873,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       {/* Suggestions Section */}
                       {colorSuggestions.length > 0 && (
                         <div className="border-t border-slate-850 pt-2 mt-auto">
-                          <span className="text-[9px] font-[#D4AF37] uppercase tracking-widest block mb-1">
+                          <span className="text-[9px] font-[var(--gold)] uppercase tracking-widest block mb-1">
                             AI Suggestions
                           </span>
                           <div className="space-y-1">
@@ -1919,7 +1919,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   value={reviewNote}
                   onChange={(e) => setReviewNote(e.target.value)}
                   placeholder="Leave design review note..."
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-[var(--gold)]"
                 />
                 <button onClick={() => handleReview('approved')} className="bg-emerald-500 text-slate-950 text-xs font-bold px-3 py-1.5 rounded hover:brightness-110 transition">Approve</button>
                 <button onClick={() => handleReview('needs-revision')} className="bg-amber-500 text-slate-950 text-xs font-bold px-3 py-1.5 rounded hover:brightness-110 transition">Revise</button>
@@ -1943,12 +1943,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
                     if (e.key === 'Enter') handleEditRender();
                   }}
                   placeholder="Instruct AI to refine this render (e.g. Change cabinets to grey, make rafters end at window)..."
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D4AF37]"
+                  className="flex-1 bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-[var(--gold)]"
                 />
                 <button
                   onClick={handleEditRender}
                   disabled={isGenerating || !revisionRequest.trim()}
-                  className="bg-gradient-to-r from-[#D4AF37] to-[#B08968] hover:brightness-110 text-slate-950 text-xs font-bold px-4 py-1.5 rounded flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gradient-to-r from-[var(--gold)] to-[#B08968] hover:brightness-110 text-slate-950 text-xs font-bold px-4 py-1.5 rounded flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Sparkles className="w-3.5 h-3.5" /> Revise
                 </button>
@@ -1967,7 +1967,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   key={filter}
                   onClick={() => setReviewFilter(filter)}
                   className={`px-2 py-0.5 text-[9px] ${
-                    reviewFilter === filter ? 'bg-slate-800 text-[#D4AF37]' : 'text-slate-500 hover:text-slate-300'
+                    reviewFilter === filter ? 'bg-slate-800 text-[var(--gold)]' : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
                   {filter} ({reviewCounts[filter] || 0})
@@ -1982,7 +1982,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 key={ren.id}
                 onClick={() => setSelectedRender(ren)}
                 className={`h-16 w-24 shrink-0 border rounded-lg cursor-pointer overflow-hidden transition relative ${
-                  selectedRender?.id === ren.id ? 'border-[#D4AF37] scale-95 shadow-md shadow-[#D4AF37]/15' : 'border-slate-800 hover:border-slate-700'
+                  selectedRender?.id === ren.id ? 'border-[var(--gold)] scale-95 shadow-md shadow-[var(--gold)]/15' : 'border-slate-800 hover:border-slate-700'
                 }`}
               >
                 <img 
@@ -2015,7 +2015,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
               <span className="text-[9px] text-slate-500 block">Magnetic axis stability checks</span>
             </div>
             {/* Golden radial value */}
-            <div className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-[#D4AF37]/40 text-[#D4AF37] font-extrabold text-sm shadow-md shadow-[#D4AF37]/10 bg-[#D4AF37]/5">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-[var(--gold)]/40 text-[var(--gold)] font-extrabold text-sm shadow-md shadow-[var(--gold)]/10 bg-[var(--gold)]/5">
               {vastuReport.score}%
             </div>
           </div>
@@ -2042,7 +2042,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         <div className="bg-slate-950 border border-slate-850 rounded-xl p-3.5 space-y-3">
           <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
             <span>3D Isometric Carcass</span>
-            <span className="text-[#D4AF37]">Metric mm scale</span>
+            <span className="text-[var(--gold)]">Metric mm scale</span>
           </div>
           <div className="h-28 border border-slate-850 bg-slate-900 rounded-lg overflow-hidden flex items-center justify-center">
             <svg className="w-full h-full">
@@ -2074,9 +2074,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
         {/* Technical Drawings & Exporters */}
         <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl space-y-3.5 mt-auto">
           <h4 className="text-[10px] font-bold text-slate-300 uppercase tracking-widest border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
-            <Code className="w-4 h-4 text-[#D4AF37]" /> Export deliverables
+            <Code className="w-4 h-4 text-[var(--gold)]" /> Export deliverables
           </h4>
-          <div className="bg-slate-900 rounded-lg p-2.5 h-16 overflow-y-auto font-mono text-[7.5px] text-[#D4AF37] leading-normal whitespace-pre border border-slate-850">
+          <div className="bg-slate-900 rounded-lg p-2.5 h-16 overflow-y-auto font-mono text-[7.5px] text-[var(--gold)] leading-normal whitespace-pre border border-slate-850">
             {sketchupScript || "# Select 2D walls to export console commands"}
           </div>
           {(() => {
@@ -2096,7 +2096,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   <button onClick={downloadScriptFile} disabled={!unlocked} className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded text-slate-300 text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
                     Download rb
                   </button>
-                  <button onClick={downloadSelectedRender} disabled={!selectedRender} className="flex-1 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] rounded text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
+                  <button onClick={downloadSelectedRender} disabled={!selectedRender} className="flex-1 py-2 bg-[var(--gold)]/10 hover:bg-[var(--gold)]/20 border border-[var(--gold)]/40 text-[var(--gold)] rounded text-center transition disabled:opacity-30 disabled:cursor-not-allowed">
                     Download Render
                   </button>
                 </div>
@@ -2118,14 +2118,14 @@ export default function Render3DStudio({ projectId, onComplete }) {
       {/* 4. Dialog Popups (Teach AI Mistake Logger Modal) */}
       {isMistakeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-slate-900 border border-[#D4AF37]/40 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl relative">
+          <div className="bg-slate-900 border border-[var(--gold)]/40 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl relative">
             <button 
               onClick={() => setIsMistakeModalOpen(false)}
               className="absolute top-4 right-4 text-slate-500 hover:text-slate-200 text-sm"
             >
               ✕
             </button>
-            <div className="text-xl text-[#D4AF37]">🎉</div>
+            <div className="text-xl text-[var(--gold)]">🎉</div>
             <h3 className="text-base font-bold text-slate-200 uppercase tracking-wider">Teach AI (Log Visual Correction)</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
               If the visualizer placed components incorrectly, write down the infraction. SpaceTrace correction memory overrides rules for future layouts.
@@ -2140,7 +2140,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   onChange={(e) => setBrief(prev => prev)} // dummy
                   onInput={(e) => setMistakeDescription(e.target.value)}
                   placeholder="Example: placed double sink under solid wall instead of window" 
-                  className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-slate-200 outline-none focus:border-[#D4AF37]" 
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-slate-200 outline-none focus:border-[var(--gold)]" 
                 />
               </label>
 
@@ -2152,14 +2152,14 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   onChange={(e) => setBrief(prev => prev)} // dummy
                   onInput={(e) => setMistakeCorrection(e.target.value)}
                   placeholder="Example: sink must be centered exactly on window midpoint" 
-                  className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-slate-200 outline-none focus:border-[#D4AF37]" 
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-slate-200 outline-none focus:border-[var(--gold)]" 
                 />
               </label>
             </div>
 
             <div className="flex gap-2 justify-end pt-2 text-xs">
               <button onClick={() => setIsMistakeModalOpen(false)} className="bg-slate-950 border border-slate-800 text-slate-400 px-4 py-2 rounded font-bold hover:bg-slate-850">Cancel</button>
-              <button onClick={handleLogCorrection} className="bg-gradient-to-r from-[#D4AF37] to-[#B08968] text-slate-950 px-4 py-2 rounded font-extrabold uppercase hover:brightness-110">Save Correction</button>
+              <button onClick={handleLogCorrection} className="bg-gradient-to-r from-[var(--gold)] to-[#B08968] text-slate-950 px-4 py-2 rounded font-extrabold uppercase hover:brightness-110">Save Correction</button>
             </div>
           </div>
         </div>

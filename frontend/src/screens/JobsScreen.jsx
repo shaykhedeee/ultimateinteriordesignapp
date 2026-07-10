@@ -82,7 +82,7 @@ export default function JobsScreen({ projectId }) {
           <select
             value={activeJobType}
             onChange={e => setActiveJobType(e.target.value)}
-            className="bg-slate-900 border border-slate-850 rounded-xl px-3 py-1.5 text-xs text-slate-350 outline-none focus:border-[#D4AF37]/50 cursor-pointer"
+            className="bg-slate-900 border border-slate-850 rounded-xl px-3 py-1.5 text-xs text-slate-350 outline-none focus:border-[var(--gold)]/50 cursor-pointer"
           >
             <option value="render_generation">3D AI Render Rebuild</option>
             <option value="drawing_generation">2D/3D CAD Drawing Pack</option>
@@ -91,7 +91,7 @@ export default function JobsScreen({ projectId }) {
           <button
             onClick={handleLaunchJob}
             disabled={isLoading}
-            className="bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition disabled:opacity-50"
+            className="bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition disabled:opacity-50"
           >
             <Play className="w-3.5 h-3.5 fill-slate-950" /> Spawn Job
           </button>
@@ -110,7 +110,7 @@ export default function JobsScreen({ projectId }) {
               <div key={job.id} className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3 hover:border-slate-700 transition">
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex items-center gap-3">
-                    <span className="p-2 bg-slate-950 rounded-xl text-[#D4AF37] border border-slate-850">
+                    <span className="p-2 bg-slate-950 rounded-xl text-[var(--gold)] border border-slate-850">
                       {(job.jobType || job.job_type) === 'render_generation' ? <Sparkles className="w-4 h-4" /> :
                        (job.jobType || job.job_type) === 'drawing_generation' ? <Layers className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                     </span>
@@ -137,7 +137,7 @@ export default function JobsScreen({ projectId }) {
                     <div 
                       className={`h-full rounded-full transition-all duration-300 ${
                         job.status === 'succeeded' ? 'bg-emerald-400' :
-                        job.status === 'failed' ? 'bg-red-500' : 'bg-[#D4AF37]'
+                        job.status === 'failed' ? 'bg-red-500' : 'bg-[var(--gold)]'
                       }`}
                       style={{ width: `${job.progress}%` }}
                     />

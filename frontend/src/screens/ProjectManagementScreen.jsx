@@ -9,7 +9,7 @@ import {
 
 const WORKFLOW_STAGES = [
   { id: 'brief', label: 'Brief', icon: <FileText className="w-3 h-3" />, color: '#0891b2' },
-  { id: 'cad_approved', label: 'CAD', icon: <Compass className="w-3 h-3" />, color: '#D4AF37' },
+  { id: 'cad_approved', label: 'CAD', icon: <Compass className="w-3 h-3" />, color: 'var(--gold)' },
   { id: 'materials_selected', label: 'Materials', icon: <Palette className="w-3 h-3" />, color: '#a855f7' },
   { id: 'renders_approved', label: 'Renders', icon: <Sparkles className="w-3 h-3" />, color: '#f97316' },
   { id: 'production', label: 'Production', icon: <Scissors className="w-3 h-3" />, color: '#10b981' },
@@ -138,7 +138,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
       {/* ── Stats Strip ── */}
       <div className="flex-shrink-0 flex gap-3 px-6 pt-4 pb-3 border-b border-slate-800/50">
         {[
-          { label: 'Active Projects', value: projects.length, color: 'text-[#D4AF37]' },
+          { label: 'Active Projects', value: projects.length, color: 'text-[var(--gold)]' },
           { label: 'Total Pipeline', value: `₹${(totalRevenue / 100000).toFixed(1)}L`, color: 'text-emerald-400' },
           { label: 'Avg Project Value', value: `₹${(avgBudget / 100000).toFixed(1)}L`, color: 'text-blue-400' },
           { label: 'CRM Leads', value: leads.length, color: 'text-purple-400' },
@@ -151,7 +151,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
         ))}
         <button
           onClick={fetchData}
-          className="bg-slate-900/70 border border-slate-800 px-3 py-3 rounded-xl text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 transition"
+          className="bg-slate-900/70 border border-slate-800 px-3 py-3 rounded-xl text-slate-400 hover:text-[var(--gold)] hover:border-[var(--gold)]/30 transition"
         >
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -183,13 +183,13 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">View:</span>
           <button
             onClick={() => setShowKanban(false)}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition ${!showKanban ? 'bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition ${!showKanban ? 'bg-[var(--gold)]/15 text-[var(--gold)] border border-[var(--gold)]/30' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Project List
           </button>
           <button
             onClick={() => setShowKanban(true)}
-            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition ${showKanban ? 'bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/30' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg transition ${showKanban ? 'bg-[var(--gold)]/15 text-[var(--gold)] border border-[var(--gold)]/30' : 'text-slate-500 hover:text-slate-300'}`}
           >
             Kanban Pipeline
           </button>
@@ -234,7 +234,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
                   <div
                     key={project.id}
                     className={`bg-slate-900/80 border p-4 flex gap-4 rounded-2xl transition cursor-pointer slide-up ${
-                      isSelected ? 'border-[#D4AF37] shadow-lg shadow-[#D4AF37]/5 bg-[#0b1329]' : 'border-slate-800 hover:border-[#D4AF37]/30'
+                      isSelected ? 'border-[var(--gold)] shadow-lg shadow-[var(--gold)]/5 bg-[#0b1329]' : 'border-slate-800 hover:border-[var(--gold)]/30'
                     }`}
                     onClick={() => setSelectedProject(project)}
                   >
@@ -245,11 +245,11 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
                           <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
                             <span className="flex items-center gap-1"><User className="w-3 h-3" />{project.client_name}</span>
                             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(project.created_at).toLocaleDateString('en-IN')}</span>
-                            <span className="font-mono text-[#D4AF37]/70">{project.id}</span>
+                            <span className="font-mono text-[var(--gold)]/70">{project.id}</span>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <div className="text-sm font-extrabold text-[#D4AF37] font-mono">
+                          <div className="text-sm font-extrabold text-[var(--gold)] font-mono">
                             ₹{project.budget ? (project.budget / 100000).toFixed(1) + 'L' : '—'}
                           </div>
                           <div className="text-[9px] text-slate-500 mt-0.5">Budget</div>
@@ -276,7 +276,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
                     <div className="flex flex-col justify-center gap-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); onNavigateToProject && onNavigateToProject(project.id); }}
-                        className="bg-[#D4AF37] hover:bg-[#AA8C2C] text-slate-950 text-[10px] font-black px-3 py-2 rounded-xl flex items-center gap-1 transition whitespace-nowrap"
+                        className="bg-[var(--gold)] hover:bg-[#AA8C2C] text-slate-950 text-[10px] font-black px-3 py-2 rounded-xl flex items-center gap-1 transition whitespace-nowrap"
                       >
                         Open Workspace <ArrowRight className="w-3 h-3" />
                       </button>
@@ -310,16 +310,16 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
                             key={project.id}
                             onClick={() => setSelectedProject(project)}
                             className={`bg-slate-900 border p-3.5 rounded-2xl cursor-pointer transition select-none flex flex-col gap-2.5 ${
-                              isSelected ? 'border-[#D4AF37] bg-[#0b1329] shadow-lg shadow-[#D4AF37]/5' : 'border-slate-800/80 hover:border-slate-700'
+                              isSelected ? 'border-[var(--gold)] bg-[#0b1329] shadow-lg shadow-[var(--gold)]/5' : 'border-slate-800/80 hover:border-slate-700'
                             }`}
                           >
                             <div>
                               <h4 className="text-xs font-black text-slate-200 leading-snug">{project.name}</h4>
-                              <p className="text-[10px] text-slate-500 mt-0.5 font-bold flex items-center gap-1"><User className="w-3 h-3 text-[#D4AF37]" />{project.client_name}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5 font-bold flex items-center gap-1"><User className="w-3 h-3 text-[var(--gold)]" />{project.client_name}</p>
                             </div>
                             
                             <div className="flex items-center justify-between text-[10px] border-t border-slate-800/40 pt-2 shrink-0">
-                              <span className="text-[#D4AF37] font-mono font-extrabold">
+                              <span className="text-[var(--gold)] font-mono font-extrabold">
                                 ₹{project.budget ? (project.budget / 100000).toFixed(1) + 'L' : '—'}
                               </span>
                               <span className="text-slate-600 font-mono text-[9px]">{project.id}</span>
@@ -363,7 +363,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
         {selectedProject && (
           <div className="w-80 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-4 h-[70vh] shrink-0 overflow-y-auto slide-left">
             <div>
-              <span className="text-[9px] font-bold text-[#D4AF37] uppercase tracking-wider block mb-1">Project Command Panel</span>
+              <span className="text-[9px] font-bold text-[var(--gold)] uppercase tracking-wider block mb-1">Project Command Panel</span>
               <h3 className="text-sm font-extrabold text-slate-100 truncate">{selectedProject.name}</h3>
               <p className="text-[10px] text-slate-500 mt-0.5">ID: {selectedProject.id}</p>
             </div>
@@ -372,7 +372,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
             <div className="space-y-2">
               <button
                 onClick={() => onNavigateToProject && onNavigateToProject(selectedProject.id)}
-                className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#AA8C2C] text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 rounded-xl transition shadow-lg shadow-[#D4AF37]/5"
+                className="w-full py-2.5 bg-[var(--gold)] hover:bg-[#AA8C2C] text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 rounded-xl transition shadow-lg shadow-[var(--gold)]/5"
               >
                 Open Workspace <ArrowRight className="w-4 h-4" />
               </button>
@@ -384,7 +384,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
               <select
                 value={selectedProject.status || 'brief'}
                 onChange={(e) => handleUpdateStatus(selectedProject.id, e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 font-semibold cursor-pointer outline-none focus:border-[#D4AF37]/50"
+                className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 font-semibold cursor-pointer outline-none focus:border-[var(--gold)]/50"
               >
                 {WORKFLOW_STAGES.map(s => (
                   <option key={s.id} value={s.id}>{s.label}</option>
@@ -397,9 +397,9 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
               <div className="flex items-center justify-between border-b border-slate-850 pb-2">
                 <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Sales Readiness KPI</h4>
                 {isReadinessLoading ? (
-                  <RefreshCw className="w-3.5 h-3.5 text-[#D4AF37] animate-spin" />
+                  <RefreshCw className="w-3.5 h-3.5 text-[var(--gold)] animate-spin" />
                 ) : (
-                  <strong className="text-sm font-extrabold text-[#D4AF37] font-mono">
+                  <strong className="text-sm font-extrabold text-[var(--gold)] font-mono">
                     {readinessData?.score || 0}%
                   </strong>
                 )}
@@ -451,7 +451,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Budget:</span>
-                  <span className="font-mono text-[#D4AF37] font-bold">₹{selectedProject.budget?.toLocaleString('en-IN')}</span>
+                  <span className="font-mono text-[var(--gold)] font-bold">₹{selectedProject.budget?.toLocaleString('en-IN')}</span>
                 </div>
               </div>
             </div>

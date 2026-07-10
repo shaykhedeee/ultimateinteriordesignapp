@@ -178,7 +178,7 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
 
         {/* Global Nesting & Board Parameters */}
         <div className="bg-slate-950/60 border border-slate-850 p-3 rounded-xl mb-4 text-xs space-y-2.5 shrink-0">
-          <h3 className="text-[10px] font-extrabold text-[#D4AF37] uppercase tracking-wider">
+          <h3 className="text-[10px] font-extrabold text-[var(--gold)] uppercase tracking-wider">
             Nesting & Plywood Standards
           </h3>
           <div className="grid grid-cols-2 gap-2">

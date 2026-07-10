@@ -199,7 +199,7 @@ export function App() {
       const root = document.getElementById('root');
       const el = document.createElement('div');
       el.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/70';
-      el.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl w-full max-w-sm m-4"><div class="text-sm font-bold text-slate-100">${title}</div><div class="text-xs text-slate-400 mt-1">${message}</div><div class="mt-4 flex gap-2 justify-end"><button id="aura-confirm-yes" class="px-3 py-1.5 bg-[#D4AF37] text-slate-950 font-black text-xs rounded-lg">Confirm</button><button id="aura-confirm-no" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg border border-slate-700">Cancel</button></div></div>`;
+      el.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl w-full max-w-sm m-4"><div class="text-sm font-bold text-slate-100">${title}</div><div class="text-xs text-slate-400 mt-1">${message}</div><div class="mt-4 flex gap-2 justify-end"><button id="aura-confirm-yes" class="px-3 py-1.5 bg-[var(--gold)] text-slate-950 font-black text-xs rounded-lg">Confirm</button><button id="aura-confirm-no" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg border border-slate-700">Cancel</button></div></div>`;
       root?.appendChild(el);
       el.querySelector('#aura-confirm-yes')?.addEventListener('click', () => { el.remove(); resolve(true); });
       el.querySelector('#aura-confirm-no')?.addEventListener('click', () => { el.remove(); resolve(false); });
@@ -209,12 +209,12 @@ export function App() {
       const input = document.createElement('input');
       input.value = '';
       input.placeholder = message || title || '';
-      input.className = 'w-full mt-2 p-2 rounded-lg border border-slate-700 bg-slate-950 text-slate-100 text-sm focus:outline-none focus:border-[#D4AF37]';
+      input.className = 'w-full mt-2 p-2 rounded-lg border border-slate-700 bg-slate-950 text-slate-100 text-sm focus:outline-none focus:border-[var(--gold)]';
       const close = () => { root?.contains(el) && root.removeChild(el); resolve(fallback ? fallback(input.value) : input.value); };
       const root = document.getElementById('root');
       const el = document.createElement('div');
       el.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/70';
-      el.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl w-full max-w-sm m-4"><div class="text-sm font-bold text-slate-100">${title}</div><div class="text-xs text-slate-400 mt-1">${message}</div>${input.outerHTML}<div class="mt-4 flex gap-2 justify-end"><button id="aura-open-ok" class="px-3 py-1.5 bg-[#D4AF37] text-slate-950 font-black text-xs rounded-lg">Continue</button><button id="aura-open-cancel" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg border border-slate-700">Cancel</button></div></div>`;
+      el.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl w-full max-w-sm m-4"><div class="text-sm font-bold text-slate-100">${title}</div><div class="text-xs text-slate-400 mt-1">${message}</div>${input.outerHTML}<div class="mt-4 flex gap-2 justify-end"><button id="aura-open-ok" class="px-3 py-1.5 bg-[var(--gold)] text-slate-950 font-black text-xs rounded-lg">Continue</button><button id="aura-open-cancel" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg border border-slate-700">Cancel</button></div></div>`;
       root?.appendChild(el);
       setTimeout(() => input.focus(), 0);
       el.querySelector('#aura-open-ok')?.addEventListener('click', () => close());

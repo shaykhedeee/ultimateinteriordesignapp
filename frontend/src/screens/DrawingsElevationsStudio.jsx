@@ -383,7 +383,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
   // Download PDF (print-ready sheet, rendered server-side via pdfkit)
   const presets = [
-    {id:'modern-luxury',title:'Modern Luxury',chip:'CALACATTA / BRASS',accent:'#D4AF37',palette:['#0B1220','#D4AF37','#FFFFFF']},
+    {id:'modern-luxury',title:'Modern Luxury',chip:'CALACATTA / BRASS',accent:'var(--gold)',palette:['#0B1220','var(--gold)','#FFFFFF']},
     {id:'scandi-warm',title:'Scandi Warm',chip:'OAK / OFF-WHITE',accent:'#C7A16B',palette:['#F3EFE8','#E6DCC8','#1B1B1B']},
     {id:'industrial',title:'Industrial Loft',chip:'CONCRETE / BLACK IRON',accent:'#9EA7B0',palette:['#181A1E','#2F3336','#E3E3E3']},
     {id:'indian-contemporary',title:'Indo Contemporary',chip:'TEAK + MARBLE',accent:'#8C5B3C',palette:['#3B2417','#F5E6D3','#2A2A2A']}
@@ -438,7 +438,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           </span>
           <button 
             onClick={handleRegenerateDrawings}
-            className="bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
+            className="bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
           >
             Regenerate Drawings
           </button>
@@ -519,7 +519,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                 onClick={() => setSelectedWallId(w.id)}
                 className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between border transition ${
                   selectedWallId === w.id
-                    ? 'bg-[#D4AF37]/10 border-[#D4AF37]/40 text-[#D4AF37]'
+                    ? 'bg-[var(--gold)]/10 border-[var(--gold)]/40 text-[var(--gold)]'
                     : 'bg-slate-950/40 border-slate-850 hover:bg-slate-800/40 text-slate-400'
                 }`}
               >
@@ -532,7 +532,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
         {/* Global Elevation Settings */}
         <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-3 text-xs">
-          <h3 className="text-[10px] font-extrabold text-[#D4AF37] uppercase tracking-wider">Sheet Properties</h3>
+          <h3 className="text-[10px] font-extrabold text-[var(--gold)] uppercase tracking-wider">Sheet Properties</h3>
           <div className="space-y-2">
             <div>
               <label className="text-slate-400 block mb-0.5">Ceiling Height (mm)</label>
@@ -568,17 +568,17 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           <div className="flex gap-1 bg-slate-950/60 border border-slate-800 rounded-lg p-0.5">
             <button
               onClick={() => setActiveTab('walls')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'walls' ? 'bg-[#D4AF37] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'walls' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
             >CAD Walls</button>
             <button
               onClick={() => setActiveTab('photo')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'photo' ? 'bg-[#D4AF37] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'photo' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
             >Photo-Generated</button>
           </div>
           <div className="flex gap-2">
             <button
               onClick={downloadSVG}
-              className="bg-slate-800 border border-slate-700 hover:border-[#D4AF37]/40 px-2 py-1 text-slate-300 transition flex items-center gap-1"
+              className="bg-slate-800 border border-slate-700 hover:border-[var(--gold)]/40 px-2 py-1 text-slate-300 transition flex items-center gap-1"
             >
               <Download className="w-3.5 h-3.5" /> SVG
             </button>
@@ -590,7 +590,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             </button>
             <button
               onClick={() => { window.open(`http://127.0.0.1:8787/api/projects/${projectId}/elevations/combined-pdf`, '_blank'); showToast("Combined elevations PDF downloading…"); }}
-              className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 px-2 py-1 text-[#D4AF37] transition flex items-center gap-1 text-[10px] font-bold"
+              className="bg-[var(--gold)]/10 hover:bg-[var(--gold)]/20 border border-[var(--gold)]/30 px-2 py-1 text-[var(--gold)] transition flex items-center gap-1 text-[10px] font-bold"
             >
               <FileText className="w-3.5 h-3.5" /> COMBINE ALL
             </button>
@@ -624,7 +624,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             <button
               onClick={saveElevations}
               disabled={isSaving}
-              className="bg-[#D4AF37] hover:bg-[#D4AF37]/90 px-3 py-1.5 rounded-lg text-xs font-black text-slate-950 transition flex items-center gap-1.5"
+              className="bg-[var(--gold)] hover:bg-[var(--gold)]/90 px-3 py-1.5 rounded-lg text-xs font-black text-slate-950 transition flex items-center gap-1.5"
             >
               {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               Save & Sync
@@ -666,7 +666,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                 <text x="10" y="30" fill="#ffffff" fontSize="7" fontWeight="bold">DWG: WALL ELEVATION</text>
                 <text x="10" y="42" fill="#9ca3af" fontSize="6">PROJECT: {projectId}</text>
                 <text x="10" y="52" fill="#9ca3af" fontSize="6">SCALE: {scale}  |  HEIGHT: {wallHeight}mm</text>
-                <text x="10" y="65" fill="#D4AF37" fontSize="6" fontWeight="bold">REV 1.0 (PRODUCTION SIGN-OFF)</text>
+                <text x="10" y="65" fill="var(--gold)" fontSize="6" fontWeight="bold">REV 1.0 (PRODUCTION SIGN-OFF)</text>
               </g>
 
               {/* The Wall Elevation Projection — driven by the SAME analyzer as the DXF */}
@@ -824,7 +824,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                       <rect x={0} y={0} width={190} height={80} fill="rgba(15,23,42,0.9)" stroke="#2563eb" strokeWidth="0.8" />
                       <line x1={0} y1={26} x2={190} y2={26} stroke="#2563eb" strokeWidth="0.4" />
                       <line x1={0} y1={52} x2={190} y2={52} stroke="#2563eb" strokeWidth="0.4" />
-                      <text x={6} y={17} fill="#D4AF37" fontSize="7" fontWeight="bold" fontFamily="monospace">SHEET: {model.wallName}</text>
+                      <text x={6} y={17} fill="var(--gold)" fontSize="7" fontWeight="bold" fontFamily="monospace">SHEET: {model.wallName}</text>
                       <text x={6} y={43} fill="#e2e8f0" fontSize="6" fontFamily="monospace">SCALE: {scale}   REV: 1.0</text>
                       <text x={6} y={69} fill="#94a3b8" fontSize="5.5" fontFamily="monospace">AURABRAIN  {new Date().toISOString().slice(0,10)}</text>
                     </g>
@@ -843,7 +843,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         {activeTab === 'photo' && (
           <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
             <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
-              <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Generate from Photo (3D → 2D)</label>
+              <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Generate from Photo (3D → 2D)</label>
               <input
                 type="file"
                 accept="image/*"
@@ -859,7 +859,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               <button
                 onClick={handleGeneratePhotoElevation}
                 disabled={photoGenerating}
-                className="w-full bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-slate-950 font-black py-1.5 rounded-lg text-[10px] uppercase transition flex items-center justify-center gap-1.5"
+                className="w-full bg-[var(--gold)] hover:bg-[var(--gold)]/90 text-slate-950 font-black py-1.5 rounded-lg text-[10px] uppercase transition flex items-center justify-center gap-1.5"
               >
                 {photoGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 Generate Measured Elevation
@@ -905,12 +905,12 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh]">
         {/* AI Assisted Elevation Editor */}
         <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
-          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">AI Elevation Copilot</label>
+          <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">AI Elevation Copilot</label>
           <textarea
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
             placeholder="E.g., 'increase base widths to 900', 'remove lofts', 'convert bases to drawers'..."
-            className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 resize-none h-16 outline-none focus:border-[#D4AF37]/50"
+            className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 resize-none h-16 outline-none focus:border-[var(--gold)]/50"
           />
           <button
             onClick={handleAiEdit}
@@ -927,7 +927,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           </h2>
           <button
             onClick={() => setShowAddCabinet(true)}
-            className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/25 text-[#D4AF37] text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
+            className="bg-[var(--gold)]/10 hover:bg-[var(--gold)]/20 border border-[var(--gold)]/25 text-[var(--gold)] text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
           >
             + Plinth Unit
           </button>
@@ -1016,7 +1016,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               </button>
               <button 
                 onClick={handleAddCabinet}
-                className="flex-1 bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-slate-950 font-bold py-1.5 rounded transition"
+                className="flex-1 bg-[var(--gold)] hover:bg-[var(--gold)]/90 text-slate-950 font-bold py-1.5 rounded transition"
               >
                 Place Unit
               </button>
@@ -1059,7 +1059,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           onClick={() => {
             if (onComplete) onComplete();
           }}
-          className="w-full mt-auto py-3 bg-[#D4AF37] hover:bg-[#D4AF37]/95 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl transition shadow-lg shadow-[#D4AF37]/5 shrink-0"
+          className="w-full mt-auto py-3 bg-[var(--gold)] hover:bg-[var(--gold)]/95 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl transition shadow-lg shadow-[var(--gold)]/5 shrink-0"
         >
           Proceed to Materials <ArrowRight className="w-4 h-4" />
         </button>
@@ -1067,7 +1067,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
       {/* Column 5: Render → Elevation + Jali Panel Generator (wired DXF pipeline) */}
       <div className="xl:col-span-4 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">
-        <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] flex items-center gap-2">
+        <h2 className="text-sm font-extrabold uppercase tracking-wider text-[var(--gold)] flex items-center gap-2">
           <Package className="w-4.5 h-4.5" /> CNC Elevation Generator
         </h2>
         <p className="text-[10px] text-slate-400 leading-relaxed">
@@ -1105,7 +1105,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           <button
             onClick={() => handleGenerateFromRenders()}
             disabled={genLoading}
-            className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
+            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
           >
             {genLoading ? 'Generating…' : 'Generate All Unit Elevations (DXF + PDF)'}
           </button>
@@ -1125,7 +1125,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         </div>
 
         <div className="border-t border-slate-800 pt-3 flex flex-col gap-2">
-          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Jali / Lattice Panel (cut-through CNC)</label>
+          <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Jali / Lattice Panel (cut-through CNC)</label>
           <div className="flex gap-2">
             <div className="flex flex-col gap-1 flex-1">
               <span className="text-[9px] text-slate-500 uppercase">Width mm</span>
@@ -1139,7 +1139,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           <button
             onClick={handleGenerateJali}
             disabled={jaliLoading}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#D4AF37] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[var(--gold)] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
           >
             {jaliLoading ? 'Cutting…' : 'Generate Jali Panel (DXF + PDF)'}
           </button>
@@ -1155,7 +1155,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         </div>
 
         <div className="border-t border-slate-800 pt-3 flex flex-col gap-2">
-          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">Shoe Rack / Entry Cabinet (photo-accurate, standard dims)</label>
+          <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Shoe Rack / Entry Cabinet (photo-accurate, standard dims)</label>
           <div className="grid grid-cols-3 gap-2">
             <div className="flex flex-col gap-1">
               <span className="text-[9px] text-slate-500 uppercase">Tall W mm</span>
@@ -1192,13 +1192,13 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               </select>
             </div>
             <label className="flex items-center gap-1.5 text-[10px] text-slate-300 mt-4">
-              <input type="checkbox" checked={shoeLed} onChange={e => setShoeLed(e.target.checked)} className="accent-[#D4AF37]" /> LED strip
+              <input type="checkbox" checked={shoeLed} onChange={e => setShoeLed(e.target.checked)} className="accent-[var(--gold)]" /> LED strip
             </label>
           </div>
           <button
             onClick={handleGenerateShoeRack}
             disabled={shoeLoading}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#D4AF37] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[var(--gold)] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
           >
             {shoeLoading ? 'Generating…' : 'Generate Shoe Rack (DXF + PDF)'}
           </button>
