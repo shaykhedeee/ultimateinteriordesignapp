@@ -9,7 +9,7 @@ import {
 
 const BROCHURES = [
   { brand: 'CenturyPly', title: 'CenturyLaminates 2026 Collection', pages: 84, color: '#7c3aed' },
-  { brand: 'Royale Touche', title: 'Premium Luxury Finishes Vol. IV', pages: 120, color: '#D4AF37' },
+  { brand: 'Royale Touche', title: 'Premium Luxury Finishes Vol. IV', pages: 120, color: 'var(--gold)' },
   { brand: 'Blum', title: 'Kitchen Fittings & Motion Systems 2026', pages: 210, color: '#2563eb' },
   { brand: 'Hettich', title: 'InnoTech Atira Organizers Catalogue', pages: 95, color: '#059669' },
   { brand: 'Greenlam', title: 'Greenlam Stones & Decorative Surfaces', pages: 160, color: '#dc2626' },
@@ -19,7 +19,7 @@ const BROCHURES = [
 const TYPE_LABELS = {
   carcass_interior: { label: 'Carcass', color: 'text-slate-400', bg: 'bg-slate-800/50' },
   shutter_facade: { label: 'Shutter', color: 'text-blue-400', bg: 'bg-blue-950/30' },
-  premium_highlight: { label: 'Premium', color: 'text-[#D4AF37]', bg: 'bg-[#D4AF37]/10' },
+  premium_highlight: { label: 'Premium', color: 'text-[var(--gold)]', bg: 'bg-[var(--gold)]/10' },
 };
 
 export default function MaterialCatalogScreen({ projectId, onComplete }) {
@@ -404,7 +404,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const renderStars = (rating) => (
     <div className="flex gap-0.5">
       {[1,2,3,4,5].map(s => (
-        <Star key={s} className={`w-2.5 h-2.5 ${s <= Math.round(rating) ? 'text-[#D4AF37] fill-[#D4AF37]' : 'text-slate-700'}`} />
+        <Star key={s} className={`w-2.5 h-2.5 ${s <= Math.round(rating) ? 'text-[var(--gold)] fill-[var(--gold)]' : 'text-slate-700'}`} />
       ))}
     </div>
   );
@@ -420,7 +420,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           </span>
           <button 
             onClick={handleRegeneratePricing}
-            className="bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
+            className="bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
           >
             Regenerate Pricing
           </button>
@@ -434,13 +434,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           <div className="flex-shrink-0 p-4 border-b border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-                <Palette className="w-4 h-4 text-[#D4AF37]" />
+                <Palette className="w-4 h-4 text-[var(--gold)]" />
                 Laminates & Veneers
-                <span className="text-[9px] bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedLaminates.length} sel.</span>
+                <span className="text-[9px] bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedLaminates.length} sel.</span>
               </h2>
               <button 
                 onClick={() => setShowAddLaminateForm(!showAddLaminateForm)}
-                className="bg-slate-950 border border-slate-800 hover:border-[#D4AF37]/35 text-[#D4AF37] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
+                className="bg-slate-950 border border-slate-800 hover:border-[var(--gold)]/35 text-[var(--gold)] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
               >
                 {showAddLaminateForm ? 'View Catalog' : '+ Add Swatch'}
               </button>
@@ -484,7 +484,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                     <option value="premium_highlight">Premium Finish</option>
                   </select>
                 </div>
-                <button type="submit" className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
+                <button type="submit" className="w-full py-1.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
                   Create Swatch
                 </button>
               </form>
@@ -495,13 +495,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                   <input
                     type="text" placeholder="Search finishes..."
                     value={laminateSearch} onChange={e => setLaminateSearch(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40 placeholder:text-slate-600"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]/40 placeholder:text-slate-600"
                   />
                 </div>
                 <select
                   value={laminateTypeFilter}
                   onChange={e => setLaminateTypeFilter(e.target.value)}
-                  className="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-300 outline-none focus:border-[#D4AF37]/40 cursor-pointer shrink-0"
+                  className="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-300 outline-none focus:border-[var(--gold)]/40 cursor-pointer shrink-0"
                 >
                   <option value="all">All Types</option>
                   <option value="carcass_interior">Carcass</option>
@@ -522,7 +522,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                   onClick={() => toggleLaminate(item)}
                   className={`material-swatch p-3 rounded-xl border cursor-pointer transition flex items-center gap-3 relative group ${
                     isSelected
-                      ? 'bg-slate-800/90 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5'
+                      ? 'bg-slate-800/90 border-[var(--gold)]/50 shadow-md shadow-[var(--gold)]/5'
                       : 'bg-slate-950/60 border-slate-800/70 hover:border-slate-700'
                   }`}
                 >
@@ -550,7 +550,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       </span>
                       <div className="flex items-center gap-1.5">
                         {renderStars(item.rating || 4.8)}
-                        <span className="text-[9px] text-[#D4AF37] font-bold font-mono">₹{item.pricePerSqft}/sqft</span>
+                        <span className="text-[9px] text-[var(--gold)] font-bold font-mono">₹{item.pricePerSqft}/sqft</span>
                       </div>
                     </div>
                   </div>
@@ -574,13 +574,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           <div className="flex-shrink-0 p-4 border-b border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[#D4AF37]" />
+                <Layers className="w-4 h-4 text-[var(--gold)]" />
                 Hardware & Fittings
-                <span className="text-[9px] bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedHardware.length} sel.</span>
+                <span className="text-[9px] bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedHardware.length} sel.</span>
               </h2>
               <button 
                 onClick={() => setShowAddHwForm(!showAddHwForm)}
-                className="bg-slate-950 border border-slate-800 hover:border-[#D4AF37]/35 text-[#D4AF37] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
+                className="bg-slate-950 border border-slate-800 hover:border-[var(--gold)]/35 text-[var(--gold)] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
               >
                 {showAddHwForm ? 'View Catalog' : '+ Add Fitting'}
               </button>
@@ -626,7 +626,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                     className="bg-slate-900 border border-slate-800 rounded p-1.5 text-slate-200 outline-none col-span-2"
                   />
                 </div>
-                <button type="submit" className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
+                <button type="submit" className="w-full py-1.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
                   Create Fitting
                 </button>
               </form>
@@ -636,7 +636,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                 <input
                   type="text" placeholder="Search hardware..."
                   value={hwSearch} onChange={e => setHwSearch(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40 placeholder:text-slate-600"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]/40 placeholder:text-slate-600"
                 />
               </div>
             )}
@@ -651,20 +651,20 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                   onClick={() => toggleHardware(item)}
                   className={`p-3.5 rounded-xl border cursor-pointer transition flex flex-col gap-1.5 relative group ${
                     isSelected
-                      ? 'bg-slate-800/90 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5'
+                      ? 'bg-slate-800/90 border-[var(--gold)]/50 shadow-md shadow-[var(--gold)]/5'
                       : 'bg-slate-950/60 border-slate-800/70 hover:border-slate-700'
                   }`}
                 >
                   <div className="flex justify-between items-start gap-2 pr-4">
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center gap-2">
-                        {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />}
+                        {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[var(--gold)] shrink-0" />}
                         <strong className="text-xs text-slate-200 leading-tight truncate">{item.name}</strong>
                       </div>
                       <span className="text-[10px] text-slate-400 block mt-0.5">{item.brand} · {item.subcategory.replace('_', ' ').toUpperCase()}</span>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-[10px] font-bold text-[#D4AF37] font-mono block">₹{item.pricePerSqft || item.price || 0}</span>
+                      <span className="text-[10px] font-bold text-[var(--gold)] font-mono block">₹{item.pricePerSqft || item.price || 0}</span>
                       <span className="text-[9px] text-slate-500">per unit</span>
                     </div>
                   </div>
@@ -691,19 +691,19 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           {/* Selection Summary */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-4">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-[#D4AF37]" />
+              <ShoppingBag className="w-4 h-4 text-[var(--gold)]" />
               Selection Summary
             </h3>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-center">
                 <span className="text-[9px] text-slate-500 block font-bold uppercase tracking-wider">Laminates</span>
-                <strong className="text-[#D4AF37] text-2xl block">{selectedLaminates.length}</strong>
+                <strong className="text-[var(--gold)] text-2xl block">{selectedLaminates.length}</strong>
                 <span className="text-slate-500 text-[9px]">of {laminateCatalog.length} active</span>
               </div>
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-center">
                 <span className="text-[9px] text-slate-500 block font-bold uppercase tracking-wider">Hardware</span>
-                <strong className="text-[#D4AF37] text-2xl block">{selectedHardware.length}</strong>
+                <strong className="text-[var(--gold)] text-2xl block">{selectedHardware.length}</strong>
                 <span className="text-slate-500 text-[9px]">of {hardwareCatalog.length} active</span>
               </div>
             </div>
@@ -718,7 +718,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       key={lam.id || lam.code}
                       onClick={() => toggleLaminate(lam)}
                       title={lam.name}
-                      className="w-7 h-7 rounded-lg border-2 border-[#D4AF37]/40 cursor-pointer hover:scale-110 transition-transform relative group"
+                      className="w-7 h-7 rounded-lg border-2 border-[var(--gold)]/40 cursor-pointer hover:scale-110 transition-transform relative group"
                       style={{ backgroundColor: lam.color }}
                     >
                       <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-[9px] text-slate-200 px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition z-10 pointer-events-none">
@@ -734,7 +734,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
             <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3.5 space-y-3">
               <div className="flex justify-between items-center cursor-pointer font-bold text-slate-350 text-[11px]" onClick={() => setShowCostEstimator(!showCostEstimator)}>
                 <span className="flex items-center gap-1.5">
-                  <Calculator className="w-3.5 h-3.5 text-[#D4AF37]" /> Material Cost Projector
+                  <Calculator className="w-3.5 h-3.5 text-[var(--gold)]" /> Material Cost Projector
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showCostEstimator ? 'rotate-180' : ''}`} />
               </div>
@@ -760,7 +760,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       <span>Est. Hardware Cost ({selectedHardware.length} items):</span>
                       <span>₹{Math.round(estimatedMaterialCost.hwCost).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-[#D4AF37] border-t border-slate-850 pt-1.5 text-[11px]">
+                    <div className="flex justify-between font-bold text-[var(--gold)] border-t border-slate-850 pt-1.5 text-[11px]">
                       <span>Total Estimated Cost:</span>
                       <span>₹{Math.round(estimatedMaterialCost.total).toLocaleString()}</span>
                     </div>
@@ -772,7 +772,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
             {/* Quotation Builder Toggle */}
             <button
               onClick={() => setShowQuotationBuilder(!showQuotationBuilder)}
-              className="w-full flex items-center justify-between px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-xl text-[11px] font-bold text-slate-300 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 transition"
+              className="w-full flex items-center justify-between px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-xl text-[11px] font-bold text-slate-300 hover:text-[var(--gold)] hover:border-[var(--gold)]/30 transition"
             >
               <span className="flex items-center gap-1.5"><Calculator className="w-3.5 h-3.5" /> Itemized Quotation Builder</span>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQuotationBuilder ? 'rotate-180' : ''}`} />
@@ -782,7 +782,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
               <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 space-y-4 slide-up">
                 {/* Add Item Form */}
                 <div className="space-y-2.5 p-2.5 bg-slate-900/60 border border-slate-850 rounded-lg">
-                  <span className="text-[9px] text-[#D4AF37] font-bold uppercase tracking-wider block">Add Room Estimate</span>
+                  <span className="text-[9px] text-[var(--gold)] font-bold uppercase tracking-wider block">Add Room Estimate</span>
                   
                   <div className="grid grid-cols-2 gap-2 text-[10px]">
                     <select 
@@ -803,7 +803,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                         type="checkbox" 
                         checked={isLumpSum} 
                         onChange={e => setIsLumpSum(e.target.checked)} 
-                        className="accent-[#D4AF37]" 
+                        className="accent-[var(--gold)]" 
                       />
                       Lump Sum Rate
                     </label>
@@ -855,7 +855,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
                   <button
                     onClick={addQuoteItem}
-                    className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 text-[10px] font-bold rounded uppercase transition"
+                    className="w-full py-1.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 text-[10px] font-bold rounded uppercase transition"
                   >
                     + Add to Bill
                   </button>
@@ -907,13 +907,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       type="checkbox"
                       checked={isGstEnabled}
                       onChange={e => setIsGstEnabled(e.target.checked)}
-                      className="accent-[#D4AF37] rounded cursor-pointer"
+                      className="accent-[var(--gold)] rounded cursor-pointer"
                     />
                   </div>
 
                   <div className="border-t border-slate-800/80 pt-2 flex justify-between font-bold">
                     <span className="text-slate-200">Grand Total</span>
-                    <span className="text-[#D4AF37] font-mono text-sm">₹{Math.round(grandTotal).toLocaleString()}</span>
+                    <span className="text-[var(--gold)] font-mono text-sm">₹{Math.round(grandTotal).toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -941,7 +941,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                     </button>
                     <button
                       onClick={exportQuotationPDF}
-                      className="flex-1 py-2 bg-slate-900 hover:bg-slate-850 border border-[#D4AF37]/35 text-[#D4AF37] text-[10px] font-bold rounded uppercase flex items-center justify-center gap-1 transition"
+                      className="flex-1 py-2 bg-slate-900 hover:bg-slate-850 border border-[var(--gold)]/35 text-[var(--gold)] text-[10px] font-bold rounded uppercase flex items-center justify-center gap-1 transition"
                     >
                       <Download className="w-3.5 h-3.5" /> PDF Proposal
                     </button>
@@ -959,7 +959,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows="3"
-                className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40 resize-none"
+                className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]/40 resize-none"
                 placeholder="Specify grain direction, edgeband thickness preferences, room assignments..."
               />
             </div>
@@ -971,7 +971,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
               className={`w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition ${
                 saveSuccess
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-gradient-to-r from-[#D4AF37] to-[#AA8C2C] hover:from-[#e8c94a] hover:to-[#c4a030] text-slate-950'
+                  : 'bg-gradient-to-r from-[var(--gold)] to-[#AA8C2C] hover:from-[#e8c94a] hover:to-[#c4a030] text-slate-950'
               }`}
             >
               {saveSuccess
@@ -986,7 +986,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           {/* Digital Brochure Library */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-[#D4AF37]" />
+              <BookOpen className="w-4 h-4 text-[var(--gold)]" />
               Digital Brochure Library
             </h3>
             <div className="space-y-2">
@@ -1001,7 +1001,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       <span className="text-[9px] text-slate-500">{br.brand} · {br.pages}pg</span>
                     </div>
                   </div>
-                  <button className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-[#D4AF37] transition opacity-0 group-hover:opacity-100">
+                  <button className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-[var(--gold)] transition opacity-0 group-hover:opacity-100">
                     <Download className="w-3.5 h-3.5" />
                   </button>
                 </div>

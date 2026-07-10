@@ -541,7 +541,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           <p className="text-[10px] text-slate-500 mt-0.5">End-to-end plan to design to render to drawings to BOM</p>
         </div>
         <div className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 border border-slate-850 px-3 py-1 rounded-xl">
-          STEP: <span className="text-[#D4AF37] uppercase">{wizardStep.replace('_', ' ')}</span>
+          STEP: <span className="text-[var(--gold)] uppercase">{wizardStep.replace('_', ' ')}</span>
         </div>
       </div>
 
@@ -558,7 +558,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           />
           <button 
             onClick={() => setWizardStep('upload')}
-            className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] px-5 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition shadow-md shadow-[#D4AF37]/15 block w-full"
+            className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] px-5 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition shadow-md shadow-[var(--gold)]/15 block w-full"
           >
             Create Project & Continue
           </button>
@@ -568,14 +568,14 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       {/* STEP 2: File Upload */}
       {wizardStep === 'upload' && (
         <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-3xl p-10 bg-slate-950/40 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--gold)]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37]">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--gold)]/10 border border-[var(--gold)]/30 flex items-center justify-center text-[var(--gold)]">
             <Upload className="w-5 h-5" />
           </div>
           <div className="text-center">
             <strong className="text-xs text-slate-200 block">Upload Floor Plan Blueprint for "{projectName}"</strong>
             <span className="text-[10px] text-slate-500 mt-1 block font-bold uppercase">Click or Drag CAD DXF, PDF, or PNG layout plan</span>
           </div>
-          <label className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] font-black uppercase text-[10px] tracking-wider py-2 px-5 rounded-xl cursor-pointer transition shadow-md shadow-[#D4AF37]/10">
+          <label className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] font-black uppercase text-[10px] tracking-wider py-2 px-5 rounded-xl cursor-pointer transition shadow-md shadow-[var(--gold)]/10">
             Select Blueprint
             <input type="file" onChange={handleUpload} className="hidden" accept="image/*,application/pdf" />
           </label>
@@ -609,7 +609,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   setIsEnhanced(true);
                   triggerLoading('scale_calibrate', 'AI Top View Enhancement pipeline running...');
                 }}
-                className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-md shadow-[#D4AF37]/10"
+                className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-md shadow-[var(--gold)]/10"
               >
                 Enhance top view
               </button>
@@ -918,7 +918,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   setSelectedZoneToRender(zone.name);
                   triggerLoading('detection_done', 'Detecting objects in the layout — one moment.');
                 }}
-                className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[#D4AF37]/50 hover:bg-[var(--gold)]/2 transition cursor-pointer text-slate-300"
+                className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[var(--gold)]/50 hover:bg-[var(--gold)]/2 transition cursor-pointer text-slate-300"
               >
                 {zone.name}
               </button>
@@ -941,7 +941,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     <strong className="text-slate-200">{obj.assigned}</strong>
                   </div>
                   <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${
-                    obj.matched ? 'bg-emerald-950/40 text-emerald-400' : 'bg-[var(--gold)]/10 text-[#D4AF37]'
+                    obj.matched ? 'bg-emerald-950/40 text-emerald-400' : 'bg-[var(--gold)]/10 text-[var(--gold)]'
                   }`}>
                     {obj.matched ? 'Auto Matched' : 'Awaiting Assign'}
                   </span>
@@ -951,7 +951,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           </div>
           <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-2xl space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
-              <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider block">Assign Products / Style Preset</span>
+              <span className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-wider block">Assign Products / Style Preset</span>
               <p className="text-[11px] text-slate-400">Detection finished. Assign products to detected objects, or add a style/product board reference.</p>
               
               <div className="flex flex-col gap-2 pt-2">
@@ -968,7 +968,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     }}
                     className={`w-full py-2 rounded-xl text-xs font-semibold tracking-wide transition ${
                       assignMode === mode.id 
-                        ? 'bg-[var(--gold)]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
+                        ? 'bg-[var(--gold)]/15 border border-[var(--gold)]/50 text-[var(--gold)]'
                         : 'bg-slate-950 border border-slate-850 text-slate-350 hover:text-slate-200'
                     }`}
                   >
@@ -1004,9 +1004,9 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                 setCameraView('perspective');
                 triggerLoading('render_ready', 'Rendering photorealistic perspective viewpoint...');
               }}
-              className="py-3 bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
+              className="py-3 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >
-              <Compass className="w-5 h-5 text-[#D4AF37]" />
+              <Compass className="w-5 h-5 text-[var(--gold)]" />
               <span className="text-xs font-semibold tracking-wide">Perspective View</span>
             </button>
             <button 
@@ -1014,9 +1014,9 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                 setCameraView('isometric');
                 triggerLoading('render_ready', 'Rendering isometric 3D spatial viewpoint...');
               }}
-              className="py-3 bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
+              className="py-3 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >
-              <Grid className="w-5 h-5 text-[#D4AF37]" />
+              <Grid className="w-5 h-5 text-[var(--gold)]" />
               <span className="text-xs font-semibold tracking-wide">Isometric View</span>
             </button>
           </div>
@@ -1039,7 +1039,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                 alt="Stunning 3D Render Output" 
                 className="w-full h-full object-cover" 
               />
-              <div className="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl text-[9px] font-mono text-[#D4AF37] font-bold uppercase tracking-widest shadow-lg">
+              <div className="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl text-[9px] font-mono text-[var(--gold)] font-bold uppercase tracking-widest shadow-lg">
                 StudioOS AI Render v2
               </div>
             </div>
@@ -1048,12 +1048,12 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           {/* Action List Checklist Panel */}
           <div className="bg-slate-900/30 border border-slate-850 p-5 rounded-3xl space-y-4 flex flex-col justify-between">
             <div className="space-y-3">
-              <h4 className="text-[11px] font-black text-[#D4AF37] uppercase tracking-wider border-b border-slate-800 pb-1.5">
+              <h4 className="text-[11px] font-black text-[var(--gold)] uppercase tracking-wider border-b border-slate-800 pb-1.5">
                 Render ready — choose what you want to do next.
               </h4>
               
               {actionProgress && (
-                <div className="flex items-center gap-2 p-2 bg-[var(--gold)]/10 border border-[#D4AF37]/25 rounded-xl text-[10px] text-[#D4AF37] animate-pulse">
+                <div className="flex items-center gap-2 p-2 bg-[var(--gold)]/10 border border-[var(--gold)]/25 rounded-xl text-[10px] text-[var(--gold)] animate-pulse">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   <span>Processing request queue: {selectedAction}...</span>
                 </div>
@@ -1075,7 +1075,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   <button
                     key={act.key}
                     onClick={() => handleRunNextAction(act.key)}
-                    className="p-2.5 bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/50 rounded-xl text-center font-bold text-slate-300 hover:text-slate-100 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    className="p-2.5 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/50 rounded-xl text-center font-bold text-slate-300 hover:text-slate-100 transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                     {act.label}
@@ -1097,7 +1097,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       {/* STEP LOADING SCREEN */}
       {wizardStep === 'loading' && (
         <div className="flex flex-col items-center justify-center p-16 text-center space-y-4">
-          <RefreshCw className="w-8 h-8 animate-spin text-[#D4AF37]" />
+          <RefreshCw className="w-8 h-8 animate-spin text-[var(--gold)]" />
           <div>
             <strong className="text-xs text-slate-200 block">Orchestrating AI Pipeline</strong>
             <span className="text-[10px] text-slate-500 mt-1 block font-mono animate-pulse">{loaderMessage}</span>
@@ -1213,7 +1213,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
           <button 
             onClick={handleGenerate}
             disabled={generating}
-            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[#D4AF37]/10 flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[var(--gold)]/10 flex items-center justify-center gap-1.5"
           >
             {generating ? (
               <>
@@ -1233,8 +1233,8 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
         <div className="lg:col-span-2 flex flex-col justify-between bg-slate-900/20 border border-slate-850 rounded-2xl p-4 min-h-[340px]">
           {generating ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-3">
-              <RefreshCw className="w-8 h-8 animate-spin text-[#D4AF37]" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#D4AF37] animate-pulse">Running Multi-Stage AI Generation Pipeline...</span>
+              <RefreshCw className="w-8 h-8 animate-spin text-[var(--gold)]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--gold)] animate-pulse">Running Multi-Stage AI Generation Pipeline...</span>
             </div>
           ) : generatedResult ? (
             <div className="flex-1 flex flex-col justify-between space-y-3">
@@ -1251,7 +1251,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
                 </div>
                 <button 
                   onClick={() => onNavigateToTab('renders')}
-                  className="bg-[var(--gold)]/10 border border-[#D4AF37]/35 text-[#D4AF37] px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide hover:bg-[var(--gold)]/20 transition"
+                  className="bg-[var(--gold)]/10 border border-[var(--gold)]/35 text-[var(--gold)] px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide hover:bg-[var(--gold)]/20 transition"
                 >
                   Promote to Design Studio
                 </button>
@@ -1362,7 +1362,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
           <button 
             onClick={handleSubmitPatch}
             disabled={editing || !photo}
-            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[#D4AF37]/10 flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition shadow-lg shadow-[var(--gold)]/10 flex items-center justify-center gap-1.5"
           >
             {editing ? (
               <>
@@ -1382,8 +1382,8 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
         <div className="lg:col-span-2 flex flex-col justify-between bg-slate-900/20 border border-slate-850 rounded-2xl p-4 min-h-[340px] items-center justify-center">
           {editing ? (
             <div className="flex flex-col items-center justify-center text-slate-500 gap-3 py-16">
-              <RefreshCw className="w-8 h-8 animate-spin text-[#D4AF37]" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#D4AF37] animate-pulse">Running Inpainting & Mask-Guided Rendering Job...</span>
+              <RefreshCw className="w-8 h-8 animate-spin text-[var(--gold)]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--gold)] animate-pulse">Running Inpainting & Mask-Guided Rendering Job...</span>
             </div>
           ) : result ? (
             <div className="w-full flex flex-col justify-between space-y-3">
@@ -1400,7 +1400,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
                 </div>
                 <button 
                   onClick={() => onNavigateToTab('materials')}
-                  className="bg-[var(--gold)]/10 border border-[#D4AF37]/35 text-[#D4AF37] px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide hover:bg-[var(--gold)]/20 transition"
+                  className="bg-[var(--gold)]/10 border border-[var(--gold)]/35 text-[var(--gold)] px-3.5 py-1.5 rounded-xl text-xs font-semibold tracking-wide hover:bg-[var(--gold)]/20 transition"
                 >
                   View Material Schedule
                 </button>
@@ -1413,7 +1413,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
                 
                 {/* Bounding box marker overlay */}
                 <div 
-                  className="absolute border-2 border-dashed border-[#D4AF37] bg-[var(--gold)]/10 rounded shadow-lg"
+                  className="absolute border-2 border-dashed border-[var(--gold)] bg-[var(--gold)]/10 rounded shadow-lg"
                   style={{
                     left: `${(coordinates.x1 / 600) * 100}%`,
                     top: `${(coordinates.y1 / 400) * 100}%`,
@@ -1578,7 +1578,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
           </button>
           <button 
             onClick={handleLockAndPromote}
-            className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] px-4 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition shadow-md shadow-[#D4AF37]/10"
+            className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] px-4 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition shadow-md shadow-[var(--gold)]/10"
           >
             Promote to Scene
           </button>
@@ -1602,7 +1602,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
                 onClick={() => { setSelectedTool(t.id); setWallStart(null); }}
                 className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition ${
                   selectedTool === t.id
-                    ? 'bg-[var(--gold)]/10 border-[#D4AF37]/50 text-[#D4AF37]'
+                    ? 'bg-[var(--gold)]/10 border-[var(--gold)]/50 text-[var(--gold)]'
                     : 'bg-slate-950/20 border-slate-850 hover:border-slate-800 text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -1659,7 +1659,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
                   width="80"
                   height="60"
                   fill="rgba(212, 175, 55, 0.15)"
-                  stroke="#D4AF37"
+                  stroke="var(--gold)"
                   strokeWidth="2"
                   rx="4"
                 />
@@ -1910,7 +1910,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
           <button 
             onClick={() => setSelectedSubTab('parametric')}
             className={`py-1 px-3 rounded-lg uppercase tracking-wider transition ${
-              selectedSubTab === 'parametric' ? 'bg-slate-950 text-[#D4AF37] border border-slate-850' : 'text-slate-400 hover:text-slate-200'
+              selectedSubTab === 'parametric' ? 'bg-slate-950 text-[var(--gold)] border border-slate-850' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Parametric Config
@@ -1918,7 +1918,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
           <button 
             onClick={() => setSelectedSubTab('catalog')}
             className={`py-1 px-3 rounded-lg uppercase tracking-wider transition ${
-              selectedSubTab === 'catalog' ? 'bg-slate-950 text-[#D4AF37] border border-slate-850' : 'text-slate-400 hover:text-slate-200'
+              selectedSubTab === 'catalog' ? 'bg-slate-950 text-[var(--gold)] border border-slate-850' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             Catalog Browser
@@ -1939,7 +1939,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                   onClick={() => setSelectedModule(item)}
                   className={`w-full p-2.5 rounded-xl border text-left flex flex-col gap-1 transition ${
                     selectedModule.key === item.key 
-                      ? 'bg-[var(--gold)]/10 border-[#D4AF37]/50 text-[#D4AF37]' 
+                      ? 'bg-[var(--gold)]/10 border-[var(--gold)]/50 text-[var(--gold)]' 
                       : 'bg-slate-950/20 border-slate-850 hover:border-slate-800 text-slate-350 hover:text-slate-200'
                   }`}
                 >
@@ -1960,7 +1960,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
             <div className="flex flex-col justify-between bg-slate-950 rounded-xl p-3 border border-slate-850">
               <div className="flex justify-between items-center text-[9px] text-slate-500 font-bold uppercase tracking-wider px-1">
                 <span>3D Wireframe Sandbox</span>
-                <span className="font-mono text-[#D4AF37]">{width} × {height} × {depth} mm</span>
+                <span className="font-mono text-[var(--gold)]">{width} × {height} × {depth} mm</span>
               </div>
               <div className="flex items-center justify-center py-6">
                 <canvas ref={canvasRef} width="240" height="200" className="bg-slate-950 rounded" />
@@ -1987,7 +1987,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     step="50"
                     value={width} 
                     onChange={e => setWidth(parseInt(e.target.value))} 
-                    className="w-full accent-[#D4AF37] bg-slate-800 h-1 rounded-full cursor-pointer"
+                    className="w-full accent-[var(--gold)] bg-slate-800 h-1 rounded-full cursor-pointer"
                   />
                 </div>
 
@@ -2003,7 +2003,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     step="50"
                     value={height} 
                     onChange={e => setHeight(parseInt(e.target.value))} 
-                    className="w-full accent-[#D4AF37] bg-slate-800 h-1 rounded-full cursor-pointer"
+                    className="w-full accent-[var(--gold)] bg-slate-800 h-1 rounded-full cursor-pointer"
                   />
                 </div>
 
@@ -2019,7 +2019,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     step="50"
                     value={depth} 
                     onChange={e => setDepth(parseInt(e.target.value))} 
-                    className="w-full accent-[#D4AF37] bg-slate-800 h-1 rounded-full cursor-pointer"
+                    className="w-full accent-[var(--gold)] bg-slate-800 h-1 rounded-full cursor-pointer"
                   />
                 </div>
               </div>
@@ -2064,15 +2064,15 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     <span>{shutterSqft} SQFT</span>
                   </div>
                   <div className="flex justify-between border-t border-slate-850/60 pt-1 text-xs font-bold text-slate-200">
-                    <span className="text-[#D4AF37]">Total estimated cost:</span>
-                    <span className="text-[#D4AF37] flex items-center"><IndianRupee className="w-3 h-3" /> {totalBOMCost}</span>
+                    <span className="text-[var(--gold)]">Total estimated cost:</span>
+                    <span className="text-[var(--gold)] flex items-center"><IndianRupee className="w-3 h-3" /> {totalBOMCost}</span>
                   </div>
                 </div>
               </div>
 
               <button
                 onClick={handleAddToScene}
-                className="w-full bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition shadow-md shadow-[#D4AF37]/10"
+                className="w-full bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] py-2 rounded-xl text-xs font-bold tracking-wide uppercase transition shadow-md shadow-[var(--gold)]/10"
               >
                 Save & Add to Scene
               </button>
@@ -2123,7 +2123,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                 return true;
               })
               .map((item, idx) => (
-                <div key={idx} className="bg-slate-900/40 border border-slate-850 rounded-2xl p-3 flex flex-col justify-between hover:border-[#D4AF37]/50 transition">
+                <div key={idx} className="bg-slate-900/40 border border-slate-850 rounded-2xl p-3 flex flex-col justify-between hover:border-[var(--gold)]/50 transition">
                   <div className="space-y-2">
                     <div className="w-full h-28 rounded-xl overflow-hidden bg-slate-950 border border-slate-850">
                       <img src="https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80" alt={item.name} className="w-full h-full object-cover opacity-85" />
@@ -2136,7 +2136,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                   </div>
 
                   <div className="flex justify-between items-center border-t border-slate-850 pt-2.5 mt-3">
-                    <span className="text-[10px] font-mono text-[#D4AF37] font-bold">{item.w} × {item.h} × {item.d} mm</span>
+                    <span className="text-[10px] font-mono text-[var(--gold)] font-bold">{item.w} × {item.h} × {item.d} mm</span>
                     <button 
                       onClick={() => {
                         setSelectedModule(item);
@@ -2454,7 +2454,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition ${
                 selectedCategory === cat
-                  ? 'bg-[var(--gold)]/15 border border-[#D4AF37]/50 text-[#D4AF37]'
+                  ? 'bg-[var(--gold)]/15 border border-[var(--gold)]/50 text-[var(--gold)]'
                   : 'bg-slate-900 border border-slate-850 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -2473,11 +2473,11 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
               setActiveTool(t);
               setToolResult(null);
             }}
-            className="bg-slate-900/40 border border-slate-850 hover:border-[#D4AF37]/50 p-4 rounded-2xl flex flex-col justify-between transition cursor-pointer hover:bg-[var(--gold)]/2 text-left"
+            className="bg-slate-900/40 border border-slate-850 hover:border-[var(--gold)]/50 p-4 rounded-2xl flex flex-col justify-between transition cursor-pointer hover:bg-[var(--gold)]/2 text-left"
           >
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-slate-800 text-[#D4AF37] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-slate-950/80 border border-slate-800 text-[var(--gold)] flex items-center justify-center">
                   {getToolIcon(t.icon)}
                 </div>
                 <div>
@@ -2490,7 +2490,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
             <div className="border-t border-slate-850/60 pt-2.5 mt-3 flex items-center justify-between text-[8px] font-mono text-slate-500">
               <span>IN: {t.inputs}</span>
-              <span className="text-[#D4AF37] font-bold">Configure →</span>
+              <span className="text-[var(--gold)] font-bold">Configure →</span>
             </div>
           </div>
         ))}
@@ -2504,7 +2504,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-slate-850 pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[var(--gold)]/10 border border-[#D4AF37]/30 text-[#D4AF37] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--gold)]/10 border border-[var(--gold)]/30 text-[var(--gold)] flex items-center justify-center">
                   {getToolIcon(activeTool.icon)}
                 </div>
                 <div>
@@ -2528,7 +2528,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
               </div>
               <div>
                 <span className="text-slate-600 block uppercase text-[8px] tracking-wider">Outputs Produced</span>
-                <span className="text-[#D4AF37] font-bold">{activeTool.outputs}</span>
+                <span className="text-[var(--gold)] font-bold">{activeTool.outputs}</span>
               </div>
               <div className="col-span-2 border-t border-slate-850/60 pt-1.5 mt-1.5">
                 <span className="text-slate-600 block uppercase text-[8px] tracking-wider">Pipeline Update Behavior</span>
@@ -2556,7 +2556,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                         onClick={() => setLightPreset(p.id)}
                         className={`p-2 rounded-xl border text-center transition flex flex-col gap-0.5 cursor-pointer ${
                           lightPreset === p.id 
-                            ? 'bg-[var(--gold)]/15 border-[#D4AF37]/60 text-[#D4AF37] font-bold' 
+                            ? 'bg-[var(--gold)]/15 border-[var(--gold)]/60 text-[var(--gold)] font-bold' 
                             : 'bg-slate-950/40 border-slate-850 hover:border-slate-800 text-slate-400'
                         }`}
                       >
@@ -2573,7 +2573,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-[10px] text-slate-400 block font-bold uppercase">
                     <span>Ceiling Plotted Nodes</span>
-                    <span className="text-[#D4AF37] font-mono">{rcpItems.length} Nodes Placed</span>
+                    <span className="text-[var(--gold)] font-mono">{rcpItems.length} Nodes Placed</span>
                   </div>
                   <div className="flex gap-2">
                     {['Spotlight', 'Pendant', 'LED Strip'].map(type => (
@@ -2588,7 +2588,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                           };
                           setRcpItems([...rcpItems, newPt]);
                         }}
-                        className="bg-slate-950 border border-slate-850 hover:border-[#D4AF37]/40 px-3 py-1.5 rounded-xl text-[10px] text-slate-350 hover:text-slate-200 transition cursor-pointer"
+                        className="bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/40 px-3 py-1.5 rounded-xl text-[10px] text-slate-350 hover:text-slate-200 transition cursor-pointer"
                       >
                         + Add {type}
                       </button>
@@ -2635,7 +2635,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                         onClick={() => setSwatchType(s.id)}
                         className={`p-2 rounded-xl border text-center transition flex flex-col gap-0.5 cursor-pointer ${
                           swatchType === s.id 
-                            ? 'bg-[var(--gold)]/15 border-[#D4AF37]/60 text-[#D4AF37] font-bold' 
+                            ? 'bg-[var(--gold)]/15 border-[var(--gold)]/60 text-[var(--gold)] font-bold' 
                             : 'bg-slate-950/40 border-slate-850 hover:border-slate-800 text-slate-400'
                         }`}
                       >
@@ -2691,7 +2691,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
             <button
               onClick={handleRunTool}
               disabled={isRunning}
-              className="w-full py-3 bg-[var(--gold)] hover:bg-[var(--gold-bright)] disabled:bg-slate-800 disabled:text-slate-500 text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-[#D4AF37]/5 cursor-pointer"
+              className="w-full py-3 bg-[var(--gold)] hover:bg-[var(--gold-bright)] disabled:bg-slate-800 disabled:text-slate-500 text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-[var(--gold)]/5 cursor-pointer"
             >
               {isRunning ? (
                 <>
@@ -2709,8 +2709,8 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
             {/* Live Interactive Results Visualizer Area */}
             {isRunning && (
               <div className="h-40 rounded-2xl bg-slate-950 border border-slate-850/60 flex flex-col items-center justify-center text-slate-550 gap-2 animate-pulse">
-                <RefreshCw className="w-6 h-6 animate-spin text-[#D4AF37]" />
-                <span className="text-[8px] font-black uppercase tracking-widest text-[#D4AF37]">Synthesizing CAD & Spatial coordinates...</span>
+                <RefreshCw className="w-6 h-6 animate-spin text-[var(--gold)]" />
+                <span className="text-[8px] font-black uppercase tracking-widest text-[var(--gold)]">Synthesizing CAD & Spatial coordinates...</span>
               </div>
             )}
 
@@ -2729,7 +2729,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                         <span className="block opacity-60 text-[8px] uppercase">Shadow Multiplier</span>
                         <strong>0.85 (soft-edge)</strong>
                       </div>
-                      <div className="text-[10px] font-mono text-[#D4AF37] text-right">
+                      <div className="text-[10px] font-mono text-[var(--gold)] text-right">
                         <span className="block opacity-60 text-[8px] uppercase">Lighting State</span>
                         <strong>Live Preview</strong>
                       </div>
@@ -2749,8 +2749,8 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                       <rect width="100%" height="100%" fill="url(#rcpGrid)" />
                       {toolResult.layoutPoints.map((pt, idx) => (
                         <g key={pt.id} transform={`translate(${pt.x}, ${pt.y - 120})`}>
-                          <circle r="4" fill={pt.type === 'Spotlight' ? '#D4AF37' : pt.type === 'Pendant' ? '#f43f5e' : '#10b981'} className="animate-ping" />
-                          <circle r="3.5" fill={pt.type === 'Spotlight' ? '#D4AF37' : pt.type === 'Pendant' ? '#f43f5e' : '#10b981'} />
+                          <circle r="4" fill={pt.type === 'Spotlight' ? 'var(--gold)' : pt.type === 'Pendant' ? '#f43f5e' : '#10b981'} className="animate-ping" />
+                          <circle r="3.5" fill={pt.type === 'Spotlight' ? 'var(--gold)' : pt.type === 'Pendant' ? '#f43f5e' : '#10b981'} />
                           <text y="-6" fontSize="6" fontWeight="bold" fill="#94a3b8" textAnchor="middle">{pt.type}</text>
                         </g>
                       ))}
@@ -2771,7 +2771,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                       <text x="10" y="65" fill="#64748b" transform="rotate(-90 10 65)">h = 3000 mm</text>
                       
                       {/* Placed Cabinet elevation box */}
-                      <rect x="40" y="60" width="240" height="50" fill="rgba(212, 175, 55, 0.05)" stroke="#D4AF37" strokeWidth="1" />
+                      <rect x="40" y="60" width="240" height="50" fill="rgba(212, 175, 55, 0.05)" stroke="var(--gold)" strokeWidth="1" />
                       {/* Fluted rafter lines inside Console box */}
                       {Array.from({ length: 24 }).map((_, i) => (
                         <line key={i} x1={40 + i * 10} y1={60} x2={40 + i * 10} y2={110} stroke="#AA8C2C" strokeWidth="0.2" />
@@ -2806,11 +2806,11 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                 {/* Case 5 Result: 3D Extrusion build visual */}
                 {activeTool.key === 'extruder_3d' && toolResult.extruded && (
                   <div className="w-full h-36 bg-slate-950 border border-slate-850 rounded-xl relative overflow-hidden flex items-center justify-center">
-                    <div className="w-[120px] h-[100px] border border-[#D4AF37]/50 rounded transform rotate-x-45 rotate-z-45 relative flex items-center justify-center" style={{ transform: 'perspective(400px) rotateX(60deg) rotateZ(-45deg)' }}>
+                    <div className="w-[120px] h-[100px] border border-[var(--gold)]/50 rounded transform rotate-x-45 rotate-z-45 relative flex items-center justify-center" style={{ transform: 'perspective(400px) rotateX(60deg) rotateZ(-45deg)' }}>
                       <div className="absolute inset-0 border-t-2 border-r-2 border-indigo-400 bg-indigo-950/20 translate-z-10" style={{ transform: 'translateZ(30px)' }}></div>
                       <div className="absolute inset-0 border-b-2 border-l-2 border-indigo-400 bg-indigo-950/20"></div>
                       <div className="absolute left-0 bottom-0 top-0 w-px bg-[var(--gold)] h-[30px]" style={{ transform: 'rotateX(-90deg) origin(bottom left)' }}></div>
-                      <span className="font-mono text-[7px] text-[#D4AF37] absolute -top-5">Extruded Wireframe</span>
+                      <span className="font-mono text-[7px] text-[var(--gold)] absolute -top-5">Extruded Wireframe</span>
                     </div>
                   </div>
                 )}

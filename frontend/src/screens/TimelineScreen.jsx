@@ -65,7 +65,7 @@ export default function TimelineScreen({ projectId }) {
         </div>
         <button
           onClick={fetchTimeline}
-          className="bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 flex items-center gap-1.5 transition"
+          className="bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-[var(--gold)] hover:border-[var(--gold)]/30 flex items-center gap-1.5 transition"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Sync Log
         </button>
