@@ -196,16 +196,32 @@ function drawElevation(doc, model, opts = {}) {
       doc.lineWidth(1).strokeColor(BLK).moveTo(x + w * 0.5, y + h * 0.25).lineTo(x + w * 0.5, y + h * 0.75).stroke();
     }
     
-    // Counter slab (thin top line) + basin cutout for vanities
+    // Counter slab (thin band sitting just ABOVE the cabinet top edge)
     if (m.counter) {
-      doc.lineWidth(1.6).strokeColor('#0F172A').moveTo(x, y + h - 3).lineTo(x + w, y + h - 3).stroke();
-      doc.lineWidth(0.6).strokeColor('#0F172A').moveTo(x, y + h - 7).lineTo(x + w, y + h - 7).stroke();
+      doc.lineWidth(2.4).strokeColor('#0F172A').moveTo(x, y - 5).lineTo(x + w, y - 5).stroke();
+      doc.lineWidth(0.7).strokeColor('#0F172A').moveTo(x, y - 9).lineTo(x + w, y - 9).stroke();
     }
     if (m.basin) {
       const cx = x + w / 2, cy = y + h - 40, rx = Math.min(w * 0.32, 26), ry = Math.min(h * 0.16, 18);
       doc.lineWidth(1).strokeColor('#0F172A').ellipse(cx, cy, rx, ry).stroke();
       doc.lineWidth(0.6).strokeColor(GREY).ellipse(cx, cy, rx * 0.6, ry * 0.6).stroke();
       doc.font('Helvetica').fontSize(5).fillColor(GREY).text('BASIN', cx - 12, cy + ry + 1, { width: 24, align: 'center' });
+    }
+    if (m.sink) {
+      const cx = x + w / 2, cy = y + h - 42, rx = Math.min(w * 0.34, 30), ry = Math.min(h * 0.18, 22);
+      doc.lineWidth(1).strokeColor('#0F172A').ellipse(cx, cy, rx, ry).stroke();
+      doc.lineWidth(0.6).strokeColor(GREY).ellipse(cx, cy, rx * 0.62, ry * 0.62).stroke();
+      doc.font('Helvetica').fontSize(5).fillColor(GREY).text('SINK', cx - 12, cy + ry + 1, { width: 24, align: 'center' });
+    }
+    if (m.hob) {
+      const cx = x + w / 2, cy = y + h - 42, r = Math.min(w * 0.16, 13);
+      doc.lineWidth(0.8).strokeColor('#0F172A').circle(cx, cy, r).stroke();
+      // 4 burner dots
+      const off = r * 0.45;
+      [[-off, -off], [off, -off], [-off, off], [off, off]].forEach(([dx, dy]) => {
+        doc.circle(cx + dx, cy + dy, 1.6).fill('#0F172A');
+      });
+      doc.font('Helvetica').fontSize(5).fillColor(GREY).text('HOB', cx - 10, cy + r + 1, { width: 20, align: 'center' });
     }
 
     // Label texts (centered natively via PDFKit)
