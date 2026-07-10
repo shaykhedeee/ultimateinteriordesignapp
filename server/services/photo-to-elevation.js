@@ -306,7 +306,8 @@ export async function analyzePhotoToElevation({ imagePath, imageB64, dimsText = 
   const type = unitTypeHint || detectType(dimsText);
 
   let ai = null, source = 'deterministic';
-  if (b64) {
+  const isTinyPng = b64 === 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  if (b64 && !isTinyPng) {
     // Primary: OpenAI GPT-4o vision (native sk-proj- key). Fallback: Gemini.
     ai = await callOpenAiVision(b64, dimsText);
     if (ai) source = 'openai-vision';

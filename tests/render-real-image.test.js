@@ -7,6 +7,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateInteriorAsset } from '../server/services/image-provider.js';
+import db from '../server/database/database.js';
+
+// Setup dummy projects to satisfy FOREIGN KEY constraints in cost recording
+try {
+  db.prepare(`
+    INSERT OR IGNORE INTO projects (id, name, client_name)
+    VALUES ('probe-nokey', 'Probe NoKey Project', 'Client Probe')
+  `).run();
+  db.prepare(`
+    INSERT OR IGNORE INTO projects (id, name, client_name)
+    VALUES ('probe-sig', 'Probe Sig Project', 'Client Probe')
+  `).run();
+} catch (err) {}
 
 test('no-key render yields a real image source, not the mock', async () => {
   const asset = await generateInteriorAsset({
