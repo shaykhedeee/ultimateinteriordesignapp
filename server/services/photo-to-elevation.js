@@ -20,6 +20,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LEARN_FILE = path.join(__dirname, '..', 'storage', 'elevation-learning.jsonl');
@@ -174,6 +175,41 @@ async function callGeminiVision(imageB64, dimsText) {
   return null;
 }
 
+// LOCAL (offline) vision: projection-profile analysis via bundled Python
+// (PyMuPDF + numpy, no cloud, no PIL C-ext needed). Better than a flat
+// archetype when the cloud vision providers are unavailable/rate-limited.
+async function callLocalVision(imageB64, dims, unitType) {
+  const script = path.join(__dirname, 'local_elevation_vision.py');
+  if (!fs.existsSync(script)) return null;
+  const py = process.env.PYTHON_BIN || 'python3';
+  const W = Math.round(dims.widthMm || 2000);
+  const H = Math.round(dims.heightMm || 2400);
+  return new Promise((resolve) => {
+    let out = '', err = '';
+    let proc;
+    try {
+      proc = spawn(py, [script, String(W), String(H), unitType || 'other'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch { return resolve(null); }
+    const timer = setTimeout(() => { try { proc.kill(); } catch {} resolve(null); }, 15000);
+    proc.stdout.on('data', d => { out += d; });
+    proc.stderr.on('data', d => { err += d; });
+    proc.on('error', () => { clearTimeout(timer); resolve(null); });
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      if (code !== 0 || !out.trim()) {
+        if (err) console.warn('local vision:', err.slice(0, 160));
+        return resolve(null);
+      }
+      try {
+        const parsed = JSON.parse(out.trim());
+        if (parsed && Array.isArray(parsed.components) && parsed.components.length) return resolve(parsed);
+      } catch (e) { console.warn('local vision parse:', e.message); }
+      resolve(null);
+    });
+    try { proc.stdin.write(imageB64); proc.stdin.end(); } catch { clearTimeout(timer); resolve(null); }
+  });
+}
+
 // Convert AI components -> cabinets/openings for the DXF model
 function componentsToModel(ai, dims) {
   const L = dims.widthMm || 2000;
@@ -273,6 +309,12 @@ export async function analyzePhotoToElevation({ imagePath, imageB64, dimsText = 
     if (!ai) {
       ai = await callGeminiVision(b64, dimsText);
       if (ai) source = 'gemini-vision';
+    }
+    // Offline fallback: local projection-profile detection (better than a flat
+    // archetype when cloud vision is unavailable / rate-limited).
+    if (!ai) {
+      ai = await callLocalVision(b64, dims, type);
+      if (ai) source = 'local-vision';
     }
   }
 
