@@ -308,7 +308,7 @@ export function drawElevation(doc, model, opts = {}) {
   }
 
   // Per-bay dimension chains (each module width) — AutoCAD-style, below elevation
-  if (!opts.noDimensions) {
+  if (!opts.noDimensions && !embed) {
     const dimY = toY(0) + 26;            // below floor line
     doc.lineWidth(0.6).strokeColor(RED);
     doc.moveTo(toX(0), dimY - 6).lineTo(toX(0), dimY + 6);

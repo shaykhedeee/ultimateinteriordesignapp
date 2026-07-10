@@ -150,7 +150,7 @@ class PDFBuilder {
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - Stamped on ${new Date().toLocaleDateString()}`, 42, 815, { align: 'center' });
+        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - Stamped on ${new Date().toLocaleDateString()}`, 42, 790, { align: 'center' });
       }
 
       doc.end();
@@ -373,7 +373,7 @@ class PDFBuilder {
           const escale = Math.min((frameW - pad * 2) / widthMm, (frameH - pad * 2) / heightMm);
           const eox = frameX + (frameW - widthMm * escale) / 2;
           const eoy = frameY + frameH - pad;
-          drawElevation(doc, elevModel, { embed: true, offsetX: eox, offsetY: eoy, embedScale: escale, noDimensions: true });
+          drawElevation(doc, elevModel, { embed: true, offsetX: eox, offsetY: eoy, embedScale: escale, noDimensions: false });
 
           currentY += 320;
         });
@@ -390,6 +390,27 @@ class PDFBuilder {
         42, 80, { lineGap: 6 }
       );
 
+      // Revision History table
+      const revY = 210;
+      doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(11).text('Revision History', 42, revY);
+      doc.rect(42, revY + 16, 513, 1).fill('#CBD5E1');
+      const revRows = [
+        ['1.0', new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), 'AURA', 'Initial issue — technical specification & drawings'],
+        ['1.1', '—', '—', 'Pending client review'],
+      ];
+      let ry = revY + 26;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748B');
+      doc.text('REV', 42, ry); doc.text('DATE', 110, ry); doc.text('BY', 200, ry); doc.text('DESCRIPTION', 280, ry);
+      ry += 14;
+      doc.font('Helvetica').fontSize(8).fillColor('#0F172A');
+      for (const r of revRows) {
+        doc.text(r[0], 42, ry, { width: 60 });
+        doc.text(r[1], 110, ry, { width: 80 });
+        doc.text(r[2], 200, ry, { width: 70 });
+        doc.text(r[3], 280, ry, { width: 270 });
+        ry += 16;
+      }
+
       // Signature Blocks
       doc.moveTo(42, 600).lineTo(240, 600).stroke('#475569');
       doc.moveTo(330, 600).lineTo(540, 600).stroke('#475569');
@@ -400,7 +421,7 @@ class PDFBuilder {
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - Stamped Sign-off`, 42, 815, { align: 'center' });
+        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - Stamped Sign-off`, 42, 790, { align: 'center' });
       }
 
       doc.end();
@@ -452,9 +473,10 @@ class PDFBuilder {
       // Table Header
       let y = 230;
       doc.fillColor('#475569').font('Helvetica-Bold').fontSize(9).text('Room / Item Description', 42, y);
-      doc.text('Dimensions', 250, y);
-      doc.text('Rate', 350, y);
-      doc.text('Qty / Sqft', 430, y);
+      doc.text('HSN', 240, y);
+      doc.text('Dimensions', 290, y);
+      doc.text('Rate', 370, y);
+      doc.text('Qty', 440, y);
       doc.text('Amount (INR)', 500, y, { align: 'right', width: 53 });
       y += 18;
       doc.rect(42, y - 4, 511, 1).fill('#CBD5E0');
@@ -462,10 +484,11 @@ class PDFBuilder {
       // Table Rows
       doc.font('Helvetica').fontSize(8.5);
       items.forEach((item) => {
-        doc.fillColor('#0F172A').font('Helvetica-Bold').text(`[${item.room || 'General'}] ${item.name}`, 42, y, { width: 200 });
-        doc.fillColor('#475569').font('Helvetica').text(item.dimensions || 'Lump Sum', 250, y);
-        doc.text(`Rs. ${item.rate?.toLocaleString()}`, 350, y);
-        doc.text(item.isLumpSum ? '1' : `${item.sqft?.toFixed(1)} sqft`, 430, y);
+        doc.fillColor('#0F172A').font('Helvetica-Bold').text(`[${item.room || 'General'}] ${item.name}`, 42, y, { width: 195 });
+        doc.fillColor('#475569').font('Helvetica').text(item.hsn || '9403', 240, y);
+        doc.text(item.dimensions || 'Lump Sum', 290, y);
+        doc.text(`Rs. ${item.rate?.toLocaleString()}`, 370, y);
+        doc.text(item.isLumpSum ? '1' : `${item.sqft?.toFixed(1)}`, 440, y);
         doc.fillColor('#0F172A').font('Helvetica-Bold').text(`Rs. ${item.amount?.toLocaleString()}`, 500, y, { align: 'right', width: 53 });
         y += 24;
 
@@ -530,7 +553,7 @@ class PDFBuilder {
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - GRID OS Invoice Proposal`, 42, 815, { align: 'center' });
+        doc.fontSize(8).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} - GRID OS Invoice Proposal`, 42, 790, { align: 'center' });
       }
 
       doc.end();
