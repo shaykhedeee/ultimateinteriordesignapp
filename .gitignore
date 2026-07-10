@@ -51,3 +51,6 @@ output/
 
 # ── Analysis scratch ────────────────────────────────────────
 _analysis/
+
+# debug artifacts
+ds*.json
