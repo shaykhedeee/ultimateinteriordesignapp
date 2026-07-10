@@ -254,6 +254,17 @@ export function drawElevation(doc, model, opts = {}) {
     // Label texts (centered natively via PDFKit)
     doc.font('Helvetica-Bold').fontSize(7.5).fillColor(BLK).text(tag, x, y + h / 2 - 5, { width: w, align: 'center' });
     doc.font('Helvetica').fontSize(5.5).fillColor(GREY).text(`${Math.round(c.widthMm)}x${Math.round(c.heightMm)}`, x, y + h - 10, { width: w, align: 'center' });
+
+    // Handle / knob glyph (hardware detail) on front-facing panels
+    const hwTag = tag === 'SHUTTER' || tag === 'BASE' || tag === 'DRAWER' || (m.door) || /door/i.test(c.name || '');
+    if (hwTag && w > 90 && h > 120) {
+      const isDrawer = tag === 'DRAWER' || /drawer/i.test(c.name || '');
+      const hx = isDrawer ? x + w / 2 : x + w - 10;
+      const hy = isDrawer ? y + (h * 2) / 3 : y + h / 2;
+      doc.lineWidth(1.4).strokeColor('#222222').moveTo(hx, hy - 7).lineTo(hx, hy + 7).stroke();
+      doc.lineWidth(2).strokeColor('#222222').moveTo(hx - 1.5, hy - 8).lineTo(hx + 1.5, hy - 8).stroke();
+      doc.moveTo(hx - 1.5, hy + 8).lineTo(hx + 1.5, hy + 8).stroke();
+    }
   }
 
   // Overall dimensions (Red, arrowheads)
@@ -364,27 +375,58 @@ export function drawElevation(doc, model, opts = {}) {
   doc.font('Helvetica').fontSize(6.5).fillColor(BLK);
   noteLines.forEach((t, i) => doc.text(t, nx + 12, ny + 30 + i * 14));
 
+  // OPENING SCHEDULE box (doors / windows) — inserted above component schedule
+  let openSchedTop = schedTop;
+  const openings = model.openings || [];
+  if (openings.length) {
+    const oRows = openings.map((o, i) => ({
+      no: i + 1,
+      type: (o.type || 'OPENING').toUpperCase(),
+      size: `${Math.round(o.widthMm)} x ${Math.round(o.headMm - (o.sillMm || 0))}`
+    }));
+    const oMax = Math.min(oRows.length, 8);
+    const oH = 26 + oMax * 13;
+    const oTop = schedTop;
+    doc.lineWidth(1).strokeColor(BLK).rect(nx, oTop, nw, oH).stroke();
+    doc.lineWidth(0.5).strokeColor(BLUE).rect(nx + 3, oTop + 3, nw - 6, oH - 6).stroke();
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text('OPENING SCHEDULE', nx + 12, oTop + 8);
+    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(BLK);
+    doc.text('NO.', nx + 12, oTop + 24);
+    doc.text('TYPE', nx + 42, oTop + 24);
+    doc.text('SIZE (WxH)', nx + 130, oTop + 24);
+    doc.lineWidth(0.4).strokeColor(GREY).moveTo(nx + 8, oTop + 32).lineTo(nx + nw - 8, oTop + 32).stroke();
+    doc.font('Helvetica').fontSize(6.5).fillColor(BLK);
+    oRows.slice(0, oMax).forEach((r, i) => {
+      const ry = oTop + 37 + i * 13;
+      doc.text(String(r.no), nx + 12, ry);
+      doc.text(r.type, nx + 42, ry);
+      doc.text(r.size, nx + 130, ry);
+    });
+    if (oRows.length > oMax) doc.font('Helvetica-Oblique').fontSize(6).fillColor(GREY).text(`+${oRows.length - oMax} more…`, nx + 12, oTop + 37 + oMax * 13);
+    openSchedTop = oTop + oH + 12;
+  }
+
   // COMPONENT SCHEDULE box
-  doc.lineWidth(1).strokeColor(BLK).rect(nx, schedTop, nw, schedH).stroke();
-  doc.lineWidth(0.5).strokeColor(BLUE).rect(nx + 3, schedTop + 3, nw - 6, schedH - 6).stroke();
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text('COMPONENT SCHEDULE', nx + 12, schedTop + 8);
+  doc.lineWidth(1).strokeColor(BLK).rect(nx, openSchedTop, nw, schedH).stroke();
+  doc.lineWidth(0.5).strokeColor(BLUE).rect(nx + 3, openSchedTop + 3, nw - 6, schedH - 6).stroke();
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text('COMPONENT SCHEDULE', nx + 12, openSchedTop + 8);
   // header row
   doc.font('Helvetica-Bold').fontSize(6.5).fillColor(BLK);
-  doc.text('MODULE', nx + 12, schedTop + 24);
-  doc.text('QTY', nx + 120, schedTop + 24);
-  doc.text('SIZE (WxH)', nx + 152, schedTop + 24);
-  doc.lineWidth(0.4).strokeColor(GREY).moveTo(nx + 8, schedTop + 32).lineTo(nx + nw - 8, schedTop + 32).stroke();
+  doc.text('MODULE', nx + 12, openSchedTop + 24);
+  doc.text('QTY', nx + 120, openSchedTop + 24);
+  doc.text('SIZE (WxH)', nx + 152, openSchedTop + 24);
+  doc.lineWidth(0.4).strokeColor(GREY).moveTo(nx + 8, openSchedTop + 32).lineTo(nx + nw - 8, openSchedTop + 32).stroke();
   doc.font('Helvetica').fontSize(6.5).fillColor(BLK);
   scheduleRows.slice(0, maxRows).forEach((g, i) => {
-    const ry = schedTop + 37 + i * rowH;
+    const ry = openSchedTop + 37 + i * rowH;
     doc.text(g.tag, nx + 12, ry, { width: 104 });
     doc.text(String(g.qty), nx + 120, ry);
     doc.text(`${Math.round(g.w)}x${Math.round(g.h)}`, nx + 152, ry);
   });
-  if (scheduleRows.length > maxRows) doc.font('Helvetica-Oblique').fontSize(6).fillColor(GREY).text(`+${scheduleRows.length - maxRows} more…`, nx + 12, schedTop + 37 + maxRows * rowH);
+  if (scheduleRows.length > maxRows) doc.font('Helvetica-Oblique').fontSize(6).fillColor(GREY).text(`+${scheduleRows.length - maxRows} more…`, nx + 12, openSchedTop + 37 + maxRows * rowH);
 
   // ---- SYMBOLS / LINE-TYPE LEGEND (bottom-right, above title) ----
-  const lx = nx, ly = schedTop + schedH + 12, lw = nw, lh = 70;
+  const lx = nx, ly = openSchedTop + schedH + 12, lw = nw, lh = 70;
   doc.lineWidth(1).strokeColor(BLK).rect(lx, ly, lw, lh).stroke();
   doc.lineWidth(0.5).strokeColor(BLUE).rect(lx + 3, ly + 3, lw - 6, lh - 6).stroke();
   doc.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('SYMBOLS', lx + 12, ly + 8);
