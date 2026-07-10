@@ -15,7 +15,7 @@ import ProjectManagementScreen from './screens/ProjectManagementScreen.jsx';
 import FinanceScreen          from './screens/FinanceScreen.jsx';
 import TimelineScreen         from './screens/TimelineScreen.jsx';
 import JobsScreen             from './screens/JobsScreen.jsx';
-import CommandCenterScreen    from './screens/CommandCenterScreen.jsx';
+import DashboardScreen          from './screens/DashboardScreen.jsx';
 import AuraBrainChat          from './components/layout/AuraBrainChat.jsx';
 import AiStatusBanner         from './components/shell/AiStatusBanner.jsx';
 
@@ -408,7 +408,7 @@ export function App() {
   // ── Screen router ──
   const renderScreen = () => {
     switch (activeTab) {
-      case 'dashboard': return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={setActiveTab} />;
+      case 'dashboard': return <DashboardScreen projectId={selectedProjectId} onNavigateToTab={setActiveTab} />;
       case 'crm':       return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
       case 'projects':  return <ProjectManagementScreen onNavigateToProject={(id) => { setSelectedProjectId(id); setActiveTab('brief'); }} />;
       case 'brief':     return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;

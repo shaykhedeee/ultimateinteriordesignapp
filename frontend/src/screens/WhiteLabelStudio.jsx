@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Palette, RotateCcw, Save, Check, Sparkles } from 'lucide-react';
+import { Palette, RotateCcw, Save, Check, Sparkles, Key, Trash2, Eye, EyeOff, CheckCircle, XCircle, Loader } from 'lucide-react';
 
 const API = 'http://127.0.0.1:8787';
+
+const PROVIDERS = [
+  { id: 'openai',       label: 'OpenAI',        hint: 'sk-... (gpt-image-1, gpt-4o-mini)',         color: '#10a37f' },
+  { id: 'gemini',       label: 'Gemini / Imagen',hint: 'AI Studio key for gemini-2.5-flash & Imagen',color: '#4285F4' },
+  { id: 'openrouter',   label: 'OpenRouter',     hint: 'sk-or-... (free llama-3.3-70b for AURA)',   color: '#8b5cf6' },
+  { id: 'freepik',      label: 'Freepik',        hint: 'Freepik API key (Flux-Dev renders)',         color: '#F24E1E' },
+  { id: 'huggingface',  label: 'HuggingFace',    hint: 'hf_... (SDXL / Flux-Schnell)',               color: '#ff9d00' },
+  { id: 'stability',    label: 'Stability AI',   hint: 'sk-... (SDXL, Stable-Diffusion)',            color: '#7c3aed' },
+];
 
 const PRESETS = [
   { name:'ULTIDA Gold',  accent:'#C9A84C', surface:'#0F0F14', text:'#F0EEE8', muted:'#5C5C72', font:'Outfit' },
@@ -15,6 +24,14 @@ export default function WhiteLabelStudio({ onBack }) {
   const [form, setForm] = useState({ studioName:'ULTIDA', tagline:'The Ultimate Interior Design Application', logoText:'U', accentColor:'#C9A84C', surfaceColor:'#0F0F14', textColor:'#F0EEE8', mutedColor:'#5C5C72', fontDisplay:'Outfit', supportPhone:'', termsUrl:'', privacyUrl:'', showPoweredBy:true });
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // BYOK API Key state
+  const [keyStatus, setKeyStatus] = useState({});           // { [provider]: { configured, source, preview } }
+  const [keyInputs, setKeyInputs] = useState({});           // { [provider]: string }
+  const [keyVisible, setKeyVisible] = useState({});         // { [provider]: bool }
+  const [keyBusy, setKeyBusy] = useState({});               // { [provider]: bool }
+  const [keyMsg, setKeyMsg] = useState({});                 // { [provider]: { ok, text } }
+
 
   useEffect(() => {
     fetch(`${API}/api/whitelabel/public`).then(r => r.json()).then(d => {
@@ -34,9 +51,57 @@ export default function WhiteLabelStudio({ onBack }) {
         showPoweredBy: s.showPoweredBy !== false
       }));
     }).catch(() => {});
+
+    // Load existing key statuses
+    fetch(`${API}/api/keys`).then(r => r.json()).then(d => {
+      if (d.keys) {
+        const map = {};
+        d.keys.forEach(k => { map[k.provider] = k; });
+        setKeyStatus(map);
+      }
+    }).catch(() => {});
   }, []);
 
   const update = (k, v) => { setForm(f => ({ ...f, [k]: v })); setSaved(false); };
+
+  const saveKey = async (provider) => {
+    const key = (keyInputs[provider] || '').trim();
+    if (!key) return;
+    setKeyBusy(b => ({ ...b, [provider]: true }));
+    setKeyMsg(m => ({ ...m, [provider]: null }));
+    try {
+      const r = await fetch(`${API}/api/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, key })
+      });
+      const d = await r.json();
+      if (d.success) {
+        setKeyStatus(s => ({ ...s, [provider]: { configured: true, source: 'database', preview: key.slice(0, 8) + '...' } }));
+        setKeyInputs(i => ({ ...i, [provider]: '' }));
+        setKeyMsg(m => ({ ...m, [provider]: { ok: true, text: 'Key saved & activated!' } }));
+      } else {
+        setKeyMsg(m => ({ ...m, [provider]: { ok: false, text: d.error || 'Save failed' } }));
+      }
+    } catch (e) {
+      setKeyMsg(m => ({ ...m, [provider]: { ok: false, text: e.message } }));
+    } finally {
+      setKeyBusy(b => ({ ...b, [provider]: false }));
+    }
+  };
+
+  const deleteKey = async (provider) => {
+    setKeyBusy(b => ({ ...b, [provider]: true }));
+    try {
+      await fetch(`${API}/api/keys/${provider}`, { method: 'DELETE' });
+      setKeyStatus(s => ({ ...s, [provider]: { configured: false, source: 'none', preview: null } }));
+      setKeyMsg(m => ({ ...m, [provider]: { ok: true, text: 'Key removed.' } }));
+    } catch (e) {
+      setKeyMsg(m => ({ ...m, [provider]: { ok: false, text: e.message } }));
+    } finally {
+      setKeyBusy(b => ({ ...b, [provider]: false }));
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -107,6 +172,75 @@ export default function WhiteLabelStudio({ onBack }) {
                 </button>
               ))}
             </div>
+          </Card>
+
+          {/* ── API Key Manager ── */}
+          <Card title="AI Provider Keys (BYOK)">
+            <p style={{ fontSize:'11px', color:'var(--text-muted)', lineHeight:1.5, marginBottom:4 }}>
+              Keys are stored in the local SQLite database and activated immediately — no restart needed.
+              AURA uses OpenRouter → Gemini → OpenAI in order. Image generation uses the first available key.
+            </p>
+            {PROVIDERS.map(prov => {
+              const st = keyStatus[prov.id] || {};
+              const msg = keyMsg[prov.id];
+              const busy_ = keyBusy[prov.id];
+              const show = keyVisible[prov.id];
+              return (
+                <div key={prov.id} style={{ borderRadius:12, border:'1px solid rgba(255,255,255,0.06)', padding:'12px 14px', background:'rgba(0,0,0,0.15)' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                    <span style={{ width:9, height:9, borderRadius:'50%', background: st.configured ? '#22c55e' : '#475569', flexShrink:0 }} />
+                    <span style={{ fontSize:'12px', fontWeight:700, color:'var(--text-primary)' }}>{prov.label}</span>
+                    {st.configured && (
+                      <span style={{ fontSize:'9.5px', fontWeight:600, color:'#22c55e', background:'rgba(34,197,94,0.12)', padding:'1px 7px', borderRadius:99 }}>ACTIVE</span>
+                    )}
+                    {st.preview && (
+                      <span style={{ fontSize:'9.5px', color:'var(--text-muted)', fontFamily:'monospace', marginLeft:'auto' }}>{st.preview}</span>
+                    )}
+                  </div>
+                  <p style={{ fontSize:'10px', color:'var(--text-muted)', marginBottom:8 }}>{prov.hint}</p>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <div style={{ position:'relative', flex:1 }}>
+                      <input
+                        type={show ? 'text' : 'password'}
+                        value={keyInputs[prov.id] || ''}
+                        onChange={e => setKeyInputs(i => ({ ...i, [prov.id]: e.target.value }))}
+                        placeholder={st.configured ? 'Enter new key to replace...' : 'Paste your API key...'}
+                        className="wl-input"
+                        style={{ paddingRight:36, width:'100%', boxSizing:'border-box' }}
+                        onKeyDown={e => { if (e.key === 'Enter') saveKey(prov.id); }}
+                      />
+                      <button
+                        onClick={() => setKeyVisible(v => ({ ...v, [prov.id]: !show }))}
+                        style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:0 }}
+                      >
+                        {show ? <EyeOff style={{ width:14, height:14 }} /> : <Eye style={{ width:14, height:14 }} />}
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => saveKey(prov.id)}
+                      disabled={busy_ || !(keyInputs[prov.id] || '').trim()}
+                      style={{ padding:'6px 12px', borderRadius:8, background: prov.color, color:'#fff', fontWeight:700, fontSize:'11px', border:'none', cursor:'pointer', opacity: busy_ ? 0.6 : 1, whiteSpace:'nowrap', flexShrink:0 }}
+                    >
+                      {busy_ ? <Loader style={{ width:12, height:12, animation:'spin 1s linear infinite' }} /> : <Key style={{ width:12, height:12 }} />}
+                    </button>
+                    {st.configured && (
+                      <button
+                        onClick={() => deleteKey(prov.id)}
+                        disabled={busy_}
+                        style={{ padding:'6px 10px', borderRadius:8, background:'rgba(239,68,68,0.12)', color:'#ef4444', fontWeight:700, fontSize:'11px', border:'1px solid rgba(239,68,68,0.25)', cursor:'pointer', flexShrink:0 }}
+                      >
+                        <Trash2 style={{ width:12, height:12 }} />
+                      </button>
+                    )}
+                  </div>
+                  {msg && (
+                    <p style={{ fontSize:'10px', marginTop:6, color: msg.ok ? '#22c55e' : '#ef4444', fontWeight:600 }}>
+                      {msg.ok ? '✓ ' : '✗ '}{msg.text}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </Card>
         </div>
 
