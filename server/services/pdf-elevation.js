@@ -284,6 +284,27 @@ export function drawElevation(doc, model, opts = {}) {
     drawObliqueTick(doc, toX(L) + 21, toY(0));
     drawObliqueTick(doc, toX(L) + 21, toY(H));
     doc.font('Helvetica-Bold').fontSize(9).fillColor(RED).text(`${H} MM`, toX(L) + 32, (toY(0) + toY(H)) / 2 - 4);
+
+    // LEFT vertical DATUM dimension (red) with key reference heights — section marker
+    const dx = toX(0) - 30;
+    doc.lineWidth(0.8).strokeColor(RED)
+      .moveTo(dx - 6, toY(0)).lineTo(dx + 4, toY(0))
+      .moveTo(dx - 6, toY(H)).lineTo(dx + 4, toY(H))
+      .moveTo(dx, toY(0)).lineTo(dx, toY(H)).stroke();
+    drawObliqueTick(doc, dx, toY(0));
+    drawObliqueTick(doc, dx, toY(H));
+    const datums = [
+      { mm: 100, label: 'PLINTH 100' },
+      { mm: 850, label: 'CTOP 850' },
+      { mm: 2100, label: 'LINTEL 2100' },
+    ];
+    for (const d of datums) {
+      if (d.mm > H) continue;
+      const dy = toY(d.mm);
+      doc.lineWidth(0.6).strokeColor(RED).moveTo(dx - 4, dy).lineTo(dx + 4, dy).stroke();
+      drawObliqueTick(doc, dx, dy);
+      doc.font('Helvetica').fontSize(5.5).fillColor(RED).text(d.label, dx + 6, dy - 3, { width: 70, align: 'left' });
+    }
   }
 
   // Per-bay dimension chains (each module width) — AutoCAD-style, below elevation
