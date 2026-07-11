@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useEditorStore } from '../../stores/editorStore';
 import { selectRooms, selectWalls, selectOpenings, selectModules } from '../../lib/selectors/editorSelectors';
+import { resolveMaterial, getSlotsForModuleType } from '../../lib/materialSlots';
 import { HelpCircle, Sparkles } from 'lucide-react';
 
 const LAMINATE_COLORS = {
@@ -10,6 +11,37 @@ const LAMINATE_COLORS = {
   lam_2: 0xc29a6b, // Warm Oak
   lam_3: 0x1e293b, // Charcoal Matte
   lam_4: 0xe5e5e0  // Light Beige
+};
+
+// Build a Three.js MeshStandardMaterial for a given catalog material assignment,
+// honouring finish (gloss/matte) and procedural wood/marble textures.
+const buildSlotMaterial = (materialId, catalog, renderMode) => {
+  const catalogMat = resolveMaterial(materialId, catalog);
+  let colorHex = LAMINATE_COLORS[materialId] || 0xf3f4f6;
+  if (catalogMat && catalogMat.color) {
+    try { colorHex = parseInt(catalogMat.color.replace('#', '0x'), 16); } catch (e) { /* keep fallback */ }
+  }
+
+  let roughness = 0.5;
+  let metalness = 0.15;
+  let map = null;
+
+  if (renderMode === 'textures' && catalogMat) {
+    const finishLower = (catalogMat.finish || '').toLowerCase();
+    const nameLower = (catalogMat.name || '').toLowerCase();
+    if (finishLower.includes('gloss') || finishLower.includes('acrylic')) {
+      roughness = 0.1; metalness = 0.25;
+    } else if (finishLower.includes('matte') || finishLower.includes('suede')) {
+      roughness = 0.85; metalness = 0.05;
+    }
+    if (nameLower.includes('oak') || nameLower.includes('walnut') || nameLower.includes('wood') || nameLower.includes('ply') || nameLower.includes('wenge') || nameLower.includes('laminate')) {
+      map = createWoodgrainTexture(catalogMat.color || '#c29a6b');
+    } else if (nameLower.includes('marble') || nameLower.includes('stone') || nameLower.includes('granite') || nameLower.includes('quartz')) {
+      map = createMarbleTexture(catalogMat.color || '#e5e5e0');
+    }
+  }
+
+  return new THREE.MeshStandardMaterial({ color: map ? 0xffffff : colorHex, map, roughness, metalness });
 };
 
 // Procedural texture generators to match actual catalog materials in Three.js
@@ -276,64 +308,15 @@ export default function Viewport3D() {
         modGroup.rotation.y = -rotationDeg * Math.PI / 180;
         modGroup.userData = { moduleId: mod.moduleId };
 
-        // 1. Carcass Box (represents cabinetry shell)
-        const carcassGeo = new THREE.BoxGeometry(widthMm, heightMm, depthMm);
-        const shutterMatId = mod.materialAssignments?.shutter || 'lam_1';
-        
-        // Resolve dynamic color from catalog if exists, otherwise fallback to static map
+        // Resolve every material slot from the module's assignments (not just shutter).
         const { materialsCatalog: currentCatalog, renderMode: currentMode } = stateRef.current;
-        const catalogMat = currentCatalog.find(item => item.id === shutterMatId || item.code === shutterMatId);
-        let colorHex = LAMINATE_COLORS[shutterMatId] || 0xf3f4f6;
-        if (catalogMat && catalogMat.color) {
-          try {
-            colorHex = parseInt(catalogMat.color.replace('#', '0x'), 16);
-          } catch (e) {
-            console.error("Error parsing catalog color:", catalogMat.color, e);
-          }
-        }
+        const slots = getSlotsForModuleType(mod.moduleType);
+        const assignments = mod.materialAssignments || {};
+        const matFor = (slot) => buildSlotMaterial(assignments[slot] || 'lam_1', currentCatalog, currentMode);
 
-        let roughness = 0.5;
-        let metalness = 0.15;
-        let map = null;
-
-        if (currentMode === 'textures') {
-          if (catalogMat) {
-            const finishLower = (catalogMat.finish || '').toLowerCase();
-            const nameLower = (catalogMat.name || '').toLowerCase();
-            
-            if (finishLower.includes('gloss') || finishLower.includes('acrylic')) {
-              roughness = 0.1;
-              metalness = 0.25;
-            } else if (finishLower.includes('matte') || finishLower.includes('suede')) {
-              roughness = 0.85;
-              metalness = 0.05;
-            }
-
-            if (nameLower.includes('oak') || nameLower.includes('walnut') || nameLower.includes('wood') || nameLower.includes('ply') || nameLower.includes('wenge') || nameLower.includes('laminate')) {
-              map = createWoodgrainTexture(catalogMat.color || '#c29a6b');
-            } else if (nameLower.includes('marble') || nameLower.includes('stone') || nameLower.includes('granite') || nameLower.includes('quartz')) {
-              map = createMarbleTexture(catalogMat.color || '#e5e5e0');
-            }
-          } else {
-            // Static wood fallback for Warm Oak key
-            if (shutterMatId === 'lam_2') {
-              map = createWoodgrainTexture('#c29a6b');
-              roughness = 0.65;
-            } else if (shutterMatId === 'lam_3') {
-              // Charcoal matte
-              roughness = 0.9;
-              metalness = 0.05;
-            }
-          }
-        }
-
-        const carcassMat = new THREE.MeshStandardMaterial({
-          color: map ? 0xffffff : colorHex,
-          map: map,
-          roughness: roughness,
-          metalness: metalness
-        });
-        const carcassMesh = new THREE.Mesh(carcassGeo, carcassMat);
+        // 1. Carcass Box (interior shell — uses the 'carcass' slot)
+        const carcassGeo = new THREE.BoxGeometry(widthMm, heightMm, depthMm);
+        const carcassMesh = new THREE.Mesh(carcassGeo, matFor('carcass'));
         carcassMesh.castShadow = true;
         carcassMesh.receiveShadow = true;
         modGroup.add(carcassMesh);
@@ -345,22 +328,33 @@ export default function Viewport3D() {
           modGroup.add(helper);
         }
 
-        // 3. Shutter Panel Divisions Overlay (visual indicator of doors/slots)
-        // Add a thin offset panel on front face (Z offset)
+        // 3. Shutter Panel (front facade — uses the 'shutter' slot)
         const frontPanelGeo = new THREE.BoxGeometry(widthMm - 8, heightMm - 8, 12);
-        const frontPanelMat = new THREE.MeshStandardMaterial({
-          color: map ? 0xffffff : colorHex,
-          map: map,
-          roughness: roughness,
-          metalness: metalness
-        });
-        const frontPanelMesh = new THREE.Mesh(frontPanelGeo, frontPanelMat);
-        // Place on the front face of depth
+        const frontPanelMesh = new THREE.Mesh(frontPanelGeo, matFor('shutter'));
         frontPanelMesh.position.set(0, 0, depthMm / 2 + 6);
         frontPanelMesh.castShadow = true;
         modGroup.add(frontPanelMesh);
 
-        // 4. Handle fitting bar
+        // 4. Countertop slab (kitchen units) — uses the 'countertop' slot
+        if (slots.includes('countertop')) {
+          const topGeo = new THREE.BoxGeometry(widthMm + 20, 40, depthMm + 20);
+          const topMesh = new THREE.Mesh(topGeo, matFor('countertop'));
+          topMesh.position.set(0, heightMm / 2 + 20, 0);
+          topMesh.castShadow = true;
+          topMesh.receiveShadow = true;
+          modGroup.add(topMesh);
+        }
+
+        // 5. Back panel (TV units / mandir) — uses the 'backPanel' slot
+        if (slots.includes('backPanel')) {
+          const backGeo = new THREE.BoxGeometry(widthMm - 8, heightMm - 8, 8);
+          const backMesh = new THREE.Mesh(backGeo, matFor('backPanel'));
+          backMesh.position.set(0, 0, -depthMm / 2 - 4);
+          backMesh.receiveShadow = true;
+          modGroup.add(backMesh);
+        }
+
+        // 6. Handle fitting bar (always present)
         const handleGeo = new THREE.BoxGeometry(widthMm * 0.35, 10, 15);
         const handleMat = new THREE.MeshStandardMaterial({ color: 0xcca43b, metalness: 0.9, roughness: 0.2 });
         const handleMesh = new THREE.Mesh(handleGeo, handleMat);

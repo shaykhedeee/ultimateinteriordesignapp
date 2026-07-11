@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { useEditorStore } from '../../stores/editorStore';
 import { selectSelectedEntity, selectModules, selectActiveLevel } from '../../lib/selectors/editorSelectors';
-import { 
+import MaterialSelector from '../design3d/MaterialSelector';
+import {
   Sliders, Trash2, CheckCircle2, AlertTriangle, XCircle, Info, 
   HelpCircle, Compass, BadgeIndianRupee, Layers, Copy 
 } from 'lucide-react';
@@ -254,42 +255,14 @@ export default function InspectorPanel() {
                     </div>
                   </div>
 
-                  {/* Materials slot picker */}
-                  <div className="space-y-2.5">
-                    <label className="text-slate-400 font-bold block uppercase tracking-wider text-[9px]">Material Shutter Finish</label>
-                    <div className="space-y-2 bg-slate-950/40 p-2.5 rounded-xl border border-slate-850">
-                      <div className="flex justify-between items-center text-[10px] text-slate-400">
-                        <span>Active Swatch</span>
-                        <span className="text-slate-500">CenturyPly / Merino</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        {paletteToUse.map(lam => {
-                          const isSelected = selectedEntity.materialAssignments?.shutter === lam.id || selectedEntity.materialAssignments?.shutter === lam.code;
-                          return (
-                            <button
-                              key={lam.id || lam.code}
-                              onClick={() => handleMaterialChange('shutter', lam.id || lam.code)}
-                              disabled={isLocked}
-                              title={`${lam.brand} - ${lam.name}`}
-                              className={`h-9 rounded-lg border relative transition ${
-                                isSelected 
-                                  ? 'border-[var(--gold)] scale-105 shadow-md shadow-[var(--gold)]/10' 
-                                  : 'border-slate-850 hover:border-slate-700'
-                              }`}
-                              style={{ backgroundColor: lam.color }}
-                            >
-                              {isSelected && (
-                                <span className="absolute bottom-0 right-0 bg-[var(--gold)] w-2.5 h-2.5 rounded-br-md flex items-center justify-center text-[7px] text-slate-950 font-black">✓</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="text-[10px] font-semibold text-slate-300 truncate">
-                        Selected: {paletteToUse.find(l => l.id === selectedEntity.materialAssignments?.shutter || l.code === selectedEntity.materialAssignments?.shutter)?.name || 'Default'}
-                      </div>
-                    </div>
-                  </div>
+                  {/* Materials slot picker — full multi-slot 3D material selector */}
+                  <MaterialSelector
+                    module={selectedEntity}
+                    moduleType={selectedEntity.moduleType}
+                    palette={paletteToUse}
+                    isLocked={isLocked}
+                    onChange={handleMaterialChange}
+                  />
 
                   {/* Duplicate and Delete buttons */}
                   <div className="grid grid-cols-2 gap-2 mt-4">
