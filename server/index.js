@@ -17,6 +17,7 @@ import voiceCallService from './services/voice-call-service.js';
 import leadScorer from './services/lead-scorer.js';
 import geminiMultimodalService from './services/gemini-multimodal-service.js';
 import cutlistEngine from './services/cutlist-engine.js';
+import { generateCNCCutPlan } from './services/cnc-cut-generator.js';
 
 import pdfBuilder from './services/pdf-builder.js';
 import { generateInteriorAsset, getProviderStatus } from './services/image-provider.js';
@@ -79,6 +80,33 @@ const dxfUpload = multer({
 
 const app = express();
 const port = Number(process.env.PORT) || 5055;
+
+// Dimension Validation Pipeline (Horizon-2 competitor feature)
+import dimensionValidator from './services/dimension-validator.js';
+app.get('/api/projects/:id/validate', (req, res) => {
+  try {
+    const pid = req.params.id;
+    const cad = db.prepare('SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(pid);
+    let modules = [];
+    let room = null;
+    if (cad) {
+      if (cad.furniture_json) {
+        try { modules = JSON.parse(cad.furniture_json); } catch {}
+      }
+      if (cad.rooms_json) {
+        try {
+          const rooms = JSON.parse(cad.rooms_json);
+          const r0 = Array.isArray(rooms) ? rooms[0] : null;
+          if (r0 && r0.widthMm && r0.heightMm) room = { widthMm: r0.widthMm, heightMm: r0.heightMm };
+        } catch {}
+      }
+    }
+    const result = dimensionValidator.validateLayout({ modules, room });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Cabinet <-> cutlist LIVE linkage: regenerate cutlist from current traced furniture.
 app.post('/api/projects/:id/cutlist/refresh', (req, res) => {
@@ -938,6 +966,13 @@ app.post('/api/projects/:id/cad/detect-walls-vision', checkAccess(PRODUCTS.PLAN_
         .run('cad_' + nanoid(8), projectId, JSON.stringify(result.walls), JSON.stringify(result.openings), JSON.stringify([]), JSON.stringify([]), ppm, new Date().toISOString());
     }
     const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+    let multimodalAnalysis = null;
+    try {
+      multimodalAnalysis = await geminiMultimodalService.analyzeFloorplanImage(projectId, imagePath);
+    } catch (mmErr) {
+      console.warn("Multimodal analysis failed:", mmErr.message);
+    }
+
     res.json({
       success: true,
       source: result.source,
@@ -945,6 +980,7 @@ app.post('/api/projects/:id/cad/detect-walls-vision', checkAccess(PRODUCTS.PLAN_
       imageWidth: result.imageWidth,
       imageHeight: result.imageHeight,
       interpretation: interp.success ? interp.interpretation : null,
+      multimodalAnalysis,
       message: `Detected ${result.walls.length} wall segment(s) via offline CV. Refine in the editor, then run AI Auto-Detect Layout.`
     });
   } catch (err) {
@@ -2014,6 +2050,34 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
   const cutlist = db.prepare("SELECT * FROM production_cutlists WHERE project_id = ?").get(req.params.id);
   res.json(cutlist || { cutlist_data_json: '[]', optimized_sheets_json: '{}' });
 });
+
+// ==========================================
+// 7b. CNC ROUTER CUT-PLAN API
+// ==========================================
+// Generate a machine-ready CNC cut plan (DXF with OUTLINE/DRILL/POCKET/ENGRAVE
+// layers) for a single cabinet module, laid out on a standard 8x4 ft board.
+app.post('/api/projects/:id/cnc-cut-plan', wrapAsync(async (req, res) => {
+  const moduleData = req.body.module || req.body;
+  if (!moduleData || (!moduleData.widthMm && !moduleData.width)) {
+    return res.status(400).json({ error: 'Provide module dimensions (widthMm/depthMm/heightMm).' });
+  }
+  try {
+    const plan = generateCNCCutPlan({
+      widthMm: Number(moduleData.widthMm || moduleData.width),
+      depthMm: Number(moduleData.depthMm || moduleData.depth),
+      heightMm: Number(moduleData.heightMm || moduleData.height),
+      plyMm: Number(moduleData.plyMm || moduleData.carcassPly) || 18,
+      backPlyMm: Number(moduleData.backPlyMm || moduleData.backPly) || 6,
+      numShelves: Number(moduleData.numShelves) || 2,
+      shutterType: moduleData.shutterType || 'double',
+      plinthH: Number(moduleData.plinthH) || 100
+    });
+    res.json({ success: true, projectId: req.params.id, ...plan });
+  } catch (e) {
+    res.status(422).json({ success: false, error: e.message });
+  }
+}));
+
 
 // ==========================================
 // 5. SCENE VERSIONING & 2D/3D EDIT CORE API
@@ -3332,25 +3396,9 @@ ensureWhitelabelTable();
 const WL_COLUMNS = ['studio_name','tagline','logo_text','accent_color','hero_image_url','surface_color','text_color','muted_color','font_display','support_phone','social_links_json','terms_url','privacy_url','show_powered_by'];
 const wlDefaults = () => ({ id:'default', studio_name:'ULTIDA', tagline:'The Ultimate Interior Design Application', logo_text:'U', accent_color:'#C9A84C', hero_image_url:'', surface_color:'#0F0F14', text_color:'#F0EEE8', muted_color:'#5C5C72', font_display:'Outfit', support_phone:'', social_links_json:'{}', terms_url:'', privacy_url:'', show_powered_by:1 });
 
-app.post('/api/whitelabel', express.json(), (req, res) => {
+app.get('/api/whitelabel', (req, res) => {
   try {
-    const body = req.body || {};
-    // map camelCase incoming -> snake_case columns
-    const map = {
-      studioName: 'studio_name', tagline: 'tagline', logoText: 'logo_text', accentColor: 'accent_color',
-      heroImageUrl: 'hero_image_url', surfaceColor: 'surface_color', textColor: 'text_color', mutedColor: 'muted_color',
-      fontDisplay: 'font_display', supportPhone: 'support_phone', termsUrl: 'terms_url', privacyUrl: 'privacy_url',
-      showPoweredBy: 'show_powered_by'
-    };
-    const d = wlDefaults();
-    for (const [camel, snake] of Object.entries(map)) {
-      if (body[camel] !== undefined) d[snake] = body[camel];
-    }
-    const vals = WL_COLUMNS.map(c => d[c] ?? null);
-    const placeholders = WL_COLUMNS.map(() => '?').join(',');
-    db.prepare(`INSERT OR REPLACE INTO whitelabel_settings (id, ${WL_COLUMNS.join(',')}, updated_at) VALUES ('default', ${placeholders}, ?)`)
-      .run(...vals, new Date().toISOString());
-    const row = db.prepare('SELECT * FROM whitelabel_settings WHERE id = ?').get('default');
+    const row = db.prepare('SELECT * FROM whitelabel_settings WHERE id = ?').get('default') || wlDefaults();
     res.json({ success:true, settings: whitelabelSafe(row) });
   } catch (err) { res.status(500).json({ success:false, error: err.message }); }
 });
@@ -3367,6 +3415,38 @@ function whitelabelSafe(row) {
   };
 }
 
+function whitelabelFromCamel(body = {}) {
+  const map = {
+    studioName: 'studio_name', tagline: 'tagline', logoText: 'logo_text', accentColor: 'accent_color',
+    heroImageUrl: 'hero_image_url', surfaceColor: 'surface_color', textColor: 'text_color', mutedColor: 'muted_color',
+    fontDisplay: 'font_display', supportPhone: 'support_phone', termsUrl: 'terms_url', privacyUrl: 'privacy_url',
+    socialLinks: 'social_links_json', showPoweredBy: 'show_powered_by'
+  };
+  const d = wlDefaults();
+  for (const [camel, snake] of Object.entries(map)) {
+    if (body[camel] !== undefined) {
+      if (snake === 'social_links_json') d[snake] = JSON.stringify(body[camel] || {});
+      else d[snake] = body[camel];
+    }
+  }
+  d.id = body.id || 'default';
+  d.updated_at = new Date().toISOString();
+  return d;
+}
+
+app.post('/api/whitelabel', express.json(), (req, res) => {
+  try {
+    const body = whitelabelFromCamel(req.body || {});
+    const cols = WL_COLUMNS.join(',');
+    const placeholders = WL_COLUMNS.map(() => '?').join(',');
+    db.prepare(`INSERT OR REPLACE INTO whitelabel_settings (id, ${cols}, updated_at) VALUES (?, ${placeholders}, ?)`).run(
+      body.id, ...WL_COLUMNS.map(c => body[c]), body.updated_at
+    );
+    const row = db.prepare('SELECT * FROM whitelabel_settings WHERE id = ?').get('default');
+    res.json({ success:true, settings: whitelabelSafe(row || wlDefaults()) });
+  } catch (err) { res.status(500).json({ success:false, error: err.message }); }
+});
+
 app.get('/api/whitelabel/public', (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM whitelabel_settings WHERE id = ?').get('default') || wlDefaults();
@@ -3377,21 +3457,19 @@ app.get('/api/whitelabel/public', (req, res) => {
 app.post('/api/whitelabel/reset', express.json(), (req, res) => {
   try {
     db.prepare('DELETE FROM whitelabel_settings WHERE id = ?').run('default');
-    res.json({ success:true, settings: whitelabelSafe(wlDefaults()) });
+    const d = wlDefaults();
+    const cols = WL_COLUMNS.join(',');
+    const placeholders = WL_COLUMNS.map(() => '?').join(',');
+    db.prepare(`INSERT INTO whitelabel_settings (id, ${cols}, updated_at) VALUES (?, ${placeholders}, ?)`).run(
+      'default', WL_COLUMNS.map(c => d[c]), new Date().toISOString()
+    );
+    const row = db.prepare('SELECT * FROM whitelabel_settings WHERE id = ?').get('default');
+    res.json({ success:true, settings: whitelabelSafe(row || wlDefaults()) });
   } catch (err) { res.status(500).json({ success:false, error: err.message }); }
 });
 
 // Serve the built frontend from the same process in production.
-if (fs.existsSync(frontendDistDir)) {
-  app.use(express.static(frontendDistDir));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/storage/')) return next();
-    res.sendFile(path.join(frontendDistDir, 'index.html'));
-  });
-}
 
-// ─── Python Executor Routes ───────────────────────────────────────────────────
-// POST /api/python/execute  — run an arbitrary Python script
 app.post('/api/python/execute', express.json(), wrapAsync(async (req, res) => {
   const { code, context } = req.body;
   if (!code || typeof code !== 'string') return res.status(400).json({ success: false, error: 'code (string) is required' });
@@ -3434,6 +3512,61 @@ app.post('/api/keys', express.json(), (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// POST /api/keys/test  — validate key formats and connectivity status
+app.post('/api/keys/test', express.json(), wrapAsync(async (req, res) => {
+  const { provider, key } = req.body;
+  if (!provider || !key) return res.status(400).json({ success: false, error: 'provider and key are required' });
+  try {
+    let ok = false;
+    let note = '';
+    const p = provider.toLowerCase();
+    
+    if (p === 'openai') {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: { 'Authorization': `Bearer ${key}` }
+      });
+      ok = response.ok;
+      note = ok ? 'Successfully authenticated with OpenAI.' : 'OpenAI rejected this key.';
+    } else if (p === 'gemini') {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+      ok = response.ok;
+      note = ok ? 'Successfully authenticated with Google Gemini.' : 'Gemini rejected this key.';
+    } else if (p === 'openrouter') {
+      const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
+        headers: { 'Authorization': `Bearer ${key}` }
+      });
+      ok = response.ok;
+      note = ok ? 'Successfully authenticated with OpenRouter.' : 'OpenRouter rejected this key.';
+    } else if (p === 'freepik') {
+      const response = await fetch('https://api.freepik.com/v1/ai/text-to-image/flux-dev', {
+        method: 'POST',
+        headers: { 'x-freepik-api-key': key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'test connection', aspect_ratio: 'square_1_1' })
+      });
+      ok = response.status !== 401 && response.status !== 403;
+      note = ok ? 'Successfully reached Freepik.' : 'Freepik rejected this key.';
+    } else if (p === 'huggingface') {
+      const response = await fetch('https://api-inference.huggingface.co/models', {
+        headers: { 'Authorization': `Bearer ${key}` }
+      });
+      ok = response.ok;
+      note = ok ? 'Successfully authenticated with HuggingFace.' : 'HuggingFace rejected this key.';
+    } else if (p === 'stability') {
+      const response = await fetch('https://api.stability.ai/v1/user/account', {
+        headers: { 'Authorization': `Bearer ${key}` }
+      });
+      ok = response.ok;
+      note = ok ? 'Successfully authenticated with Stability AI.' : 'Stability AI rejected this key.';
+    } else {
+      return res.status(400).json({ success: false, error: 'Unknown provider' });
+    }
+    
+    res.json({ success: true, valid: ok, note });
+  } catch (err) {
+    res.json({ success: true, valid: false, note: 'Network connection failed: ' + err.message });
+  }
+}));
 
 // GET /api/keys  — return masked list of stored provider keys
 app.get('/api/keys', (req, res) => {
