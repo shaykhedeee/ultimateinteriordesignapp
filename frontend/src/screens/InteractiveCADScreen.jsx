@@ -570,7 +570,18 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   // --- Room overlay: inline rename state + commit (drag math lives in lib/roomOverlay) ---
   const [renamingRoom, setRenamingRoom] = useState(null); // room id being renamed inline
+  const renamingCancelledRef = useRef(false); // Escape must cancel, never commit on unmount-blur
+  const roomMovedRef = useRef(false); // tracks whether a room drag actually moved (avoids junk saves)
+  const cancelRoomRename = () => {
+    renamingCancelledRef.current = true;
+    setRenamingRoom(null);
+  };
   const commitRoomRename = (id, value) => {
+    if (renamingCancelledRef.current) {
+      renamingCancelledRef.current = false;
+      setRenamingRoom(null);
+      return;
+    }
     const name = (value || '').trim();
     if (name) {
       const updated = rooms.map(r => r.id === id ? { ...r, name } : r);
@@ -673,6 +684,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
           setSelectedObj({ id, type: 'room' });
           const c = roomCentroid(rItem, rooms.indexOf(rItem));
           setDragMode('move');
+          roomMovedRef.current = false;
           setDragOffset({ x: mousePos.x - c.x, y: mousePos.y - c.y });
         }
         return;
@@ -850,6 +862,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             const c = roomCentroid(target, rooms.indexOf(target));
             const dx = (snapped.x - dragOffset.x) - c.x;
             const dy = (snapped.y - dragOffset.y) - c.y;
+            if (dx !== 0 || dy !== 0) roomMovedRef.current = true;
             const updatedRooms = rooms.map(r => r.id === selectedObj.id ? shiftRoom(r, dx, dy) : r);
             setRooms(updatedRooms);
           }
@@ -867,9 +880,10 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const handleSVGMouseUp = () => {
     isDraggingCanvasRef.current = false;
     if (dragMode) {
-      if (selectedObj?.type === 'room') saveCADToServer();
+      if (selectedObj?.type === 'room' && roomMovedRef.current) saveCADToServer();
       setDragMode(null);
-      saveToHistory(walls, openings, furniture, rooms, measures);
+      if (roomMovedRef.current) saveToHistory(walls, openings, furniture, rooms, measures);
+      roomMovedRef.current = false;
     }
   };
 
@@ -1598,7 +1612,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                             onBlur={(e) => commitRoomRename(room.id, e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') commitRoomRename(room.id, e.target.value);
-                              if (e.key === 'Escape') setRenamingRoom(null);
+                              if (e.key === 'Escape') { e.stopPropagation(); cancelRoomRename(); }
                             }}
                           />
                         </foreignObject>
