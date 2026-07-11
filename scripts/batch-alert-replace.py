@@ -1,6 +1,19 @@
-from pathlib import Path
+#!/usr/bin/env python3
+"""
+batch-alert-replace.py  —  Safe, idempotent toast-migration helper.
 
-files = [
+Walks a list of frontend source files and swaps noisy `alert(...)` / `window.__toast`
+calls for the app's toast helper (`__toast`), WITHOUT re-processing lines that are
+already correct (idempotent: running it twice is a no-op). Skips binary/non-text
+files. Only reports what changed.
+
+Run from repo root:
+  python3 scripts/batch-alert-replace.py
+"""
+from pathlib import Path
+import sys
+
+FILES = [
     Path('frontend/src/screens/Render3DStudio.jsx'),
     Path('frontend/src/screens/InteractiveCADScreen.jsx'),
     Path('frontend/src/screens/CommandCenterScreen.jsx'),
@@ -11,26 +24,51 @@ files = [
     Path('frontend/src/screens/CutlistNestingScreen.jsx'),
 ]
 
-def patch_file(path):
+# Already-correct patterns must NOT be touched (idempotency guard).
+SAFE_PATTERNS = ('__toast?.warn', '__toast?.success', '__toast?.error', '__toast?.show')
+
+REPLACEMENTS = [
+    ('window.__toast?.warn', '__toast?.warn'),
+    ('window.__toast?.success', '__toast?.success'),
+    ('window.__toast?.error', '__toast?.error'),
+    ('alert(', '__toast?.show('),
+]
+
+
+def is_text_file(path: Path) -> bool:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return False
+    # treat as binary if NUL byte present
+    return b'\x00' not in data
+
+
+def patch_file(path: Path) -> int:
     if not path.exists():
+        return 0
+    if not is_text_file(path):
         return 0
     text = path.read_text(encoding='utf-8')
     original = text
-    text = text.replace("window.__toast?.warn", "__toast?.warn")
-    text = text.replace("window.__toast?.success", "__toast?.success")
-    text = text.replace("window.__toast?.error", "__toast?.error")
-    # Basic alert patterns only when safe
-    text = text.replace("alert(", "window.__toast?.show(")
-    # fix common typo
-    if text != original and "window.__toast?.show(" in text:
-        ensure_import = "import { useToast } from '../components/ui/Toast.jsx';\n"
-        if ensure_import not in text:
-            pass
+    for bad, good in REPLACEMENTS:
+        text = text.replace(bad, good)
+    if text == original:
+        return 0
     path.write_text(text, encoding='utf-8')
-    return text != original
+    return 1
 
-count = 0
-for p in files:
-    if patch_file(p):
-        count += 1
-print(f'patched {count}/{len(files)}')
+
+def main() -> int:
+    changed = 0
+    for p in FILES:
+        try:
+            changed += patch_file(p)
+        except Exception as e:  # noqa: BLE001
+            print(f'  ! error patching {p}: {e}', file=sys.stderr)
+    print(f'patched {changed}/{len(FILES)} file(s)')
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -20,6 +20,7 @@ def main():
 
         raw = sys.stdin.buffer.read()
         if not raw:
+            print(json.dumps({"success": False, "error": "no image data on stdin", "source": "local-vision"}))
             return 1
         try:
             img_bytes = base64.b64decode(raw)

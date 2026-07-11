@@ -90,6 +90,30 @@ export default function WhiteLabelStudio({ onBack }) {
     }
   };
 
+  const testKey = async (provider) => {
+    const key = (keyInputs[provider] || '').trim();
+    if (!key) return;
+    setKeyBusy(b => ({ ...b, [provider]: true }));
+    setKeyMsg(m => ({ ...m, [provider]: null }));
+    try {
+      const r = await fetch(`${API}/api/keys/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, key })
+      });
+      const d = await r.json();
+      if (d.success && d.valid) {
+        setKeyMsg(m => ({ ...m, [provider]: { ok: true, text: `✓ Connectivity OK: ${d.note}` } }));
+      } else {
+        setKeyMsg(m => ({ ...m, [provider]: { ok: false, text: d.note || d.error || 'Connection failed' } }));
+      }
+    } catch (e) {
+      setKeyMsg(m => ({ ...m, [provider]: { ok: false, text: e.message } }));
+    } finally {
+      setKeyBusy(b => ({ ...b, [provider]: false }));
+    }
+  };
+
   const deleteKey = async (provider) => {
     setKeyBusy(b => ({ ...b, [provider]: true }));
     try {
@@ -216,6 +240,13 @@ export default function WhiteLabelStudio({ onBack }) {
                         {show ? <EyeOff style={{ width:14, height:14 }} /> : <Eye style={{ width:14, height:14 }} />}
                       </button>
                     </div>
+                    <button
+                      onClick={() => testKey(prov.id)}
+                      disabled={busy_ || !(keyInputs[prov.id] || '').trim()}
+                      style={{ padding:'6px 12px', borderRadius:8, background: 'rgba(255,255,255,0.08)', color:'#fff', fontWeight:600, fontSize:'11px', border:'1px solid rgba(255,255,255,0.15)', cursor:'pointer', opacity: (busy_ || !(keyInputs[prov.id] || '').trim()) ? 0.5 : 1, whiteSpace:'nowrap', flexShrink:0 }}
+                    >
+                      Test
+                    </button>
                     <button
                       onClick={() => saveKey(prov.id)}
                       disabled={busy_ || !(keyInputs[prov.id] || '').trim()}

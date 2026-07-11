@@ -372,13 +372,27 @@ async function tryGenerateOpenAiImage({ id, projectId, room, safeRoom, title, pr
       prompt,
       size: process.env.OPENAI_IMAGE_SIZE || '1536x1024',
       quality: process.env.OPENAI_IMAGE_QUALITY || 'high',
+      response_format: 'b64_json',
       n: 1
     });
+    let imgBuffer;
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) return null;
+    if (b64) {
+      imgBuffer = Buffer.from(b64, 'base64');
+    } else {
+      const url = response.data?.[0]?.url;
+      if (url) {
+        console.log('[image-provider] b64_json missing, downloading OpenAI image from URL fallback:', url);
+        const resDownload = await fetch(url);
+        if (resDownload.ok) {
+          imgBuffer = Buffer.from(await resDownload.arrayBuffer());
+        }
+      }
+    }
+    if (!imgBuffer) return null;
     const fileName = `${safeRoom || room}-${id}.png`;
     const filePath = path.join(storageDir, 'assets', fileName);
-    fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+    fs.writeFileSync(filePath, imgBuffer);
     const asset = {
       id,
       projectId,
@@ -419,7 +433,13 @@ async function tryGenerateFreepikImage({ id, projectId, room, safeRoom, title, p
         aspect_ratio: process.env.FREEPIK_ASPECT_RATIO || 'widescreen_16_9'
       })
     });
-    if (!response.ok) throw new Error(`Freepik ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.warn('[image-provider] Freepik returned 401 Unauthorized. Promoting OpenAI DALL-E 3 as the primary provider.');
+        process.env.IMAGE_PROVIDER = 'openai';
+      }
+      throw new Error(`Freepik ${response.status}`);
+    }
     const payload = await response.json();
     const imagePayload = findImagePayload(payload);
     if (!imagePayload) return null;
@@ -695,13 +715,27 @@ async function tryGenerateOpenAiGptImage1({ id, projectId, room, safeRoom, title
       prompt,
       size: process.env.OPENAI_IMAGE_SIZE || '1536x1024',
       quality: process.env.OPENAI_IMAGE_QUALITY || 'high',
+      response_format: 'b64_json',
       n: 1
     });
+    let imgBuffer;
     const b64 = response.data?.[0]?.b64_json;
-    if (!b64) return null;
+    if (b64) {
+      imgBuffer = Buffer.from(b64, 'base64');
+    } else {
+      const url = response.data?.[0]?.url;
+      if (url) {
+        console.log('[image-provider] b64_json missing, downloading OpenAI GPT image from URL fallback:', url);
+        const resDownload = await fetch(url);
+        if (resDownload.ok) {
+          imgBuffer = Buffer.from(await resDownload.arrayBuffer());
+        }
+      }
+    }
+    if (!imgBuffer) return null;
     const fileName = `${safeRoom || room}-${id}.png`;
     const filePath = path.join(storageDir, 'assets', fileName);
-    fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+    fs.writeFileSync(filePath, imgBuffer);
     const asset = {
       id,
       projectId,

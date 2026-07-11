@@ -6,6 +6,8 @@ import {
   RefreshCw, MessageSquare, Plus, AlertTriangle, XCircle, CheckCircle, Trash2, Eye, ShieldAlert,
   Palette
 } from 'lucide-react';
+import { buildSlotMaterial, LAMINATE_COLORS } from '../lib/threeMaterials';
+import { getSlotsForModuleType, defaultMaterialAssignments, resolveMaterial, SLOT_LABELS } from '../lib/materialSlots';
 
 const roomOptions = [
   { id: 'living', label: 'Grand Living Area' },
@@ -57,7 +59,11 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
   const [activeRoomId, setActiveRoomId] = useState('');
   const [selectedCabinet, setSelectedCabinet] = useState(null);
   const [catalogLaminates, setCatalogLaminates] = useState([]);
-  
+  // Per-cabinet material assignments keyed by furniture id -> { slot: materialId }
+  const [cabinetMaterials, setCabinetMaterials] = useState({});
+  // Which slot the catalog swatches currently target for the selected cabinet
+  const [activeSlot, setActiveSlot] = useState('shutter');
+
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
@@ -79,11 +85,74 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
   const rooms = useMemo(() => JSON.parse(cadDrawing?.rooms_json || '[]'), [cadDrawing]);
   const ppm = cadDrawing?.pixels_per_meter || 40.0;
 
+  // Resolve the slots available for a given furniture type (mirrors module slot model).
+  const slotsForFurniture = (type) => {
+    let slots = getSlotsForModuleType((type || 'cabinet') + '');
+    if (type === 'counter' && !slots.includes('countertop')) slots = [...slots, 'countertop'];
+    if (type === 'bed' || type === 'sofa') slots = ['shutter']; // upholstery finish only
+    return slots.filter(s => s !== 'hardware');
+  };
+
+  // Hydrate per-cabinet materials whenever furniture or the saved selection changes.
+  useEffect(() => {
+    if (!furniture.length) return;
+    setCabinetMaterials(prev => {
+      const next = { ...prev };
+      const globalShutter = selectedLaminates.find(l => l.type === 'shutter_facade');
+      furniture.forEach(f => {
+        if (next[f.id]) return; // keep user edits across re-renders
+        const slots = slotsForFurniture(f.type);
+        const assignments = defaultMaterialAssignments((f.type || 'cabinet') + '');
+        // prefill shutter from the saved global selection if its color matches a catalog item
+        if (globalShutter && catalogLaminates.length) {
+          const match = catalogLaminates.find(l => l.color?.toLowerCase() === globalShutter.color?.toLowerCase());
+          if (match && assignments.shutter) assignments.shutter = match.id;
+        }
+        slots.forEach(s => { if (!next[f.id]) next[f.id] = {}; next[f.id][s] = assignments[s] || 'lam_1'; });
+      });
+      return next;
+    });
+  }, [furniture, selectedLaminates, catalogLaminates]);
+
   useEffect(() => {
     if (rooms.length > 0 && !activeRoomId) {
       setActiveRoomId(rooms[0].id);
     }
   }, [rooms, activeRoomId]);
+
+  // Apply a chosen catalog laminate to the selected cabinet's active slot + persist.
+  const applyLaminate = async (lam) => {
+    if (!selectedCabinet) return;
+    const cabId = selectedCabinet.id;
+    setCabinetMaterials(prev => ({
+      ...prev,
+      [cabId]: { ...(prev[cabId] || {}), [activeSlot]: lam.id }
+    }));
+    try {
+      const updatedLaminates = [
+        ...selectedLaminates.filter(l => l.type !== 'shutter_facade' || l.moduleId !== cabId),
+        {
+          type: 'shutter_facade',
+          moduleId: cabId,
+          slot: activeSlot,
+          name: lam.name,
+          code: lam.code,
+          color: lam.color,
+          category: 'laminate'
+        }
+      ];
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ laminates: updatedLaminates, hardware: [], notes: 'Walkthrough per-cabinet finish update' })
+      });
+      if (res.ok) {
+        onLaminateChange && onLaminateChange(lam.name, lam.code, lam.color);
+      }
+    } catch (err) {
+      console.error('Error saving walkthrough material:', err);
+    }
+  };
 
   useEffect(() => {
     if (!mountRef.current || !activeRoomId || rooms.length === 0) return;
@@ -159,20 +228,24 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
     const furnitureGroup = new THREE.Group();
     scene.add(furnitureGroup);
 
-    const activeLaminate = selectedLaminates.find(l => l.type === 'shutter_facade')?.color || '#a1a1aa';
-
     furniture.forEach(f => {
       const widthM = f.width / ppm;
       const depthM = f.height / ppm;
       const heightM = f.type === 'wardrobe' ? 2.2 : f.type === 'bed' ? 0.6 : f.type === 'counter' ? 0.85 : 0.75;
-      
+
+      const assignment = cabinetMaterials[f.id] || {};
+      const slots = slotsForFurniture(f.type);
+      const shutterId = assignment.shutter || 'lam_1';
+      const carcassId = assignment.carcass || 'lam_1';
+      const counterId = assignment.countertop || 'lam_4';
+
+      // Carcass (interior box) uses the carcass slot; facade panel uses shutter slot.
+      const carcassMat = buildSlotMaterial(carcassId, catalogLaminates, 'textures');
+      const shutterMat = buildSlotMaterial(shutterId, catalogLaminates, 'textures');
+      const counterMat = buildSlotMaterial(counterId, catalogLaminates, 'textures');
+
       const geo = new THREE.BoxGeometry(widthM, heightM, depthM);
-      const mat = new THREE.MeshStandardMaterial({ 
-        color: activeLaminate, 
-        roughness: 0.5, 
-        metalness: 0.1 
-      });
-      const mesh = new THREE.Mesh(geo, mat);
+      const mesh = new THREE.Mesh(geo, carcassMat);
 
       const fx = f.x / ppm;
       const fz = f.y / ppm;
@@ -181,8 +254,30 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.userData = { id: f.id, name: f.name, type: f.type };
-
       furnitureGroup.add(mesh);
+
+      // Shutter facade (front face) — only for cabinets/wardrobes (not loose beds/sofas)
+      if (slots.includes('shutter') && f.type !== 'bed' && f.type !== 'sofa') {
+        const frontGeo = new THREE.BoxGeometry(widthM - 0.04, heightM - 0.04, 0.04);
+        const frontMesh = new THREE.Mesh(frontGeo, shutterMat);
+        frontMesh.position.set(fx, heightM / 2, fz + depthM / 2 + 0.02);
+        frontMesh.rotation.y = -(f.rotation || 0) * Math.PI / 180;
+        frontMesh.castShadow = true;
+        frontMesh.userData = { id: f.id, name: f.name, type: f.type };
+        furnitureGroup.add(frontMesh);
+      }
+
+      // Countertop slab
+      if (slots.includes('countertop')) {
+        const topGeo = new THREE.BoxGeometry(widthM + 0.06, 0.05, depthM + 0.06);
+        const topMesh = new THREE.Mesh(topGeo, counterMat);
+        topMesh.position.set(fx, heightM + 0.025, fz);
+        topMesh.rotation.y = -(f.rotation || 0) * Math.PI / 180;
+        topMesh.castShadow = true;
+        topMesh.receiveShadow = true;
+        topMesh.userData = { id: f.id, name: f.name, type: f.type };
+        furnitureGroup.add(topMesh);
+      }
     });
 
     let yaw = Math.PI;
@@ -211,7 +306,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
 
     const handleCanvasClick = (e) => {
       if (isDragging) return;
-      
+
       const rect = renderer.domElement.getBoundingClientRect();
       const mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const mouseY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -227,6 +322,9 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
           name: clickedObj.userData.name,
           type: clickedObj.userData.type
         });
+        // default the slot switcher to the first available slot
+        const slots = slotsForFurniture(clickedObj.userData.type);
+        setActiveSlot(slots[0] || 'shutter');
       } else {
         setSelectedCabinet(null);
       }
@@ -263,7 +361,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
     let frameId;
     const animate = () => {
       frameId = requestAnimationFrame(animate);
-      
+
       const target = new THREE.Vector3(
         camera.position.x + 10 * Math.sin(yaw) * Math.cos(pitch),
         camera.position.y + 10 * Math.sin(pitch),
@@ -299,14 +397,17 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
       }
       renderer.dispose();
     };
-  }, [activeRoomId, walls, openings, furniture, rooms, ppm, selectedLaminates]);
+  }, [activeRoomId, walls, openings, furniture, rooms, ppm, cabinetMaterials, catalogLaminates]);
+
+  const activeCabSlots = selectedCabinet ? slotsForFurniture(selectedCabinet.type) : ['shutter'];
+  const currentSlotMat = selectedCabinet ? (cabinetMaterials[selectedCabinet.id]?.[activeSlot] || 'lam_1') : 'lam_1';
 
   return (
     <div className="w-full h-full flex flex-col relative bg-slate-950 rounded-xl overflow-hidden min-h-[500px]">
       <div className="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center z-10 shrink-0">
         <span className="text-xs font-bold text-slate-300">Room Walkthrough View:</span>
-        <select 
-          value={activeRoomId} 
+        <select
+          value={activeRoomId}
           onChange={(e) => { setActiveRoomId(e.target.value); setSelectedCabinet(null); }}
           className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-[var(--gold)]"
         >
@@ -316,11 +417,11 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
 
       <div ref={mountRef} className="flex-grow w-full relative min-h-0 cursor-move">
         <div className="absolute bottom-3 left-3 bg-slate-900/80 border border-slate-850 px-2 py-1 rounded text-[8px] text-slate-500 font-mono pointer-events-none select-none z-10">
-          DRAG TO PANORAMA LOOK-AROUND (360) · CLICK CABINETS TO CHOOSE LAMINATES
+          DRAG TO PANORAMA LOOK-AROUND (360) · CLICK CABINETS TO CHOOSE FINISHES
         </div>
 
         {selectedCabinet && (
-          <div className="absolute top-3 right-3 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl w-60 z-20 space-y-3">
+          <div className="absolute top-3 right-3 bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-2xl w-64 z-20 space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-wider">Customize Finish</span>
               <button onClick={() => setSelectedCabinet(null)} className="text-slate-500 hover:text-slate-300 text-xs">✕</button>
@@ -329,19 +430,40 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
               <strong className="text-xs text-slate-200 block truncate">{selectedCabinet.name}</strong>
               <span className="text-[9px] text-slate-500 block uppercase font-mono">Module: {selectedCabinet.type}</span>
             </div>
-            
+
+            {/* Slot switcher (multi-slot material model) */}
+            <div className="border-t border-slate-800 pt-2.5">
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Material Slot</span>
+              <div className="flex flex-wrap gap-1">
+                {activeCabSlots.map(slot => (
+                  <button
+                    key={slot}
+                    onClick={() => setActiveSlot(slot)}
+                    className={`px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wide transition ${
+                      activeSlot === slot ? 'bg-[var(--gold)]/20 border border-[var(--gold)]/50 text-[var(--gold)]' : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                    title={SLOT_LABELS[slot] || slot}
+                  >
+                    {SLOT_LABELS[slot] || slot}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="border-t border-slate-800 pt-2.5 space-y-2">
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Select Shutter Laminate</span>
-              <div className="grid grid-cols-4 gap-1.5 max-h-40 overflow-y-auto p-0.5">
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">
+                {SLOT_LABELS[activeSlot] || activeSlot} · Catalog
+              </span>
+              <div className="grid grid-cols-4 gap-1.5 max-h-44 overflow-y-auto p-0.5">
                 {catalogLaminates.map(lam => (
                   <button
                     key={lam.id}
-                    onClick={() => {
-                      onLaminateChange(lam.name, lam.code, lam.color);
-                    }}
-                    className="w-10 h-10 rounded border border-slate-800 relative group flex items-center justify-center hover:border-slate-500 transition"
+                    onClick={() => applyLaminate(lam)}
+                    className={`w-10 h-10 rounded border relative group flex items-center justify-center transition ${
+                      currentSlotMat === lam.id ? 'border-[var(--gold)] ring-1 ring-[var(--gold)]' : 'border-slate-800 hover:border-slate-500'
+                    }`}
                     style={{ backgroundColor: lam.color }}
-                    title={`${lam.brand} ${lam.name}`}
+                    title={`${lam.brand} ${lam.name} (${lam.finish || '—'})`}
                   >
                     <span className="absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-slate-950 text-slate-200 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-30 pointer-events-none">
                       {lam.name}
@@ -429,6 +551,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [customLaminatePreview, setCustomLaminatePreview] = useState(null);
   const [catalogMaterials, setCatalogMaterials] = useState([]);
   const [selectedCatalogMaterial, setSelectedCatalogMaterial] = useState(null);
+  const [activeRecolorTab, setActiveRecolorTab] = useState('colors'); // 'colors' or 'materials'
   const [laminateSwapInstruction, setLaminateSwapInstruction] = useState('');
   const [isSwappingLaminate, setIsSwappingLaminate] = useState(false);
   const [swapperStepMessage, setSwapperStepMessage] = useState('');
@@ -678,7 +801,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         })
       });
       setProject(prev => prev ? { ...prev, stale_renders: 0 } : null);
-      window.__toast?.success("Render regeneration job spawned successfully! Check Background Jobs tab.");
+      __toast?.success("Render regeneration job spawned successfully! Check Background Jobs tab.");
     } catch (err) {
       console.error(err);
     }
@@ -781,19 +904,19 @@ export default function Render3DStudio({ projectId, onComplete }) {
             : src.includes('openai') ? '🤖 OpenAI'
             : isMock ? '⚠️ Mock SVG (no real key active)' : '✅ Real render';
           if (isMock) {
-            window.__toast?.warn?.(`Render complete — but using mock placeholder (${providerLabel}). Add a valid API key in Settings to get real images.`);
+            __toast?.warn?.(`Render complete — but using mock placeholder (${providerLabel}). Add a valid API key in Settings to get real images.`);
           } else {
-            window.__toast?.success?.(`Real render generated via ${providerLabel}!`);
+            __toast?.success?.(`Real render generated via ${providerLabel}!`);
           }
         }
         // Refresh provider health after a render
         fetchProviderHealth();
       } else {
-        window.__toast?.error?.(data.error || 'Render generation failed');
+        __toast?.error?.(data.error || 'Render generation failed');
       }
     } catch (err) {
       console.error('AI Generation failed:', err);
-      window.__toast?.error?.('Render request failed: ' + err.message);
+      __toast?.error?.('Render request failed: ' + err.message);
     } finally {
       setIsGenerating(false);
       sse.close();
@@ -1843,32 +1966,103 @@ export default function Render3DStudio({ projectId, onComplete }) {
                     </div>
                   </div>
 
-                  {/* Color swatches */}
+                  {/* Swatch or Material Catalog Selector */}
                   {selectedComponent ? (
                     <div className="space-y-2.5 flex-grow flex flex-col min-h-0">
-                      <div className="border-t border-slate-850 pt-2">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
-                          Indian Palette
-                        </span>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {getPaletteForComponent(selectedComponent).map((color, i) => (
-                            <button
-                              key={i}
-                              className={`w-8 h-8 rounded-lg border relative group flex items-center justify-center transition ${
-                                activeColor === color.name ? 'border-[var(--gold)] scale-95 ring-1 ring-[var(--gold)]' : 'border-slate-800 hover:border-slate-650'
-                              }`}
-                              style={{ backgroundColor: color.hex }}
-                              title={color.name}
-                              onClick={() => handleColorChange(selectedComponent, color.name, color.hex)}
-                            >
-                              <span className="absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-slate-950 text-slate-200 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-30 pointer-events-none">
-                                {color.name}
-                              </span>
-                              {activeColor === color.name && <CheckCircle className="w-3.5 h-3.5 text-slate-950 mix-blend-difference" />}
-                            </button>
-                          ))}
-                        </div>
+                      {/* Tab Switcher */}
+                      <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-850">
+                        <button
+                          onClick={() => setActiveRecolorTab('colors')}
+                          className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition ${
+                            activeRecolorTab === 'colors'
+                              ? 'bg-[var(--gold)] text-slate-950'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Colors
+                        </button>
+                        <button
+                          onClick={() => setActiveRecolorTab('materials')}
+                          className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider rounded transition ${
+                            activeRecolorTab === 'materials'
+                              ? 'bg-[var(--gold)] text-slate-950'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Materials
+                        </button>
                       </div>
+
+                      {activeRecolorTab === 'colors' ? (
+                        <div className="border-t border-slate-850 pt-2">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
+                            Indian Palette
+                          </span>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {getPaletteForComponent(selectedComponent).map((color, i) => (
+                              <button
+                                key={i}
+                                className={`w-8 h-8 rounded-lg border relative group flex items-center justify-center transition ${
+                                  activeColor === color.name ? 'border-[var(--gold)] scale-95 ring-1 ring-[var(--gold)]' : 'border-slate-800 hover:border-slate-650'
+                                }`}
+                                style={{ backgroundColor: color.hex }}
+                                title={color.name}
+                                onClick={() => handleColorChange(selectedComponent, color.name, color.hex)}
+                              >
+                                <span className="absolute bottom-full mb-1 left-1/2 transform -translate-x-1/2 bg-slate-950 text-slate-200 text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-30 pointer-events-none">
+                                  {color.name}
+                                </span>
+                                {activeColor === color.name && <CheckCircle className="w-3.5 h-3.5 text-slate-950 mix-blend-difference" />}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-t border-slate-850 pt-2 flex-grow overflow-y-auto max-h-[40vh] space-y-2">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
+                            Material Swatches
+                          </span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {catalogMaterials.length === 0 ? (
+                              <div className="text-[9px] text-slate-500 italic col-span-2 text-center py-2">
+                                No catalog materials loaded.
+                              </div>
+                            ) : (
+                              catalogMaterials.map((mat) => {
+                                const isSelected = selectedCatalogMaterial?.id === mat.id;
+                                return (
+                                  <button
+                                    key={mat.id}
+                                    onClick={() => {
+                                      setSelectedCatalogMaterial(mat);
+                                      setSelectedSwapComponent(selectedComponent);
+                                      // Directly trigger swap
+                                      setTimeout(() => handleLaminateSwap(), 100);
+                                    }}
+                                    className={`p-1.5 rounded-lg border text-left transition flex flex-col gap-1.5 ${
+                                      isSelected
+                                        ? 'border-[var(--gold)] bg-[var(--gold)]/5'
+                                        : 'border-slate-850 hover:border-slate-700 bg-slate-950/60'
+                                    }`}
+                                  >
+                                    <div className="w-full h-8 rounded border border-slate-800 bg-slate-900 overflow-hidden">
+                                      {mat.swatch_url ? (
+                                        <img src={`http://127.0.0.1:8787${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full" style={{ backgroundColor: mat.color || '#A0A0A0' }} />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="text-[8px] font-bold text-slate-200 truncate">{mat.name}</div>
+                                      <div className="text-[7px] text-slate-500 truncate">{mat.brand || 'Catalog'}</div>
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Suggestions Section */}
                       {colorSuggestions.length > 0 && (

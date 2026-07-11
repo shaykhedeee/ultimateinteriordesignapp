@@ -1,11 +1,31 @@
-import { openRouterKey } from './provider-config.js';
+import db from '../database/database.js';
+import { callLocalLLM } from './local-llm-service.js';
+
+function resolveKey(provider) {
+  const envMap = {
+    openai: 'OPENAI_API_KEY',
+    gemini: 'GEMINI_API_KEY',
+    openrouter: 'OPENROUTER_API_KEY',
+    freepik: 'FREEPIK_API_KEY',
+    huggingface: 'HUGGINGFACE_API_KEY',
+    stability: 'STABILITY_API_KEY'
+  };
+  const envKey = envMap[provider.toLowerCase()];
+  if (envKey && process.env[envKey]) return process.env[envKey];
+  try {
+    const row = db.prepare('SELECT key_value FROM api_keys WHERE provider = ? LIMIT 1').get(provider.toLowerCase());
+    if (row?.key_value) return row.key_value;
+  } catch {}
+  return null;
+}
 
 function geminiKeys() {
   return [
     process.env.GEMINI_API_KEY,
     process.env.GOOGLE_API_KEY,
     process.env.GOOGLE_AI_STUDIO_KEY_1,
-    process.env.GOOGLE_AI_STUDIO_KEY_2
+    process.env.GOOGLE_AI_STUDIO_KEY_2,
+    resolveKey('gemini')
   ].filter(Boolean);
 }
 
@@ -18,7 +38,7 @@ export function getGeminiStatus() {
 }
 
 async function tryRefineWithOpenRouter({ prompt, instruction }) {
-  const key = openRouterKey();
+  const key = resolveKey('openrouter');
   if (!key) return null;
   try {
     const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
@@ -134,15 +154,25 @@ export async function chatWithAura({ message, history = [], tools = [] }) {
     { role: 'user', content: message }
   ];
 
-  // 1) OpenRouter (with one 429-aware retry)
+  // 1) Primary Local Quantized LLM (Qwen2.5-0.5B)
+  try {
+    const localRes = await callLocalLLM(messages);
+    if (localRes) {
+      return parseAuraReply(localRes, 'local:qwen2.5-0.5b');
+    }
+  } catch (err) {
+    console.warn('[gemini-service] Local LLM failed/unconfigured, falling back to remote APIs:', err.message);
+  }
+
+  // 2) OpenRouter (with one 429-aware retry)
   const orResult = await callOpenRouterChat(messages);
   if (orResult) return orResult;
 
-  // 2) Gemini fallback (higher free quota, avoids OpenRouter 429s)
+  // 3) Gemini fallback (higher free quota, avoids OpenRouter 429s)
   const gemResult = await callGeminiChat(system, message, history);
   if (gemResult) return gemResult;
 
-  // 3) OpenAI GPT-4o-mini final fallback (uses project OPENAI_API_KEY)
+  // 4) OpenAI GPT-4o-mini final fallback (uses project OPENAI_API_KEY)
   const oaiResult = await callOpenAiGptChat(messages);
   if (oaiResult) return oaiResult;
 
@@ -150,7 +180,7 @@ export async function chatWithAura({ message, history = [], tools = [] }) {
 }
 
 async function callOpenRouterChat(messages) {
-  const key = openRouterKey();
+  const key = resolveKey('openrouter');
   if (!key) return null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -215,7 +245,7 @@ async function callGeminiChat(system, message, history) {
 }
 
 async function callOpenAiGptChat(messages) {
-  const key = process.env.OPENAI_API_KEY;
+  const key = resolveKey('openai');
   if (!key || !key.startsWith('sk-')) return null;
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
