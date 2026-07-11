@@ -559,6 +559,178 @@ class PDFBuilder {
       doc.end();
     });
   }
+
+  /**
+   * Generates a UNIFIED CLIENT PRESENTATION PACK — the single sellable sheet set
+   * that closes a deal: branded cover, Vastu compliance highlights, a room-by-room
+   * Bill of Quantities (BOQ), and a client acceptance page. Reuses the real
+   * project + Vastu + quotation data already in the DB; never fabricates numbers.
+   *
+   * @param {string} projectId
+   * @param {string} destPath
+   * @param {object} [opts]
+   * @param {object} [opts.quotation]  optional BOQ items/totals to embed
+   * @param {string} [opts.shareUrl]   client-share link for the cover QR
+   */
+  async generateClientPresentationPDF(projectId, destPath, opts = {}) {
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) throw new Error("Project not found");
+
+    // ---- Source real data (no invented figures) ----
+    const brief = JSON.parse(project.client_brief_json || '{}');
+    const quotation = opts.quotation || {};
+    const boqItems = Array.isArray(quotation.items) ? quotation.items : [];
+    const grandTotal = quotation.grandTotal || 0;
+    const gstValue = quotation.gstValue || 0;
+
+    let vastu = null;
+    try {
+      const { previewVastu } = await import('./vastu-auto.js');
+      vastu = previewVastu(projectId);
+    } catch { vastu = null; }
+
+    return new Promise(async (resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 42, bufferPages: true });
+      const stream = fs.createWriteStream(destPath);
+      stream.on('finish', () => resolve(destPath));
+      stream.on('error', reject);
+      doc.pipe(stream);
+
+      // ===== 1. COVER =====
+      await addCoverSheet(doc, project, {
+        title: 'Client Presentation',
+        subtitle: 'DESIGN PROPOSAL · VASTU · BOQ',
+        revision: '1.0',
+        shareUrl: opts.shareUrl || ''
+      });
+
+      // ===== 2. EXECUTIVE SUMMARY =====
+      doc.fillColor('#020617').rect(0, 0, 595, 110).fill();
+      doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(22).text('CLIENT PRESENTATION', 42, 35);
+      doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('GRID OS — DESIGN PROPOSAL, VASTU COMPLIANCE & BILL OF QUANTITIES', 42, 65);
+
+      doc.moveDown(4);
+      doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(16).text(project.name, 42, 140);
+      doc.fillColor('#475569').font('Helvetica').fontSize(10)
+        .text(`Prepared For: ${project.client_name || '—'}  |  Contact: ${project.phone || 'N/A'}`, 42, 165);
+
+      const summary = [
+        `Total estimated value: Rs. ${(grandTotal || 0).toLocaleString('en-IN')}${gstValue ? ` (incl. GST Rs. ${gstValue.toLocaleString('en-IN')})` : ''}`,
+        `BOQ line items: ${boqItems.length || (brief.rooms ? brief.rooms.length : 0)}`,
+        `Vastu compliance: ${vastu && vastu.ok ? (vastu.needsApply ? 'Actions recommended (see Vastu section)' : 'Plan already aligns with Vastu') : 'Not assessed (no CAD plan yet)'}`,
+        `Brand: GRID OS — authentic carcass system with CNC-ready shop drawings`,
+      ];
+      let y = 195;
+      doc.rect(42, y - 6, 511, 1).fill('#E2E8F0');
+      y += 10;
+      doc.font('Helvetica').fontSize(10).fillColor('#334155');
+      summary.forEach(line => { doc.text(`•  ${line}`, 42, y, { width: 511 }); y += 20; });
+
+      // ===== 3. VASTU COMPLIANCE HIGHLIGHTS =====
+      doc.addPage();
+      doc.fillColor('#020617').rect(0, 0, 595, 90).fill();
+      doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(18).text('VASTU COMPLIANCE HIGHLIGHTS', 42, 32);
+      doc.moveDown(3);
+
+      if (vastu && vastu.ok) {
+        let vy = 130;
+        const poojaLine = vastu.poojaPresent
+          ? '✓ Pooja (Mandir) placed in North-East (NE) — Vastu-aligned.'
+          : '⚠ No Pooja mandir detected in North-East (NE) — recommended addition.';
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#0F172A').text(poojaLine, 42, vy, { width: 511 });
+        vy += 24;
+        if (vastu.changes && vastu.changes.length) {
+          vastu.changes.forEach(c => {
+            doc.font('Helvetica').fontSize(9.5).fillColor('#475569').text(`•  ${c.summary}`, 42, vy, { width: 511 });
+            vy += 20;
+          });
+        } else {
+          doc.font('Helvetica').fontSize(9.5).fillColor('#475569').text('•  No Vastu conflicts detected in the current plan.', 42, vy, { width: 511 });
+          vy += 20;
+        }
+        vy += 8;
+        doc.font('Helvetica-Oblique').fontSize(8.5).fillColor('#94A3B8')
+          .text('Vastu rules applied: Pooja in NE; beds in S/W/SW; avoid N/E/NE/NW/SE for beds.', 42, vy, { width: 511 });
+      } else {
+        doc.font('Helvetica').fontSize(10).fillColor('#94A3B8')
+          .text('Vastu assessment requires a CAD floor plan. Generate the plan first to populate this section.', 42, 130, { width: 511 });
+      }
+
+      // ===== 4. BILL OF QUANTITIES (BOQ) =====
+      doc.addPage();
+      doc.fillColor('#020617').rect(0, 0, 595, 90).fill();
+      doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(18).text('BILL OF QUANTITIES (BOQ)', 42, 32);
+      doc.moveDown(3);
+
+      let by = 130;
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#475569');
+      doc.text('Room / Item', 42, by);
+      doc.text('Dimensions', 300, by);
+      doc.text('Rate', 400, by);
+      doc.text('Qty', 460, by);
+      doc.text('Amount (INR)', 500, by, { align: 'right', width: 53 });
+      by += 16;
+      doc.rect(42, by - 4, 511, 1).fill('#CBD5E0');
+      by += 8;
+
+      const emitRow = (room, name, dim, rate, qty, amount) => {
+        doc.font('Helvetica').fontSize(8.5).fillColor('#0F172A');
+        doc.text(`[${room}] ${name}`, 42, by, { width: 255 });
+        doc.fillColor('#475569').text(dim || '—', 300, by);
+        doc.text(rate ? `Rs. ${rate.toLocaleString('en-IN')}` : '—', 400, by);
+        doc.text(`${qty ?? 1}`, 460, by);
+        doc.fillColor('#0F172A').font('Helvetica-Bold')
+          .text(amount ? `Rs. ${amount.toLocaleString('en-IN')}` : '—', 500, by, { align: 'right', width: 53 });
+        by += 22;
+        if (by > 700) { doc.addPage(); by = 60; }
+      };
+
+      if (boqItems.length) {
+        boqItems.forEach(it => emitRow(it.room || 'General', it.name, it.dimensions, it.rate, it.isLumpSum ? 1 : it.sqft, it.amount));
+      } else if (brief.rooms && brief.rooms.length) {
+        // Fall back to brief rooms when no structured quotation exists.
+        brief.rooms.forEach(r => emitRow(r.name || r.roomType || 'Room', r.name || r.roomType || 'Space', r.dimensions || `${r.widthMm || '?'} x ${r.heightMm || '?'} mm`, r.rate || null, 1, r.amount || null));
+      } else {
+        doc.font('Helvetica').fontSize(9).fillColor('#94A3B8').text('No BOQ line items yet. Generate a quotation to populate this section.', 42, by, { width: 511 });
+      }
+
+      // Grand total
+      if (by > 660) { doc.addPage(); by = 60; }
+      by += 10;
+      doc.rect(42, by, 511, 1).fill('#E2E8F0');
+      by += 12;
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('#D4AF37')
+        .text(`Grand Total: Rs. ${(grandTotal || 0).toLocaleString('en-IN')}`, 500, by, { align: 'right', width: 53 });
+
+      // ===== 5. ACCEPTANCE PAGE =====
+      doc.addPage();
+      doc.fillColor('#020617').rect(0, 0, 595, 90).fill();
+      doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(18).text('PROPOSAL ACCEPTANCE', 42, 32);
+      doc.moveDown(3);
+      let ay = 130;
+      doc.font('Helvetica').fontSize(10).fillColor('#334155')
+        .text('By signing below, the client accepts this design proposal, Vastu recommendations, and the Bill of Quantities as the basis for production handoff.', 42, ay, { width: 511 });
+      ay += 60;
+      doc.moveTo(42, ay).lineTo(260, ay).stroke('#475569');
+      doc.moveTo(330, ay).lineTo(540, ay).stroke('#475569');
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0F172A')
+        .text('Prepared By (GRID OS)', 42, ay + 8);
+      doc.text('Client Acceptance Signature', 330, ay + 8);
+      ay += 70;
+      doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94A3B8')
+        .text('This document is confidential and prepared exclusively for the named client. Dimensions in millimetres.', 42, ay, { width: 511 });
+
+      // Page footers
+      const range = doc.bufferedPageRange();
+      for (let i = range.start; i < range.start + range.count; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(8).fillColor('#94A3B8')
+          .text(`Page ${i + 1} of ${range.count} — GRID OS Client Presentation`, 42, 790, { align: 'center' });
+      }
+
+      doc.end();
+    });
+  }
 }
 
 export default new PDFBuilder();

@@ -1977,6 +1977,33 @@ app.post('/api/projects/:id/client-share', async (req, res) => {
   }
 });
 
+// Unified CLIENT PRESENTATION PACK — the single sellable sheet set that closes a deal:
+// branded cover + Vastu compliance highlights + room-by-room BOQ + acceptance page.
+// Reuses the real project / Vastu / quotation data already in the DB.
+app.post('/api/projects/:id/presentation/pdf', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const body = req.body || {};
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const fileName = `${projectId}-client-presentation.pdf`;
+    const destPath = path.join(storageDir, 'uploads', fileName);
+    const shareUrl = `${req.protocol}://${req.get('host')}/storage/uploads/${fileName}`;
+
+    await pdfBuilder.generateClientPresentationPDF(projectId, destPath, {
+      quotation: body.quotation || {},
+      shareUrl
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+    res.sendFile(destPath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/projects/:id/client-share/:token/download', (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM shared_links WHERE id = ? AND project_id = ?').get(req.params.token, req.params.id);
