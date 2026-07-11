@@ -9,7 +9,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
+const BASE = 'http://127.0.0.1:8787';
+export { BASE };
+
 
 test('GET /api/aura/memory returns 200 (no require-is-not-defined crash)', async () => {
   const res = await fetch(`${BASE}/api/aura/memory?projectId=proj_1`);

@@ -26,3 +26,13 @@ test('result shape is stable and explicit', async () => {
   assert.ok('analyzed' in result);
   assert.ok('detectedPoints' in result);
 });
+
+test('analyzeFloorplanImage returns clean fallback structure when unconfigured', async () => {
+  const result = await geminiMultimodalService.analyzeFloorplanImage('proj_x', '/tmp/nonexistent-floorplan.png');
+  assert.equal(result.success, true);
+  assert.ok(result.overallDimensions.length > 0);
+  assert.ok(result.detectedRooms.length >= 2);
+  assert.ok('doors' in result.openingsCount);
+  assert.ok('windows' in result.openingsCount);
+});
+

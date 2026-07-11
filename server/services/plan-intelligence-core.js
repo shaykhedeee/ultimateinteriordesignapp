@@ -169,7 +169,6 @@ class PlanIntelligenceCore {
     return r;
   }
 
-  /** 5. Auto layout proposal (real — uses computed room polygons) */
   generateAutoLayoutProposal(spatialModel, briefConstraints) {
     const levels = spatialModel.levels || [];
     const rooms = levels[0]?.rooms || [];
@@ -177,26 +176,292 @@ class PlanIntelligenceCore {
     const openings = levels[0]?.openings || [];
     const furniture = [], lights = [];
 
+    // Calculate global bounding box of all rooms to compute regional directions (NE, NW, SE, SW, etc.)
+    let globalMinX = Infinity, globalMaxX = -Infinity, globalMinY = Infinity, globalMaxY = -Infinity;
+    rooms.forEach(room => {
+      const pts = room.points || [];
+      pts.forEach(p => {
+        globalMinX = Math.min(globalMinX, p.x);
+        globalMaxX = Math.max(globalMaxX, p.x);
+        globalMinY = Math.min(globalMinY, p.y);
+        globalMaxY = Math.max(globalMaxY, p.y);
+      });
+    });
+
+    if (globalMinX === Infinity) {
+      globalMinX = 0; globalMaxX = 8000;
+      globalMinY = 0; globalMaxY = 6000;
+    }
+    const globalCenterX = globalMinX + (globalMaxX - globalMinX) / 2;
+    const globalCenterY = globalMinY + (globalMaxY - globalMinY) / 2;
+
     rooms.forEach(room => {
       const pts = room.points || [];
       if (pts.length < 3) return;
+      
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       pts.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
       const centerX = minX + (maxX - minX) / 2;
       const centerY = minY + (maxY - minY) / 2;
-      const scale = 40.0;
-      const roomWidthMm = ((maxX - minX) / scale) * 1000;
 
-      if (room.type === 'kitchen') {
-        furniture.push({ id: 'cab_sink_' + nanoid(4), libraryId: 'kitchen_sink_unit', name: 'Modular Sink Cabinet', x: minX + 45, y: minY + 45, widthMm: 900, heightMm: 600, rotation: 0, color: '#38A169', customization: { carcassPly: '18mm waterproof bwr', shutterFinish: 'high gloss acrylic' } });
-        furniture.push({ id: 'cab_hob_' + nanoid(4), libraryId: 'kitchen_hob_unit', name: 'Modular Hob Unit', x: minX + 135, y: minY + 45, widthMm: 900, heightMm: 600, rotation: 0, color: '#38A169', customization: { carcassPly: '18mm waterproof bwr', shutterFinish: 'high gloss acrylic' } });
-      } else if (room.type === 'living') {
-        furniture.push({ id: 'fur_tv_' + nanoid(4), libraryId: 'tv_console', name: 'Floating TV Unit', x: centerX, y: minY + 30, widthMm: 1800, heightMm: 400, rotation: 0, color: '#3182CE' });
-        furniture.push({ id: 'fur_sofa_' + nanoid(4), libraryId: 'sofa_3seater', name: 'Luxury 3-Seater Sofa', x: centerX, y: maxY - 80, widthMm: 2100, heightMm: 850, rotation: 180, color: '#3182CE' });
-      } else {
-        furniture.push({ id: 'fur_bed_' + nanoid(4), libraryId: 'king_bed', name: 'King Bed with Storage', x: centerX, y: centerY, widthMm: 1800, heightMm: 2000, rotation: 0, color: '#D69E2E' });
-        furniture.push({ id: 'fur_wardrobe_' + nanoid(4), libraryId: 'sliding_wardrobe', name: 'Modular Sliding Wardrobe', x: minX + 40, y: centerY, widthMm: 1800, heightMm: 600, rotation: 90, color: '#D69E2E' });
+      // Determine Vastu zone of the room based on its relative center position
+      const dx = centerX - globalCenterX;
+      const dy = centerY - globalCenterY;
+      let vastuZone = 'NE';
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      if (angle >= -22.5 && angle < 22.5) vastuZone = 'E';
+      else if (angle >= 22.5 && angle < 67.5) vastuZone = 'SE';
+      else if (angle >= 67.5 && angle < 112.5) vastuZone = 'S';
+      else if (angle >= 112.5 && angle < 157.5) vastuZone = 'SW';
+      else if (angle >= 157.5 || angle < -157.5) vastuZone = 'W';
+      else if (angle >= -157.5 && angle < -112.5) vastuZone = 'NW';
+      else if (angle >= -112.5 && angle < -67.5) vastuZone = 'N';
+      else vastuZone = 'NE';
+      room.orientation = vastuZone; // Expose to layout mapper
+
+      // Find the longest edge of the room polygon to act as the primary anchor wall
+      let maxLen = 0;
+      let primaryEdge = null;
+      for (let i = 0; i < pts.length; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % pts.length];
+        const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (len > maxLen) {
+          maxLen = len;
+          primaryEdge = { p1, p2, len };
+        }
       }
+
+      // Compute wall normal and angle
+      let angleDeg = 0;
+      let wallMidX = centerX;
+      let wallMidY = centerY;
+      
+      if (primaryEdge) {
+        const edx = primaryEdge.p2.x - primaryEdge.p1.x;
+        const edy = primaryEdge.p2.y - primaryEdge.p1.y;
+        wallMidX = primaryEdge.p1.x + edx / 2;
+        wallMidY = primaryEdge.p1.y + edy / 2;
+        angleDeg = Math.atan2(edy, edx) * (180 / Math.PI);
+      }
+
+      // 1. KITCHEN layout (SE room is ideal)
+      if (room.type === 'kitchen') {
+        const hobX = maxX - 800;
+        const hobY = maxY - 600;
+        furniture.push({
+          id: 'cab_hob_' + nanoid(4),
+          libraryId: 'kitchen_hob',
+          name: 'Hob Cooktop (SE - Cooking faces East)',
+          x: hobX, y: hobY,
+          width: 800, height: 600,
+          widthMm: 800, heightMm: 600,
+          rotation: 0,
+          color: '#C9A84C',
+          vastuZone: 'SE',
+          customization: { carcassPly: '18mm waterproof bwr', shutterFinish: 'high gloss acrylic' }
+        });
+
+        const sinkX = maxX - 800;
+        const sinkY = minY + 800;
+        furniture.push({
+          id: 'cab_sink_' + nanoid(4),
+          libraryId: 'kitchen_sink',
+          name: 'Water Sink (NE)',
+          x: sinkX, y: sinkY,
+          width: 900, height: 600,
+          widthMm: 900, heightMm: 600,
+          rotation: 0,
+          color: '#C9A84C',
+          vastuZone: 'NE',
+          customization: { carcassPly: '18mm waterproof bwr' }
+        });
+
+        const fridgeX = minX + 800;
+        const fridgeY = maxY - 800;
+        furniture.push({
+          id: 'cab_fridge_' + nanoid(4),
+          libraryId: 'kitchen_fridge',
+          name: 'Refrigerator Column (W)',
+          x: fridgeX, y: fridgeY,
+          width: 900, height: 700,
+          widthMm: 900, heightMm: 700,
+          rotation: 0,
+          color: '#C9A84C',
+          vastuZone: 'W'
+        });
+      }
+      
+      // 2. BEDROOM layout (SW Master / NW Guest is ideal)
+      else if (room.type === 'bedroom') {
+        const bedX = centerX;
+        const bedY = maxY - 1200;
+        furniture.push({
+          id: 'fur_bed_' + nanoid(4),
+          libraryId: 'king_bed',
+          name: 'King Bed (Head facing South)',
+          x: bedX, y: bedY,
+          width: 1800, height: 2000,
+          widthMm: 1800, heightMm: 2000,
+          rotation: 0,
+          color: '#C9A84C',
+          vastuZone: 'SW',
+          customization: { zone: 'SW', headboard: 'South' }
+        });
+
+        furniture.push({
+          id: 'fur_bedside_l_' + nanoid(4),
+          libraryId: 'bedside_table',
+          name: 'Bedside Left',
+          x: bedX - 1100, y: bedY + 800,
+          width: 450, height: 450,
+          widthMm: 450, heightMm: 450,
+          rotation: 0
+        });
+
+        furniture.push({
+          id: 'fur_bedside_r_' + nanoid(4),
+          libraryId: 'bedside_table',
+          name: 'Bedside Right',
+          x: bedX + 1100, y: bedY + 800,
+          width: 450, height: 450,
+          widthMm: 450, heightMm: 450,
+          rotation: 0
+        });
+
+        const wardrobeX = minX + 400;
+        const wardrobeY = centerY;
+        furniture.push({
+          id: 'fur_wardrobe_' + nanoid(4),
+          libraryId: 'wardrobe',
+          name: 'Modular Sliding Wardrobe (West)',
+          x: wardrobeX, y: wardrobeY,
+          width: 1800, height: 600,
+          widthMm: 1800, heightMm: 600,
+          rotation: 90,
+          color: '#C9A84C',
+          vastuZone: 'W'
+        });
+      }
+      
+      // 3. LIVING layout (N / E room is ideal)
+      else if (room.type === 'living') {
+        const tvX = maxX - 300;
+        const tvY = centerY;
+        furniture.push({
+          id: 'fur_tv_' + nanoid(4),
+          libraryId: 'tv_unit',
+          name: 'Premium TV Console (East)',
+          x: tvX, y: tvY,
+          width: 1800, height: 450,
+          widthMm: 1800, heightMm: 450,
+          rotation: 90,
+          color: '#C9A84C',
+          vastuZone: 'E'
+        });
+
+        const sofaX = minX + 1200;
+        const sofaY = maxY - 1200;
+        furniture.push({
+          id: 'fur_sofa_' + nanoid(4),
+          libraryId: 'sofa_3seater',
+          name: 'L-Shape Lounge Sofa (SW)',
+          x: sofaX, y: sofaY,
+          width: 2200, height: 900,
+          widthMm: 2200, heightMm: 900,
+          rotation: 180,
+          color: '#C9A84C',
+          vastuZone: 'SW'
+        });
+
+        furniture.push({
+          id: 'fur_coffee_' + nanoid(4),
+          libraryId: 'coffee_table',
+          name: 'Marble Coffee Table',
+          x: sofaX + 100, y: sofaY - 800,
+          width: 1000, height: 600,
+          widthMm: 1000, heightMm: 600,
+          rotation: 0
+        });
+
+        // Add Pooja mandir in NE corner of living room if no dedicated room exists
+        const hasPoojaRoom = rooms.some(r => r.type === 'pooja' || r.orientation === 'NE');
+        if (!hasPoojaRoom) {
+          const poojaX = maxX - 600;
+          const poojaY = minY + 600;
+          furniture.push({
+            id: 'fur_pooja_' + nanoid(4),
+            libraryId: 'pooja_mandir',
+            name: 'Pooja Altar (NE - Devotee faces East)',
+            x: poojaX, y: poojaY,
+            width: 800, height: 500,
+            widthMm: 800, heightMm: 500,
+            rotation: 0,
+            color: '#C9A84C',
+            vastuZone: 'NE'
+          });
+        }
+      }
+      
+      // 4. TOILET / BATHROOM layout
+      else if (room.type === 'toilet' || room.type === 'bathroom') {
+        const wcX = minX + 400;
+        const wcY = centerY;
+        furniture.push({
+          id: 'fur_wc_' + nanoid(4),
+          libraryId: 'wc_pot',
+          name: 'Toilet WC (West)',
+          x: wcX, y: wcY,
+          width: 500, height: 700,
+          widthMm: 500, heightMm: 700,
+          rotation: 270,
+          color: '#C9A84C'
+        });
+
+        const vanityX = maxX - 400;
+        const vanityY = centerY;
+        furniture.push({
+          id: 'fur_vanity_' + nanoid(4),
+          libraryId: 'wash_basin',
+          name: 'Vanity Wash Basin (East)',
+          x: vanityX, y: vanityY,
+          width: 800, height: 500,
+          widthMm: 800, heightMm: 500,
+          rotation: 90,
+          color: '#C9A84C'
+        });
+      }
+      
+      // 5. DEDICATED POOJA room layout
+      else if (room.type === 'pooja') {
+        const poojaX = centerX;
+        const poojaY = minY + 600;
+        furniture.push({
+          id: 'fur_pooja_' + nanoid(4),
+          libraryId: 'pooja_mandir',
+          name: 'Sacred Pooja Altar (NE)',
+          x: poojaX, y: poojaY,
+          width: 900, height: 600,
+          widthMm: 900, heightMm: 600,
+          rotation: 0,
+          color: '#C9A84C'
+        });
+      }
+      
+      // Default fallback if no specific room type match
+      else {
+        furniture.push({
+          id: 'fur_wardrobe_' + nanoid(4),
+          libraryId: 'wardrobe',
+          name: 'Modular Cabinet (West)',
+          x: wallMidX, y: wallMidY,
+          width: 1800, height: 600,
+          widthMm: 1800, heightMm: 600,
+          rotation: angleDeg,
+          color: '#C9A84C'
+        });
+      }
+
       lights.push({ id: 'light_' + nanoid(4), type: 'downlight', x: centerX, y: centerY, intensity: 800, color: '#fffaed' });
     });
 

@@ -13,7 +13,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
+const BASE = 'http://127.0.0.1:8787';
+export { BASE };
+
 const OUT = path.join(__dirname, '..', 'storage', 'elevations');
 
 test('decode service exposes >=6 decoded unit builders (incl. kitchen-pantry)', async () => {

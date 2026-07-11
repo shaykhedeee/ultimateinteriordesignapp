@@ -303,7 +303,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                 <div style={{ display:'flex', gap:'6px' }}>
                   <button
                     onClick={async () => {
-                      if (!newProj.name.trim()) { alert('Project name is required'); return; }
+                      if (!newProj.name.trim()) { __toast?.show('Project name is required'); return; }
                       try {
                         const res = await fetch('http://127.0.0.1:8787/api/projects', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -316,8 +316,8 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                           setSelectedProjectId(created.id);
                           setNewProj({ name: '', client_name: '', budget: '' });
                           setShowNewProject(false);
-                        } else { alert('Create failed: ' + (data.error || 'unknown')); }
-                      } catch (err) { alert('Create error: ' + err.message); }
+                        } else { __toast?.show('Create failed: ' + (data.error || 'unknown')); }
+                      } catch (err) { __toast?.show('Create error: ' + err.message); }
                     }}
                     style={{ flex:1, background:'var(--gold)', border:'none', borderRadius:'7px', padding:'6px', cursor:'pointer', color:'#0b0b0b', fontSize:'11px', fontWeight:800 }}
                   >Create</button>
@@ -369,10 +369,10 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                                   if (selectedProjectId === p.id) setSelectedProjectId('');
                                   showToast ? showToast('Project deleted') : null;
                                 } else {
-                                  alert('Delete failed: ' + (d.error || 'unknown'));
+                                  __toast?.show('Delete failed: ' + (d.error || 'unknown'));
                                 }
                               })
-                              .catch(err => alert('Delete error: ' + err.message));
+                              .catch(err => __toast?.show('Delete error: ' + err.message));
                           }}
                           style={{ background:'transparent', border:'1px solid rgba(220,80,80,0.4)', borderRadius:'5px', padding:'2px 5px', cursor:'pointer', color:'#e07a7a', display:'flex', alignItems:'center' }}
                         >
@@ -473,7 +473,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           const data = await res.json();
           if (data?.success && data.floorplanUrl) {
             setUploadedImageUrl(`http://127.0.0.1:8787${data.floorplanUrl}`);
-            window.__toast?.success('Floor plan uploaded & linked to project.');
+            __toast?.success('Floor plan uploaded & linked to project.');
           }
         } catch (err) {
           console.error('Command Center floorplan upload failed:', err);
@@ -1122,7 +1122,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
 
   const handleGenerate = async () => {
     if (!project) {
-      window.__toast?.error("No active project selected. Choose a project first.");
+      __toast?.error("No active project selected. Choose a project first.");
       return;
     }
     
@@ -1146,7 +1146,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
           const imgUrl = v.url || v.filePath || '';
           const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:8787${imgUrl}`;
           setGeneratedResult(fullImgUrl);
-          window.__toast?.success("Concept variant generated and saved to project renders!");
+          __toast?.success("Concept variant generated and saved to project renders!");
         } else {
           throw new Error(data.error || "Failed to generate renders");
         }
@@ -1154,7 +1154,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
         throw new Error("Generation request failed");
       }
     } catch (err) {
-      window.__toast?.error("Generation failed: " + err.message);
+      __toast?.error("Generation failed: " + err.message);
     } finally {
       setGenerating(false);
     }
@@ -1289,7 +1289,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
 
   const handleSubmitPatch = async () => {
     if (!project) {
-      window.__toast?.error("No active project selected. Choose a project first.");
+      __toast?.error("No active project selected. Choose a project first.");
       return;
     }
     
@@ -1310,7 +1310,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
           const imgUrl = data.imageUrl || '';
           const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:8787${imgUrl}`;
           setResult(fullImgUrl);
-          window.__toast?.success("Photo patch generated and saved as reference!");
+          __toast?.success("Photo patch generated and saved as reference!");
         } else {
           throw new Error(data.error || "Failed to edit photo");
         }
@@ -1318,7 +1318,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
         throw new Error("Photo edit request failed");
       }
     } catch (err) {
-      window.__toast?.error("Photo edit failed: " + err.message);
+      __toast?.error("Photo edit failed: " + err.message);
     } finally {
       setEditing(false);
     }
@@ -1489,7 +1489,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
         };
         setCanvasItems([...canvasItems, newWall]);
         setWallStart(null);
-        window.__toast?.success("Wall segment drawn.");
+        __toast?.success("Wall segment drawn.");
       }
     } else if (selectedTool === 'furniture') {
       setCanvasItems([...canvasItems, {
@@ -1504,7 +1504,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
 
   const handleLockAndPromote = async () => {
     if (!project) {
-      window.__toast?.error("No active project selected. Choose a project first.");
+      __toast?.error("No active project selected. Choose a project first.");
       return;
     }
 
@@ -1552,13 +1552,13 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
         })
       });
       if (res.ok) {
-        window.__toast?.success("Quick Layout promoted & saved to project CAD drawing.");
+        __toast?.success("Quick Layout promoted & saved to project CAD drawing.");
         onNavigateToTab('cad');
       } else {
         throw new Error("API responded with an error");
       }
     } catch (err) {
-      window.__toast?.error("Failed to promote layout: " + err.message);
+      __toast?.error("Failed to promote layout: " + err.message);
     }
   };
 
@@ -1723,7 +1723,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
 
   const handleAddToScene = async () => {
     if (!project) {
-      window.__toast?.error("No active project selected. Choose a project first.");
+      __toast?.error("No active project selected. Choose a project first.");
       return;
     }
 
@@ -1769,12 +1769,12 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
       });
 
       if (saveRes.ok) {
-        window.__toast?.success(`Cabinet "${selectedModule.name}" saved & added to project CAD scene!`);
+        __toast?.success(`Cabinet "${selectedModule.name}" saved & added to project CAD scene!`);
       } else {
         throw new Error("Failed to save cabinetry back to project CAD scene");
       }
     } catch (err) {
-      window.__toast?.error("Error adding cabinet: " + err.message);
+      __toast?.error("Error adding cabinet: " + err.message);
     }
   };
 

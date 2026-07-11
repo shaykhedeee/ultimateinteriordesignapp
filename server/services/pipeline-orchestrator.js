@@ -67,8 +67,62 @@ function normalizeOpenings(openings){
     widthMm: Number(o.widthMm || o.w || 0),
     sillMm: Number(o.sillMm ?? o.sill ?? 900),
     headMm: Number(o.headMm ?? o.head ?? 2100),
-    type: String(o.type || o.kind || 'window')
+    type: String(o.type || o.kind || 'window'),
+    wallId: String(o.wallId || o.side || 'north').toLowerCase()
   }));
+}
+
+function getElevationWalls(r, normalizedOpenings) {
+  const wallCabinets = { north: [], east: [], south: [], west: [] };
+  const wallOpenings = { north: [], east: [], south: [], west: [] };
+  
+  for (const op of normalizedOpenings) {
+    const side = (op.wallId || 'north').toLowerCase();
+    if (wallOpenings[side]) {
+      wallOpenings[side].push(op);
+    } else {
+      wallOpenings.north.push(op);
+    }
+  }
+  
+  for (const c of (r.cabinets || [])) {
+    const side = (c.wallId || c.side || 'north').toLowerCase();
+    if (wallCabinets[side]) {
+      wallCabinets[side].push(c);
+    } else {
+      // Coordinate-based heuristic
+      const x = c.xOffsetMm || c.x || 0;
+      const z = c.zOffsetMm || c.y || 0;
+      
+      const distNorth = z;
+      const distSouth = Math.abs(r.h - z);
+      const distWest = x;
+      const distEast = Math.abs(r.w - x);
+      
+      const minDist = Math.min(distNorth, distSouth, distWest, distEast);
+      if (minDist === distNorth) {
+        wallCabinets.north.push(c);
+      } else if (minDist === distSouth) {
+        wallCabinets.south.push(c);
+      } else if (minDist === distWest) {
+        wallCabinets.west.push(c);
+      } else {
+        wallCabinets.east.push(c);
+      }
+    }
+  }
+
+  let elevationWalls = [
+    { wallId: 'north', lengthMm: r.w, heightMm: r.heightMm || 2800, openings: wallOpenings.north, cabinets: wallCabinets.north },
+    { wallId: 'east', lengthMm: r.h, heightMm: r.heightMm || 2800, openings: wallOpenings.east, cabinets: wallCabinets.east },
+    { wallId: 'south', lengthMm: r.w, heightMm: r.heightMm || 2800, openings: wallOpenings.south, cabinets: wallCabinets.south },
+    { wallId: 'west', lengthMm: r.h, heightMm: r.heightMm || 2800, openings: wallOpenings.west, cabinets: wallCabinets.west },
+  ].filter(ew => ew.cabinets.length > 0 || ew.openings.length > 0);
+
+  if (elevationWalls.length === 0) {
+    elevationWalls = [{ wallId: 'north', lengthMm: r.w, heightMm: r.heightMm || 2800, openings: wallOpenings.north, cabinets: [] }];
+  }
+  return elevationWalls;
 }
 
 function roomPrompt(room){
@@ -150,11 +204,7 @@ export async function runPipeline({ projectId, rooms, walls, openings, projectNa
     if (skpOut) result.skpFiles.push(skpOut);
 
     const normalizedOpenings = normalizeOpenings(r.openings);
-    const elevationWalls = [
-      { wallId:'north', lengthMm: r.w, heightMm: r.heightMm || 2800, openings: normalizedOpenings, cabinets: r.cabinets || [] },
-      { wallId:'east', lengthMm: r.h, heightMm: r.heightMm || 2800, openings: [], cabinets: [] },
-      { wallId:'west', lengthMm: r.h, heightMm: r.heightMm || 2800, openings: [], cabinets: [] },
-    ];
+    const elevationWalls = getElevationWalls(r, normalizedOpenings);
 
     for (const ew of elevationWalls){
       const dxf = buildElevationDXF({
@@ -210,11 +260,7 @@ export async function regenerateRoom({ projectId, room, projectName } = {}){
   const skpPath = path.join(roomOut, `${room.name}_model.skp`);
   try { const skp = await generateSkpDirect({ edges: room.edges || [] }, { fileName: `${room.name}_model.skp`, units: 4 }); write(skpPath, skp.buffer); } catch {}
   const normalizedOpenings = normalizeOpenings(room.openings);
-  const elevationWalls = [
-    { wallId:'north', lengthMm: room.w, heightMm: room.heightMm || 2800, openings: normalizedOpenings, cabinets: room.cabinets || [] },
-    { wallId:'east', lengthMm: room.h, heightMm: room.heightMm || 2800, openings: [], cabinets: [] },
-    { wallId:'west', lengthMm: room.h, heightMm: room.heightMm || 2800, openings: [], cabinets: [] },
-  ];
+  const elevationWalls = getElevationWalls(room, normalizedOpenings);
   const generated = { images:[finalPath], dxfs:[], pdfs:[], skpFiles:[skpPath] };
   for (const ew of elevationWalls){
     const dxf = buildElevationDXF({ lengthMm: ew.lengthMm, heightMm: ew.heightMm, thicknessMm:75, openings: ew.openings.map(o=>({...o})), cabinets: ew.cabinets.map(c=>({...c})), coverage:{ utilPercent:72, usedMm:Math.round(ew.lengthMm*0.72), freeMm:Math.round(ew.lengthMm*0.28) } }, { componentLayers:false, scale:'1:25', rev:'1.0', projectId, sheet:`${room.name} ${ew.wallId.toUpperCase()} ELEVATION` });

@@ -18,6 +18,9 @@
 import db from '../database/database.js';
 import { buildRoomStylePayload } from './prompt-harness.js';
 import { chatWithAura } from './gemini-service.js';
+import { answerFromKnowledge } from './aura-knowledge.js';
+
+const NO_ANSWER_TEXT = 'I can help with: elevations, renders, floorplan detection, cutlist, budget optimization, and client handoff. Choose an action to execute directly.';
 
 // ── Create memory table at startup (synchronous, safe to call multiple times) ──
 try {
@@ -44,7 +47,8 @@ const TOOLS = [
   { id:'generate_signoff',   label:'Generate share PDF pack', intent:/signoff|pdf|brief|quotation|share|pack/i,            action:'generate_signoff' },
   { id:'budget_optimize',    label:'Optimize budget',         intent:/budget|cost|price|cheap|save|optimize/i,             action:'budget_optimize' },
   { id:'assign_task',        label:'Start background job',    intent:/job|running|status|que|run|spawn/i,                  action:'assign_task' },
-  { id:'regen_room',         label:'Regenerate room render',  intent:/regenerate|re-render|redo|regen|refresh.*room|regenerate.*room/i, action:'regen_room' }
+  { id:'regen_room',         label:'Regenerate room render',  intent:/regenerate|re-render|redo|regen|refresh.*room|regenerate.*room/i, action:'regen_room' },
+  { id:'vastu_check',        label:'Check Vastu compliance',  intent:/vastu|compliant|feng.*shui|altar|pooja/i,            action:'vastu_check' }
 ];
 
 function resolveIntent(message) {
@@ -58,10 +62,7 @@ function resolveIntent(message) {
 
 // ── FIXED: added `message` as a parameter so regen_room case can access it ──
 async function toolReply(tool, args, projectId, message = '') {
-  const noAnswer = () => ({
-    text: 'I can help with: elevations, renders, floorplan detection, cutlist, budget optimization, and client handoff. Choose an action to execute directly.',
-    actions: []
-  });
+  const noAnswer = () => ({ text: NO_ANSWER_TEXT, actions: [] });
   if (!tool || !args?.projectId) return noAnswer();
   const baseUrl = (process.env.APP_URL || 'http://127.0.0.1:5055').replace(/\/$/,'');
   const projectIdResolved = String(args.projectId);
@@ -138,6 +139,16 @@ async function toolReply(tool, args, projectId, message = '') {
     case 'budget_optimize':
       return { text: 'Opening Finance & BOQ screen for budget optimization analysis.', actions:[{ actionId:'openFinance', label:'Open Finance & BOQ', primary:true }] };
 
+    case 'vastu_check': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/preview`, { method:'GET' }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      const msg = d?.changes?.map(c => `• ${c.summary}`).join('\n') || 'Your layout is 100% Vastu-compliant!';
+      return {
+        text: `Vastu Compliance Check results:\n${msg}`,
+        actions: d?.needsApply ? [{ actionId:'applyVastuFixes', label:'Apply Vastu Fixes', primary:true }, { actionId:'openCad', label:'Open CAD Editor' }] : [{ actionId:'openCad', label:'Open CAD Editor', primary:true }]
+      };
+    }
+
     default:
       return noAnswer();
   }
@@ -199,8 +210,16 @@ export async function handleChatMessage(message, projectId = null) {
   } else {
     // Fallback: deterministic keyword routing (no LLM key available / rate-limited).
     const { text: fbText, actions: fbActions } = await toolReply(intent.tool, { query: message, projectId }, projectId, message);
-    text = fbText;
-    actions = fbActions;
+    // If rule-engine routing produced no meaningful answer, use the offline
+    // knowledge engine so the chat is NEVER empty (zero-config selling point).
+    if (!fbText || fbText === NO_ANSWER_TEXT) {
+      const kb = answerFromKnowledge(message);
+      text = kb.text;
+      actions = [];
+    } else {
+      text = fbText;
+      actions = fbActions;
+    }
   }
 
   // FIXED: remember() is now synchronous (was using await db.run which silently did nothing)

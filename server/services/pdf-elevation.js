@@ -11,16 +11,16 @@
  */
 import PDFDocument from 'pdfkit';
 
-// Clean Industry Colors
-const RED = '#e03a3a';
-const BLK = '#1a1a1a';
-const GREY = '#666666';
-const BLUE = '#2563eb';
+// Clean Luxury Colors
+const RED = '#e03a3a'; // strictly for voids, fillers, and warning crosses
+const BLK = '#0A0A0B';
+const GREY = '#8A8899';
+const GOLD = '#C9A84C';
 const WHITE = '#ffffff';
 
 // Oblique 45-degree architectural tick drawing helper
 function drawObliqueTick(doc, x, y, size = 4) {
-  doc.lineWidth(0.8).strokeColor(RED)
+  doc.lineWidth(0.8).strokeColor(GOLD)
     .moveTo(x - size, y + size)
     .lineTo(x + size, y - size)
     .stroke();
@@ -43,7 +43,7 @@ export function drawElevation(doc, model, opts = {}) {
   if (!embed) {
     // Double sheet border (clean style)
     doc.lineWidth(2).strokeColor(BLK).rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke();
-    doc.lineWidth(0.5).strokeColor(BLUE).rect(36, 36, doc.page.width - 72, doc.page.height - 72).stroke();
+    doc.lineWidth(0.5).strokeColor(GOLD).rect(36, 36, doc.page.width - 72, doc.page.height - 72).stroke();
 
     // Wall outline (thick dark line)
     doc.lineWidth(2.5).strokeColor(BLK).rect(toX(0), toY(H), L * scale, H * scale).stroke();
@@ -86,13 +86,13 @@ export function drawElevation(doc, model, opts = {}) {
       doc.undash();
       doc.font('Helvetica-Bold').fontSize(8).fillColor(BLK).text('DOOR', x, y + h / 2 - 4, { width: w, align: 'center' });
     }
-    // dimension (Red, witness + oblique ticks)
+    // dimension (Gold, witness + oblique ticks)
     if (!opts.noDimensions) {
-      doc.lineWidth(0.6).strokeColor(RED);
+      doc.lineWidth(0.6).strokeColor(GOLD);
       doc.moveTo(x, y - 8).lineTo(x, y - 16).moveTo(x + w, y - 8).lineTo(x + w, y - 16).moveTo(x, y - 12).lineTo(x + w, y - 12).stroke();
       drawObliqueTick(doc, x, y - 12);
       drawObliqueTick(doc, x + w, y - 12);
-      doc.font('Helvetica-Bold').fontSize(7).fillColor(RED).text(String(Math.round(op.widthMm)), x, y - 22, { width: w, align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(7).fillColor(GOLD).text(String(Math.round(op.widthMm)), x, y - 22, { width: w, align: 'center' });
     }
   }
 
@@ -208,7 +208,7 @@ export function drawElevation(doc, model, opts = {}) {
     // glass grid muntins
     if ((m.glass || m.glassGrid) && w > 24 && h > 24) {
       const cols = m.glassCols || 1, rows = m.glassRows || 3;
-      doc.lineWidth(0.4).strokeColor(BLUE);
+      doc.lineWidth(0.4).strokeColor(GOLD);
       for (let i = 1; i < cols; i++) doc.moveTo(x + (w * i) / cols, y + 4).lineTo(x + (w * i) / cols, y + h - 4).stroke();
       for (let j = 1; j < rows; j++) doc.moveTo(x + 4, y + (h * j) / rows).lineTo(x + w - 4, y + (h * j) / rows).stroke();
     }
@@ -217,7 +217,7 @@ export function drawElevation(doc, model, opts = {}) {
       const frameOffset = Math.min(10 * scale, 3);
       doc.lineWidth(0.6).strokeColor(BLK).rect(x + frameOffset, y + frameOffset, w - 2 * frameOffset, h - 2 * frameOffset).stroke();
       // Render diagonal reflection strokes (//)
-      doc.lineWidth(0.4).strokeColor(BLUE);
+      doc.lineWidth(0.4).strokeColor(GOLD);
       doc.moveTo(x + w * 0.35, y + h * 0.4).lineTo(x + w * 0.45, y + h * 0.6).stroke();
       doc.moveTo(x + w * 0.45, y + h * 0.4).lineTo(x + w * 0.55, y + h * 0.6).stroke();
       doc.moveTo(x + w * 0.55, y + h * 0.4).lineTo(x + w * 0.65, y + h * 0.6).stroke();
@@ -286,16 +286,16 @@ export function drawElevation(doc, model, opts = {}) {
     }
   }
 
-  // Overall dimensions (Red, arrowheads)
-  // Overall dimensions (Red, arrowheads)
+  // Overall dimensions (Gold, arrowheads)
+  // Overall dimensions (Gold, arrowheads)
   if (!opts.noDimensions) {
-    doc.lineWidth(0.8).strokeColor(RED)
+    doc.lineWidth(0.8).strokeColor(GOLD)
       .moveTo(toX(0), toY(H)).lineTo(toX(0), toY(H) - 26)
       .moveTo(toX(L), toY(H)).lineTo(toX(L), toY(H) - 26)
       .moveTo(toX(0), toY(H) - 21).lineTo(toX(L), toY(H) - 21).stroke();
     drawObliqueTick(doc, toX(0), toY(H) - 21);
     drawObliqueTick(doc, toX(L), toY(H) - 21);
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(RED).text(`${L} MM`, (toX(0) + toX(L)) / 2 - 18, toY(H) - 34);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text(`${L} MM`, (toX(0) + toX(L)) / 2 - 18, toY(H) - 34);
     
     doc.lineWidth(0.8)
       .moveTo(toX(L), toY(0)).lineTo(toX(L) + 26, toY(0))
@@ -303,11 +303,11 @@ export function drawElevation(doc, model, opts = {}) {
       .moveTo(toX(L) + 21, toY(0)).lineTo(toX(L) + 21, toY(H)).stroke();
     drawObliqueTick(doc, toX(L) + 21, toY(0));
     drawObliqueTick(doc, toX(L) + 21, toY(H));
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(RED).text(`${H} MM`, toX(L) + 32, (toY(0) + toY(H)) / 2 - 4);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text(`${H} MM`, toX(L) + 32, (toY(0) + toY(H)) / 2 - 4);
   
-    // LEFT vertical DATUM dimension (red) with key reference heights — section marker
+    // LEFT vertical DATUM dimension (Gold) with key reference heights — section marker
     const dx = toX(0) - 30;
-    doc.lineWidth(0.8).strokeColor(RED)
+    doc.lineWidth(0.8).strokeColor(GOLD)
       .moveTo(dx - 6, toY(0)).lineTo(dx + 4, toY(0))
       .moveTo(dx - 6, toY(H)).lineTo(dx + 4, toY(H))
       .moveTo(dx, toY(0)).lineTo(dx, toY(H)).stroke();
@@ -321,9 +321,9 @@ export function drawElevation(doc, model, opts = {}) {
     for (const d of datums) {
       if (d.mm > H) continue;
       const dy = toY(d.mm);
-      doc.lineWidth(0.6).strokeColor(RED).moveTo(dx - 4, dy).lineTo(dx + 4, dy).stroke();
+      doc.lineWidth(0.6).strokeColor(GOLD).moveTo(dx - 4, dy).lineTo(dx + 4, dy).stroke();
       drawObliqueTick(doc, dx, dy);
-      doc.font('Helvetica').fontSize(5.5).fillColor(RED).text(d.label, dx + 6, dy - 3, { width: 70, align: 'left' });
+      doc.font('Helvetica').fontSize(5.5).fillColor(GOLD).text(d.label, dx + 6, dy - 3, { width: 70, align: 'left' });
     }
   }
 
@@ -331,7 +331,7 @@ export function drawElevation(doc, model, opts = {}) {
   if (!opts.noDimensions && !embed) {
     // TIER 1: individual cabinet widths in a chain
     const dimY1 = toY(0) + 20;
-    doc.lineWidth(0.6).strokeColor(RED);
+    doc.lineWidth(0.6).strokeColor(GOLD);
     doc.moveTo(toX(0), toY(0)).lineTo(toX(0), dimY1 + 4);
     doc.moveTo(toX(L), toY(0)).lineTo(toX(L), dimY1 + 4);
     doc.moveTo(toX(0), dimY1).lineTo(toX(L), dimY1).stroke();
@@ -359,18 +359,18 @@ export function drawElevation(doc, model, opts = {}) {
       doc.moveTo(bx, dimY1).lineTo(bx2, dimY1).stroke();
       drawObliqueTick(doc, bx, dimY1);
       drawObliqueTick(doc, bx2, dimY1);
-      doc.font('Helvetica').fontSize(6).fillColor(RED).text(String(Math.round(b.w)), (bx + bx2) / 2 - 16, dimY1 + 6, { width: 32, align: 'center' });
+      doc.font('Helvetica').fontSize(6).fillColor(GOLD).text(String(Math.round(b.w)), (bx + bx2) / 2 - 16, dimY1 + 6, { width: 32, align: 'center' });
     }
 
     // TIER 2: overall wall carcass run
     const dimY2 = toY(0) + 38;
-    doc.lineWidth(0.6).strokeColor(RED);
+    doc.lineWidth(0.6).strokeColor(GOLD);
     doc.moveTo(toX(0), toY(0)).lineTo(toX(0), dimY2 + 4);
     doc.moveTo(toX(L), toY(0)).lineTo(toX(L), dimY2 + 4);
     doc.moveTo(toX(0), dimY2).lineTo(toX(L), dimY2).stroke();
     drawObliqueTick(doc, toX(0), dimY2);
     drawObliqueTick(doc, toX(L), dimY2);
-    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(RED).text(String(Math.round(L)), (toX(0) + toX(L)) / 2 - 16, dimY2 + 6, { width: 32, align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(6.5).fillColor(GOLD).text(String(Math.round(L)), (toX(0) + toX(L)) / 2 - 16, dimY2 + 6, { width: 32, align: 'center' });
   }
 
   // Graphical SCALE BAR (1:25) — essential for a real drawing sheet (skip when embedded)
@@ -411,8 +411,8 @@ export function drawElevation(doc, model, opts = {}) {
 
   // NOTES & LEGEND box
   doc.lineWidth(1).strokeColor(BLK).rect(nx, ny, nw, notesH).stroke();
-  doc.lineWidth(0.5).strokeColor(BLUE).rect(nx + 3, ny + 3, nw - 6, notesH - 6).stroke();
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text('GENERAL NOTES', nx + 12, ny + 10);
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(nx + 3, ny + 3, nw - 6, notesH - 6).stroke();
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text('GENERAL NOTES', nx + 12, ny + 10);
   const noteLines = [
     '1. All dimensions are in millimetres (mm).',
     '2. Drawing scale 1:25 unless noted.',
@@ -439,8 +439,8 @@ export function drawElevation(doc, model, opts = {}) {
     const oH = 26 + oMax * 13;
     const oTop = schedTop;
     doc.lineWidth(1).strokeColor(BLK).rect(nx, oTop, nw, oH).stroke();
-    doc.lineWidth(0.5).strokeColor(BLUE).rect(nx + 3, oTop + 3, nw - 6, oH - 6).stroke();
-    doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text('OPENING SCHEDULE', nx + 12, oTop + 8);
+    doc.lineWidth(0.5).strokeColor(GOLD).rect(nx + 3, oTop + 3, nw - 6, oH - 6).stroke();
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text('OPENING SCHEDULE', nx + 12, oTop + 8);
     doc.font('Helvetica-Bold').fontSize(6.5).fillColor(BLK);
     doc.text('NO.', nx + 12, oTop + 24);
     doc.text('TYPE', nx + 42, oTop + 24);
@@ -459,8 +459,8 @@ export function drawElevation(doc, model, opts = {}) {
 
   // COMPONENT SCHEDULE box
   doc.lineWidth(1).strokeColor(BLK).rect(nx, openSchedTop, nw, schedH).stroke();
-  doc.lineWidth(0.5).strokeColor(BLUE).rect(nx + 3, openSchedTop + 3, nw - 6, schedH - 6).stroke();
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text('COMPONENT SCHEDULE', nx + 12, openSchedTop + 8);
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(nx + 3, openSchedTop + 3, nw - 6, schedH - 6).stroke();
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text('COMPONENT SCHEDULE', nx + 12, openSchedTop + 8);
   // header row
   doc.font('Helvetica-Bold').fontSize(6.5).fillColor(BLK);
   doc.text('MODULE', nx + 12, openSchedTop + 24);
@@ -479,14 +479,14 @@ export function drawElevation(doc, model, opts = {}) {
   // ---- SYMBOLS / LINE-TYPE LEGEND (bottom-right, above title) ----
   const lx = nx, ly = openSchedTop + schedH + 12, lw = nw, lh = 70;
   doc.lineWidth(1).strokeColor(BLK).rect(lx, ly, lw, lh).stroke();
-  doc.lineWidth(0.5).strokeColor(BLUE).rect(lx + 3, ly + 3, lw - 6, lh - 6).stroke();
-  doc.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('SYMBOLS', lx + 12, ly + 8);
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(lx + 3, ly + 3, lw - 6, lh - 6).stroke();
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(GOLD).text('SYMBOLS', lx + 12, ly + 8);
   doc.font('Helvetica').fontSize(6).fillColor(BLK);
   // solid line = wall/carcass
   doc.lineWidth(1.4).strokeColor(BLK).moveTo(lx + 12, ly + 28).lineTo(lx + 50, ly + 28).stroke();
   doc.text('Carcass / wall', lx + 56, ly + 25);
-  // red dashed = dimension
-  doc.lineWidth(0.8).strokeColor(RED).dash(2, 2).moveTo(lx + 12, ly + 42).lineTo(lx + 50, ly + 42).stroke(); doc.undash();
+  // gold dashed = dimension
+  doc.lineWidth(0.8).strokeColor(GOLD).dash(2, 2).moveTo(lx + 12, ly + 42).lineTo(lx + 50, ly + 42).stroke(); doc.undash();
   doc.text('Dimension line', lx + 56, ly + 39);
   // hanger rod
   doc.lineWidth(1).strokeColor('#444444').moveTo(lx + 12, ly + 56).lineTo(lx + 50, ly + 56).stroke();
@@ -496,13 +496,13 @@ export function drawElevation(doc, model, opts = {}) {
   const tbX = 40, tbY = doc.page.height - 118;
   const tbW = 540, tbH = 84;
   doc.lineWidth(1.2).strokeColor(BLK).rect(tbX, tbY, tbW, tbH).stroke();
-  doc.lineWidth(0.5).strokeColor(BLUE).rect(tbX + 3, tbY + 3, tbW - 6, tbH - 6).stroke();
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(tbX + 3, tbY + 3, tbW - 6, tbH - 6).stroke();
   // vertical divider
-  doc.lineWidth(0.6).strokeColor(BLUE).moveTo(tbX + 360, tbY + 3).lineTo(tbX + 360, tbY + tbH - 3).stroke();
+  doc.lineWidth(0.6).strokeColor(GOLD).moveTo(tbX + 360, tbY + 3).lineTo(tbX + 360, tbY + tbH - 3).stroke();
   // horizontal divider for drawn/checked row
   doc.lineWidth(0.5).strokeColor(GREY).moveTo(tbX + 3, tbY + tbH - 26).lineTo(tbX + 360, tbY + tbH - 26).stroke();
 
-  doc.font('Helvetica-Bold').fontSize(9).fillColor(BLUE).text('GRID OS', tbX + 372, tbY + 12);
+  doc.font('Helvetica-Bold').fontSize(9).fillColor(GOLD).text('GRID OS', tbX + 372, tbY + 12);
   doc.font('Helvetica').fontSize(6.5).fillColor(GREY).text('PROFESSIONAL ARCHITECTURAL SHEET', tbX + 372, tbY + 30);
   doc.font('Helvetica-Bold').fontSize(7).fillColor(BLK).text('AUTHENTIC CARCASS SYSTEM', tbX + 372, tbY + 50);
 
@@ -542,9 +542,9 @@ export function renderCombinedElevationsPDF(models, opts = {}) {
   }
   // Cover sheet
   doc.lineWidth(2).strokeColor(BLK).rect(30, 30, doc.page.width - 60, doc.page.height - 60).stroke();
-  doc.lineWidth(0.5).strokeColor(BLUE).rect(36, 36, doc.page.width - 72, doc.page.height - 72).stroke();
+  doc.lineWidth(0.5).strokeColor(GOLD).rect(36, 36, doc.page.width - 72, doc.page.height - 72).stroke();
   doc.font('Helvetica-Bold').fontSize(30).fillColor(BLK).text('ELEVATION DRAWING SET', 80, 160);
-  doc.font('Helvetica').fontSize(13).fillColor(BLUE).text((opts.projectId || 'Project') + '  —  Interior Millwork Elevations', 80, 205);
+  doc.font('Helvetica').fontSize(13).fillColor(GOLD).text((opts.projectId || 'Project') + '  —  Interior Millwork Elevations', 80, 205);
   doc.font('Helvetica').fontSize(10).fillColor(GREY).text(`Generated: ${new Date().toISOString().slice(0, 10)}    Scale: ${opts.scale || '1:25'}    Sheets: ${list.length}`, 80, 235);
   // contents list
   doc.font('Helvetica-Bold').fontSize(12).fillColor(BLK).text('CONTENTS', 80, 300);

@@ -10,7 +10,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
+const BASE = 'http://127.0.0.1:8787';
+export { BASE };
+
 
 function isHtml(t) { return typeof t === 'string' && t.includes('<!DOCTYPE'); }
 

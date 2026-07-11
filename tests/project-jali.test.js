@@ -10,7 +10,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildJaliPanelDXF } from '../server/services/jali-panel.js';
 
-const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
+const BASE = 'http://127.0.0.1:8787';
+export { BASE };
+
 const isHtml = (t) => typeof t === 'string' && t.includes('<!DOCTYPE');
 
 test('jali-panel service: valid DXF with lotus + lattice (closed polylines)', () => {
