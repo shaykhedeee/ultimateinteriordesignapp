@@ -1006,16 +1006,30 @@ function fitPieceToSheet(piece, usableLength, usableWidth) {
   return null;
 }
 
-function splitOversizePart(partItem) {
+export function splitOversizePart(partItem, _depth = 0) {
   const usableLength = DEFAULT_SETTINGS.sheet.lengthMm - DEFAULT_SETTINGS.trimMm * 2;
   const usableWidth = DEFAULT_SETTINGS.sheet.widthMm - DEFAULT_SETTINGS.trimMm * 2;
   const maxCutLength = usableLength - DEFAULT_SETTINGS.kerfMm;
   const maxCutWidth = usableWidth - DEFAULT_SETTINGS.kerfMm;
   if (fitPieceToSheet(partItem, usableLength, usableWidth)) return [partItem];
 
+  const canRotate = partItem.grain === 'none' || partItem.grain === 'horizontal' || !partItem.grain;
+
+  // Guard against infinite recursion. A part is genuinely impossible only when
+  // it cannot fit the sheet in ANY orientation AND cannot be fixed by splitting a
+  // single axis (i.e. both dimensions exceed the board and it can't rotate).
+  // Otherwise splitting the long axis produces placeable segments and terminates.
+  if (_depth > 12) {
+    return [{ ...partItem, notes: `${partItem.notes || ''} Oversize beyond 8x4 split capacity; manual board required.`.trim() }];
+  }
+  const lengthSplitViable = partItem.lengthMm <= maxCutLength || (canRotate && partItem.widthMm <= maxCutLength);
+  const widthSplitViable = partItem.widthMm <= maxCutWidth || (canRotate && partItem.lengthMm <= maxCutWidth);
+  if (!lengthSplitViable && !widthSplitViable) {
+    return [{ ...partItem, notes: `${partItem.notes || ''} Oversize for 8x4 sheet (grain-locked or dimension exceeds board); manual/special sheet required.`.trim() }];
+  }
+
   const directLengthOver = partItem.lengthMm > maxCutLength;
   const directWidthOver = partItem.widthMm > maxCutWidth;
-  const canRotate = partItem.grain === 'none' || partItem.grain === 'horizontal' || !partItem.grain;
   const rotatedWouldFitLength = canRotate && partItem.widthMm <= maxCutLength;
   const splitByLength = directLengthOver || (!directWidthOver && !rotatedWouldFitLength);
   const segmentCount = splitByLength
@@ -1037,7 +1051,7 @@ function splitOversizePart(partItem) {
       notes: `${partItem.notes || ''} Oversized proposal panel split for 8x4 sheet planning; confirm joint/veneer matching in working drawings.`.trim()
     };
   });
-  return segments.flatMap(splitOversizePart);
+  return segments.flatMap((seg) => splitOversizePart(seg, _depth + 1));
 }
 
 function part(module, prefix, suffix, name, lengthMm, widthMm, thicknessMm, quantity, edgeBand, grain, materialOverride) {
@@ -1974,5 +1988,6 @@ export default {
   writeJobSummaryPdf,
   writePanelLabelsPdf,
   generateCabinetParts,
-  optimizeNesting
+  optimizeNesting,
+  splitOversizePart
 };
