@@ -44,3 +44,12 @@ test('shiftRoom preserves non-geometry fields immutably', () => {
   assert.equal(moved.vastu, 'SE');
   assert.equal(room.x, 10); // original untouched
 });
+
+test('shiftRoom with zero delta is a true no-op (drag invariant)', () => {
+  const room = { id: 'r1', x: 100, y: 200, points: [{ x: 1, y: 2 }, { x: 3, y: 4 }] };
+  const moved = shiftRoom(room, 0, 0);
+  assert.deepStrictEqual(roomCentroid(moved), { x: 100, y: 200 });
+  assert.notStrictEqual(moved.points, room.points);
+  assert.deepStrictEqual(moved.points, [{ x: 1, y: 2 }, { x: 3, y: 4 }]);
+  assert.deepStrictEqual(room.points, [{ x: 1, y: 2 }, { x: 3, y: 4 }]);
+});
