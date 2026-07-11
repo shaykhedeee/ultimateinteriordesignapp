@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { exportToDXF, exportToSCR } from '../utils/dxf-exporter';
 import CVProcessor from '../lib/cv/cv-processor';
+import { roomCentroid, shiftRoom } from '../lib/roomOverlay';
 
 export default function InteractiveCADScreen({ projectId, onComplete }) {
   // --- Workspace Vector State ---
@@ -57,6 +58,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   // --- AI Layout State ---
   const [isDetectingLayout, setIsDetectingLayout] = useState(false);
   const [cvStatus, setCvStatus] = useState(null); // { kind:'ok'|'warn'|'error', text:string }
+  const [multimodalAnalysis, setMultimodalAnalysis] = useState(null);
 
   // --- Undo/Redo Stacks ---
   const [history, setHistory] = useState([]);
@@ -67,6 +69,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [vastuBusy, setVastuBusy] = useState(false);
   const [vastuApplied, setVastuApplied] = useState(false);
   const [ackText, setAckText] = useState(''); // spoken floor-plan acknowledgement
+  const [showVastuOverlay, setShowVastuOverlay] = useState(false);
 
   // SVG viewport ref
   const svgRef = useRef(null);
@@ -78,15 +81,15 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   // Theme Colors dictionary
   const themeColors = {
     carbon: {
-      bg: 'bg-[#0b0f19]',
-      svgBg: '#080c14',
-      gridMinor: '#111827',
-      gridMajor: '#1f2937',
-      wallFill: '#374151',
-      wallStroke: '#9ca3af',
-      furnitureStroke: 'var(--gold)',
-      furnitureFill: 'rgba(212, 175, 55, 0.05)',
-      textLabel: '#f3f4f6',
+      bg: 'bg-[#0A0A0B]',
+      svgBg: '#111113',
+      gridMinor: '#1E1E24',
+      gridMajor: '#374151',
+      wallFill: '#1E1E24',
+      wallStroke: '#8A8899',
+      furnitureStroke: '#C9A84C',
+      furnitureFill: 'rgba(201, 168, 76, 0.05)',
+      textLabel: '#F0EEE8',
       servicePlumbing: '#06b6d4',
       serviceElectrical: '#f59e0b'
     },
@@ -110,8 +113,8 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       gridMajor: '#e9decb',
       wallFill: '#4a3f35',
       wallStroke: '#8c7a6b',
-      furnitureStroke: '#AA8C2C',
-      furnitureFill: 'rgba(170, 140, 44, 0.03)',
+      furnitureStroke: '#C9A84C',
+      furnitureFill: 'rgba(201, 168, 76, 0.03)',
       textLabel: '#3b2f2f',
       servicePlumbing: '#0891b2',
       serviceElectrical: '#d97706'
@@ -202,6 +205,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         const data = await res.json();
         if (data.success) {
           window.__toast?.show(`Detected ${data.walls} wall segment(s) via ${data.source}. Refine in the editor, then run AI Auto-Detect Layout.`);
+          if (data.multimodalAnalysis) setMultimodalAnalysis(data.multimodalAnalysis);
           loadCADData();
         } else {
           window.__toast?.show(data.message || 'Wall detection failed. Trace manually in the editor.');
@@ -564,6 +568,18 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     return { x, y };
   };
 
+  // --- Room overlay: inline rename state + commit (drag math lives in lib/roomOverlay) ---
+  const [renamingRoom, setRenamingRoom] = useState(null); // room id being renamed inline
+  const commitRoomRename = (id, value) => {
+    const name = (value || '').trim();
+    if (name) {
+      const updated = rooms.map(r => r.id === id ? { ...r, name } : r);
+      setRooms(updated);
+      saveToHistory(walls, openings, furniture, updated, measures);
+      saveCADToServer();
+    }
+    setRenamingRoom(null);
+  };
   // Wall connection joint propagation (stretches walls connected at a shared corner point)
   const propagateWallStretch = (wallId, targetNode, snappedX, snappedY, oldX, oldY) => {
     const updatedWalls = walls.map(w => {
@@ -648,6 +664,20 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         return;
       }
 
+      // Room overlay node (persisted review layer)
+      const roomElement = e.target.closest('.room-node');
+      if (roomElement) {
+        const id = roomElement.getAttribute('data-id');
+        const rItem = rooms.find(r => r.id === id);
+        if (rItem) {
+          setSelectedObj({ id, type: 'room' });
+          const c = roomCentroid(rItem, rooms.indexOf(rItem));
+          setDragMode('move');
+          setDragOffset({ x: mousePos.x - c.x, y: mousePos.y - c.y });
+        }
+        return;
+      }
+
       setSelectedObj(null);
     } 
 
@@ -716,6 +746,24 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       }
     }
 
+    // add camera keyframe node
+    else if (activeTool === 'camera') {
+      const newCam = {
+        id: 'camera_' + Math.random().toString(36).substr(2, 6),
+        type: 'camera',
+        name: 'CAM ' + (furniture.filter(f => f.type === 'camera').length + 1),
+        x: snapped.x,
+        y: snapped.y,
+        width: 16,
+        height: 16,
+        rotation: 0
+      };
+      const updatedFurniture = [...furniture, newCam];
+      setFurniture(updatedFurniture);
+      saveToHistory(walls, openings, updatedFurniture, rooms, measures);
+      setActiveTool('select');
+    }
+
     // laser calibration mode
     else if (activeTool === 'calibrate') {
       if (tempPoints.length === 0) {
@@ -758,9 +806,25 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       
       else if (dragMode === 'move') {
         if (selectedObj.type === 'furniture') {
+          const fItem = furniture.find(item => item.id === selectedObj.id);
+          const nearestWall = findNearestWallSegment(mousePos);
+          let newX = snapped.x;
+          let newY = snapped.y;
+          let newRotation = fItem.rotation;
+          
+          const isCabinetry = ['wardrobe', 'kitchen_base', 'tv_unit', 'counter'].includes(fItem.type);
+          if (isCabinetry && nearestWall && nearestWall.distance < 40) {
+            newX = nearestWall.projX;
+            newY = nearestWall.projY;
+            newRotation = Math.round(nearestWall.angle);
+          } else {
+            newX = snapped.x - (snapToGrid ? 0 : dragOffset.x % gridSize);
+            newY = snapped.y - (snapToGrid ? 0 : dragOffset.y % gridSize);
+          }
+
           const updatedFurniture = furniture.map(f => {
             if (f.id === selectedObj.id) {
-              return { ...f, x: snapped.x - (snapToGrid ? 0 : dragOffset.x % gridSize), y: snapped.y - (snapToGrid ? 0 : dragOffset.y % gridSize) };
+              return { ...f, x: newX, y: newY, rotation: newRotation };
             }
             return f;
           });
@@ -780,6 +844,16 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
           });
           setOpenings(updatedOpenings);
         }
+        else if (selectedObj.type === 'room') {
+          const target = rooms.find(r => r.id === selectedObj.id);
+          if (target) {
+            const c = roomCentroid(target, rooms.indexOf(target));
+            const dx = (snapped.x - dragOffset.x) - c.x;
+            const dy = (snapped.y - dragOffset.y) - c.y;
+            const updatedRooms = rooms.map(r => r.id === selectedObj.id ? shiftRoom(r, dx, dy) : r);
+            setRooms(updatedRooms);
+          }
+        }
       }
     }
     
@@ -793,6 +867,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const handleSVGMouseUp = () => {
     isDraggingCanvasRef.current = false;
     if (dragMode) {
+      if (selectedObj?.type === 'room') saveCADToServer();
       setDragMode(null);
       saveToHistory(walls, openings, furniture, rooms, measures);
     }
@@ -872,7 +947,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   // Add furniture library items
   const addFurnitureSym = (type) => {
-    const symbolWidths = { bed: 75, wardrobe: 85, table: 60, counter: 90 };
+    const symbolWidths = { bed: 75, wardrobe: 85, table: 60, counter: 90, kitchen_base: 80, tv_unit: 100 };
     const w = symbolWidths[type] || 60;
     
     // Spawn at center screen relative to panning
@@ -884,12 +959,12 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
     const newItem = {
       id: 'furn_' + Date.now(),
-      name: type.toUpperCase(),
+      name: type.replace('_', ' ').toUpperCase(),
       type,
       x: Math.round(spawnX / gridSize) * gridSize,
       y: Math.round(spawnY / gridSize) * gridSize,
       width: w,
-      height: type === 'wardrobe' ? 30 : type === 'bed' ? 80 : 40,
+      height: type === 'wardrobe' ? 30 : type === 'bed' ? 80 : type === 'kitchen_base' ? 24 : type === 'tv_unit' ? 20 : 40,
       rotation: 0
     };
 
@@ -908,6 +983,23 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       setTempPoints([]);
       saveToHistory(walls, openings, furniture, rooms, measures, calculatedPpm);
     }
+  };
+
+  const getWallsBoundingBox = () => {
+    if (!walls.length) return { minX: 100, minY: 100, maxX: 700, maxY: 500 };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    walls.forEach(w => {
+      minX = Math.min(minX, w.x1, w.x2);
+      minY = Math.min(minY, w.y1, w.y2);
+      maxX = Math.max(maxX, w.x1, w.x2);
+      maxY = Math.max(maxY, w.y1, w.y2);
+    });
+    return {
+      minX: minX - 40,
+      minY: minY - 40,
+      maxX: maxX + 40,
+      maxY: maxY + 40
+    };
   };
 
   // Format metric or imperial label
@@ -954,6 +1046,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               { id: 'measure', label: 'Measure', icon: <Ruler className="w-4 h-4" /> },
               { id: 'door', label: 'Door', icon: <DoorClosed className="w-4 h-4" /> },
               { id: 'calibrate', label: 'Calibrate', icon: <RefreshCw className="w-4 h-4" /> },
+              { id: 'camera', label: 'Camera', icon: <Video className="w-4 h-4" /> },
               { id: 'pan', label: 'Pan', icon: <Maximize2 className="w-4 h-4" /> }
             ].map(tool => (
               <button
@@ -1017,10 +1110,16 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Symbols Library</label>
           <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
             <button onClick={() => addFurnitureSym('bed')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
-              + Add Bed
+              + Bed
             </button>
             <button onClick={() => addFurnitureSym('wardrobe')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
               + Wardrobe
+            </button>
+            <button onClick={() => addFurnitureSym('kitchen_base')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
+              + Kitchen Base
+            </button>
+            <button onClick={() => addFurnitureSym('tv_unit')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
+              + TV Unit
             </button>
             <button onClick={() => addFurnitureSym('table')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
               + Table
@@ -1103,6 +1202,9 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             {selectedObj.type === 'furniture' && (
               <div className="text-xs space-y-2 text-slate-400">
                 <div><b>Symbol:</b> {furniture.find(f => f.id === selectedObj.id)?.name}</div>
+                {furniture.find(f => f.id === selectedObj.id)?.type === 'camera' && (
+                  <div className="text-[10px] text-[var(--gold)] font-bold uppercase tracking-wider">Camera Path Keyframe</div>
+                )}
                 <div className="flex items-center gap-2">
                   <span>Rotate:</span>
                   <input
@@ -1228,6 +1330,14 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
           <button onClick={() => { setZoom(1.0); setPanX(50); setPanY(50); }} className="px-2 py-1 text-[9px] font-extrabold uppercase hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition">
             Recenter
           </button>
+          <span className="w-[1px] h-4 bg-slate-800 mx-1"></span>
+          <button 
+            onClick={() => setShowVastuOverlay(!showVastuOverlay)} 
+            className={`px-2 py-1 text-[9px] font-extrabold uppercase rounded transition ${showVastuOverlay ? 'bg-[#C9A84C] text-[#0A0A0B]' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+            title="Toggle Vastu Compass & Grid Overlay"
+          >
+            Vastu Overlay
+          </button>
         </div>
 
         {/* SVG Drawing Layer */}
@@ -1329,6 +1439,21 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             {/* Draw Furniture Items */}
             {furniture.map(f => {
               const isSelected = selectedObj?.type === 'furniture' && selectedObj.id === f.id;
+              if (f.type === 'camera') {
+                return (
+                  <g key={f.id} transform={`translate(${f.x}, ${f.y}) rotate(${f.rotation || f.angle || 0})`} className="camera-node cursor-move" data-id={f.id}>
+                    {/* Camera view cone */}
+                    <path d="M 0 0 L -15 -30 L 15 -30 Z" fill="rgba(201, 168, 76, 0.2)" stroke={isSelected ? '#2DD4AA' : 'var(--gold)'} strokeWidth="1.5" strokeDasharray="2,2" />
+                    {/* Camera Body */}
+                    <circle r="8" fill="var(--gold)" stroke="#0A0A0B" strokeWidth="1.5" />
+                    {/* Lens representation */}
+                    <rect x="-4" y="-12" width="8" height="4" fill="var(--gold)" />
+                    <text x="0" y="16" textAnchor="middle" fill="var(--gold)" fontSize="7" fontWeight="bold">
+                      {f.name || 'CAM'}
+                    </text>
+                  </g>
+                );
+              }
               return (
                 <g key={f.id} transform={`translate(${f.x}, ${f.y}) rotate(${f.rotation})`} className="furniture-shape cursor-move" data-id={f.id}>
                   {/* Fill Box */}
@@ -1373,16 +1498,24 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               const dy = m.y2 - m.y1;
               const len = Math.hypot(dx, dy);
               const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+              const angleRad = Math.atan2(dy, dx);
               const midX = (m.x1 + m.x2) / 2;
               const midY = (m.y1 + m.y2) / 2;
 
+              // Perpendicular vector for witness/extension lines
+              const perpX = Math.sin(angleRad) * 12;
+              const perpY = -Math.cos(angleRad) * 12;
+
               return (
                 <g key={m.id} className="cursor-pointer" onClick={() => setSelectedObj({ id: m.id, type: 'measure' })}>
-                  {/* Line */}
+                  {/* Witness extension lines to measured boundaries */}
+                  <line x1={m.x1 - perpX} y1={m.y1 - perpY} x2={m.x1 + perpX} y2={m.y1 + perpY} stroke="var(--gold)" strokeWidth="0.75" opacity="0.6" />
+                  <line x1={m.x2 - perpX} y1={m.y2 - perpY} x2={m.x2 + perpX} y2={m.y2 + perpY} stroke="var(--gold)" strokeWidth="0.75" opacity="0.6" />
+                  {/* Dimension Line */}
                   <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke="var(--gold)" strokeWidth="1.5" />
-                  {/* End Ticks */}
-                  <line x1={m.x1 - 5} y1={m.y1 - 5} x2={m.x1 + 5} y2={m.y1 + 5} stroke="var(--gold)" strokeWidth="1.5" />
-                  <line x1={m.x2 - 5} y1={m.y2 - 5} x2={m.x2 + 5} y2={m.y2 + 5} stroke="var(--gold)" strokeWidth="1.5" />
+                  {/* Oblique ticks (45-degree angle slashes) */}
+                  <line x1={m.x1 - 5} y1={m.y1 - 5} x2={m.x1 + 5} y2={m.y1 + 5} stroke="var(--gold)" strokeWidth="1.75" />
+                  <line x1={m.x2 - 5} y1={m.y2 - 5} x2={m.x2 + 5} y2={m.y2 + 5} stroke="var(--gold)" strokeWidth="1.75" />
                   {/* Dimension Text block */}
                   <g transform={`translate(${midX}, ${midY}) rotate(${angle})`}>
                     <rect x="-22" y="-12" width="44" height="15" fill="#020617" rx="3" stroke="var(--gold)" strokeWidth="0.5" />
@@ -1432,6 +1565,112 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               </g>
             )}
 
+            {/* Room Overlay Review Layer — draggable + renamable, persisted to /cad */}
+            {rooms.length > 0 && (
+              <g>
+                {rooms.map((room, idx) => {
+                  const c = roomCentroid(room, idx);
+                  const isSel = selectedObj?.type === 'room' && selectedObj.id === room.id;
+                  const isRenaming = renamingRoom === room.id;
+                  const badge = (room.vastu || room.vastuZone || room.orientation || '').toUpperCase();
+                  const w = Math.max(120, (room.name || 'Room').length * 7 + 70);
+                  const h = 46;
+                  return (
+                    <g
+                      key={room.id}
+                      className="room-node cursor-move"
+                      data-id={room.id}
+                      transform={`translate(${c.x - w / 2}, ${c.y - h / 2})`}
+                      onDoubleClick={(e) => { e.stopPropagation(); setRenamingRoom(room.id); }}
+                    >
+                      <rect
+                        width={w} height={h} rx={9}
+                        fill={isSel ? 'rgba(201,168,76,0.18)' : 'rgba(15,23,42,0.82)'}
+                        stroke={isSel ? '#C9A84C' : 'rgba(148,163,184,0.45)'}
+                        strokeWidth={isSel ? 2 : 1}
+                      />
+                      {isRenaming ? (
+                        <foreignObject x={8} y={h / 2 - 11} width={w - 16} height={24}>
+                          <input
+                            autoFocus
+                            defaultValue={room.name}
+                            className="w-full bg-slate-900 text-slate-100 text-[12px] px-1 rounded border border-gold outline-none"
+                            onBlur={(e) => commitRoomRename(room.id, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitRoomRename(room.id, e.target.value);
+                              if (e.key === 'Escape') setRenamingRoom(null);
+                            }}
+                          />
+                        </foreignObject>
+                      ) : (
+                        <>
+                          <text x={12} y={20} fill="#F0EEE8" fontSize="12.5" fontWeight="bold">
+                            {(room.name || 'Room').slice(0, 22)}
+                          </text>
+                          {badge && (
+                            <text x={12} y={37} fill="#C9A84C" fontSize="9">
+                              {badge} ZONE
+                            </text>
+                          )}
+                        </>
+                      )}
+                      <circle cx={w - 14} cy={14} r={5} fill="#C9A84C" opacity="0.85" />
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+
+            {/* Vastu Compass and Directional Zonal Overlay */}
+            {showVastuOverlay && (() => {
+              const { minX, minY, maxX, maxY } = getWallsBoundingBox();
+              const wBB = maxX - minX;
+              const hBB = maxY - minY;
+              const dx = wBB / 3;
+              const dy = hBB / 3;
+              
+              const vastuZones = [
+                { name: 'Northwest (Vayu)', sub: 'Guest Bed / Toilet', x: minX, y: minY },
+                { name: 'North (Kubera)', sub: 'Entrance / Living', x: minX + dx, y: minY },
+                { name: 'Northeast (Ishanya)', sub: '★ Optimal Pooja Room', x: minX + 2*dx, y: minY, highlight: true },
+                
+                { name: 'West (Varuna)', sub: 'Children Bed / Dining', x: minX, y: minY + dy },
+                { name: 'Brahmasthan (Center)', sub: 'Keep Open & Light', x: minX + dx, y: minY + dy, center: true },
+                { name: 'East (Indra)', sub: 'Entrance / Living', x: minX + 2*dx, y: minY + dy },
+                
+                { name: 'Southwest (Nairutya)', sub: '★ Optimal Master Bed', x: minX, y: minY + 2*dy, highlight: true },
+                { name: 'South (Yama)', sub: 'Storage / Staircase', x: minX + dx, y: minY + 2*dy },
+                { name: 'Southeast (Agneya)', sub: '★ Optimal Kitchen (Fire)', x: minX + 2*dx, y: minY + 2*dy, highlight: true }
+              ];
+              
+              return (
+                <g opacity="0.85" style={{ pointerEvents: 'none' }}>
+                  {/* Outer boundary */}
+                  <rect x={minX} y={minY} width={wBB} height={hBB} fill="none" stroke="#C9A84C" strokeWidth="1.5" strokeDasharray="6,4" />
+                  {/* Grid Lines */}
+                  <line x1={minX + dx} y1={minY} x2={minX + dx} y2={maxY} stroke="rgba(201, 168, 76, 0.25)" strokeWidth="1" strokeDasharray="4,4" />
+                  <line x1={minX + 2*dx} y1={minY} x2={minX + 2*dx} y2={maxY} stroke="rgba(201, 168, 76, 0.25)" strokeWidth="1" strokeDasharray="4,4" />
+                  <line x1={minX} y1={minY + dy} x2={maxX} y2={minY + dy} stroke="rgba(201, 168, 76, 0.25)" strokeWidth="1" strokeDasharray="4,4" />
+                  <line x1={minX} y1={minY + 2*dy} x2={maxX} y2={minY + 2*dy} stroke="rgba(201, 168, 76, 0.25)" strokeWidth="1" strokeDasharray="4,4" />
+                  
+                  {/* Zone Labels & Highlights */}
+                  {vastuZones.map((z, idx) => (
+                    <g key={idx}>
+                      {z.highlight && (
+                        <rect x={z.x + 4} y={z.y + 4} width={dx - 8} height={dy - 8} fill="rgba(201, 168, 76, 0.04)" rx="6" />
+                      )}
+                      <text x={z.x + dx/2} y={z.y + dy/2 - 4} textAnchor="middle" fill={z.highlight ? '#E8C97A' : '#8A8899'} fontSize="9" fontWeight="bold">
+                        {z.name}
+                      </text>
+                      <text x={z.x + dx/2} y={z.y + dy/2 + 8} textAnchor="middle" fill="#8A8899" fontSize="7" opacity="0.8">
+                        {z.sub}
+                      </text>
+                    </g>
+                  ))}
+                </g>
+              );
+            })()}
+
           </g>
         </svg>
 
@@ -1452,6 +1691,55 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       {/* 3. Right Process Sidebar (Walkthrough video, SLAM notifications) */}
       <div className="w-full xl:w-80 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0 overflow-y-auto max-h-[80vh]">
         
+        {/* AI Floor Plan Scan Analysis & OCR Panel */}
+        {multimodalAnalysis && (
+          <div className="bg-slate-950 border border-[#C9A84C]/30 rounded-xl p-3.5 space-y-3 shadow-lg">
+            <div className="flex items-center gap-1.5 border-b border-slate-850 pb-2">
+              <Sparkles className="w-4 h-4 text-[var(--gold)]" />
+              <h3 className="text-xs font-bold text-[#F0EEE8] uppercase tracking-wider">AI Floor Plan Scan</h3>
+            </div>
+            
+            <div className="space-y-2.5 text-[11px] text-[#8A8899]">
+              <div>
+                <span className="text-slate-400 font-bold block">Overall Dimensions:</span>
+                <span className="text-[var(--gold)] font-semibold">{multimodalAnalysis.overallDimensions || 'Not detected'}</span>
+              </div>
+
+              <div>
+                <span className="text-slate-400 font-bold block">Detected Zones/Rooms:</span>
+                <ul className="list-disc pl-4 space-y-1 mt-1 text-[#F0EEE8]">
+                  {(multimodalAnalysis.detectedRooms || []).map((r, idx) => (
+                    <li key={idx}>
+                      <span className="capitalize font-medium text-slate-300">{r.type}:</span> {r.label} {r.measurements ? `(${r.measurements})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {multimodalAnalysis.openingsCount && (
+                <div>
+                  <span className="text-slate-400 font-bold block">Openings:</span>
+                  <div className="flex gap-4 mt-1 text-[#F0EEE8]">
+                    <span>🚪 Doors: {multimodalAnalysis.openingsCount.doors || 0}</span>
+                    <span>🪟 Windows: {multimodalAnalysis.openingsCount.windows || 0}</span>
+                  </div>
+                </div>
+              )}
+
+              {multimodalAnalysis.handwrittenNotes && multimodalAnalysis.handwrittenNotes.length > 0 && (
+                <div>
+                  <span className="text-slate-400 font-bold block">OCR / Handwritten Notes:</span>
+                  <ul className="list-disc pl-4 space-y-1 mt-1 text-[#F0EEE8]">
+                    {multimodalAnalysis.handwrittenNotes.map((note, idx) => (
+                      <li key={idx} className="italic text-slate-300">{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* AutoCAD IMAGEATTACH Underlay Layer Panel */}
         <div className="panel">
           <h3 className="panel-head">
