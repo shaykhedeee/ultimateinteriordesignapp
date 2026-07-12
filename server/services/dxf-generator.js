@@ -56,7 +56,7 @@ function hatch(arr, x1, y1, x2, y2, layer) {
     ' 11', num(x2), ' 21', num(y2), ' 31', '0.0');
 }
 
-function num(v) { return (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(2) : String(v); }
+function num(v) { return (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(2) : (v == null ? '0.0' : String(v)); }
 
 // Filled arrowhead as a tiny SOLID triangle pointing along (x1,y1)->(x2,y2)
 function arrow(arr, x, y, ang, layer, color, size = 60) {
@@ -159,8 +159,8 @@ export function generateElevationDXF(model, opts = {}) {
 
   // --- Cabinetry per-type geometry ---
   for (const c of (model.cabinets || [])) {
-    const cx = c.xOffsetMm, cy = c.zOffsetMm || 0;
-    const w = c.widthMm, h = c.heightMm;
+    const cx = Number(c.xOffsetMm) || 0, cy = Number(c.zOffsetMm) || 0;
+    const w = Number(c.widthMm) || 0, h = Number(c.heightMm) || 0;
     // body
     line(arr, cx, cy, cx + w, cy, 'CABINETRY', CYAN);
     line(arr, cx + w, cy, cx + w, cy + h, 'CABINETRY', CYAN);

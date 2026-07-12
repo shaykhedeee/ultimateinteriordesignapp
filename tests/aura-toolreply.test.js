@@ -85,3 +85,56 @@ test('unknown tool id -> noAnswer (never crashes)', async (t) => {
   const r = await toolReply({ id: 'ghost', label: 'x', action: 'ghost' }, { projectId: PID }, PID, '');
   assert.equal(r.actions.length, 0);
 });
+
+test('kitchen_template -> kitchen/template POST (infers U shape from message)', async (t) => {
+  const { calls } = withFetch(t, { ok: true, applied: 6, shape: 'U' });
+  const intent = resolveIntent('apply a u-shape modular kitchen');
+  const r = await toolReply(intent.tool, { projectId: PID }, PID, 'apply a u-shape modular kitchen');
+  const c = calls.find(x => x.url.includes('/kitchen/template'));
+  assert.ok(c, 'called kitchen/template endpoint');
+  assert.equal(c.method, 'POST');
+  assert.ok(/"shape"\s*:\s*"U"/.test(c.body), 'passed U shape');
+  assert.ok(/U-shape/.test(r.text));
+});
+
+test('apply_vastu -> vastu/auto-apply POST', async (t) => {
+  const { calls } = withFetch(t, { ok: true, applied: [{ kind: 'add_pooja' }, { kind: 'move_bed' }] });
+  const intent = resolveIntent('apply vastu fixes to my plan');
+  const r = await toolReply(intent.tool, { projectId: PID }, PID, 'apply vastu fixes to my plan');
+  const c = calls.find(x => x.url.includes('/vastu/auto-apply'));
+  assert.ok(c, 'called vastu/auto-apply endpoint');
+  assert.ok(/Vastu fixes applied/.test(r.text));
+});
+
+test('preview_vastu -> vastu/preview GET, reports change count', async (t) => {
+  const { calls } = withFetch(t, { ok: true, changes: [{ kind: 'add_pooja' }, { kind: 'move_bed' }] });
+  const intent = resolveIntent('preview the vastu changes first');
+  const r = await toolReply(intent.tool, { projectId: PID }, PID, 'preview the vastu changes first');
+  const c = calls.find(x => x.url.includes('/vastu/preview'));
+  assert.ok(c, 'called vastu/preview endpoint');
+  assert.equal(c.method, 'GET');
+  assert.ok(/2 change/.test(r.text));
+  assert.equal(r.actions[0].actionId, 'applyVastu');
+});
+
+test('tv_unit_apply -> tv-unit/apply POST when style named', async (t) => {
+  const calls = [];
+  const TV_UNITS = [
+    { id: 'tv_high_gloss_black', name: 'High-Gloss Black Statement' },
+    { id: 'tv_louvered_walnut', name: 'Louvered Walnut TV Wall' }
+  ];
+  t.mock.method(globalThis, 'fetch', (url, opts) => {
+    const u = String(url);
+    calls.push({ url: u, method: (opts && opts.method) || 'GET', body: opts && opts.body });
+    if (u.includes('/api/tv-units')) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(TV_UNITS) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ok: true, applied: 'tv_high_gloss_black' }) });
+  });
+  const intent = resolveIntent('add a high-gloss black tv unit');
+  const r = await toolReply(intent.tool, { projectId: PID }, PID, 'add a high-gloss black tv unit');
+  const apply = calls.find(x => x.url.includes('/tv-unit/apply'));
+  assert.ok(apply, 'called tv-unit/apply endpoint');
+  assert.ok(/"unitId"\s*:\s*"tv_high_gloss_black"/.test(apply.body), 'passed resolved unit id');
+  assert.ok(/High-Gloss Black/.test(r.text));
+});

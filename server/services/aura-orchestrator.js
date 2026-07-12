@@ -48,12 +48,16 @@ const TOOLS = [
   { id:'budget_optimize',    label:'Optimize budget',         intent:/budget|cost|price|cheap|save|optimize/i,             action:'budget_optimize' },
   { id:'assign_task',        label:'Start background job',    intent:/job|running|status|que|run|spawn/i,                  action:'assign_task' },
   { id:'regen_room',         label:'Regenerate room render',  intent:/regenerate|re-render|redo|regen|refresh.*room|regenerate.*room/i, action:'regen_room', weight: 2 },
-  { id:'vastu_check',        label:'Check Vastu compliance',  intent:/vastu|compliant|feng.*shui|altar|pooja/i,            action:'vastu_check' },
-  { id:'jali_generate',      label:'Generate jali/lattice panel', intent:/jali|jaali|lattice|perforated|partition.*screen/i, action:'jali_generate' },
-  { id:'shoe_rack',          label:'Generate shoe rack / entry cabinet', intent:/shoe.*rack|entry.*cabinet|footwear|mud.*room/i, action:'shoe_rack' },
+  { id:'vastu_check',        label:'Check Vastu compliance',  intent:/vastu.*(check|complian|audit|report)|check.*vastu|compliant|pooja|altar|feng.*shui/i, action:'vastu_check', weight: 2 },
+  { id:'jali_generate',      label:'Generate jali/lattice panel', intent:/jali|lattice|jaali|screen|partition.*panel|mashrabiya/i, action:'jali_generate' },
+  { id:'shoe_rack_generate', label:'Generate shoe rack',          intent:/shoe\s*rack|shoe cabinet| footwear|shoe storage/i,        action:'shoe_rack_generate' },
   { id:'cutlist_refresh',    label:'Recalculate cutlist',       intent:/refresh.*cutlist|recalculat.*cutlist|re-?generate.*cutlist|cutlist.*recalc/i, action:'cutlist_refresh', weight: 2 },
-  { id:'delivery_pack',      label:'Build client delivery package', intent:/delivery.*pack|client.*pack|handoff.*zip|build.*package|delivery.*zip/i, action:'delivery_pack' },
-  { id:'generate_quotation', label:'Generate quotation PDF',    intent:/quotation|proposal|estimate|invoice|price.*quote|quote.*pdf/i, action:'generate_quotation' }
+  { id:'delivery_pack',      label:'Build delivery package',    intent:/delivery|dispatch|pack.*ship|handover|installation pack/i, action:'delivery_pack' },
+  { id:'generate_quotation', label:'Generate quotation PDF',    intent:/quotation|quote.*pdf|proposal.*pdf|proposal|client.*quote|price.*quote|estimate.*pdf/i, action:'generate_quotation' },
+  { id:'kitchen_template',   label:'Apply kitchen template',    intent:/kitchen.*(u|l)\b|u-?shape kitchen|l-?shape kitchen|kitchen template|modular kitchen|kitchen layout/i, action:'kitchen_template', weight: 2 },
+  { id:'apply_vastu',        label:'Auto-apply Vastu fixes',     intent:/apply.*vastu|fix.*vastu|vastu.*auto|make.*vastu|vastu.*complian/i, action:'apply_vastu', weight: 2 },
+  { id:'preview_vastu',      label:'Preview Vastu changes',      intent:/preview.*vastu|vastu.*preview|show.*vastu|vastu.*changes|vastu.*diff/i, action:'preview_vastu', weight: 2 },
+  { id:'tv_unit_apply',      label:'Apply TV unit',              intent:/tv\s*unit|tv wall|television unit|media unit/i,            action:'tv_unit_apply' }
 ];
 
 export function resolveIntent(message) {
@@ -179,7 +183,7 @@ export async function toolReply(tool, args, projectId, message = '') {
       };
     }
 
-    case 'shoe_rack': {
+    case 'shoe_rack_generate': {
       const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/elevations/shoe-rack`, {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
       }).catch(()=>null);
@@ -221,6 +225,66 @@ export async function toolReply(tool, args, projectId, message = '') {
         text: d?.success ? 'Quotation PDF generated.' : 'Open Materials & BOQ to build the quotation.',
         actions: d?.success ? [] : [{ actionId:'openMaterials', label:'Open Materials & BOQ', primary:true }]
       };
+    }
+
+    case 'kitchen_template': {
+      // Infer U or L shape from the message; default to L.
+      const shape = /u[-\s]?shape|\bu\b/i.test(message) ? 'U' : 'L';
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/kitchen/template`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ shape })
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.ok ? `${shape}-shape modular kitchen template applied (${d.applied} modules).` : 'Open the Kitchen Studio to pick a U or L template.',
+        actions: d?.ok ? [] : [{ actionId:'openKitchen', label:'Open Kitchen Studio', primary:true }]
+      };
+    }
+
+    case 'apply_vastu': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/auto-apply`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.ok ? `Vastu fixes applied (${Array.isArray(d.applied) ? d.applied.length : 0} changes: mandir placement, bed repositioning).` : 'Open Vastu Studio to review compliance.',
+        actions: d?.ok ? [] : [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }]
+      };
+    }
+
+    case 'preview_vastu': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/preview`, {
+        method:'GET'
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      const n = Array.isArray(d?.changes) ? d.changes.length : 0;
+      return {
+        text: d?.ok ? (n ? `Vastu preview: ${n} change(s) recommended (e.g. add Pooja mandir in NE, move beds out of forbidden zones).` : 'Plan already Vastu-compliant — no changes needed.') : 'Open Vastu Studio to review the plan.',
+        actions: d?.ok && n ? [{ actionId:'applyVastu', label:'Apply Vastu Fixes', primary:true }] : [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }]
+      };
+    }
+
+    case 'tv_unit_apply': {
+      // Infer a library id from the message if possible; otherwise open the picker.
+      const lib = await (async () => {
+        try { const r = await fetch(`${baseUrl}/api/tv-units`); const list = r.ok ? await r.json() : []; return list; }
+        catch { return []; }
+      })();
+      const match = (lib || []).find(u => {
+        if (message.toLowerCase().includes(u.id.replace(/_/g, ' '))) return true;
+        if (message.toLowerCase().includes(u.name.toLowerCase())) return true;
+        // token-overlap fallback: e.g. "high-gloss black tv unit" -> "High-Gloss Black Statement"
+        const toks = (u.name || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        const hits = toks.filter(w => message.toLowerCase().includes(w)).length;
+        return toks.length > 0 && hits >= 2;
+      });
+      if (match) {
+        const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/tv-unit/apply`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ unitId: match.id })
+        }).catch(()=>null);
+        const d = r ? await r.json().catch(()=>({})) : {};
+        return { text: d?.ok ? `Applied TV unit: ${match.name}.` : 'Open the TV Unit library to pick a style.', actions: d?.ok ? [] : [{ actionId:'openTvUnit', label:'Open TV Units', primary:true }] };
+      }
+      return { text: 'Pick a TV unit style from the library (Louvered Walnut, CNC Teak, Fluted Oak, High-Gloss Black, and more).', actions:[{ actionId:'openTvUnit', label:'Open TV Units', primary:true }] };
     }
 
     default:

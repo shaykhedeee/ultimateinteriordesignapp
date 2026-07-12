@@ -89,6 +89,24 @@ test('"regenerate the kitchen render" prefers regen_room over generate_render', 
   assert.equal(r.tool.id, 'regen_room');
 });
 
+test('kitchen_template intent: routes U/L shape', () => {
+  assert.equal(resolveIntent('apply a u-shape modular kitchen').tool.id, 'kitchen_template');
+  assert.equal(resolveIntent('set an L-shape kitchen layout').tool.id, 'kitchen_template');
+});
+
+test('apply_vastu intent: routes auto-apply', () => {
+  assert.equal(resolveIntent('apply vastu fixes to my plan').tool.id, 'apply_vastu');
+});
+
+test('preview_vastu intent: routes preview (not apply)', () => {
+  const r = resolveIntent('preview the vastu changes first');
+  assert.equal(r.tool.id, 'preview_vastu');
+});
+
+test('tv_unit_apply intent: routes tv unit', () => {
+  assert.equal(resolveIntent('add a high-gloss black tv unit').tool.id, 'tv_unit_apply');
+});
+
 test('no keyword hit -> null tool (no phantom routing)', () => {
   const r = resolveIntent('hello how are you today');
   assert.equal(r.tool, null);
@@ -107,9 +125,9 @@ test('jali with size hint still routes to jali_generate', () => {
   assert.equal(r.tool.id, 'jali_generate');
 });
 
-test('shoe rack keyword routes to shoe_rack', () => {
+test('shoe rack keyword routes to shoe_rack_generate', () => {
   const r = resolveIntent('design a shoe rack for the entryway');
-  assert.equal(r.tool.id, 'shoe_rack');
+  assert.equal(r.tool.id, 'shoe_rack_generate');
 });
 
 test('cutlist refresh phrasing routes to cutlist_refresh (not cutlist_calculate)', () => {
