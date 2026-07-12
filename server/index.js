@@ -40,7 +40,7 @@ import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
 import { buildShoeRackDXF, buildShoeRackPDF, shoeRackModel } from './services/shoe-rack.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
-import { previewVastu, applyVastu } from './services/vastu-auto.js';
+import { previewVastu, applyVastu, analyzeVastuPlan, suggestVastuLayout, applyVastuFull } from './services/vastu-auto.js';
 import { applyKitchenTemplate } from './services/kitchen-templates.js';
 import { getTvUnitLibrary, applyTvUnit } from './services/tv-unit-library.js';
 import { traceDxf } from './services/dxf-trace.js';
@@ -2568,6 +2568,39 @@ app.get('/api/projects/:id/vastu/preview', (req, res) => {
 app.post('/api/projects/:id/vastu/auto-apply', express.json(), (req, res) => {
   try {
     const r = applyVastu(req.params.id);
+    if (!r.ok) return res.status(404).json({ error: r.reason });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Auto-Vastu FULL engine: scan plan geometry + classify EVERY furniture item ---
+app.get('/api/projects/:id/vastu/analyze', (req, res) => {
+  try {
+    const p = analyzeVastuPlan(req.params.id);
+    if (!p.ok) return res.status(404).json({ error: p.reason });
+    res.json(p);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Auto-Vastu: ideal per-room layout suggestions ---
+app.get('/api/projects/:id/vastu/suggest', (req, res) => {
+  try {
+    const s = suggestVastuLayout(req.params.id);
+    if (!s.ok) return res.status(404).json({ error: s.reason });
+    res.json(s);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Auto-Vastu FULL: reposition ALL violating items + add missing key items ---
+app.post('/api/projects/:id/vastu/auto-apply-full', express.json(), (req, res) => {
+  try {
+    const r = applyVastuFull(req.params.id);
     if (!r.ok) return res.status(404).json({ error: r.reason });
     res.json(r);
   } catch (err) {

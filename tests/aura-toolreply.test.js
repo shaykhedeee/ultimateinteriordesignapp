@@ -64,12 +64,12 @@ test('generate_quotation -> quotation/pdf route', async (t) => {
   assert.ok(c, 'called quotation/pdf endpoint');
 });
 
-test('vastu_check -> vastu/preview route', async (t) => {
-  const { calls } = withFetch(t, { success: true, needsApply: false, changes: [] });
+test('vastu_check -> vastu/analyze route', async (t) => {
+  const { calls } = withFetch(t, { ok: true, counts: { compliant: 4, violation: 2, unknown: 0, total: 6 }, items: [{ status: 'violation', label: 'Bed', zone: 'NE', suggestion: { zone: 'SW', place: 'SW' } }], missingKeyItems: [] });
   const intent = resolveIntent('check vastu compliance');
   const r = await toolReply(intent.tool, { projectId: PID }, PID, 'check vastu compliance');
-  const c = calls.find(x => x.url.includes('/vastu/preview'));
-  assert.ok(c, 'called vastu/preview endpoint');
+  const c = calls.find(x => x.url.includes('/vastu/analyze'));
+  assert.ok(c, 'called vastu/analyze endpoint');
 });
 
 test('graceful fallback: backend no success -> navigation action', async (t) => {
@@ -97,24 +97,24 @@ test('kitchen_template -> kitchen/template POST (infers U shape from message)', 
   assert.ok(/U-shape/.test(r.text));
 });
 
-test('apply_vastu -> vastu/auto-apply POST', async (t) => {
+test('apply_vastu -> vastu/auto-apply-full POST', async (t) => {
   const { calls } = withFetch(t, { ok: true, applied: [{ kind: 'add_pooja' }, { kind: 'move_bed' }] });
   const intent = resolveIntent('apply vastu fixes to my plan');
   const r = await toolReply(intent.tool, { projectId: PID }, PID, 'apply vastu fixes to my plan');
-  const c = calls.find(x => x.url.includes('/vastu/auto-apply'));
-  assert.ok(c, 'called vastu/auto-apply endpoint');
-  assert.ok(/Vastu fixes applied/.test(r.text));
+  const c = calls.find(x => x.url.includes('/vastu/auto-apply-full'));
+  assert.ok(c, 'called vastu/auto-apply-full endpoint');
+  assert.ok(/Full Vastu applied/.test(r.text));
 });
 
-test('preview_vastu -> vastu/preview GET, reports change count', async (t) => {
-  const { calls } = withFetch(t, { ok: true, changes: [{ kind: 'add_pooja' }, { kind: 'move_bed' }] });
+test('preview_vastu -> vastu/analyze GET, reports violation + missing counts', async (t) => {
+  const { calls } = withFetch(t, { ok: true, items: [{ status: 'violation', label: 'Bed', zone: 'NE', suggestion: { zone: 'SW' } }, { status: 'compliant', label: 'Sofa' }], missingKeyItems: [{ key: 'pooja', summary: 'add NE pooja' }] });
   const intent = resolveIntent('preview the vastu changes first');
   const r = await toolReply(intent.tool, { projectId: PID }, PID, 'preview the vastu changes first');
-  const c = calls.find(x => x.url.includes('/vastu/preview'));
-  assert.ok(c, 'called vastu/preview endpoint');
+  const c = calls.find(x => x.url.includes('/vastu/analyze'));
+  assert.ok(c, 'called vastu/analyze endpoint');
   assert.equal(c.method, 'GET');
-  assert.ok(/2 change/.test(r.text));
-  assert.equal(r.actions[0].actionId, 'applyVastu');
+  assert.ok(/1 item\(s\) in the wrong zone and 1 missing/.test(r.text));
+  assert.equal(r.actions[0].actionId, 'applyVastuFixes');
 });
 
 test('tv_unit_apply -> tv-unit/apply POST when style named', async (t) => {

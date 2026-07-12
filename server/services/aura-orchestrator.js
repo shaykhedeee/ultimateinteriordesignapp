@@ -158,12 +158,14 @@ export async function toolReply(tool, args, projectId, message = '') {
       return { text: 'Opening Finance & BOQ screen for budget optimization analysis.', actions:[{ actionId:'openFinance', label:'Open Finance & BOQ', primary:true }] };
 
     case 'vastu_check': {
-      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/preview`, { method:'GET' }).catch(()=>null);
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/analyze`, { method:'GET' }).catch(()=>null);
       const d = r ? await r.json().catch(()=>({})) : {};
-      const msg = d?.changes?.map(c => `• ${c.summary}`).join('\n') || 'Your layout is 100% Vastu-compliant!';
+      const msg = d?.items?.filter(i => i.status === 'violation').map(i => `• ${i.label}: currently ${i.zone}, move to ${i.suggestion?.zone} (${i.suggestion?.place})`).join('\n')
+        || (d?.missingKeyItems?.length ? d.missingKeyItems.map(m => `• ${m.summary}`).join('\n') : null)
+        || 'Your layout is 100% Vastu-compliant!';
       return {
-        text: `Vastu Compliance Check results:\n${msg}`,
-        actions: d?.needsApply ? [{ actionId:'applyVastuFixes', label:'Apply Vastu Fixes', primary:true }, { actionId:'openCad', label:'Open CAD Editor' }] : [{ actionId:'openCad', label:'Open CAD Editor', primary:true }]
+        text: `Vastu Floor-Plan Scan (${d?.counts?.compliant || 0} compliant / ${d?.counts?.violation || 0} to fix / ${d?.counts?.unknown || 0} unclassified of ${d?.counts?.total || 0} items):\n${msg}`,
+        actions: d?.needsApply ? [{ actionId:'applyVastuFixes', label:'Auto-Apply Vastu (all items)', primary:true }, { actionId:'openVastu', label:'Open Vastu Studio' }] : [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }]
       };
     }
 
@@ -241,25 +243,27 @@ export async function toolReply(tool, args, projectId, message = '') {
     }
 
     case 'apply_vastu': {
-      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/auto-apply`, {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/auto-apply-full`, {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
       }).catch(()=>null);
       const d = r ? await r.json().catch(()=>({})) : {};
+      const n = Array.isArray(d?.applied) ? d.applied.length : 0;
       return {
-        text: d?.ok ? `Vastu fixes applied (${Array.isArray(d.applied) ? d.applied.length : 0} changes: mandir placement, bed repositioning).` : 'Open Vastu Studio to review compliance.',
-        actions: d?.ok ? [] : [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }]
+        text: d?.ok ? `Full Vastu applied — ${n} item(s) repositioned/reconciled across the floor plan (beds, seating, kitchen, pooja and more moved to their ideal zones).` : 'Open Vastu Studio to review compliance.',
+        actions: d?.ok ? [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }] : [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }]
       };
     }
 
     case 'preview_vastu': {
-      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/preview`, {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/vastu/analyze`, {
         method:'GET'
       }).catch(()=>null);
       const d = r ? await r.json().catch(()=>({})) : {};
-      const n = Array.isArray(d?.changes) ? d.changes.length : 0;
+      const v = d?.items?.filter(i => i.status === 'violation').length || 0;
+      const miss = d?.missingKeyItems?.length || 0;
       return {
-        text: d?.ok ? (n ? `Vastu preview: ${n} change(s) recommended (e.g. add Pooja mandir in NE, move beds out of forbidden zones).` : 'Plan already Vastu-compliant — no changes needed.') : 'Open Vastu Studio to review the plan.',
-        actions: d?.ok && n ? [{ actionId:'applyVastu', label:'Apply Vastu Fixes', primary:true }] : [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }]
+        text: d?.ok ? (v || miss ? `Vastu floor-plan scan: ${v} item(s) in the wrong zone and ${miss} missing key item(s). Open Vastu Studio for the full room-by-room blueprint and one-click fix.` : 'Plan already Vastu-compliant — no changes needed.') : 'Open Vastu Studio to review the plan.',
+        actions: d?.ok && (v || miss) ? [{ actionId:'applyVastuFixes', label:'Auto-Apply Vastu', primary:true }, { actionId:'openVastu', label:'Open Vastu Studio' }] : [{ actionId:'openVastu', label:'Open Vastu Studio', primary:true }]
       };
     }
 

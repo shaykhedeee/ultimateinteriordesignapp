@@ -362,15 +362,15 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     }
   };
 
-  // --- Auto-Vastu: preview proposed fixes ---
+  // --- Auto-Vastu: preview proposed fixes (full scan) ---
   const runVastuCheck = async () => {
     setVastuBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/vastu/preview`);
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/vastu/analyze`);
       const data = await res.json();
       if (res.ok) setVastuDiff(data);
     } catch (e) {
-      console.error('vastu preview failed', e);
+      console.error('vastu analyze failed', e);
     } finally {
       setVastuBusy(false);
     }
@@ -379,7 +379,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const applyVastuFix = async () => {
     setVastuBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/vastu/auto-apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/vastu/auto-apply-full`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const data = await res.json();
       if (res.ok && data.applied?.length) {
         window.__toast?.show(`Vastu applied: ${data.applied.length} fix(es)`);

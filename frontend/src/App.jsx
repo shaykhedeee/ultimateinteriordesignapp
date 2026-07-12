@@ -25,6 +25,7 @@ const MaterialCatalogScreen    = lazy(() => import('./screens/MaterialCatalogScr
 const Render3DStudio           = lazy(() => import('./screens/Render3DStudio.jsx'));
 const CutlistNestingScreen     = lazy(() => import('./screens/CutlistNestingScreen.jsx'));
 const DesignStudioScreen       = lazy(() => import('./screens/DesignStudioScreen.jsx'));
+const VastuStudioScreen        = lazy(() => import('./screens/VastuStudioScreen.jsx'));
 import PresentationStudio       from './screens/PresentationStudio.jsx';
 import PipelineStudio            from './screens/PipelineStudio.jsx';
 import CommandCenterScreen       from './screens/CommandCenterScreen.jsx';
@@ -76,6 +77,7 @@ const NAV_CONFIG = [
       { id: 'brief',    label: 'Client Intake',        icon: FileText,    shortcut: null },
       { id: 'cad',      label: 'Plan Intelligence',    icon: Compass,     shortcut: null },
       { id: 'studio',   label: 'Editable 3D Scene',    icon: Layers,      shortcut: null },
+      { id: 'vastu',    label: 'Vastu Studio',         icon: Compass,     shortcut: null },
       { id: 'drawings', label: 'Drawings & Elevations', icon: CheckSquare, shortcut: null, staleFlag: 'stale_drawings' }
     ]
   },
@@ -124,6 +126,7 @@ const TAB_META = {
   brief:     { title: 'Client Intake',      sub: 'Capture lifestyle, budget, rooms, references and floor plan uploads' },
   cad:       { title: 'Plan Intelligence', sub: 'Review rooms, walls, openings, scale, services and confidence' },
   studio:    { title: 'Editable 3D Scene', sub: 'Place parametric modules from one spatial source of truth' },
+  vastu:     { title: 'Vastu Studio',       sub: 'Scan the floor plan & auto-suggest compliant placement for every furniture item' },
   drawings:  { title: 'Drawings & Elevations', sub: 'Annotated wall drawings, cabinet elevations and DXF exports' },
   materials: { title: 'Materials Catalog', sub: 'Select laminates, hardware fittings & estimate costs' },
   renders:   { title: '3D AI Render Studio', sub: 'Generate photorealistic renders with Vastu insights' },
@@ -377,7 +380,7 @@ export function App() {
   const handleExecuteAction = async (actionId, preview) => {
     if (preview?.costImpact && selectedProject) setSelectedProject(p => ({...p, total_cost: Math.max(0,(p.total_cost||0)+preview.costImpact)}));
     try { window.__toast?.success(`AURA → ${preview?.title || actionId}`); } catch {}
-    const navMap = { openElevationGenerator:'drawings', generateFromLastWall:'drawings', openRenderStudio:'renders', regenerateLastRender:'renders', renderFromAngle:'renders', runAiDetect:'cad', runCvTrace:'cad', refreshCutlist:'cutlist', openCutlist:'cutlist', openPresentation:'presentation', generateQuotation:'presentation', openMaterials:'materials', optimizeCutlist:'cutlist', openJobs:'jobs' };
+    const navMap = { openElevationGenerator:'drawings', generateFromLastWall:'drawings', openRenderStudio:'renders', regenerateLastRender:'renders', renderFromAngle:'renders', runAiDetect:'cad', runCvTrace:'cad', refreshCutlist:'cutlist', openCutlist:'cutlist', openPresentation:'presentation', generateQuotation:'presentation', openMaterials:'materials', optimizeCutlist:'cutlist', openJobs:'jobs', openVastu:'vastu', openCad:'cad', applyVastuFixes:'vastu' };
     const target = navMap[actionId];
     if (['generateFromLastWall','runAiDetect','runCvTrace','refreshCutlist','generateQuotation','optimizeCutlist'].includes(actionId)) {
       const routeMap = { generateFromLastWall: `/api/projects/${selectedProjectId}/drawings/elevations/auto/dxf`, runAiDetect: `/api/projects/${selectedProjectId}/cad/ai-detect`, runCvTrace: `/api/projects/${selectedProjectId}/cad/cv-trace`, refreshCutlist: `/api/projects/${selectedProjectId}/cutlist/recalc`, generateQuotation: `/api/projects/${selectedProjectId}/client-share?pack=quotation`, optimizeCutlist: `/api/projects/${selectedProjectId}/cutlist/optimize` };
@@ -415,6 +418,7 @@ export function App() {
       case 'brief':     return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
       case 'cad':       return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
       case 'studio':    return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
+      case 'vastu':     return <VastuStudioScreen projectId={selectedProjectId} onApplyDone={() => setActiveTab('cad')} />;
       case 'drawings':  return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
       case 'materials': return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => setActiveTab('renders')} />;
       case 'renders':   return <Render3DStudio projectId={selectedProjectId} onComplete={() => setActiveTab('cutlist')} />;

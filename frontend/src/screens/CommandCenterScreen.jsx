@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
   BarChart3, CheckCircle2, ChevronRight, Activity, Zap, Info, Plus, 
-  Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee, Pencil
+  Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee, Pencil,
+  LayoutDashboard, TrendingUp, FolderKanban, UserPlus, Circle, ArrowUpRight, ArrowRight, Cpu, Wifi, WifiOff, Clock, Briefcase, Gauge, Building2, Award
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
 import ProjectSettingsModal from '../components/ProjectSettingsModal.jsx';
@@ -10,7 +11,7 @@ import ProjectSettingsModal from '../components/ProjectSettingsModal.jsx';
 export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [projects, setProjects] = useState([]);
   const [leads, setLeads] = useState([]);
-  const [activeWorkflowTab, setActiveWorkflowTab] = useState('smart'); // 'smart', 'generate', 'photo', 'layout', 'product'
+  const [activeWorkflowTab, setActiveWorkflowTab] = useState('overview'); // Default to overview
   const [selectedProjectId, setSelectedProjectId] = useState(projectId || '');
   const [editingProject, setEditingProject] = useState(null);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -18,7 +19,14 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [materialsCatalog, setMaterialsCatalog] = useState([]);
   const [workspaceMode, setWorkspaceMode] = useState('designer'); // 'designer' | 'brand' | 'realestate'
 
+  // Additional Dashboard States
+  const [loading, setLoading] = useState(true);
+  const [health, setHealth] = useState(null);
+  const [readinessMap, setReadinessMap] = useState({});
+  const [quotationMap, setQuotationMap] = useState({});
+
   const allWorkflowTabs = [
+    { id: 'overview', label: 'Studio Overview', desc: 'Workspace health & KPIs', roles: ['designer', 'brand', 'realestate'] },
     { id: 'smart', label: 'Smart Project', desc: 'Brief to scene', roles: ['designer', 'realestate'] },
     { id: 'generate', label: 'Concept Generator', desc: 'Style to visual', roles: ['realestate'] },
     { id: 'photo', label: 'Reference Editor', desc: 'Photo and finish swaps', roles: ['brand', 'realestate'] },
@@ -55,28 +63,48 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   // ==========================================
   // 1. DATA LOADING
   // ==========================================
+  const loadAllData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [pRes, lRes, hRes, mRes] = await Promise.all([
+        fetch('http://127.0.0.1:8787/api/projects').then(r => r.ok ? r.json() : []),
+        fetch('http://127.0.0.1:8787/api/leads').then(r => r.ok ? r.json() : []),
+        fetch('http://127.0.0.1:8787/api/diagnostics/api-health').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('http://127.0.0.1:8787/api/material-catalog').then(r => r.ok ? r.json() : [])
+      ]);
+
+      const loadedProjects = Array.isArray(pRes) ? pRes : (Array.isArray(pRes?.projects) ? pRes.projects : []);
+      setProjects(loadedProjects);
+      setLeads(Array.isArray(lRes) ? lRes : []);
+      setHealth(hRes);
+      setMaterialsCatalog(mRes);
+
+      if (loadedProjects.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(loadedProjects[0].id);
+      }
+
+      // Load readiness & quotations for top projects
+      const topProjects = loadedProjects.slice(0, 8);
+      const [readResults, quotResults] = await Promise.all([
+        Promise.all(topProjects.map(p =>
+          fetch(`http://127.0.0.1:8787/api/projects/${p.id}/readiness`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
+        )),
+        Promise.all(topProjects.map(p =>
+          fetch(`http://127.0.0.1:8787/api/projects/${p.id}/quotation`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
+        ))
+      ]);
+      setReadinessMap(Object.fromEntries(readResults));
+      setQuotationMap(Object.fromEntries(quotResults));
+    } catch (e) {
+      console.error('Unified command center data load failed', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedProjectId]);
+
   useEffect(() => {
-    fetch('http://127.0.0.1:8787/api/projects')
-      .then(res => res.json())
-      .then(data => {
-        const projects = Array.isArray(data) ? data : Array.isArray(data?.projects) ? data.projects : [];
-        setProjects(projects);
-        if (projects.length > 0 && !selectedProjectId) {
-          setSelectedProjectId(projects[0].id);
-        }
-      })
-      .catch(console.error);
-
-    fetch('http://127.0.0.1:8787/api/leads')
-      .then(res => res.json())
-      .then(setLeads)
-      .catch(console.error);
-
-    fetch('http://127.0.0.1:8787/api/material-catalog')
-      .then(res => res.json())
-      .then(setMaterialsCatalog)
-      .catch(console.error);
-  }, [projectId]);
+    loadAllData();
+  }, [projectId, loadAllData]);
 
   const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
 
@@ -178,6 +206,17 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 
           {/* Workflow Tab Workspace */}
           <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'24px', minHeight:'460px', boxShadow:'var(--shadow-card)' }}>
+            {activeWorkflowTab === 'overview' && (
+              <OverviewWorkspace
+                projects={projects}
+                leads={leads}
+                health={health}
+                readinessMap={readinessMap}
+                quotationMap={quotationMap}
+                onNavigateToTab={onNavigateToTab}
+                loading={loading}
+              />
+            )}
             {activeWorkflowTab === 'smart' && (
               <SmartProjectWorkspace 
                 project={activeProject} 
@@ -2377,7 +2416,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
   const LIVE_TOOL_ROUTES = {
     cad_ingest:           { m: 'POST', p: id => `/api/projects/${id}/floorplan/auto-trace`, body: {} },
     ortho_calibrate:      { m: 'POST', p: id => `/api/projects/${id}/plan/measure`, body: { rooms: [] } },
-    vastu_annotate:       { m: 'POST', p: id => `/api/projects/${id}/vastu/auto-apply`, body: {} },
+    vastu_annotate:       { m: 'GET',  p: id => `/api/projects/${id}/vastu/analyze`, body: {} },
     extruder_3d:          { m: 'POST', p: id => `/api/projects/${id}/scenes`, body: { fromCad: true } },
     render_concept:       { m: 'POST', p: id => `/api/projects/${id}/renders/generate`, body: { room: 'living', style: 'modern-luxury', variantCount: 1 } },
     camera_director:      { m: 'GET',  p: id => `/api/projects/${id}/renders` },
@@ -2420,7 +2459,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
   // Where each tool's results are best viewed (so "Run live" lands on the right screen)
   const TOOL_TAB = {
-    cad_ingest: 'cad', ortho_calibrate: 'cad', vastu_annotate: 'cad', extruder_3d: 'studio',
+    cad_ingest: 'cad', ortho_calibrate: 'cad', vastu_annotate: 'vastu', extruder_3d: 'studio',
     render_concept: 'renders', camera_director: 'renders', material_swapper: 'renders', ambient_lighting: 'renders',
     walkthrough_animator: 'renders', carcass_config: 'cutlist', hardware_spec: 'cutlist', nesting_calc: 'cutlist',
     swatch_match: 'materials', elevation_draft: 'drawings', rcp_planner: 'drawings', dxf_compiler: 'drawings'
@@ -3117,5 +3156,319 @@ function SettingsWorkspace() {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────
+   Studio Overview Workspace (Dashboard Integration)
+   ─────────────────────────────────────────────────────────── */
+const OVERVIEW_FUNNEL = [
+  { key: 'intake',    label: 'Intake',    icon: FileText, weight: 15 },
+  { key: 'floorplan', label: 'Floorplan', icon: Layers,   weight: 15 },
+  { key: 'renders',   label: 'Renders',   icon: Sparkles, weight: 20 },
+  { key: 'proposal',  label: 'Proposal',  icon: Award,    weight: 20 },
+  { key: 'cutlist',   label: 'Cutlist',   icon: Scissors, weight: 20 },
+  { key: 'delivered', label: 'Delivered', icon: CheckCircle2, weight: 10 }
+];
+
+const OVERVIEW_STATUS_COLOR = {
+  brief:             '#60A5FA',
+  cad_approved:      '#34D399',
+  scene_ready:       '#22D3EE',
+  materials_selected:'#A78BFA',
+  renders_approved:  '#F59E0B',
+  production:        '#F97316',
+  billing:           '#C9A84C',
+  final:             '#10B981'
+};
+
+const OVERVIEW_STATUS_LABEL = {
+  brief: 'Brief', cad_approved: 'CAD Approved', scene_ready: 'Scene Ready',
+  materials_selected: 'Materials', renders_approved: 'Renders', production: 'Production',
+  billing: 'Billing', final: 'Final'
+};
+
+const fmtINR = (n) => {
+  const v = Number(n || 0);
+  if (!v) return '—';
+  if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)} Cr`;
+  if (v >= 1e5) return `₹${(v / 1e5).toFixed(1)} L`;
+  if (v >= 1e3) return `₹${(v / 1e3).toFixed(0)} K`;
+  return `₹${v.toLocaleString('en-IN')}`;
+};
+
+function OverviewWorkspace({ projects, leads, health, readinessMap, quotationMap, onNavigateToTab, loading }) {
+  const now = new Date();
+  
+  const kpis = useMemo(() => {
+    const projCount = projects.length;
+    const wonLeads = leads.filter(l => l.voice_status === 'human_closed');
+    const wonCount = wonLeads.length;
+    const totalLeadVal = leads.reduce((s, l) => s + (Number(l.budget) || 0), 0);
+    const wonVal = wonLeads.reduce((s, l) => s + (Number(l.budget) || 0), 0);
+    const pipelineVal = projects.reduce((s, p) => s + (Number(p.budget) || 0), 0);
+    const avgReadiness = (() => {
+      const vals = Object.values(readinessMap).filter(Boolean).map(r => Number(r.score) || 0);
+      return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+    })();
+    const winRate = leads.length ? Math.round((wonCount / leads.length) * 100) : 0;
+    return { projCount, wonCount, totalLeadVal, wonVal, pipelineVal, avgReadiness, winRate, leadCount: leads.length };
+  }, [projects, leads, readinessMap]);
+
+  const sortedProjects = useMemo(() =>
+    [...projects].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+    [projects]
+  );
+
+  const recentLeads = useMemo(() =>
+    [...leads].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)).slice(0, 5),
+    [leads]
+  );
+
+  const navigate = (tab) => { if (onNavigateToTab) onNavigateToTab(tab); };
+
+  return (
+    <div className="space-y-6 text-left animate-in fade-in duration-200">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <KpiCard icon={FolderKanban} label="Active Projects" value={loading ? '…' : kpis.projCount} accent="#C9A84C" sub={<><Building2 className="w-3.5 h-3.5 inline mr-1" /> Pipeline</>} />
+        <KpiCard icon={UserPlus} label="Leads" value={loading ? '…' : kpis.leadCount} accent="#60A5FA" sub={<><Briefcase className="w-3.5 h-3.5 inline mr-1" /> Captured</>} />
+        <KpiCard icon={CheckCircle2} label="Won Deals" value={loading ? '…' : kpis.wonCount} accent="#10B981" sub={<>Win rate {kpis.winRate}%</>} />
+        <KpiCard icon={IndianRupee} label="Pipeline Value" value={loading ? '…' : fmtINR(kpis.pipelineVal)} accent="#A78BFA" sub="From budgets" />
+        <KpiCard icon={TrendingUp} label="Weighted Won" value={loading ? '…' : fmtINR(kpis.wonVal)} accent="#34D399" sub="Closed budget" />
+        <KpiCard icon={Gauge} label="Avg Readiness" value={loading ? '…' : (kpis.avgReadiness == null ? '—' : kpis.avgReadiness + '%')} accent="var(--gold)" sub="Across open projects" />
+      </div>
+
+      {/* Middle Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Pipeline Funnel */}
+        <div className="lg:col-span-2 bg-slate-900/60 border border-slate-805/60 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200"><Activity className="w-4 h-4 text-[var(--gold)]" /> Delivery Pipeline Funnel</h4>
+            <span className="text-[10px] text-slate-500 font-mono">weighted % complete</span>
+          </div>
+          {loading ? (
+            <div className="text-slate-500 text-xs py-8 text-center">Loading pipeline…</div>
+          ) : Object.keys(readinessMap).length === 0 ? (
+            <div className="text-slate-500 text-xs py-8 text-center">No projects yet — create one to populate the funnel.</div>
+          ) : (
+            <FunnelAggregate readinessMap={readinessMap} />
+          )}
+          <div className="mt-5 border-t border-slate-800/80 pt-4 space-y-3">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Operational Module Command Grid</span>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { category: 'Client Acquisition', items: [
+                  { tab: 'crm', label: 'CRM & Call Board' },
+                  { tab: 'projects', label: 'Project Pipeline' }
+                ]},
+                { category: 'Spatial Design & CAD', items: [
+                  { tab: 'brief', label: 'Client Intake' },
+                  { tab: 'cad', label: 'Plan Intel' },
+                  { tab: 'studio', label: 'Editable 3D Scene' },
+                  { tab: 'drawings', label: '2D Drawings' }
+                ]},
+                { category: 'Visualization & Sales', items: [
+                  { tab: 'renders', label: 'Render Studio' },
+                  { tab: 'presentation', label: 'Presentations' },
+                  { tab: 'pipeline', label: 'Pipeline Studio' }
+                ]},
+                { category: 'Production & Commerce', items: [
+                  { tab: 'materials', label: 'Materials' },
+                  { tab: 'cutlist', label: 'Cutlists & Nesting' },
+                  { tab: 'finance', label: 'Commerce & Quotes' },
+                  { tab: 'timeline', label: 'Timeline & Logs' }
+                ]}
+              ].map((grp, idx) => (
+                <div key={idx} className="bg-slate-950/40 border border-slate-850/60 rounded-xl p-3 space-y-2 flex flex-col justify-between hover:border-[var(--gold)]/20 transition-all duration-200">
+                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block">{grp.category}</span>
+                  <div className="space-y-1.5">
+                    {grp.items.map(item => (
+                      <button key={item.tab} onClick={() => navigate(item.tab)} className="w-full py-1.5 px-2 bg-slate-900 border border-slate-800 hover:border-[var(--gold)]/40 hover:bg-[var(--gold)]/5 rounded-lg text-[10px] font-bold text-slate-300 flex items-center justify-between transition cursor-pointer">
+                        <span>{item.label}</span>
+                        <ArrowUpRight className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* AI Provider Health */}
+        <div className="bg-slate-900/60 border border-slate-805/60 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <h4 className="text-xs font-bold flex items-center gap-2 mb-4 text-slate-200"><Cpu className="w-4 h-4 text-[var(--gold)]" /> Engine & Provider Health</h4>
+            {health ? (
+              <div className="space-y-2">
+                <ProviderPill name="Freepik"    status={health.freepik?.status} />
+                <ProviderPill name="HuggingFace" status={health.huggingface?.status} />
+                <ProviderPill name="OpenRouter" status={health.openrouter?.status} />
+              </div>
+            ) : (
+              <div className="text-slate-500 text-xs py-6 text-center">Health service unreachable.</div>
+            )}
+          </div>
+          <button onClick={() => navigate('brand')} className="mt-4 w-full py-2 rounded-xl border border-slate-800 text-slate-350 text-xs font-bold hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition">
+            Configure Providers
+          </button>
+        </div>
+      </div>
+
+      {/* Project Health Table */}
+      <div className="bg-slate-900/60 border border-slate-805/60 rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200"><Building2 className="w-4 h-4 text-[var(--gold)]" /> Project Health</h4>
+        </div>
+        {sortedProjects.length === 0 ? (
+          <div className="text-slate-500 text-xs py-8 text-center">No projects yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-slate-500 text-left">
+                  <th className="pb-2 pr-4 font-bold">Project</th>
+                  <th className="pb-2 pr-4 font-bold">Client</th>
+                  <th className="pb-2 pr-4 font-bold">Stage</th>
+                  <th className="pb-2 pr-4 font-bold">Budget</th>
+                  <th className="pb-2 pr-4 font-bold">Quotation</th>
+                  <th className="pb-2 font-bold w-40">Readiness</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedProjects.slice(0, 8).map(p => {
+                  const rd = readinessMap[p.id];
+                  const qt = quotationMap[p.id];
+                  let quoteVal = null;
+                  try { const q = qt?.quotation_json ? JSON.parse(qt.quotation_json) : null; quoteVal = q?.total ?? q?.grandTotal ?? q?.totalCost ?? null; } catch {}
+                  const status = p.status || 'brief';
+                  return (
+                    <tr key={p.id} className="border-t border-slate-800/70 hover:bg-slate-950/30 cursor-pointer" onClick={() => { navigate('projects'); }}>
+                      <td className="py-3 pr-4 font-bold text-slate-200 max-w-[180px] truncate">{p.name}</td>
+                      <td className="py-3 pr-4 text-slate-400 truncate max-w-[140px]">{p.client_name || '—'}</td>
+                      <td className="py-3 pr-4">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: (OVERVIEW_STATUS_COLOR[status] || '#64748B') + '22', color: OVERVIEW_STATUS_COLOR[status] || '#94A3B8' }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: OVERVIEW_STATUS_COLOR[status] || '#94A3B8' }} />{OVERVIEW_STATUS_LABEL[status] || status}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-slate-305 font-mono">{fmtINR(p.budget)}</td>
+                      <td className="py-3 pr-4 text-slate-305 font-mono">{quoteVal ? fmtINR(quoteVal) : '—'}</td>
+                      <td className="py-3"><HealthBar score={rd?.score} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Recent Leads */}
+      <div className="bg-slate-900/60 border border-slate-855/60 rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200"><UserPlus className="w-4 h-4 text-[var(--gold)]" /> Recent Leads</h4>
+          <button onClick={() => navigate('crm')} className="text-[11px] text-slate-400 hover:text-[var(--gold)] flex items-center gap-1">Open CRM <ArrowRight className="w-3 h-3" /></button>
+        </div>
+        {recentLeads.length === 0 ? (
+          <div className="text-slate-500 text-xs py-6 text-center">No leads captured yet.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {recentLeads.map(l => {
+              const status = l.voice_status || 'new';
+              const tone = status === 'human_closed' ? '#10B981' : status === 'qualified' ? '#34D399' : status === 'human_lost' ? '#EF4444' : '#64748B';
+              return (
+                <div key={l.id} className="rounded-xl border border-slate-800 bg-slate-950/30 p-3.5 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200 truncate">{l.name}</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: tone + '22', color: tone }}>{status.replace('_', ' ')}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-slate-450">
+                    <span className="font-mono">{fmtINR(l.budget)}</span>
+                    {l.area ? <span>{l.area} sqft</span> : null}
+                    {l.score != null ? <span className="ml-auto text-[var(--gold)] font-bold">Score {l.score}</span> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ icon: Icon, label, value, sub, accent = 'var(--gold)' }) {
+  return (
+    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2 hover:border-[var(--gold)]/30 transition-all duration-200">
+      <div className="flex items-center justify-between">
+        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</span>
+        <span className="p-1.5 rounded-lg" style={{ background: 'color-mix(in srgb, ' + accent + ' 14%, transparent)', color: accent }}>
+          <Icon className="w-4 h-4" />
+        </span>
+      </div>
+      <div className="text-2xl font-extrabold leading-none text-slate-100">{value}</div>
+      {sub && <div className="text-[10px] text-slate-400 flex items-center gap-1">{sub}</div>}
+    </div>
+  );
+}
+
+function HealthBar({ score }) {
+  const pct = Math.max(0, Math.min(100, Number(score) || 0));
+  const tone = pct >= 75 ? '#10B981' : pct >= 40 ? 'var(--gold)' : '#F97316';
+  return (
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Readiness</span>
+        <span className="text-[10px] font-extrabold" style={{ color: tone }}>{pct}%</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-slate-850 overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: pct + '%', background: tone }} />
+      </div>
+    </div>
+  );
+}
+
+function ProviderPill({ name, status }) {
+  const ok = status === 'pass';
+  const skip = status === 'skipped';
+  const color = ok ? '#10B981' : skip ? '#64748B' : '#EF4444';
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-800 bg-slate-950/40">
+      {ok ? <Wifi className="w-3.5 h-3.5" style={{ color }} /> : <WifiOff className="w-3.5 h-3.5" style={{ color }} />}
+      <span className="text-xs font-bold text-slate-200">{name}</span>
+      <span className="text-[10px] font-mono ml-auto" style={{ color }}>{skip ? 'BYOK' : ok ? 'LIVE' : 'DOWN'}</span>
+    </div>
+  );
+}
+
+function FunnelAggregate({ readinessMap }) {
+  const stats = OVERVIEW_FUNNEL.map(stage => {
+    const entries = Object.values(readinessMap).filter(Boolean);
+    if (!entries.length) return { ...stage, pct: 0, count: 0, total: 0 };
+    const done = entries.filter(e => e.stages?.[stage.key]?.completed).length;
+    return { ...stage, count: done, total: entries.length, pct: Math.round((done / entries.length) * 100) };
+  });
+  const max = Math.max(1, ...stats.map(s => s.pct));
+  return (
+    <div className="space-y-2.5">
+      {stats.map(s => (
+        <div key={s.key} className="flex items-center gap-3">
+          <span className="w-20 text-[11px] font-bold text-slate-350 shrink-0">{s.label}</span>
+          <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div className="h-full rounded-full bg-[var(--gold)] transition-all duration-700" style={{ width: (s.pct / max * 100) + '%' }} />
+          </div>
+          <span className="w-14 text-right text-[10px] font-mono text-slate-500">{s.count}/{s.total}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function QuickLink({ tab, label, onNav }) {
+  return (
+    <button onClick={() => onNav(tab)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950/40 text-[11px] font-bold text-slate-300 hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition">
+      {label} <ArrowUpRight className="w-3 h-3" />
+    </button>
   );
 }
