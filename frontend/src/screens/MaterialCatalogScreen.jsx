@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { safeParse } from '../lib/safe.js';
+import { computeQuote, buildMilestones, MILESTONE_SCHEDULES, normalizeQuoteItem } from '../lib/boq.js';
 import { 
   Palette, BookOpen, Layers, Save, CheckCircle, 
   ArrowRight, Download, Plus, ShoppingBag, Eye, 
@@ -148,26 +149,22 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const addQuoteItem = () => {
     if (!quoteItemName) return;
-    let sqft = 1.0;
-    let dimensions = 'Lump Sum';
-    if (!isLumpSum) {
-      const w = parseFloat(quoteWidth);
-      const h = parseFloat(quoteHeight);
-      if (!isNaN(w) && !isNaN(h)) {
-        sqft = w * h;
-        dimensions = `${w} x ${h} ft`;
-      }
-    }
-    const rate = parseFloat(quoteRate);
-    const amount = Math.round(sqft * (isNaN(rate) ? 0 : rate));
+    const norm = normalizeQuoteItem({
+      name: quoteItemName,
+      rate: quoteRate,
+      width: quoteWidth,
+      height: quoteHeight,
+      isLumpSum,
+      room: quoteRoom
+    });
     const newItem = {
       id: 'qi_' + Math.random().toString(36).substr(2, 5),
-      room: quoteRoom,
-      name: quoteItemName,
-      dimensions,
-      sqft,
-      rate,
-      amount,
+      room: norm.room,
+      name: norm.name,
+      dimensions: norm.dimensions,
+      sqft: norm.sqft,
+      rate: norm.rate,
+      amount: norm.amount,
       isLumpSum
     };
     setQuoteItems(prev => [...prev, newItem]);
@@ -180,30 +177,12 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
     setQuoteItems(prev => prev.filter(i => i.id !== id));
   };
 
-  const subTotal = useMemo(() => {
-    return quoteItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-  }, [quoteItems]);
+  const { subTotal, taxable, gstValue, grandTotal } = useMemo(
+    () => computeQuote({ items: quoteItems, discount, isGstEnabled, gstRate: 18 }),
+    [quoteItems, discount, isGstEnabled]
+  );
 
-  const taxable = useMemo(() => {
-    return Math.max(0, subTotal - discount);
-  }, [subTotal, discount]);
-
-  const gstValue = useMemo(() => {
-    return isGstEnabled ? taxable * 0.18 : 0;
-  }, [taxable, isGstEnabled]);
-
-  const grandTotal = useMemo(() => {
-    return taxable + gstValue;
-  }, [taxable, gstValue]);
-
-  const getMilestones = (total) => {
-    return [
-      { stage: '10% Booking Fee', amount: Math.round(total * 0.10) },
-      { stage: '40% Site Execution & Structure Start', amount: Math.round(total * 0.40) },
-      { stage: '40% Material Sourcing & Delivery', amount: Math.round(total * 0.40) },
-      { stage: '10% Final Finishing & Handover', amount: Math.round(total * 0.10) }
-    ];
-  };
+  const getMilestones = (total) => buildMilestones(total, MILESTONE_SCHEDULES.standard);
 
   const exportQuotationPDF = async () => {
     await saveQuotation();
