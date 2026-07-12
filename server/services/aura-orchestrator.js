@@ -38,7 +38,7 @@ try {
 }
 
 const TOOLS = [
-  { id:'rag_search',         label:'Search knowledge base',   intent:/search|find|show|list|what|where/i,                  action:'project_search' },
+  { id:'rag_search',         label:'Search knowledge base',   intent:/search|find|show|\blist\b|what|where/i,               action:'project_search' },
   { id:'generate_elevation', label:'Generate elevation DXF',  intent:/elevation|drawing|dxf|cabinet|shutter/i,             action:'generate_elevation' },
   { id:'generate_render',    label:'Generate 3D render',      intent:/render|visualise|visualize|photo|image|3d|angle/i,   action:'generate_render' },
   { id:'plan_ai_detect',     label:'Auto-detect floorplan',   intent:/plan|room|layout|detect|walls|floorplan/i,           action:'plan_ai_detect' },
@@ -47,17 +47,29 @@ const TOOLS = [
   { id:'generate_signoff',   label:'Generate share PDF pack', intent:/signoff|pdf|brief|quotation|share|pack/i,            action:'generate_signoff' },
   { id:'budget_optimize',    label:'Optimize budget',         intent:/budget|cost|price|cheap|save|optimize/i,             action:'budget_optimize' },
   { id:'assign_task',        label:'Start background job',    intent:/job|running|status|que|run|spawn/i,                  action:'assign_task' },
-  { id:'regen_room',         label:'Regenerate room render',  intent:/regenerate|re-render|redo|regen|refresh.*room|regenerate.*room/i, action:'regen_room' },
+  { id:'regen_room',         label:'Regenerate room render',  intent:/regenerate|re-render|redo|regen|refresh.*room|regenerate.*room/i, action:'regen_room', weight: 2 },
   { id:'vastu_check',        label:'Check Vastu compliance',  intent:/vastu|compliant|feng.*shui|altar|pooja/i,            action:'vastu_check' }
 ];
 
-function resolveIntent(message) {
+export function resolveIntent(message) {
   const text = String(message || '').trim();
   if (!text) return { tool: null, confidence: 0 };
-  const candidates = TOOLS.map(t => ({ tool: t, confidence: (text.match(t.intent) || []).length }));
-  candidates.sort((a, b) => b.confidence - a.confidence);
+  // Count EVERY keyword occurrence (global regex) so a message that hits
+  // several words of one tool outranks a single-word tie. The intent regexes
+  // are not global, so without this, confidence is capped at 1 and ties were
+  // previously broken by array order (arbitrary, wrong routing).
+  const candidates = TOOLS.map(t => {
+    const re = new RegExp(t.intent.source, t.intent.flags + 'g');
+    const confidence = (text.match(re) || []).length;
+    // weight is a tiebreaker for tools whose intent verb is more specific
+    // (e.g. regen_room "regenerate" must beat the generic "render").
+    return { tool: t, confidence, weight: t.weight || 1 };
+  });
+  candidates.sort((a, b) => (b.confidence - a.confidence) || (b.weight - a.weight));
   const best = candidates[0];
-  return { tool: best?.tool || null, confidence: best?.confidence || 0 };
+  // No keyword matched at all -> no intent (never return a phantom tool).
+  if (!best || best.confidence === 0) return { tool: null, confidence: 0 };
+  return { tool: best.tool, confidence: best.confidence };
 }
 
 // ── FIXED: added `message` as a parameter so regen_room case can access it ──
