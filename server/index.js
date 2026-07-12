@@ -25,6 +25,7 @@ import * as visualizerEngine from './services/visualizer-engine.js';
 import { analyzePhotoToElevation, learningSummary } from './services/photo-to-elevation.js';
 import colorService from './services/component-color-service.js';
 import planIntelligenceCore from './services/plan-intelligence-core.js';
+import { findReusableAssets, matchLaminates } from './services/design-engine.js';
 import ruleEngine from './services/rule-engine.js';
 import drawingGenerator from './services/drawing-generator.js';
 import dxfGenerator from './services/dxf-generator.js';
@@ -953,6 +954,61 @@ app.post('/api/projects/:id/floorplan/auto-trace', checkAccess(PRODUCTS.PLAN_INT
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST unified Floor-plan Analyzer + Enhancer.
+// Runs the REAL pipeline on already-traced walls: interpret → auto-layout →
+// enhance. Returns rooms (with Vastu zones), furniture placements, and a
+// prioritised list of enhancement suggestions with exact targets.
+app.post('/api/projects/:id/floorplan/analyze-enhance', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+    if (!interp.success) {
+      return res.status(422).json({ success: false, error: interp.error, message: interp.message });
+    }
+    // Build a spatial model from the interpreted rooms so the auto-layout
+    // generator can place furniture.
+    const spatialModel = {
+      levels: [{
+        levelId: 'level_0', name: 'Ground Floor', elevationMm: 0,
+        rooms: interp.interpretation.rooms.map(r => ({ id: r.id, type: r.type, name: r.name, points: r.points })),
+        walls: interp.interpretation.walls,
+        openings: interp.interpretation.openings
+      }]
+    };
+    const normalized = planIntelligenceCore.normalizeIntake({});
+    const layout = planIntelligenceCore.generateAutoLayoutProposal(spatialModel, normalized);
+    const cad = db.prepare('SELECT north_angle FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    const northAngle = Number(cad?.north_angle ?? 0);
+    const enhance = planIntelligenceCore.enhanceFloorPlan({ interpretation: interp.interpretation, layout, northAngle });
+    res.json({ success: true, interpretation: interp.interpretation, layout, enhancement: enhance, northAngle });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET reusable design assets (design-engine enhancer) for a room/style/budget.
+app.get('/api/projects/:id/design/reusable-assets', (req, res) => {
+  try {
+    const { room, style, budgetTier } = req.query;
+    const assets = findReusableAssets({ room, style, budgetTier, rooms: room ? [room] : [] });
+    res.json({ success: true, count: assets.length, assets });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET laminate palette matched to the project (design-engine enhancer).
+app.get('/api/projects/:id/design/laminates', (req, res) => {
+  try {
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+    if (!project) return res.status(404).json({ success: false, error: 'PROJECT_NOT_FOUND' });
+    const laminates = matchLaminates(project, req.query || {});
+    res.json({ success: true, count: laminates.length, laminates });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

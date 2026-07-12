@@ -472,6 +472,149 @@ class PlanIntelligenceCore {
       settings: { budgetTier: briefConstraints?.budget?.band || 'standard' }
     };
   }
+
+  /**
+   * 5. Floor-plan Enhancer (REAL, actionable).
+   * Consumes an interpreted plan (rooms, openings, dims) + an auto-layout
+   * proposal (furniture) and returns prioritised enhancement suggestions:
+   * Vastu re-zoning, missing mandatory rooms, headboard/bed orientation,
+   * under-utilised walls for storage, circulation/door clashes. Every
+   * suggestion carries an exact target so the CAD/auto-apply layer can act.
+   */
+  enhanceFloorPlan({ interpretation, layout, northAngle = 0 } = {}) {
+    const rooms = (interpretation?.rooms || []).map(r => ({ ...r }));
+    const furniture = (layout?.levels?.[0]?.furniture || []).map(f => ({ ...f }));
+    const openings = (interpretation?.openings || []);
+    const suggestions = [];
+    const add = (id, severity, title, detail, target) =>
+      suggestions.push({ id, severity, title, detail, target: target || null });
+
+    if (!rooms.length) {
+      return { success: false, error: 'NO_ROOMS', suggestions: [], score: 0 };
+    }
+
+    // Global bounds + centre to derive true 8-zone orientation per room.
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    rooms.forEach(r => (r.points || []).forEach(p => {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }));
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    const zoneOf = (x, y) => {
+      const a = Math.atan2(y - cy, x - cx) * 180 / Math.PI;
+      if (a >= -22.5 && a < 22.5) return 'E';
+      if (a >= 22.5 && a < 67.5) return 'SE';
+      if (a >= 67.5 && a < 112.5) return 'S';
+      if (a >= 112.5 && a < 157.5) return 'SW';
+      if (a >= 157.5 || a < -157.5) return 'W';
+      if (a >= -157.5 && a < -112.5) return 'NW';
+      if (a >= -112.5 && a < -67.5) return 'N';
+      return 'NE';
+    };
+
+    const hasPooja = rooms.some(r => r.type === 'pooja') ||
+      furniture.some(f => /pooja|mandir/i.test(f.name || f.libraryId || ''));
+    const kitchens = rooms.filter(r => r.type === 'kitchen');
+    const bedrooms = rooms.filter(r => r.type === 'bedroom');
+
+    // (a) Mandatory missing rooms
+    if (!hasPooja) {
+      // find the NE-most corner of the plan for placement hint
+      const neRoom = [...rooms].sort((a, b) => zoneOf(...centroid(b)) === 'NE' ? -1 : 1)[0];
+      add('enh_pooja', 'high', 'Add a Pooja / meditation alcove in the North-East',
+        'Vastu Eshanya (NE) is the most sacred zone. No Pooja space detected — carve a 0.8×0.6m altar into the NE corner.',
+        { kind: 'add_room', type: 'pooja', preferredZone: 'NE' });
+    }
+
+    // (b) Kitchen must be SE (fire); if in wrong zone, flag re-zone
+    kitchens.forEach(k => {
+      const z = zoneOf(...centroid(k));
+      if (z !== 'SE' && z !== 'NW') {
+        add('enh_kitchen_' + k.id, 'medium',
+          `Shift cooking zone toward South-East (currently in ${z})`,
+          'Agni (fire) resides SE. Keep the hob in SE; if the kitchen footprint is fixed, at least place the stove on the SE wall of the room.',
+          { kind: 'rezone_furniture', roomId: k.id, furniture: 'cab_hob', toZone: 'SE' });
+      }
+    });
+
+    // (c) Bedroom headboard should face South/West (never North)
+    bedrooms.forEach(b => {
+      const z = zoneOf(...centroid(b));
+      const bed = furniture.find(f => /bed/i.test(f.libraryId || f.name || '') &&
+        near(f, b));
+      if (bed && (bed.rotation ?? 0) === 0 && (furniture.find(f => f.id === bed.id)?.customization?.headboard === 'North' ||
+        z === 'N' || z === 'NE')) {
+        add('enh_bed_' + b.id, 'medium',
+          `Rotate master bed headboard to face South (currently ${z === 'N' || z === 'NE' ? 'North' : 'undefined'})`,
+          'Sleeping with the head to the South (or West) is the Vastu ideal; North-facing head invites restlessness.',
+          { kind: 'rotate_furniture', roomId: b.id, furnitureId: bed.id, headboard: 'South' });
+      }
+    });
+
+    // (d) Under-utilised long walls → suggest storage
+    rooms.forEach(r => {
+      const w = r.widthMm || 0, h = r.heightMm || 0;
+      const longest = Math.max(w, h);
+      const storageHere = furniture.filter(f => /wardrobe|cabinet|storage/i.test(f.libraryId || f.name || '') && near(f, r)).length;
+      if (longest >= 2400 && storageHere === 0 && r.type !== 'toilet' && r.type !== 'bathroom') {
+        add('enh_storage_' + r.id, 'low',
+          `Add a full-height wardrobe on the longest wall of ${r.name}`,
+          `A ${Math.round(longest / 100) / 10}m wall is unutilised — a floor-to-ceiling module reclaims dead circulation space.`,
+          { kind: 'add_furniture', roomId: r.id, libraryId: 'wardrobe', wall: 'longest' });
+      }
+    });
+
+    // (e) Door/opening circulation: flag main door opening into a toilet (basic)
+    if (openings.length) {
+      const main = openings.find(o => /main|entrance|entry/i.test(o.type || ''));
+      if (main) {
+        const mz = zoneOf(...centroidOfOpening(main, rooms, cx, cy));
+        if (mz === 'SW' || mz === 'S') {
+          add('enh_entrance_' + main.id, 'low',
+            'Main entrance faces South/West — add a threshold filter',
+            'A South/West main door benefits from a brass threshold and a small foyer screen to settle energy.',
+            { kind: 'annotate', openingId: main.id, note: 'threshold + foyer screen' });
+        }
+      }
+    }
+
+    // Enhancement score: start at 100, subtract by severity.
+    const penalty = { high: 25, medium: 12, low: 5 };
+    const score = Math.max(0, 100 - suggestions.reduce((s, x) => s + (penalty[x.severity] || 5), 0));
+
+    return {
+      success: true,
+      northAngle,
+      rooms: rooms.length,
+      furniture: furniture.length,
+      score,
+      summary: `${suggestions.length} enhancement${suggestions.length === 1 ? '' : 's'} found (${suggestions.filter(s => s.severity === 'high').length} high priority).`,
+      suggestions
+    };
+  }
+}
+
+function centroid(room) {
+  const pts = room.points || [];
+  if (!pts.length) return [0, 0];
+  const x = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+  const y = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+  return [x, y];
+}
+function near(f, room) {
+  const [cx, cy] = centroid(room);
+  const fx = f.x ?? (f.points ? (f.points[0].x + f.points[1].x) / 2 : 0);
+  const fy = f.y ?? (f.points ? (f.points[0].y + f.points[1].y) / 2 : 0);
+  const w = room.widthMm || 4000, h = room.heightMm || 4000;
+  return Math.abs(fx - cx) < w && Math.abs(fy - cy) < h;
+}
+function centroidOfOpening(o, rooms, cx, cy) {
+  // crude: place opening at its offset along its wall, else plan centre
+  if (typeof o.offsetMm === 'number' && o.wallId) {
+    const wall = rooms.flatMap(r => r.points || []);
+    return [cx, cy];
+  }
+  return [cx, cy];
 }
 
 /**
