@@ -2338,7 +2338,7 @@ app.post('/api/projects/:id/cnc-gcode', wrapAsync(async (req, res) => {
     // Also persist the matching DXF (same geometry) for downstream viewing.
     const dxfName = `${fileName.replace(/\.gcode$/, '')}.dxf`;
     fs.writeFileSync(path.join(outDir, dxfName), plan.dxf, 'utf8');
-    res.json({ success: true, gcode: `/storage/gcode/${fileName}`, dxf: `/storage/gcode/${dxfName}`, fileName, dxfName, toolpaths: g.toolpaths, lines: g.lines, sheet: plan.sheet, sheetCount: plan.sheetCount, partCount: plan.partCount, hingeCups: plan.hingeCups.length, cutlist: plan.cutlist });
+    res.json({ success: true, gcode: `/storage/gcode/${fileName}`, dxf: `/storage/gcode/${dxfName}`, fileName, dxfName, toolpaths: g.toolpaths, lines: g.lines, sheet: plan.sheet, partCount: plan.partCount, hingeCups: plan.hingeCups.length, cutlist: plan.cutlist });
   } catch (e) {
     res.status(422).json({ success: false, error: e.message });
   }

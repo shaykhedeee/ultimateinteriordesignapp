@@ -42,3 +42,30 @@ test('cutlist aggregates quantities by name+material', () => {
   const shelves = plan.cutlist.filter(c => c.name.startsWith('SHELF_'));
   assert.equal(shelves.length, 3, 'three shelf entries produced');
 });
+
+test('hinge cups (35mm) bored on doors + toolpaths + edge banding returned', () => {
+  const dbl = generateCNCCutPlan({ shutterType: 'double', heightMm: 2100 });
+  assert.ok(dbl.hingeCups.length >= 2, 'double doors get hinge cups');
+  assert.ok(dbl.hingeCups.every(c => c.dia === 35 && c.depth === 13), '35mm blind hinge cups');
+  // every geometry type produced a toolpath entry
+  const kinds = new Set(dbl.toolpaths.map(t => t.type));
+  assert.ok(kinds.has('outline'), 'outline toolpaths');
+  assert.ok(kinds.has('drill'), 'shelf-pin drill toolpaths');
+  assert.ok(kinds.has('hinge'), 'hinge-cup toolpaths');
+  assert.ok(kinds.has('pocket'), 'back-dado pocket toolpaths');
+  // edge banding schedule lists parts + edges
+  assert.ok(dbl.edgeBandSchedule.length >= 1, 'edge banding schedule produced');
+  const side = dbl.edgeBandSchedule.find(e => e.part === 'L_SIDE');
+  assert.ok(side && side.edges.length > 0, 'side panel has banded edges');
+});
+
+test('single door produces hinge cups too', () => {
+  const sgl = generateCNCCutPlan({ shutterType: 'single', heightMm: 2100 });
+  assert.ok(sgl.hingeCups.length >= 2, 'single door still gets >=2 hinge cups');
+});
+
+test('no-shutter module has no hinge cups but valid cutlist', () => {
+  const open = generateCNCCutPlan({ shutterType: 'none' });
+  assert.equal(open.hingeCups.length, 0, 'open module => no hinge cups');
+  assert.ok(!open.placed.some(p => p.name.startsWith('DOOR')), 'no door parts');
+});

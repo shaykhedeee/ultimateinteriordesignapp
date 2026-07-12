@@ -28,6 +28,9 @@ _Last updated: 2026-07-12 (session: Smart Project + Laminate Swapper + Render St
 - `POST /api/projects/:id/renders/laminate-swap` → real swapped render (offline mock PNG)
 - `GET /api/projects/:id/drawings/floorplan/dxf` → **200 valid R2010 DXF** (seeded AND no-cad)
 - `GET /api/projects/:id/drawings/elevations/:wallId/dxf` → 200 valid R2010 DXF
+- `POST /api/projects/:id/cnc-gcode` → **200 real G-code (.gcode) + matching DXF**, cutlist, hinge-cup schedule (verified: 10-part double wardrobe → 300-line program, T1–T5 tool table, G81 bores, M30 end)
+- `POST /api/projects/:id/elevations/jali-gcode` → **200 real G-code for carved lotus + circular-lattice jali panel** (25 toolpaths, G2 arc cuts)
+- CNC tab (DrawingsElevationsStudio) now renders cutlist table + sheet/part/hinge summary + **Download DXF / Download G-code** buttons; jali tab has a **Generate G-code** button.
 
 ## ⚠️ KNOWN QUALITY CAVEATS (not bugs, but "quality results" concerns)
 - **AI image generation now REAL by default (keyless).** Renders/swaps generate actual photoreal JPEGs via Pollinations (Flux) out-of-the-box — NO API key required. Premium providers (OpenAI GPT-Image, Freepik, HF, Gemini Imagen, Stability) still take precedence if their key is set in `.env` (`OPENAI_API_KEY`, etc.) for tier-1 quality. `LIVE_IMAGE_GEN` is no longer required for keyless renders.

@@ -201,6 +201,29 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     }
   };
 
+  // Generate the carved jali panel G-code (machine toolpath for the router)
+  const handleGenerateJaliGCode = async () => {
+    setJaliLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/elevations/jali-gcode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ widthMm: Number(jaliW) || 600, heightMm: Number(jaliH) || 2000, name: 'Jali Panel', material: 'mdf' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setJaliResult(prev => ({ ...(prev || {}), gcode: data.gcode, gcodeLines: data.lines, gcodeToolpaths: data.toolpaths }));
+        showToast('Jali G-code generated', 'success');
+      } else {
+        showToast(data.error || 'G-code generation failed', 'error');
+      }
+    } catch (err) {
+      showToast('G-code failed: ' + err.message, 'error');
+    } finally {
+      setJaliLoading(false);
+    }
+  };
+
   // Generate a standalone CNC jali panel DXF + PDF
   const handleGenerateJali = async () => {
     setJaliLoading(true);
@@ -359,7 +382,9 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
   const handleCalculateNesting = async () => {
     setCncLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cnc-cut-plan`, {
+      // The /cnc-gcode endpoint returns the cut plan + matching DXF + machine
+      // G-code + cutlist + hinge-cup schedule in one shot.
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cnc-gcode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -367,13 +392,14 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           heightMm: cncHeight,
           depthMm: cncDepth,
           numShelves: cncShelves,
-          shutterType: cncShutter
+          shutterType: cncShutter,
+          material: 'plywood'
         })
       });
       const data = await res.json();
       if (data.success) {
         setCncResult(data);
-        showToast("CNC Nesting computed successfully!", "success");
+        showToast("CNC cut plan + G-code generated!", "success");
       } else {
         showToast(data.error || "Nesting calculation failed", "error");
       }
@@ -1025,6 +1051,38 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               >
                 {cncLoading ? "Optimizing Nesting..." : "Re-Calculate Cut Plan"}
               </button>
+              {cncResult && cncResult.success && (
+                <div className="mt-3 space-y-3 bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest">Cut Plan Summary</span>
+                    <span className="text-[10px] text-slate-400">{cncResult.partCount} parts · {cncResult.sheetCount} sheet(s) · {cncResult.hingeCups} hinge cups</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <a href={`http://127.0.0.1:8787${cncResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                    <a href={`http://127.0.0.1:8787${cncResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE ({cncResult.lines || 0} lines)</a>
+                  </div>
+                  {cncResult.cutlist && cncResult.cutlist.length > 0 && (
+                    <div className="max-h-48 overflow-auto border border-slate-800 rounded">
+                      <table className="w-full text-[10px] text-slate-300">
+                        <thead className="bg-slate-900 text-slate-500 sticky top-0">
+                          <tr><th className="text-left px-2 py-1">Part</th><th className="text-left px-2 py-1">Material</th><th className="text-right px-2 py-1">W</th><th className="text-right px-2 py-1">H</th><th className="text-right px-2 py-1">Qty</th></tr>
+                        </thead>
+                        <tbody>
+                          {cncResult.cutlist.map((c, i) => (
+                            <tr key={i} className="border-t border-slate-800/60">
+                              <td className="px-2 py-1 font-semibold text-slate-200">{c.name}</td>
+                              <td className="px-2 py-1">{c.material}</td>
+                              <td className="px-2 py-1 text-right">{c.w}</td>
+                              <td className="px-2 py-1 text-right">{c.h}</td>
+                              <td className="px-2 py-1 text-right text-[var(--gold)]">{c.qty}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1271,12 +1329,22 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           >
             {jaliLoading ? 'Cutting…' : 'Generate Jali Panel (DXF + PDF)'}
           </button>
+          <button
+            onClick={handleGenerateJaliGCode}
+            disabled={jaliLoading}
+            className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-emerald-400 font-bold text-[10px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
+          >
+            ⚙ Generate Jali G-code (Router Toolpath)
+          </button>
           {jaliResult && (
             <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 mt-1">
               <span className="text-[11px] font-bold text-slate-200">{jaliResult.widthMm}×{jaliResult.heightMm}mm</span>
               <div className="flex gap-1.5">
                 <a href={`http://127.0.0.1:8787${jaliResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
                 <a href={`http://127.0.0.1:8787${jaliResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
+                {jaliResult.gcode && (
+                  <a href={`http://127.0.0.1:8787${jaliResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE</a>
+                )}
               </div>
             </div>
           )}

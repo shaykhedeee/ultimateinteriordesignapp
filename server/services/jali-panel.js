@@ -13,11 +13,12 @@
  */
 import svc from './dxf-writer.js';
 import { renderElevationPDF } from './pdf-elevation.js';
+import { generateCNCGCode } from './cnc-gcode-generator.js';
 
 const { DXF } = svc;
 
 // lotus motif as a closed polyline ring (cut-out)
-function lotusRing(dxf, cx, cy, r, petals = 8, layer = 'CANE') {
+function lotusRing(dxf, cx, cy, r, petals = 8, layer = 'CANE', geom) {
   const pts = [];
   for (let i = 0; i < petals; i++) {
     const a0 = (i / petals) * Math.PI * 2;
@@ -27,25 +28,31 @@ function lotusRing(dxf, cx, cy, r, petals = 8, layer = 'CANE') {
     pts.push([cx + Math.cos(a1) * r * 0.55, cy + Math.sin(a1) * r * 0.55]);
     pts.push([cx + Math.cos(a2) * r, cy + Math.sin(a2) * r]);
   }
-  dxf.poly(pts, layer, true);
+  if (dxf) dxf.poly(pts, layer, true);
+  if (geom) geom.push({ type: 'outline', layer, points: pts, tool: 'outline' });
 }
 
 // circular lattice band: concentric rings + radial spokes + ring of small cut circles
-function circularLattice(dxf, x, y, w, h, layer = 'CANE') {
+function circularLattice(dxf, x, y, w, h, layer = 'CANE', geom) {
   const cx = x + w / 2, cy = y + h / 2;
   const R = Math.min(w, h) * 0.46;
-  dxf.arc(cx, cy, R, 0, Math.PI * 2, layer);
-  dxf.arc(cx, cy, R * 0.6, 0, Math.PI * 2, layer);
+  if (dxf) dxf.arc(cx, cy, R, 0, Math.PI * 2, layer);
+  if (dxf) dxf.arc(cx, cy, R * 0.6, 0, Math.PI * 2, layer);
+  if (geom) geom.push({ type: 'circle', layer, cx, cy, r: R, tool: 'outline' }, { type: 'circle', layer, cx, cy, r: R * 0.6, tool: 'outline' });
   const spokes = 12;
   for (let i = 0; i < spokes; i++) {
     const a = (i / spokes) * Math.PI * 2;
-    dxf.line(cx + Math.cos(a) * R * 0.6, cy + Math.sin(a) * R * 0.6,
-             cx + Math.cos(a) * R, cy + Math.sin(a) * R, layer);
+    const x1 = cx + Math.cos(a) * R * 0.6, y1 = cy + Math.sin(a) * R * 0.6;
+    const x2 = cx + Math.cos(a) * R, y2 = cy + Math.sin(a) * R;
+    if (dxf) dxf.line(x1, y1, x2, y2, layer);
+    if (geom) geom.push({ type: 'line', layer, x1, y1, x2, y2, tool: 'outline' });
   }
   const n = 8, rr = R * 0.8;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
-    dxf.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, R * 0.14, 0, Math.PI * 2, layer);
+    const ccx = cx + Math.cos(a) * rr, ccy = cy + Math.sin(a) * rr, cr = R * 0.14;
+    if (dxf) dxf.arc(ccx, ccy, cr, 0, Math.PI * 2, layer);
+    if (geom) geom.push({ type: 'circle', layer, cx: ccx, cy: ccy, r: cr, tool: 'outline' });
   }
 }
 
@@ -60,6 +67,7 @@ export function buildJaliPanelDXF(opts = {}) {
   const name = (opts.name || 'JALI PANEL').toUpperCase();
   const margin = 1200;
   const dxf = new DXF();
+  const geom = [];
 
   // Panel outline (red object line) + inner border
   dxf.rect(margin, margin, W, H, 'WALL_OUTLINE');
@@ -67,12 +75,12 @@ export function buildJaliPanelDXF(opts = {}) {
 
   const x = margin, y = margin;
   // lotus top + bottom
-  lotusRing(dxf, x + W / 2, y + H - W * 0.34, W * 0.30);
-  lotusRing(dxf, x + W / 2, y + W * 0.34, W * 0.30);
+  lotusRing(dxf, x + W / 2, y + H - W * 0.34, W * 0.30, 8, 'CANE', geom);
+  lotusRing(dxf, x + W / 2, y + W * 0.34, W * 0.30, 8, 'CANE', geom);
   // circular lattice middle band
   const bandTop = y + W * 0.62;
   const bandH = H - 2 * W * 0.62;
-  if (bandH > W * 0.3) circularLattice(dxf, x + W * 0.12, bandTop, W * 0.76, bandH);
+  if (bandH > W * 0.3) circularLattice(dxf, x + W * 0.12, bandTop, W * 0.76, bandH, 'CANE', geom);
 
   // center-line reference (dashed yellow)
   dxf.line(x, y + H / 2, x + W, y + H / 2, 'REF_LINES');
@@ -87,6 +95,38 @@ export function buildJaliPanelDXF(opts = {}) {
     projectId: opts.projectId || 'JALI', sheet: name, scale: '1:10', rev: '1.0'
   });
   return dxf.toString();
+}
+
+// Returns the raw cut geometry (lotus rings + circular lattice) as a list of
+// toolpaths so it can be turned into machine G-code by generateJaliGCode().
+export function buildJaliGeometry(opts = {}) {
+  const W = Number(opts.widthMm) || 600;
+  const H = Number(opts.heightMm) || 2000;
+  const margin = 1200;
+  const geom = [];
+  const x = margin, y = margin;
+  lotusRing(null, x + W / 2, y + H - W * 0.34, W * 0.30, 8, 'CANE', geom);
+  lotusRing(null, x + W / 2, y + W * 0.34, W * 0.30, 8, 'CANE', geom);
+  const bandTop = y + W * 0.62;
+  const bandH = H - 2 * W * 0.62;
+  if (bandH > W * 0.3) circularLattice(null, x + W * 0.12, bandTop, W * 0.76, bandH, 'CANE', geom);
+  // panel outer frame as an outline (cut the perimeter)
+  geom.push({
+    type: 'outline', layer: 'WALL_OUTLINE', tool: 'outline',
+    points: [[margin, margin], [margin + W, margin], [margin + W, margin + H], [margin, margin + H]]
+  });
+  return { toolpaths: geom, thicknessMm: 18, stock: 'jali-cut', partCount: geom.length };
+}
+
+/**
+ * generateJaliGCode(opts, genOpts)
+ * Builds the jali DXF geometry and emits G-code for the carved cut-through
+ * pattern. All cuts are through-cuts on a single sheet.
+ */
+export function generateJaliGCode(opts = {}, genOpts = {}) {
+  const plan = buildJaliGeometry(opts);
+  const gcode = generateCNCGCode(plan, { ...genOpts, fileName: genOpts.fileName || (opts.name || 'jali') + '-gcode', material: genOpts.material || 'mdf' });
+  return gcode;
 }
 
 export function buildJaliPanelPDF(opts = {}) {
@@ -104,4 +144,4 @@ export function buildJaliPanelPDF(opts = {}) {
   }, { scale: '1:10', rev: '1.0' });
 }
 
-export default { buildJaliPanelDXF, buildJaliPanelPDF };
+export default { buildJaliPanelDXF, buildJaliPanelPDF, buildJaliGeometry, generateJaliGCode };
