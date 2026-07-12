@@ -67,11 +67,12 @@ export function generateDrawings(cad, opts = {}) {
     ceilingHeightMm: wallHeight,
     fixtureCount: fixtures.length,
     fixtures,
-    // ceiling grid bounds
-    bounds: walls.reduce((b, w) => ({
+    // ceiling grid bounds (guard against empty wall set -> no Infinity leak)
+    bounds: walls.length ? walls.reduce((b, w) => ({
       minX: Math.min(b.minX, w.x1, w.x2), minY: Math.min(b.minY, w.y1, w.y2),
       maxX: Math.max(b.maxX, w.x1, w.x2), maxY: Math.max(b.maxY, w.y1, w.y2)
     }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity })
+      : { minX: 0, minY: 0, maxX: 0, maxY: 0 }
   };
 
   // --- 3. CABINET SCHEDULE (BOM) ---
