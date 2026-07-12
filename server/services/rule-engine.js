@@ -68,13 +68,28 @@ class RuleEngine {
       // SE: x: 500-900, y: 500-900
       // SW: x: 100-500, y: 500-900
       // NW: x: 100-500, y: 100-500
+      const points = Array.isArray(room.points) ? room.points : [];
+      if (points.length === 0) {
+        // Malformed room (no polygon) — flag instead of crashing the whole pass.
+        warnCount++;
+        results.push({
+          ruleCode: 'GEOM_ROOM_POINTS',
+          severity: 'soft',
+          status: 'warn',
+          message: `Room "${room.name || room.type || room.id || 'unknown'}" has no polygon points — Vastu zoning skipped.`,
+          measured: { points: 0 },
+          expected: { minPoints: 3 },
+          overrideAllowed: true
+        });
+        return;
+      }
       let cx = 0, cy = 0;
-      room.points.forEach(p => {
+      points.forEach(p => {
         cx += p.x;
         cy += p.y;
       });
-      cx = cx / room.points.length;
-      cy = cy / room.points.length;
+      cx = cx / points.length;
+      cy = cy / points.length;
 
       let zone = 'CENTRAL';
       if (cx > 500 && cy < 500) zone = 'NE';
@@ -158,20 +173,19 @@ class RuleEngine {
       });
     }
 
-    // Wardrobe clearance
-    const wardrobes = furniture.filter(f => f.libraryId.includes('wardrobe'));
+    // Wardrobe clearance — advisory recommendation (front clearance not measured from plan)
+    const wardrobes = furniture.filter(f => (f.libraryId || '').includes('wardrobe'));
     wardrobes.forEach(wardrobe => {
-      // Typically need at least 900mm in front for circulation/operation
+      warnCount++;
       results.push({
         ruleCode: 'CLEARANCE_WARDROBE_FRONT',
         severity: 'advisory',
-        status: 'pass',
-        message: `Wardrobe '${wardrobe.name}' has standard front clearance of 900mm verified.`,
-        measured: { clearanceMm: 900 },
+        status: 'warn',
+        message: `Wardrobe '${wardrobe.name || wardrobe.libraryId}' — verify ≥900mm front clearance for door swing & circulation. (Not measured from plan; manual check required.)`,
+        measured: { clearanceMm: null },
         expected: { minClearanceMm: 900 },
         overrideAllowed: true
       });
-      passCount++;
     });
 
     const score = Math.round((passCount / (passCount + warnCount + failCount || 1)) * 100);
