@@ -1036,6 +1036,26 @@ function roomLabels(room) {
   return map[room] || room;
 }
 
+// Explicit room-type guardrail so the image model cannot substitute one room
+// for another (the most common fidelity failure: a bedroom request rendered as
+// a living room). Forces the defining furniture + forbids the wrong anchor.
+function roomFidelityGuard(room) {
+  const guards = {
+    master: 'It MUST contain a bed with a headboard and side tables; NEVER include a wall-mounted TV as the primary feature or a living-room sectional sofa.',
+    masterBed: 'It MUST contain a bed with a headboard and side tables; NEVER include a wall-mounted TV as the primary feature or a living-room sectional sofa.',
+    kids: 'It MUST contain a child bed and playful storage; NEVER a living-room sectional or kitchen.',
+    kidsBed: 'It MUST contain a child bed and playful storage; NEVER a living-room sectional or kitchen.',
+    living: 'It MUST center on a TV feature wall + sofa seating; NEVER a bed.',
+    kitchen: 'It MUST show a modular kitchen with countertop, hob, sink and cabinets; NEVER a bed or sofa lounge.',
+    pooja: 'It MUST show a home altar/ Mandir niche with deity idols and diyas; NEVER a bed or kitchen.',
+    temple: 'It MUST show a home altar/ Mandir niche with deity idols and diyas; NEVER a bed or kitchen.',
+    foyer: 'It MUST show an entrance shoe cabinet, mirror and console; NEVER a bed.',
+    dining: 'It MUST show a dining table with chairs; NEVER a bed.',
+    crockery: 'It MUST show a crockery/display unit with shelves; NEVER a bed.'
+  };
+  return guards[room] || `It MUST clearly read as a ${roomLabels(room)}.`;
+}
+
 const styleProfiles = {
   'indian-contemporary': 'warm Indian contemporary with teak, brass, stone, muted sage or terracotta accents, and practical family storage',
   'modern-luxury': 'modern luxury with precise lines, marble or quartz focal planes, smoked glass, champagne metal accents, and restrained ambient lighting',
@@ -1253,18 +1273,24 @@ export async function generateFastRenderVariants(projectId, params = {}) {
   }).slice(0, 8);
   const reuseThreshold = Number(process.env.RENDER_REUSE_THRESHOLD || 86);
   const strongReuseMatches = reuseMatches.filter((item) => (item.matchScore || item.reusableScore || item.score || 0) >= reuseThreshold);
-  const referenceOption = params.reuseFirst !== false && strongReuseMatches.length
+  const storageRoot = path.resolve(__dirname, '../../storage');
+  const refMatch = strongReuseMatches[0];
+  const refPath = refMatch ? (refMatch.url || refMatch.filePath) : null;
+  const refExists = refPath && String(refPath).startsWith('/storage/')
+    ? fs.existsSync(path.join(storageRoot, String(refPath).replace('/storage/', '')))
+    : false;
+  const referenceOption = params.reuseFirst !== false && refMatch && refExists
     ? {
-        ...strongReuseMatches[0],
-        id: `reference-${strongReuseMatches[0].id}`,
-        originalAssetId: strongReuseMatches[0].id,
-        title: `${renderPlan.roomLabel} reference option - ${strongReuseMatches[0].title || 'library match'}`,
+        ...refMatch,
+        id: `reference-${refMatch.id}`,
+        originalAssetId: refMatch.id,
+        title: `${renderPlan.roomLabel} reference option - ${refMatch.title || 'library match'}`,
         sourceType: 'library-reference',
         reused: true,
         isReferenceOption: true,
-        url: strongReuseMatches[0].url || strongReuseMatches[0].filePath,
-        filePath: strongReuseMatches[0].url || strongReuseMatches[0].filePath,
-        reusableScore: strongReuseMatches[0].reusableScore || strongReuseMatches[0].matchScore || reuseThreshold
+        url: refPath,
+        filePath: refPath,
+        reusableScore: refMatch.reusableScore || refMatch.matchScore || reuseThreshold
       }
     : null;
 
@@ -1439,8 +1465,11 @@ export function compileFastRenderPlan(project, params, corrections) {
   ].filter(Boolean);
 
   const prompt = [
+    // Room-type MUST lead and dominate so the image model cannot substitute a
+    // different room type. Explicitly name the defining furniture first.
+    `A photorealistic ${roomProfile.label} interior — ${roomFidelityGuard(room)}`,
     (roomStylePayload?.payload?.prompt || ''),
-    `Create a Lumion-like professional 3D architectural Indian residential interior render for Spacious Venture onboarding.`,
+    `Create a Lumion-like professional 3D architectural Indian residential interior render.`,
     `Project: ${project.clientName}, ${project.homeType?.toUpperCase() || 'home'} in ${project.city || 'India'}.`,
     `Room: ${roomProfile.label}. Functional anchor: ${roomProfile.anchor}.`,
     `Style direction: ${styleProfiles[style] || styleProfiles['indian-contemporary']}.`,
@@ -1461,6 +1490,7 @@ export function compileFastRenderPlan(project, params, corrections) {
     correctionText ? `Reusable correction rules from previous render feedback:\n${correctionText}` : '',
     params.customInstruction ? `Designer instruction: ${params.customInstruction}` : '',
     params.removePeople === false ? '' : 'Strictly no humans, no human figures, no silhouettes, no mannequins, no pets.',
+    `CRITICAL ROOM FIDELITY: This render MUST depict a ${roomProfile.label}. ${roomFidelityGuard(room)}`,
     `Use corrected perspective, straight vertical lines, physically plausible lighting, realistic material textures, usable modular storage, exact component logic, clean laminate transitions, visible lighting design, premium but selective styling, and strong client-presentation quality.`,
     `Do not add fantasy decor, unrelated objects, text overlays, watermarks, logos, impossible windows, or furniture not supported by the floor plan and designer notes.`
   ].filter(Boolean).join(' ');

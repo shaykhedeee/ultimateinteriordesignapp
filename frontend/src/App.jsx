@@ -121,6 +121,41 @@ const WORKFLOW_SPINE = [
   { id: 'cutlist', label: 'Production', detail: 'Cutlist + nesting' }
 ];
 
+const WORKFLOW_SPECIALISTS = {
+  brief: [
+    { key: 'cad_ingest', name: 'Plan Ingest Interpreter' },
+    { key: 'swatch_match', name: 'AI Swatch Matcher' }
+  ],
+  cad: [
+    { key: 'ortho_calibrate', name: 'Auto Scale Calibrator' },
+    { key: 'vastu_annotate', name: 'Vastu & Room Annotator' }
+  ],
+  studio: [
+    { key: 'extruder_3d', name: '2D-to-3D Extruder' }
+  ],
+  drawings: [
+    { key: 'elevation_draft', name: '2D Elevation Drafter' },
+    { key: 'rcp_planner', name: 'RCP Planner' },
+    { key: 'dxf_compiler', name: 'DXF Exporter' }
+  ],
+  renders: [
+    { key: 'render_concept', name: 'Concept Generator' },
+    { key: 'camera_director', name: 'Camera Planner' },
+    { key: 'material_swapper', name: 'Material Swapper' },
+    { key: 'ambient_lighting', name: 'Ambient Vector Shifter' },
+    { key: 'walkthrough_animator', name: 'Walkthrough Animator' }
+  ],
+  materials: [
+    { key: 'swatch_match', name: 'AI Swatch Matcher' },
+    { key: 'carcass_config', name: 'BOM Calculator' }
+  ],
+  cutlist: [
+    { key: 'carcass_config', name: 'Parametric Cabinet Builder' },
+    { key: 'hardware_spec', name: 'Hardware Allocator' },
+    { key: 'nesting_calc', name: 'Nesting Calculator' }
+  ]
+};
+
 const TAB_META = {
   dashboard: { title: 'Command Center',    sub: 'Workspace overview & AI orchestration hub' },
   crm:       { title: 'CRM & Call Board',  sub: 'Manage leads, qualify via AI calling, close deals' },
@@ -157,6 +192,7 @@ export function App() {
   const [projectsList, setProjectsList]   = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [isAuraOpen, setIsAuraOpen]       = useState(false);
+  const [isAuraThinking, setIsAuraThinking] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [currentTime, setCurrentTime]     = useState(new Date());
   const [activeJobs, setActiveJobs]       = useState([]);
@@ -367,6 +403,7 @@ export function App() {
   const handleSendMessage = async (text) => {
     const userMsg = { id:`u-${Date.now()}`, sender:'user', text, timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) };
     setChatMessages(p => [...p, userMsg]);
+    setIsAuraThinking(true);
     try {
       const res = await fetch(AURA_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message: text, projectId: selectedProjectId }) });
       const data = await res.json();
@@ -376,6 +413,8 @@ export function App() {
     } catch (err) {
       setChatMessages(p => [...p, { id:`a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text:`AURA is temporarily unreachable: ${err.message}. Using offline mode.`, toolCalls:[], intent:null }]);
       window.__toast?.warn(err.message || 'AURA offline');
+    } finally {
+      setIsAuraThinking(false);
     }
   };
 
@@ -737,6 +776,32 @@ export function App() {
               })}
             </div>
             <div className="workflow-screen">
+              {/* Dynamic Specialist Tool Suggestions */}
+              {WORKFLOW_SPECIALISTS[activeTab] && selectedProjectId && (
+                <div className="mb-4 bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[var(--gold)] text-xs">✨</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-350">Recommended for this step:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {WORKFLOW_SPECIALISTS[activeTab].map(tool => (
+                      <button
+                        key={tool.key}
+                        onClick={() => {
+                          setActiveTab('dashboard');
+                          setTimeout(() => {
+                            window.dispatchEvent(new CustomEvent('open-specialist-tool', { detail: tool.key }));
+                          }, 100);
+                        }}
+                        className="px-2.5 py-1 bg-slate-950 border border-slate-800 hover:border-[var(--gold)]/50 text-[9px] font-extrabold uppercase text-slate-300 hover:text-[var(--gold)] rounded-lg transition"
+                      >
+                        ⚡ {tool.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <Suspense fallback={<div style={{ padding: 40, color: 'var(--text-secondary)' }}>Loading…</div>}>
                 <ErrorBoundary>
                 {renderScreen()}
@@ -752,6 +817,7 @@ export function App() {
             project={selectedProject}
             isOpen={isAuraOpen}
             onClose={() => setIsAuraOpen(false)}
+            isThinking={isAuraThinking}
           />
         </div>
 

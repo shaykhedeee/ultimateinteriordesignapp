@@ -399,7 +399,6 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   // --- Spoken + banner acknowledgement of the analyzed floor plan ---
   const speak = (text) => {
     setAckText(text);
-    try { if (window.speechSynthesis) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 0.95; u.pitch = 1; window.speechSynthesis.speak(u); } } catch (_) {}
   };
   const buildAcknowledgement = () => {
     const bedrooms = rooms.filter(r => /bed|sleep/i.test(r.name || r.type || '')).length
@@ -1027,19 +1026,52 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     return formatMeters(pxLen);
   };
 
+  const bedroomsCount = rooms.filter(r => /bed|sleep/i.test(r.name || r.type || '')).length
+    || furniture.filter(f => /bed/i.test(f.name || f.type || '')).length;
+  const layoutTypeName = bedroomsCount >= 4 ? '4BHK Layout' : bedroomsCount === 3 ? '3BHK Layout' : bedroomsCount === 2 ? '2BHK Layout' : bedroomsCount === 1 ? '1BHK Layout' : 'Apartment Layout';
+  const totalZonesCount = rooms.length || furniture.length || 0;
+
   return (
-    <div className="flex flex-col xl:flex-row h-[85vh] text-slate-200 select-none bg-slate-950 p-4 gap-4">
+    <div className="flex flex-col h-[85vh] text-slate-200 select-none bg-slate-950 p-4 gap-4 overflow-hidden">
       {/* Hidden offscreen canvas for CV wall detection from underlay image */}
       <canvas ref={hiddenCanvasRef} style={{ display: 'none' }} />
 
       {/* Spoken floor-plan acknowledgement banner (canonical flow step 1) */}
       {ackText && (
-        <div className="w-full xl:w-full bg-gradient-to-r from-[#1a1407] to-[#0b0f17] border border-[#C9A84C]/40 rounded-xl px-4 py-2.5 flex items-center gap-3 shrink-0">
-          <span className="text-[var(--gold)] text-lg">🛈</span>
-          <span className="text-sm font-bold text-slate-100 tracking-wide flex-1">{ackText}</span>
-          <button onClick={() => speak(ackText)} className="text-[10px] uppercase font-bold text-[var(--gold)] border border-[var(--gold)]/40 rounded px-2 py-1 hover:bg-[var(--gold)]/10">🔊 Replay</button>
+        <div className="w-full bg-slate-900 border border-[var(--gold)]/30 rounded-xl p-3 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-lg shadow-black/40">
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--gold)] text-lg">💡</span>
+            <span className="text-xs font-black uppercase tracking-widest text-[var(--gold)]">Floor Plan Intel Report:</span>
+          </div>
+          
+          <div className="flex items-center gap-6 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-850">
+              <span className="text-xs">🏢</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Config:</span>
+              <span className="text-[10px] font-black text-slate-100">{layoutTypeName}</span>
+            </div>
+            
+            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-850">
+              <span className="text-xs">⛶</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Zones:</span>
+              <span className="text-[10px] font-black text-slate-100">{totalZonesCount} active modules</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-850">
+              <span className="text-xs">🧭</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Vastu Orientations:</span>
+              <span className="text-[10px] font-black text-slate-100">Compiled</span>
+            </div>
+          </div>
+          
+          <div className="text-[9px] font-mono text-slate-400 max-w-xs truncate italic">
+            "{ackText}"
+          </div>
         </div>
       )}
+
+      {/* Main Drafting Workspace & Sidebars */}
+      <div className="flex-1 flex flex-col xl:flex-row min-h-0 gap-4">
 
       {/* 1. Left CAD Controls Palette */}
       <div className="w-full xl:w-72 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0">
@@ -2109,6 +2141,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         </div>
       )}
 
+      </div>
     </div>
   );
 }

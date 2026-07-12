@@ -40,7 +40,7 @@ function buildInsights(project) {
 
 export default function AuraBrainChat({
   messages, onSendMessage, onExecuteAction,
-  project, isOpen, onClose
+  project, isOpen, onClose, isThinking
 }) {
   const [inputText, setInputText]         = useState('');
   const [isListening, setIsListening]     = useState(false);
@@ -225,10 +225,7 @@ export default function AuraBrainChat({
                 );
               })()}
             </div>
-            <div style={{ fontSize:'9.5px', color:'var(--text-muted)', marginTop:'1px' }}>{(() => {
-              const lastAura = [...messages].reverse().find(m => m.sender === 'aura');
-              return lastAura?.model ? String(lastAura.model).replace('meta-llama/', 'LLaMA ') : 'LLaMA 3.3 70B Orchestrator';
-            })()}</div>
+            <div style={{ fontSize:'9.5px', color:'var(--text-muted)', marginTop:'1px' }}>AI Design Co-pilot</div>
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
@@ -288,6 +285,31 @@ export default function AuraBrainChat({
       {/* ── Messages ── */}
       <div style={S.msgArea}>
         {messages.map(renderBubble)}
+        {isThinking && (
+          <div style={{ display:'flex', flexDirection:'column', alignItems: 'flex-start', gap: 4 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:'9px', color:'var(--text-muted)', paddingInline:'4px' }}>
+              <span>AURA AI</span>
+            </div>
+            <div style={{
+              padding: '10px 13px',
+              borderRadius: '16px 16px 16px 4px',
+              background: 'var(--surface-2)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              alignSelf: 'flex-start'
+            }}>
+              <span className="flex gap-1 items-center">
+                <span className="w-1.5 h-1.5 bg-[var(--gold)] rounded-full animate-pulse"></span>
+                <span className="w-1.5 h-1.5 bg-[var(--gold)] rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></span>
+                <span className="w-1.5 h-1.5 bg-[var(--gold)] rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></span>
+              </span>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Thinking...</span>
+            </div>
+          </div>
+        )}
         {isListening && (
           <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:'12px', background:'rgba(99,102,241,0.1)', border:'1px solid rgba(99,102,241,0.25)', color:'#a5b4fc', fontSize:'11px', animation:'pulse 1s infinite' }}>
             <Mic style={{ width:14, height:14, color:'#818cf8' }} />
@@ -327,13 +349,15 @@ export default function AuraBrainChat({
         <button
           type="button"
           onClick={simulateVoice}
+          disabled={isThinking}
           style={{
-            width:34, height:34, flexShrink:0, borderRadius:'10px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+            width:34, height:34, flexShrink:0, borderRadius:'10px', cursor: isThinking ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center',
             background: isListening ? '#6366f1' : 'rgba(255,255,255,0.04)',
             border: '1px solid ' + (isListening ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)'),
             color: isListening ? 'white' : 'var(--text-muted)',
             transition:'all 0.18s',
-            animation: isListening ? 'pulse 0.8s infinite' : 'none'
+            animation: isListening ? 'pulse 0.8s infinite' : 'none',
+            opacity: isThinking ? 0.5 : 1
           }}
           title="Voice input"
         >
@@ -344,11 +368,13 @@ export default function AuraBrainChat({
           value={inputText}
           onChange={e => setInputText(e.target.value)}
           onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          placeholder="Ask AURA to paint, place, or optimise..."
+          placeholder={isThinking ? "AURA is thinking..." : "Ask AURA to paint, place, or optimise..."}
+          disabled={isThinking}
           style={{
             flex:1, background:'rgba(0,0,0,0.4)', border:'1px solid rgba(255,255,255,0.07)',
             borderRadius:'10px', padding:'7px 12px', fontSize:'11.5px', color:'var(--text-primary)',
-            outline:'none', fontFamily:'inherit', transition:'border-color 0.2s'
+            outline:'none', fontFamily:'inherit', transition:'border-color 0.2s',
+            opacity: isThinking ? 0.6 : 1
           }}
           onFocus={e => { e.target.style.borderColor = 'rgba(99,102,241,0.4)'; }}
           onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.07)'; }}
@@ -356,14 +382,15 @@ export default function AuraBrainChat({
 
         <button
           type="submit"
-          disabled={!inputText.trim()}
+          disabled={!inputText.trim() || isThinking}
           style={{
-            width:34, height:34, flexShrink:0, borderRadius:'10px', cursor: inputText.trim() ? 'pointer' : 'not-allowed',
+            width:34, height:34, flexShrink:0, borderRadius:'10px', cursor: (inputText.trim() && !isThinking) ? 'pointer' : 'not-allowed',
             display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.18s',
-            background: inputText.trim() ? 'var(--gold)' : 'rgba(255,255,255,0.04)',
-            border: '1px solid ' + (inputText.trim() ? 'transparent' : 'rgba(255,255,255,0.07)'),
-            color: inputText.trim() ? '#060609' : 'var(--text-muted)',
-            boxShadow: inputText.trim() ? '0 4px 12px rgba(201,168,76,0.3)' : 'none'
+            background: (inputText.trim() && !isThinking) ? 'var(--gold)' : 'rgba(255,255,255,0.04)',
+            border: '1px solid ' + ((inputText.trim() && !isThinking) ? 'transparent' : 'rgba(255,255,255,0.07)'),
+            color: (inputText.trim() && !isThinking) ? '#060609' : 'var(--text-muted)',
+            boxShadow: (inputText.trim() && !isThinking) ? '0 4px 12px rgba(201,168,76,0.3)' : 'none',
+            opacity: isThinking ? 0.5 : 1
           }}
         >
           <Send style={{ width:13, height:13 }} />

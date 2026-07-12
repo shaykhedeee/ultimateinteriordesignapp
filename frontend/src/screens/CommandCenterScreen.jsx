@@ -61,6 +61,14 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
     }
   }, [workspaceMode]);
 
+  useEffect(() => {
+    const handler = (e) => {
+      setActiveWorkflowTab('tools');
+    };
+    window.addEventListener('open-specialist-tool', handler);
+    return () => window.removeEventListener('open-specialist-tool', handler);
+  }, []);
+
   // ==========================================
   // 1. DATA LOADING
   // ==========================================
@@ -2491,6 +2499,19 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
   const [activeTool, setActiveTool] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [toolResult, setToolResult] = useState(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const toolKey = e.detail;
+      const tool = ALL_SPECIALIST_AI_TOOLS.find(t => t.key === toolKey);
+      if (tool) {
+        setActiveTool(tool);
+        setToolResult(null);
+      }
+    };
+    window.addEventListener('open-specialist-tool', handler);
+    return () => window.removeEventListener('open-specialist-tool', handler);
+  }, []);
 
   // Custom runner states
   const [lightPreset, setLightPreset] = useState('golden_hour');

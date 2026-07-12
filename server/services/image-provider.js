@@ -58,6 +58,20 @@ const PROVIDER_COSTS = {
   'mock-generated': { perImage: 0, currency: 'USD' }
 };
 
+const ROOM_FORBIDDEN_FURNITURE = {
+  master: 'no sofa, no sectional sofa, no living-room lounge, no wall-mounted TV as main feature, no coffee table as focal point',
+  masterBed: 'no sofa, no sectional sofa, no living-room lounge, no wall-mounted TV as main feature, no coffee table as focal point',
+  kids: 'no modular kitchen, no sofa lounge set, no wall-mounted TV as main feature',
+  kidsBed: 'no modular kitchen, no sofa lounge set, no wall-mounted TV as main feature',
+  living: 'no bed, no headboard, no bedroom wardrobe, no nightstands',
+  kitchen: 'no bed, no sofa bed, no bedroom',
+  pooja: 'no bed, no sofa, no bedroom, no kitchen counter',
+  temple: 'no bed, no sofa, no bedroom, no kitchen counter',
+  foyer: 'no bed, no bedroom',
+  dining: 'no bed, no bedroom',
+  crockery: 'no bed, no bedroom'
+};
+
 const palettes = {
   // Aligned to ULTIDA reference render system: warm white/cream + beige marble
   // + warm walnut/teak + charcoal ribbed + sage/seafoam accent + brass LED + black hw
@@ -197,6 +211,12 @@ function tryReuseGeneratedAsset({ id, projectId, room, title, prompt, style, bud
     }).sort((a, b) => b.score - a.score);
     const best = scored[0];
     if (!best || best.score < threshold) return null;
+    // Guard: the referenced asset file must actually exist on disk, otherwise
+    // we'd hand the UI a broken image URL. Fall through to live generation.
+    const existingPath = best.row.file_path && best.row.file_path.startsWith('/storage/')
+      ? path.join(storageDir, best.row.file_path.replace('/storage/', ''))
+      : null;
+    if (!existingPath || !fs.existsSync(existingPath)) return null;
     const asset = {
       id,
       projectId,
@@ -560,8 +580,15 @@ async function tryGeneratePollinationsImage({ id, projectId, room, safeRoom, tit
     url.searchParams.set('seed', String(seed));
     url.searchParams.set('nologo', 'true');
     url.searchParams.set('private', 'true');
-    url.searchParams.set('enhance', 'true');
+    // enhance=false keeps OUR prompt authoritative (Pollinations' own rewriter
+    // was overriding the room-type guardrail and biasing toward living rooms).
+    url.searchParams.set('enhance', 'false');
     url.searchParams.set('safe', 'true');
+    // Strong negative: forbid the WRONG room's furniture so the model cannot
+    // substitute a living room for a bedroom, etc.
+    const roomNegative = ROOM_FORBIDDEN_FURNITURE[room] || '';
+    const neg = [negativePrompt(), roomNegative].filter(Boolean).join(', ');
+    if (neg) url.searchParams.set('negative', neg);
 
     const fileName = `${safeRoom || room}-${id}.jpg`;
     const filePath = path.join(storageDir, 'assets', fileName);
@@ -905,7 +932,12 @@ export function getProviderStatus() {
 }
 
 function providerPriority() {
-  const primary = process.env.IMAGE_PROVIDER || 'library-reuse';
+  const hasPremiumKey = Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.STABILITY_API_KEY || process.env.FREEPIK_API_KEY || process.env.HUGGINGFACE_API_KEY);
+  // Default: real photoreal renders out-of-the-box via keyless Pollinations
+  // (no API key required). When a premium provider key is present we still
+  // prefer it (set via env), otherwise Pollinations leads and the SVG mock is
+  // only the absolute last resort.
+  const primary = process.env.IMAGE_PROVIDER || (hasPremiumKey ? 'library-reuse' : 'pollinations');
   const fallbacks = (process.env.IMAGE_PROVIDER_FALLBACKS || 'gemini-imagen,openai-gpt-image-1,openai,huggingface,stability-sdxl,stability-flux,freepik,pollinations,pexels,curated,mock')
     .split(',')
     .map((item) => item.trim())
