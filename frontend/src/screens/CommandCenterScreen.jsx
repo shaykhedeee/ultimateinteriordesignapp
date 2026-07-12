@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { 
+import {
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
-  BarChart3, CheckCircle2, ChevronRight, Activity, Zap, Info, Plus, 
+  BarChart3, CheckCircle2, ChevronRight, Activity, Zap, Info, Plus,
   Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee, Pencil,
-  LayoutDashboard, TrendingUp, FolderKanban, UserPlus, Circle, ArrowUpRight, ArrowRight, Cpu, Wifi, WifiOff, Clock, Briefcase, Gauge, Building2, Award
+  LayoutDashboard, TrendingUp, FolderKanban, UserPlus, Circle, ArrowUpRight, ArrowRight, Cpu, Wifi, WifiOff, Clock, Briefcase, Gauge, Building2, Award,
+  Maximize2, Download, X, Image as ImageIcon
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
 import ProjectSettingsModal from '../components/ProjectSettingsModal.jsx';
@@ -481,6 +482,39 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
   const [cameraView, setCameraView] = useState(null); // 'perspective', 'isometric'
   const [selectedAction, setSelectedAction] = useState(null); // next action click state
   const [actionProgress, setActionProgress] = useState(false);
+  const [smartRenderImg, setSmartRenderImg] = useState(null); // generated render url
+  const [smartRenderBusy, setSmartRenderBusy] = useState(false);
+  const [smartRenderFullscreen, setSmartRenderFullscreen] = useState(false);
+
+  // Generate a REAL render for the chosen zone via the backend (works offline w/ mock fallback).
+  const generateSmartRender = async (room, style) => {
+    const pid = selectedProjectId || 'proj_demo';
+    setSmartRenderBusy(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${pid}/renders/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: room || 'living',
+          style: style || 'indian-contemporary',
+          variantCount: 1,
+          modelTier: 'standard'
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.variants && data.variants.length) {
+        const v = data.variants[0];
+        const u = v.url || v.filePath || '';
+        setSmartRenderImg(u.startsWith('http') ? u : `http://127.0.0.1:8787${u}`);
+      } else {
+        throw new Error(data.error || 'Render failed');
+      }
+    } catch (err) {
+      window.__toast?.error?.('Render failed: ' + err.message);
+    } finally {
+      setSmartRenderBusy(false);
+    }
+  };
 
   const canvasRef = useRef(null);
 
@@ -522,6 +556,28 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       })();
     }
   };
+  // Create a real project on the backend so CAD + render steps persist.
+  const ensureProject = async (name) => {
+    const safeName = (name || 'Untitled Smart Project').toString().trim() || 'Untitled Smart Project';
+    try {
+      const res = await fetch('http://127.0.0.1:8787/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: safeName })
+      });
+      if (res.ok) {
+        const p = await res.json();
+        if (p && p.id) { setSelectedProjectId(p.id); return p.id; }
+      }
+    } catch (err) {
+      console.error('Smart Project create failed:', err);
+    }
+    // Offline fallback: generate a client id so the flow still works locally.
+    const localId = 'proj_' + Math.random().toString(36).slice(2, 12);
+    setSelectedProjectId(localId);
+    return localId;
+  };
+
   // Fallback to a neutral in-app SVG grid (never a random stock room photo).
   const PLAN_FALLBACK = "data:image/svg+xml;utf8," + encodeURIComponent(
     "<svg xmlns='http://www.w3.org/2000/svg' width='800' height='560'><rect width='800' height='560' fill='#0b0f1a'/>" +
@@ -597,7 +653,10 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:border-[var(--gold)] outline-none"
           />
           <button 
-            onClick={() => setWizardStep('upload')}
+            onClick={async () => {
+              await ensureProject(projectName);
+              setWizardStep('upload');
+            }}
             className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] text-[#0A0A0D] px-5 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition shadow-md shadow-[var(--gold)]/15 block w-full"
           >
             Create Project & Continue
@@ -911,7 +970,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             </div>
             <button 
               onClick={() => {
-                fetch(`http://127.0.0.1:8787/api/projects/${selectedProjectId}/cad`, {
+                fetch(`http://127.0.0.1:8787/api/projects/${project?.id}/cad`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -944,23 +1003,26 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       {wizardStep === 'rooms_ready' && (
         <div className="space-y-4 max-w-md bg-slate-900/30 border border-slate-850 p-6 rounded-2xl">
           <label className="text-xs font-black text-slate-350 block uppercase tracking-wider">Rooms ready — pick one to render.</label>
+          {markedRooms.length === 0 && (
+            <div className="text-[10px] text-amber-400 font-bold">No zones were saved. Go back and draw room boundaries first.</div>
+          )}
           <div className="flex flex-col gap-2">
-            {[
-              { id: '1', name: 'Open Zone 1: Living Area' },
-              { id: '2', name: 'Open Zone 2: Master Bed' },
-              { id: '3', name: 'Open Zone 3: Kitchen' },
-              { id: '4', name: 'Open Zone 4: Kids Room' },
-              { id: '5', name: 'Open Zone 5: Balcony Garden' }
-            ].map(zone => (
-              <button 
-                key={zone.id}
+            {(markedRooms.length ? markedRooms : [
+              { id: '1', label: 'Open Zone 1: Living Area' },
+              { id: '2', label: 'Open Zone 2: Master Bed' },
+              { id: '3', label: 'Open Zone 3: Kitchen' },
+              { id: '4', label: 'Open Zone 4: Kids Room' },
+              { id: '5', label: 'Open Zone 5: Balcony Garden' }
+            ]).map((zone, idx) => (
+              <button
+                key={zone.id || idx}
                 onClick={() => {
-                  setSelectedZoneToRender(zone.name);
+                  setSelectedZoneToRender(zone.label || zone.name);
                   triggerLoading('detection_done', 'Detecting objects in the layout — one moment.');
                 }}
                 className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[var(--gold)]/50 hover:bg-[var(--gold)]/2 transition cursor-pointer text-slate-300"
               >
-                {zone.name}
+                {zone.label || zone.name}
               </button>
             ))}
           </div>
@@ -1039,9 +1101,12 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
           <span className="text-[10px] font-black text-indigo-400 block uppercase tracking-widest">Product Board Configured</span>
           <label className="text-xs font-bold text-slate-300 block">Product board is ready. Pick the camera view to render.</label>
           <div className="grid grid-cols-2 gap-3 pt-2">
-            <button 
+            <button
               onClick={() => {
                 setCameraView('perspective');
+                const zoneRoom = (selectedZoneToRender || 'living').toLowerCase().includes('kitchen') ? 'kitchen'
+                  : (selectedZoneToRender || '').toLowerCase().includes('bed') ? 'bedroom' : 'living';
+                generateSmartRender(zoneRoom, 'indian-contemporary');
                 triggerLoading('render_ready', 'Rendering photorealistic perspective viewpoint...');
               }}
               className="py-3 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
@@ -1049,9 +1114,12 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
               <Compass className="w-5 h-5 text-[var(--gold)]" />
               <span className="text-xs font-semibold tracking-wide">Perspective View</span>
             </button>
-            <button 
+            <button
               onClick={() => {
                 setCameraView('isometric');
+                const zoneRoom = (selectedZoneToRender || 'living').toLowerCase().includes('kitchen') ? 'kitchen'
+                  : (selectedZoneToRender || '').toLowerCase().includes('bed') ? 'bedroom' : 'living';
+                generateSmartRender(zoneRoom, 'indian-contemporary');
                 triggerLoading('render_ready', 'Rendering isometric 3D spatial viewpoint...');
               }}
               className="py-3 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
@@ -1074,12 +1142,40 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             </div>
             
             <div className="w-full h-[320px] rounded-2xl overflow-hidden bg-slate-950 relative border border-slate-850">
-              <img 
-                src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=800&q=80" 
-                alt="Stunning 3D Render Output" 
-                className="w-full h-full object-cover" 
-              />
-              <div className="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl text-[9px] font-mono text-[var(--gold)] font-bold uppercase tracking-widest shadow-lg">
+              {smartRenderBusy ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                  <RefreshCw className="w-8 h-8 animate-spin text-[var(--gold)]" />
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-widest animate-pulse">Generating {cameraView} render...</span>
+                </div>
+              ) : smartRenderImg ? (
+                <>
+                  <img
+                    src={smartRenderImg}
+                    alt="Generated 3D Render Output"
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => setSmartRenderFullscreen(true)}
+                    title="Full screen"
+                    className="absolute top-4 right-4 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl text-[9px] font-mono text-[var(--gold)] font-bold uppercase tracking-widest shadow-lg hover:bg-slate-800 transition flex items-center gap-1.5"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" /> Full
+                  </button>
+                  <a
+                    href={smartRenderImg}
+                    download={`smart_render_${cameraView || 'view'}.png`}
+                    className="absolute top-4 left-4 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl text-[9px] font-mono text-emerald-300 font-bold uppercase tracking-widest shadow-lg hover:bg-slate-800 transition flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Save
+                  </a>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-500 text-xs">
+                  <ImageIcon className="w-10 h-10 opacity-30" />
+                  <span>Pick a camera view above to generate the render.</span>
+                </div>
+              )}
+              <div className="absolute bottom-4 right-4 bg-slate-900/90 border border-slate-800 px-3 py-1 rounded-xl text-[9px] font-mono text-[var(--gold)] font-bold uppercase tracking-widest shadow-lg">
                 StudioOS AI Render v2
               </div>
             </div>
@@ -1142,6 +1238,35 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             <strong className="text-xs text-slate-200 block">Orchestrating AI Pipeline</strong>
             <span className="text-[10px] text-slate-500 mt-1 block font-mono animate-pulse">{loaderMessage}</span>
           </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN RENDER MODAL */}
+      {smartRenderFullscreen && smartRenderImg && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-6"
+          onClick={() => setSmartRenderFullscreen(false)}
+        >
+          <button
+            className="absolute top-5 right-5 bg-slate-900/90 border border-slate-700 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-200 hover:bg-slate-800 transition flex items-center gap-2"
+            onClick={(e) => { e.stopPropagation(); setSmartRenderFullscreen(false); }}
+          >
+            <X className="w-4 h-4" /> Close
+          </button>
+          <a
+            href={smartRenderImg}
+            download={`smart_render_${cameraView || 'view'}.png`}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-5 left-5 bg-emerald-600/90 border border-emerald-400 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-white hover:bg-emerald-500 transition flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" /> Save Image
+          </a>
+          <img
+            src={smartRenderImg}
+            alt="Generated 3D Render — Full Screen"
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

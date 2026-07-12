@@ -1074,16 +1074,36 @@ export default function Render3DStudio({ projectId, onComplete }) {
   };
 
   const handleLaminateSwap = async () => {
-    if (!selectedRender || !selectedSwapComponent) return;
+    // Resolve a source render: reuse selected, else first in list, else auto-generate one.
+    let srcRender = selectedRender;
+    if (!srcRender && renderersList?.length) {
+      srcRender = renderersList[0];
+      setSelectedRender(srcRender);
+    }
+    if (!srcRender) {
+      window.__toast?.show?.('No render yet — generating one first...');
+      await generateAIRender();
+      await fetchRenders();
+      if (!renderersList?.length) {
+        window.__toast?.error?.('Could not generate a base render to swap.');
+        return;
+      }
+      srcRender = renderersList[0];
+      setSelectedRender(srcRender);
+    }
+    if (!selectedSwapComponent) {
+      window.__toast?.error?.('Select a component/part to swap first.');
+      return;
+    }
     setIsSwappingLaminate(true);
     setSwapperStepMessage('Preparing images and components...');
 
     try {
       // 1. Fetch render image blob
       setSwapperStepMessage('Downloading active render image...');
-      const renderImgUrl = selectedRender.image_url.startsWith('/storage') 
-        ? `http://127.0.0.1:8787${selectedRender.image_url}` 
-        : selectedRender.image_url;
+      const renderImgUrl = srcRender.image_url.startsWith('/storage')
+        ? `http://127.0.0.1:8787${srcRender.image_url}`
+        : srcRender.image_url;
       const renderImgRes = await fetch(renderImgUrl);
       const renderImgBlob = await renderImgRes.blob();
 
@@ -1123,7 +1143,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         setSwapperStepMessage('Success! Loading render output...');
         
         // Save current selected render as previous for compare view
-        setPreviousRenderForCompare(selectedRender);
+        setPreviousRenderForCompare(srcRender);
 
         await fetchRenders();
         const found = data.render;
@@ -1136,7 +1156,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         setCustomLaminatePreview(null);
         setSelectedCatalogMaterial(null);
       } else {
-        window.__toast?.show(`Error: ${data.error || 'Failed to complete material swap'}`);
+        window.__toast?.error?.(`Error: ${data.error || 'Failed to complete material swap'}`);
       }
     } catch (err) {
       console.error("Laminate swap failed:", err);
