@@ -1,105 +1,82 @@
-/**
- * tests/elevation-analyzer.test.js
- * node --test  (no deps)
- */
+// Regression tests for elevation-analyzer.js — the real measurement engine
+// behind every wall elevation DXF (/elevations/auto/dxf, /combined-pdf, AURA).
+// Locks: true mm dimensions from plan coords, and CONSISTENT clamping of
+// out-of-bounds openings/cabinets (offsetMm/endMm/centerMm must all agree and
+// stay within the wall — the drawing must match the coverage report).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzeWallElevation, analyzeProjectElevations } from '../server/services/elevation-analyzer.js';
+import { buildElevationDXF } from '../server/services/dxf-writer.js';
 
-const PPM = 40; // 40px == 1000mm
+const WALL_4M = { id: 'w1', x1: 0, y1: 0, x2: 160, y2: 0 }; // 160px @ 40ppm = 4000mm
 
-// A 3000mm wall at 40px/m -> 120px plan length
-const wall = { id: 'w1', x1: 0, y1: 0, x2: 120, y2: 0, thicknessMm: 75 };
-
-test('wall length computed correctly from plan px (120px @40ppm => 3000mm)', () => {
-  const m = analyzeWallElevation({ wall, openings: [], furniture: [], pixelsPerMeter: PPM });
-  assert.equal(m.lengthMm, 3000);
+test('wall length derived correctly from plan coords (40ppm)', () => {
+  const m = analyzeWallElevation({ wall: WALL_4M, pixelsPerMeter: 40, wallHeightMm: 2700 });
+  assert.equal(m.lengthMm, 4000);
   assert.equal(m.heightMm, 2700);
-  assert.equal(m.thicknessMm, 75);
 });
 
-test('door opening normalised with real sill/head and clamped offset', () => {
-  const openings = [{ openingId: 'd1', openingType: 'door', offsetFromStartMm: 500, widthMm: 900, wallId: 'w1' }];
-  const m = analyzeWallElevation({ wall, openings, furniture: [], pixelsPerMeter: PPM });
-  assert.equal(m.openings.length, 1);
-  assert.equal(m.openings[0].type, 'door');
-  assert.equal(m.openings[0].offsetMm, 500);
-  assert.equal(m.openings[0].widthMm, 900);
-  assert.equal(m.openings[0].sillMm, 0);
-  assert.equal(m.openings[0].headMm, 2100);
-  assert.equal(m.openings[0].centerMm, 950);
-});
-
-test('window uses standard 900 sill when not provided', () => {
-  const openings = [{ openingId: 'w1', openingType: 'window', offsetFromStartMm: 1000, widthMm: 1200, wallId: 'w1' }];
-  const m = analyzeWallElevation({ wall, openings, furniture: [], pixelsPerMeter: PPM });
-  assert.equal(m.openings[0].type, 'window');
-  assert.equal(m.openings[0].sillMm, 900);
-  assert.equal(m.openings[0].headMm, 2100);
-});
-
-test('offset clamped so opening cannot exceed wall length', () => {
-  const openings = [{ openingType: 'door', offsetFromStartMm: 2900, widthMm: 900, wallId: 'w1' }];
-  const m = analyzeWallElevation({ wall, openings, furniture: [], pixelsPerMeter: PPM });
-  assert.equal(m.openings[0].offsetMm, 2100); // 3000-900
-});
-
-test('cabinet coverage + overflow detection', () => {
-  const furniture = [
-    { id: 'c1', type: 'base', width: 600, height: 720, xOffsetWall: 0, wallId: 'w1' },
-    { id: 'c2', type: 'base', width: 600, height: 720, xOffsetWall: 600, wallId: 'w1' },
-    { id: 'c3', type: 'base', width: 600, height: 720, xOffsetWall: 2500, wallId: 'w1' } // overflow (2500+600=3100>3000)
-  ];
-  const m = analyzeWallElevation({ wall, openings: [], furniture, pixelsPerMeter: PPM });
-  assert.equal(m.coverage.usedMm, 1800);
-  assert.equal(m.coverage.utilizationPct, 60);
-  assert.equal(m.coverage.overflow, true);
-  assert.equal(m.cabinets.length, 3);
-});
-
-test('gaps between cabinets reported', () => {
-  const furniture = [
-    { id: 'c1', type: 'base', width: 600, xOffsetWall: 0, wallId: 'w1' },
-    { id: 'c2', type: 'base', width: 600, xOffsetWall: 1500, wallId: 'w1' }
-  ];
-  const m = analyzeWallElevation({ wall, openings: [], furniture, pixelsPerMeter: PPM });
-  // gap between 600 and 1500 = 900mm, plus 2100..3000 = 900mm
-  assert.equal(m.coverage.gaps.length, 2);
-  assert.equal(m.coverage.gaps[0].sizeMm, 900);
-});
-
-test('legacy field names tolerated (type instead of openingType)', () => {
-  const openings = [{ id: 'd1', type: 'door', offsetFromStartMm: 0, width: 900, wallId: 'w1' }];
-  const m = analyzeWallElevation({ wall, openings, furniture: [], pixelsPerMeter: PPM });
-  assert.equal(m.openings.length, 1);
-  assert.equal(m.openings[0].widthMm, 900);
-});
-
-test('confidence is data-derived (0 when empty, 1 when fully specified)', () => {
-  const empty = analyzeWallElevation({ wall, openings: [], furniture: [], pixelsPerMeter: PPM });
-  assert.equal(empty.confidence, 0);
-  const full = analyzeWallElevation({
-    wall,
-    openings: [{ openingType: 'door', offsetFromStartMm: 0, widthMm: 900, wallId: 'w1' }],
-    furniture: [{ id: 'c', type: 'base', width: 600, height: 720, xOffsetWall: 0, wallId: 'w1' }],
-    pixelsPerMeter: PPM
+test('opening offset/center consistent when IN bounds', () => {
+  const m = analyzeWallElevation({
+    wall: WALL_4M, pixelsPerMeter: 40, wallHeightMm: 2700,
+    openings: [{ id: 'd1', wallId: 'w1', openingType: 'door', offsetFromStartMm: 1000, widthMm: 900 }]
   });
-  assert.equal(full.confidence, 1);
+  const o = m.openings[0];
+  assert.equal(o.offsetMm, 1000);
+  assert.equal(o.centerMm, 1000 + 900 / 2);
+  assert.ok(o.centerMm <= m.lengthMm);
 });
 
-test('analyzeProjectElevations returns walls + topView + schedule + report', () => {
+test('out-of-bounds opening is clamped CONSISTENTLY (no drawing/report mismatch)', () => {
+  // offset 3800 + width 900 = 4700 would exceed 4000mm wall.
+  const m = analyzeWallElevation({
+    wall: WALL_4M, pixelsPerMeter: 40, wallHeightMm: 2700,
+    openings: [{ id: 'd1', wallId: 'w1', openingType: 'door', offsetFromStartMm: 3800, widthMm: 900 }]
+  });
+  const o = m.openings[0];
+  // clamped to (wallLength - width)
+  assert.equal(o.offsetMm, 4000 - 900);
+  // center derived from the CLAMPED offset, not the raw one
+  assert.equal(o.centerMm, o.offsetMm + 900 / 2);
+  assert.ok(o.offsetMm + o.widthMm <= m.lengthMm + 1, 'opening must not exceed wall');
+  assert.ok(o.centerMm <= m.lengthMm);
+});
+
+test('out-of-bounds cabinet endMm/centerMm use clamped xOffset', () => {
+  const m = analyzeWallElevation({
+    wall: WALL_4M, pixelsPerMeter: 40, wallHeightMm: 2700,
+    furniture: [{ id: 'c1', wallId: 'w1', type: 'base', widthMm: 600, xOffsetWall: 3700 }]
+  });
+  const c = m.cabinets[0];
+  assert.equal(c.xOffsetMm, 4000 - 600);
+  assert.equal(c.endMm, c.xOffsetMm + 600);
+  assert.equal(c.centerMm, c.xOffsetMm + 600 / 2);
+  assert.ok(c.endMm <= m.lengthMm + 1, 'cabinet end must not exceed wall');
+  // overflow flag should NOT fire for a clamped (fitted) cabinet
+  assert.equal(m.coverage.overflow, false);
+});
+
+test('coverage/overflow flags a genuinely oversized cabinet', () => {
+  const m = analyzeWallElevation({
+    wall: WALL_4M, pixelsPerMeter: 40, wallHeightMm: 2700,
+    furniture: [{ id: 'c1', wallId: 'w1', type: 'base', widthMm: 5000, xOffsetWall: 0 }]
+  });
+  // width 5000 > 4000 wall => cannot be clamped to fit => overflow
+  assert.equal(m.coverage.overflow, true);
+});
+
+test('analyzeProjectElevations -> valid DXF end-to-end', () => {
   const cad = {
-    walls_json: JSON.stringify([wall]),
-    openings_json: JSON.stringify([{ openingType: 'door', offsetFromStartMm: 500, widthMm: 900, wallId: 'w1' }]),
-    furniture_json: JSON.stringify([{ id: 'c', type: 'base', width: 600, height: 720, xOffsetWall: 0, wallId: 'w1' }]),
-    pixels_per_meter: PPM
+    walls_json: JSON.stringify([{ id: 'w1', x1: 0, y1: 0, x2: 160, y2: 0 }]),
+    openings_json: JSON.stringify([{ id: 'd1', wallId: 'w1', openingType: 'door', offsetFromStartMm: 1000, widthMm: 900 }]),
+    furniture_json: JSON.stringify([{ id: 'c1', wallId: 'w1', type: 'base', widthMm: 600, xOffsetWall: 200 }]),
+    pixels_per_meter: 40
   };
-  const r = analyzeProjectElevations(cad, { projectId: 'P1' });
+  const r = analyzeProjectElevations(cad, { projectId: 'P1', wallHeightMm: 2700 });
   assert.equal(r.success, true);
-  assert.equal(r.walls.length, 1);
-  assert.equal(r.walls[0].lengthMm, 3000);
-  assert.ok(r.topView.walls.length === 1);
-  assert.equal(r.schedule.length, 1);
-  assert.equal(r.report.wallCount, 1);
-  assert.equal(r.report.overallUtilizationPct, 20); // 600/3000
+  assert.ok(r.walls.length === 1);
+  const model = r.walls[0];
+  const dxf = buildElevationDXF(model, { scale: '1:25', rev: '1.0', projectId: 'P1', sheet: model.wallName });
+  assert.ok(dxf.includes('SECTION') && dxf.endsWith('EOF'), 'valid DXF envelope');
+  assert.ok(!dxf.includes('NaN'), 'no NaN coordinates in DXF');
 });

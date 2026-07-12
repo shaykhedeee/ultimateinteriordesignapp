@@ -37,17 +37,18 @@ function normOpening(o, wallLengthMm) {
     o.headHeightMm ?? o.headMm ?? o.head,
     type === 'door' ? STANDARD_DOOR_MM : STANDARD_HEAD_MM
   );
+  const offsetMm = Math.max(0, Math.min(offset, wallLengthMm - width));
   return {
     id: o.openingId || o.id,
     type, // 'door' | 'window'
-    offsetMm: Math.max(0, Math.min(offset, wallLengthMm - width)),
+    offsetMm,
     widthMm: width,
     sillMm: sill,
     headMm: head,
     // Spec-required field names (true geometry for DXF/SVG):
     sillHeightMm: sill,
     headHeightMm: head,
-    centerMm: offset + width / 2
+    centerMm: offsetMm + width / 2
   };
 }
 
@@ -95,8 +96,8 @@ function normCabinet(f, wallLengthMm) {
     depthMm: depth,
     xOffsetMm: Math.max(0, Math.min(xOffset, wallLengthMm - width)),
     zOffsetMm: zOffset,
-    endMm: xOffset + width,
-    centerMm: xOffset + width / 2,
+    endMm: Math.max(0, Math.min(xOffset, wallLengthMm - width)) + width,
+    centerMm: Math.max(0, Math.min(xOffset, wallLengthMm - width)) + width / 2,
     // professional annotations
     tag,
     shelfTag,
