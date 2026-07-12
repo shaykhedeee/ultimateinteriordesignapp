@@ -30,7 +30,7 @@ _Last updated: 2026-07-12 (session: Smart Project + Laminate Swapper + Render St
 - `GET /api/projects/:id/drawings/elevations/:wallId/dxf` → 200 valid R2010 DXF
 
 ## ⚠️ KNOWN QUALITY CAVEATS (not bugs, but "quality results" concerns)
-- **AI image generation is OFFLINE-MOCK by default.** Without API keys (OpenAI GPT-Image, Freepik, HF SDXL, Pollinations live), renders/swaps return a generated SVG mock or a copied studio PNG, NOT a true AI image. To get "quality results" the user must set provider keys (`.env`): `OPENAI_API_KEY`, `FREEPIK_API_KEY`, `HUGGINGFACE_API_KEY`, and `LIVE_IMAGE_GEN=true`.
+- **AI image generation now REAL by default (keyless).** Renders/swaps generate actual photoreal JPEGs via Pollinations (Flux) out-of-the-box — NO API key required. Premium providers (OpenAI GPT-Image, Freepik, HF, Gemini Imagen, Stability) still take precedence if their key is set in `.env` (`OPENAI_API_KEY`, etc.) for tier-1 quality. `LIVE_IMAGE_GEN` is no longer required for keyless renders.
 - **Smart Project action grid** (Region Edit / Camera Angles / Upscale / Video / Lineage) mostly still toasts "Executed X" without real backend work — only RCP/Elevation/BOM/Layout/Video navigate to other tabs. These are stubs pending real implementations.
 - **`Quick Generate` reference gallery** (CommandCenterScreen ~L2294) shows an Unsplash inspiration thumbnail strip — intentional mood-board reference, NOT a fake render output.
 
