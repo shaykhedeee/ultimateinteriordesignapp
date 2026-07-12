@@ -43,12 +43,17 @@ const TOOLS = [
   { id:'generate_render',    label:'Generate 3D render',      intent:/render|visualise|visualize|photo|image|3d|angle/i,   action:'generate_render' },
   { id:'plan_ai_detect',     label:'Auto-detect floorplan',   intent:/plan|room|layout|detect|walls|floorplan/i,           action:'plan_ai_detect' },
   { id:'cv_auto_trace',      label:'CV auto-trace walls',     intent:/trace|sketch|blueprint|line|vector|cad/i,            action:'cv_auto_trace' },
-  { id:'cutlist_calculate',  label:'Calculate cutlist',       intent:/cutlist|nest|sheet|panel|cut|board/i,                action:'cutlist_calculate' },
-  { id:'generate_signoff',   label:'Generate share PDF pack', intent:/signoff|pdf|brief|quotation|share|pack/i,            action:'generate_signoff' },
+  { id:'cutlist_calculate',  label:'Calculate cutlist',       intent:/cutlist|nest|sheet|cut\b/i,                          action:'cutlist_calculate' },
+  { id:'generate_signoff',   label:'Generate share PDF pack', intent:/signoff|brief|share|presentation/i,                  action:'generate_signoff' },
   { id:'budget_optimize',    label:'Optimize budget',         intent:/budget|cost|price|cheap|save|optimize/i,             action:'budget_optimize' },
   { id:'assign_task',        label:'Start background job',    intent:/job|running|status|que|run|spawn/i,                  action:'assign_task' },
   { id:'regen_room',         label:'Regenerate room render',  intent:/regenerate|re-render|redo|regen|refresh.*room|regenerate.*room/i, action:'regen_room', weight: 2 },
-  { id:'vastu_check',        label:'Check Vastu compliance',  intent:/vastu|compliant|feng.*shui|altar|pooja/i,            action:'vastu_check' }
+  { id:'vastu_check',        label:'Check Vastu compliance',  intent:/vastu|compliant|feng.*shui|altar|pooja/i,            action:'vastu_check' },
+  { id:'jali_generate',      label:'Generate jali/lattice panel', intent:/jali|jaali|lattice|perforated|partition.*screen/i, action:'jali_generate' },
+  { id:'shoe_rack',          label:'Generate shoe rack / entry cabinet', intent:/shoe.*rack|entry.*cabinet|footwear|mud.*room/i, action:'shoe_rack' },
+  { id:'cutlist_refresh',    label:'Recalculate cutlist',       intent:/refresh.*cutlist|recalculat.*cutlist|re-?generate.*cutlist|cutlist.*recalc/i, action:'cutlist_refresh', weight: 2 },
+  { id:'delivery_pack',      label:'Build client delivery package', intent:/delivery.*pack|client.*pack|handoff.*zip|build.*package|delivery.*zip/i, action:'delivery_pack' },
+  { id:'generate_quotation', label:'Generate quotation PDF',    intent:/quotation|proposal|estimate|invoice|price.*quote|quote.*pdf/i, action:'generate_quotation' }
 ];
 
 export function resolveIntent(message) {
@@ -73,7 +78,7 @@ export function resolveIntent(message) {
 }
 
 // ── FIXED: added `message` as a parameter so regen_room case can access it ──
-async function toolReply(tool, args, projectId, message = '') {
+export async function toolReply(tool, args, projectId, message = '') {
   const noAnswer = () => ({ text: NO_ANSWER_TEXT, actions: [] });
   if (!tool || !args?.projectId) return noAnswer();
   const baseUrl = (process.env.APP_URL || 'http://127.0.0.1:5055').replace(/\/$/,'');
@@ -127,9 +132,6 @@ async function toolReply(tool, args, projectId, message = '') {
     case 'generate_signoff':
       return { text: 'Open Presentation Studio and choose brief, signoff, or quotation pack.', actions:[{ actionId:'openPresentation', label:'Open Presentation Studio', primary:true }] };
 
-    case 'generate_quotation':
-      return { text: 'Opening quotation generator in Materials & BOQ.', actions:[{ actionId:'openMaterials', label:'Open Materials & BOQ', primary:true }] };
-
     case 'regen_room': {
       // FIXED: `message` is now properly passed as a parameter
       const roomMatch = String(message || '').match(/room\s+([a-z0-9 ]+?)(?:$|\.|,|with|using)/i);
@@ -158,6 +160,66 @@ async function toolReply(tool, args, projectId, message = '') {
       return {
         text: `Vastu Compliance Check results:\n${msg}`,
         actions: d?.needsApply ? [{ actionId:'applyVastuFixes', label:'Apply Vastu Fixes', primary:true }, { actionId:'openCad', label:'Open CAD Editor' }] : [{ actionId:'openCad', label:'Open CAD Editor', primary:true }]
+      };
+    }
+
+    case 'jali_generate': {
+      // Extract size hints from the message (e.g. "jali 600x2000"); fall back to standard.
+      const dims = String(message || '').match(/(\d{2,4})\s*[xX]\s*(\d{2,4})/);
+      const widthMm = dims ? Math.min(3000, Math.max(100, Number(dims[1]))) : 600;
+      const heightMm = dims ? Math.min(4000, Math.max(100, Number(dims[2]))) : 2000;
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/elevations/jali-panel`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ widthMm, heightMm, name:'Jali Panel' })
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.success ? `Jali panel DXF + PDF generated (${widthMm}×${heightMm}mm).` : 'Open the Jali / Lattice designer to configure the panel.',
+        actions: d?.success ? [] : [{ actionId:'openJali', label:'Open Jali Designer', primary:true }]
+      };
+    }
+
+    case 'shoe_rack': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/elevations/shoe-rack`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.success ? 'Shoe rack / entry cabinet DXF + PDF generated.' : 'Open the Shoe Rack designer for the entryway.',
+        actions: d?.success ? [] : [{ actionId:'openShoeRack', label:'Open Shoe Rack Designer', primary:true }]
+      };
+    }
+
+    case 'cutlist_refresh': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/cutlist/refresh`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.success ? `Cutlist recalculated — ${d.moduleCount || 0} modules, ${d.partCount || 0} parts.` : 'Open Cutlist & Nesting to build the panel optimization.',
+        actions: d?.success ? [] : [{ actionId:'openCutlist', label:'Open Cutlist & Nesting', primary:true }]
+      };
+    }
+
+    case 'delivery_pack': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/delivery-package`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.success ? 'Client delivery package built (branded ZIP).' : 'Open Presentation Studio to assemble the client handoff package.',
+        actions: d?.success ? [] : [{ actionId:'openPresentation', label:'Open Presentation Studio', primary:true }]
+      };
+    }
+
+    case 'generate_quotation': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/quotation/pdf`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.success ? 'Quotation PDF generated.' : 'Open Materials & BOQ to build the quotation.',
+        actions: d?.success ? [] : [{ actionId:'openMaterials', label:'Open Materials & BOQ', primary:true }]
       };
     }
 

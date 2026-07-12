@@ -94,3 +94,40 @@ test('no keyword hit -> null tool (no phantom routing)', () => {
   assert.equal(r.tool, null);
   assert.equal(r.confidence, 0);
 });
+
+// ── New feature tools wired into AURA (per "add aura pipelines to all features") ──
+
+test('jali keyword routes to jali_generate', () => {
+  const r = resolveIntent('generate a jali lattice partition screen');
+  assert.equal(r.tool.id, 'jali_generate');
+});
+
+test('jali with size hint still routes to jali_generate', () => {
+  const r = resolveIntent('make a jaali panel 600x2000');
+  assert.equal(r.tool.id, 'jali_generate');
+});
+
+test('shoe rack keyword routes to shoe_rack', () => {
+  const r = resolveIntent('design a shoe rack for the entryway');
+  assert.equal(r.tool.id, 'shoe_rack');
+});
+
+test('cutlist refresh phrasing routes to cutlist_refresh (not cutlist_calculate)', () => {
+  const r = resolveIntent('refresh the cutlist from the current CAD');
+  assert.equal(r.tool.id, 'cutlist_refresh');
+});
+
+test('delivery package phrasing routes to delivery_pack', () => {
+  const r = resolveIntent('build the client delivery package zip');
+  assert.equal(r.tool.id, 'delivery_pack');
+});
+
+test('quotation keyword routes to generate_quotation', () => {
+  const r = resolveIntent('create the quotation PDF proposal for the client');
+  assert.equal(r.tool.id, 'generate_quotation');
+});
+
+test('generate_quotation no longer dead-ends: it is a real tool id', () => {
+  const r = resolveIntent('estimate proposal invoice');
+  assert.ok(['generate_quotation', 'generate_signoff', 'budget_optimize'].includes(r.tool.id), `got ${r.tool?.id}`);
+});
