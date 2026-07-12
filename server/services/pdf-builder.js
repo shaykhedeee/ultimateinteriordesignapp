@@ -875,6 +875,95 @@ class PDFBuilder {
       doc.end();
     });
   }
+
+  /**
+   * Build a real "Send Designs" pack: branded cover + every generated render
+   * for the client's project, embedded full-bleed on A4 landscape pages.
+   * @returns {Promise<{path:string, url:string, count:number, renders:Array}>}
+   */
+  async generateDesignPackPDF(leadId, destPath, opts = {}) {
+    // Resolve the client's project via the lead link.
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
+    if (!lead) throw new Error('CLIENT_NOT_FOUND');
+    const project = db.prepare('SELECT * FROM projects WHERE lead_id = ? ORDER BY created_at DESC LIMIT 1').get(leadId);
+    if (!project) throw new Error('NO_PROJECT_FOR_CLIENT');
+
+    // Gather this client's renders (image_url like /storage/assets/x.jpg).
+    const renders = db.prepare(
+      "SELECT * FROM design_renders WHERE project_id = ? ORDER BY created_at DESC"
+    ).all(project.id);
+
+    const absRenders = renders
+      .map(r => {
+        const rel = (r.image_url || '').replace(/^\/storage\//, '');
+        if (!rel) return null;
+        const abs = path.join(storageDir, rel);
+        return fs.existsSync(abs) ? { abs, room: r.room || '', prompt: r.prompt || '' } : null;
+      })
+      .filter(Boolean);
+
+    return new Promise(async (resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, bufferPages: true });
+      const stream = fs.createWriteStream(destPath);
+      stream.on('finish', () => resolve({
+        path: destPath,
+        url: `/storage/uploads/${path.basename(destPath)}`,
+        count: absRenders.length,
+        renders: absRenders.map(r => r.abs)
+      }));
+      stream.on('error', reject);
+      doc.pipe(stream);
+
+      // ── Cover ──
+      doc.rect(0, 0, 842, 160).fill('#020617');
+      doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(30)
+        .text('YOUR INTERIOR DESIGN CONCEPTS', 42, 55);
+      doc.fillColor('#94A3B8').font('Helvetica').fontSize(12)
+        .text('Prepared exclusively for you by GRID OS Studio', 42, 98);
+      doc.moveDown(3);
+      doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(20)
+        .text(`${lead.name || project.client_name}`, 42, 200);
+      doc.fillColor('#475569').font('Helvetica').fontSize(11)
+        .text(`Project: ${project.name || 'Interior Design'}`, 42, 230);
+      if (lead.location) doc.text(`Location: ${lead.location}`, 42, 248);
+      doc.text(`Prepared on: ${new Date().toLocaleDateString('en-IN')}`, 42, 266);
+      doc.moveDown(2);
+      doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(13)
+        .text(absRenders.length ? `${absRenders.length} concept render(s) enclosed →` : 'Concept renders will be added as they are finalised.', 42, 320);
+
+      if (opts?.shareUrl) {
+        try {
+          const qr = await qrDataUrl(opts.shareUrl);
+          if (qr) { doc.image(qr, 700, 180, { width: 110 }); doc.fillColor('#94A3B8').fontSize(8).text('Live link', 700, 300); }
+        } catch (_) {}
+      }
+
+      // ── Render pages (full-bleed landscape) ──
+      absRenders.forEach((r, i) => {
+        doc.addPage({ size: 'A4', layout: 'landscape', margin: 24 });
+        try {
+          const dim = doc.openImage(r.abs);
+          const pageW = 842 - 48, pageH = 595 - 48;
+          const scale = Math.min(pageW / dim.width, pageH / dim.height);
+          const w = dim.width * scale, h = dim.height * scale;
+          doc.image(r.abs, 24 + (pageW - w) / 2, 24 + (pageH - h) / 2, { width: w, height: h });
+        } catch (e) {
+          doc.fillColor('#94A3B8').fontSize(10).text('[render image unavailable]', 300, 280);
+        }
+        doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(11)
+          .text(`Concept ${i + 1}${r.room ? ' — ' + r.room : ''}`, 24, 24);
+      });
+
+      // Footer page numbers
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(8).fillColor('#94A3B8')
+          .text(`Page ${i + 1} of ${range.count} — GRID OS Design Pack`, 24, 575, { align: 'center' });
+      }
+      doc.end();
+    });
+  }
 }
 
 export default new PDFBuilder();

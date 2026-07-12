@@ -684,6 +684,38 @@ app.patch('/api/leads/:id', (req, res) => {
   }
 });
 
+// "Send Designs" — assemble the client's generated render pack (real PDF)
+// and return a downloadable link. The Client Board "Send Designs" button calls this.
+app.post('/api/leads/:id/send-designs', async (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(leadId);
+    if (!lead) return res.status(404).json({ error: 'Client not found' });
+    const project = db.prepare('SELECT * FROM projects WHERE lead_id = ? ORDER BY created_at DESC LIMIT 1').get(leadId);
+    if (!project) return res.status(404).json({ error: 'NO_PROJECT', message: 'This client has no project yet — create one before sending designs.' });
+
+    const ts = Date.now();
+    const fileName = `designs-${leadId}-${ts}.pdf`;
+    const destPath = path.join(storageDir, 'uploads', fileName);
+    const pack = await pdfBuilder.generateDesignPackPDF(leadId, destPath, {});
+
+    // Mark the client's designs as sent in the pipeline.
+    db.prepare('UPDATE leads SET designs_sent = 1, deal_stage = ? WHERE id = ?')
+      .run(lead.deal_stage === 'new' ? 'designs_sent' : lead.deal_stage, leadId);
+
+    res.json({
+      success: true,
+      message: `Design pack built with ${pack.count} render(s).`,
+      downloadUrl: pack.url,
+      count: pack.count
+    });
+  } catch (err) {
+    if (String(err.message).includes('NO_PROJECT')) return res.status(404).json({ error: 'NO_PROJECT', message: 'No project linked to this client.' });
+    if (String(err.message).includes('CLIENT_NOT_FOUND')) return res.status(404).json({ error: 'Client not found' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Trigger voice qualification call (simulate)
 app.post('/api/leads/:id/call', async (req, res) => {
   try {
@@ -789,8 +821,9 @@ app.patch('/api/projects/:id', express.json(), (req, res) => {
     const client_name = (req.body.client_name ?? existing.client_name ?? '').toString().trim();
     const budget = req.body.budget !== undefined ? (req.body.budget === '' || req.body.budget == null ? null : Number(req.body.budget)) : existing.budget;
     const status = (req.body.status ?? existing.status ?? '').toString().trim();
-    db.prepare("UPDATE projects SET name = ?, client_name = ?, budget = ?, status = ? WHERE id = ?")
-      .run(name, client_name, budget, status, req.params.id);
+    const lead_id = req.body.lead_id !== undefined ? (req.body.lead_id || null) : existing.lead_id;
+    db.prepare("UPDATE projects SET name = ?, client_name = ?, budget = ?, status = ?, lead_id = ? WHERE id = ?")
+      .run(name, client_name, budget, status, lead_id, req.params.id);
     res.json({ success: true, project: db.prepare("SELECT * FROM projects WHERE id = ?").get(req.params.id) });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });

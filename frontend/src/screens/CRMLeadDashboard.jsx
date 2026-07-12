@@ -272,6 +272,36 @@ function ClientBoard({ onProjectCreated }) {
     showToast(`📧 Email drafted for ${client.name}.`);
   };
 
+  // Build the real render-pack PDF for this client and download it.
+  const handleSendDesigns = async (client) => {
+    try {
+      showToast('Building design pack…');
+      const res = await fetch(`http://127.0.0.1:5055/api/leads/${client.id}/send-designs`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.error === 'NO_PROJECT') {
+          showToast('No project linked yet — create one first', 'error');
+        } else {
+          showToast(data.message || data.error || 'Could not build pack', 'error');
+        }
+        return;
+      }
+      // Download the generated PDF (the attached designs).
+      const a = document.createElement('a');
+      a.href = `http://127.0.0.1:5055${data.downloadUrl}`;
+      a.download = `${client.name.replace(/\s+/g, '_')}_designs.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Refresh so the "Designs Sent" badge flips on.
+      fetchClients();
+      showToast(`📎 Design pack (${data.count} render(s)) ready & downloaded.`);
+    } catch (err) {
+      console.error('Send designs failed:', err);
+      showToast('Send designs failed', 'error');
+    }
+  };
+
   // ── Derived ──
   const selected = clients.find(c => c.id === selectedId) || null;
   const filtered = useMemo(() => {
@@ -523,7 +553,7 @@ function ClientBoard({ onProjectCreated }) {
                   <TrendingUp className="w-3.5 h-3.5" /> Advance Stage
                 </button>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => openEmail(selected, 'designs')}
+                  <button onClick={() => handleSendDesigns(selected)}
                     className="py-2 rounded-xl font-bold text-[10px] bg-slate-900 border border-blue-600/30 text-blue-300 hover:bg-blue-600/10 transition flex items-center justify-center gap-1.5">
                     <Mail className="w-3.5 h-3.5" /> Send Designs
                   </button>
