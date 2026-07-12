@@ -561,6 +561,150 @@ class PDFBuilder {
   }
 
   /**
+   * Generates a GST-compliant itemized TAX INVOICE PDF from a stored invoice.
+   * Carries supplier (your studio) + bill-to client, line items, CGST/SGST or
+   * IGST split, round-off, total-in-words, bank remittance and signature.
+   *
+   * @param {string} invoiceId
+   * @param {string} destPath
+   * @param {object} [opts]
+   * @param {object} [opts.supplier]  company profile (name, address, gstNo, bankDetails, logo)
+   * @param {object} [opts.invoice]   optional already-built invoice object (skips DB lookup)
+   */
+  async generateInvoicePDF(invoiceId, destPath, opts = {}) {
+    const inv = opts.invoice || db.prepare("SELECT * FROM invoices WHERE id = ?").get(invoiceId);
+    if (!inv) throw new Error("Invoice not found");
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(inv.project_id) || {};
+
+    const supplier = opts.supplier || {
+      name: 'GRID OS Interior Studio',
+      address: 'Sarjapur Road, Bengaluru, Karnataka 560099',
+      gstNo: '',
+      bankDetails: {}
+    };
+    let items = [];
+    try { items = inv.items_json ? JSON.parse(inv.items_json) : []; } catch { items = []; }
+    const isInter = !!inv.is_inter_state;
+    const cgst = Number(inv.cgst) || 0, sgst = Number(inv.sgst) || 0, igst = Number(inv.igst) || 0;
+    const grand = Number(inv.grand_total != null ? inv.grand_total : inv.amount) || 0;
+    const paid = Number(inv.paid_amount) || 0;
+    const balance = Math.max(0, grand - paid);
+    const { amountToWords } = await import('./invoice-math.js');
+
+    return new Promise(async (resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 36, bufferPages: true });
+      const stream = fs.createWriteStream(destPath);
+      stream.on('finish', () => resolve(destPath));
+      stream.on('error', reject);
+      doc.pipe(stream);
+
+      const M = 36;
+      // Header
+      doc.rect(0, 0, 595, 96).fill('#020617');
+      doc.fillColor('#D4AF37').font('Helvetica-Bold').fontSize(20).text(supplier.name || 'GRID OS', M, 22);
+      doc.fillColor('#94A3B8').font('Helvetica').fontSize(8).text(supplier.address || '', M, 50, { width: 360 });
+      doc.fillColor('#CBD5E1').font('Helvetica').fontSize(8).text(`GSTIN: ${supplier.gstNo || '—'}`, M, 74);
+      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(16).text('TAX INVOICE', 400, 30);
+      doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text(`No: ${inv.invoice_number}`, 400, 52);
+      doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text(`Date: ${inv.issue_date || new Date().toISOString().slice(0, 10)}`, 400, 66);
+      if (inv.due_date) doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text(`Due: ${inv.due_date}`, 400, 80);
+
+      // Bill To
+      let y = 116;
+      doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(9).text('BILL TO:', M, y);
+      doc.font('Helvetica').fontSize(9).fillColor('#334155')
+        .text(inv.client_name || project.client_name || 'Client', M, y + 14, { width: 280 })
+        .text(inv.client_address || '', M, y + 28, { width: 280 });
+      if (inv.client_gstin) doc.font('Helvetica').fontSize(8).fillColor('#64748B').text(`Client GSTIN: ${inv.client_gstin}`, M, y + 56);
+      // Place of supply badge
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(isInter ? '#B45309' : '#047857')
+        .text(isInter ? 'INTER-STATE SUPPLY (IGST)' : 'INTRA-STATE SUPPLY (CGST+SGST)', 380, y + 14);
+
+      y = 196;
+      doc.rect(M, y, 523, 1).fill('#CBD5E1');
+      y += 12;
+
+      // Items table header
+      doc.fillColor('#475569').font('Helvetica-Bold').fontSize(8.5)
+        .text('#', M, y).text('Description', M + 24, y).text('HSN', M + 300, y)
+        .text('Qty', M + 350, y).text('Rate', M + 400, y).text('Amount', M + 460, y, { align: 'right', width: 67 });
+      y += 6;
+      doc.rect(M, y, 523, 1).fill('#CBD5E1');
+      y += 12;
+
+      doc.font('Helvetica').fontSize(8.5);
+      items.forEach((it, i) => {
+        const h = 16;
+        doc.fillColor('#0F172A').font('Helvetica-Bold').text(String(i + 1), M, y);
+        doc.font('Helvetica').fillColor('#334155').text(it.description || 'Item', M + 24, y, { width: 272 });
+        doc.fillColor('#475569').text(it.hsn || '9403', M + 300, y);
+        doc.text(String(it.qty != null ? it.qty : 1), M + 350, y);
+        doc.text(`Rs. ${Number(it.rate || 0).toLocaleString()}`, M + 400, y);
+        doc.font('Helvetica-Bold').fillColor('#0F172A').text(`Rs. ${Number(it.amount || 0).toLocaleString()}`, M + 460, y, { align: 'right', width: 67 });
+        y += h;
+        if (y > 680) { doc.addPage(); y = 50; }
+      });
+
+      y += 8;
+      doc.rect(M, y, 523, 1).fill('#E2E8F0');
+      y += 14;
+
+      // Totals
+      const rx = 360, vx = 420;
+      const row = (label, val, bold = false, color = '#0F172A') => {
+        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(bold ? color : '#475569').text(label, rx, y);
+        doc.font('Helvetica-Bold').fillColor(bold ? color : '#0F172A').text(val, vx, y, { align: 'right', width: 139 });
+        y += 18;
+      };
+      row('Subtotal', `Rs. ${(Number(inv.subtotal) || 0).toLocaleString()}`);
+      if (Number(inv.discount) > 0) row('Discount', `-Rs. ${(Number(inv.discount) || 0).toLocaleString()}`);
+      row('Taxable Value', `Rs. ${(Number(inv.taxable) || 0).toLocaleString()}`);
+      if (cgst > 0) row(`CGST @ ${(Number(inv.gst_rate) / 2)}%`, `Rs. ${cgst.toLocaleString()}`);
+      if (sgst > 0) row(`SGST @ ${(Number(inv.gst_rate) / 2)}%`, `Rs. ${sgst.toLocaleString()}`);
+      if (igst > 0) row(`IGST @ ${Number(inv.gst_rate)}%`, `Rs. ${igst.toLocaleString()}`);
+      if (Number(inv.round_off) !== 0) row('Round Off', `${Number(inv.round_off) > 0 ? '+' : '-'}Rs. ${Math.abs(Number(inv.round_off)).toFixed(2)}`);
+      doc.rect(rx, y - 4, 199, 1).fill('#94A3B8');
+      row('GRAND TOTAL', `Rs. ${grand.toLocaleString()}`, true, '#D4AF37');
+      if (paid > 0) row('Amount Paid', `Rs. ${paid.toLocaleString()}`);
+      if (balance > 0) row('BALANCE DUE', `Rs. ${balance.toLocaleString()}`, true, '#B91C1C');
+
+      // Total in words
+      y += 8;
+      doc.font('Helvetica-Oblique').fontSize(8.5).fillColor('#334155')
+        .text(`Amount in words: ${amountToWords(grand)}`, M, y, { width: 523 });
+
+      // Bank details + signature
+      y = Math.max(y + 28, 720);
+      const bank = supplier.bankDetails || {};
+      if (bank.accountName || bank.bankName) {
+        doc.rect(M, y, 523, 1).fill('#E2E8F0');
+        y += 10;
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#0F172A').text('REMITTANCE / BANK DETAILS', M, y);
+        y += 14;
+        doc.font('Helvetica').fontSize(8).fillColor('#475569').text(
+          `${bank.accountName || ''}\n${bank.bankName || ''}  ·  A/c: ${bank.accountNumber || '—'}  ·  IFSC: ${bank.ifscCode || '—'}` + (bank.upiId ? `\nUPI: ${bank.upiId}` : ''),
+          M, y, { width: 320 }
+        );
+      }
+      // signature
+      const sigY = Math.min(y + 40, 770);
+      doc.moveTo(M + 0, sigY).lineTo(M + 180, sigY).stroke('#475569');
+      doc.moveTo(M + 360, sigY).lineTo(M + 540, sigY).stroke('#475569');
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#0F172A')
+        .text('Authorized Signatory', M, sigY + 6)
+        .text('Client Acceptance', M + 360, sigY + 6);
+
+      const range = doc.bufferedPageRange();
+      for (let i = range.start; i < range.start + range.count; i++) {
+        doc.switchToPage(i);
+        doc.fontSize(7.5).fillColor('#94A3B8').text(`Page ${i + 1} of ${range.count} — ${supplier.name || 'GRID OS'} Tax Invoice ${inv.invoice_number}`, M, 800, { align: 'center' });
+      }
+
+      doc.end();
+    });
+  }
+
+  /**
    * Generates a UNIFIED CLIENT PRESENTATION PACK — the single sellable sheet set
    * that closes a deal: branded cover, Vastu compliance highlights, a room-by-room
    * Bill of Quantities (BOQ), and a client acceptance page. Reuses the real

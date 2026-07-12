@@ -31,6 +31,11 @@ _Last updated: 2026-07-12 (session: Smart Project + Laminate Swapper + Render St
 - `POST /api/projects/:id/cnc-gcode` → **200 real G-code (.gcode) + matching DXF**, cutlist, hinge-cup schedule (verified: 10-part double wardrobe → 300-line program, T1–T5 tool table, G81 bores, M30 end)
 - `POST /api/projects/:id/elevations/jali-gcode` → **200 real G-code for carved lotus + circular-lattice jali panel** (25 toolpaths, G2 arc cuts)
 - CNC tab (DrawingsElevationsStudio) now renders cutlist table + sheet/part/hinge summary + **Download DXF / Download G-code** buttons; jali tab has a **Generate G-code** button.
+- `POST /api/projects/:id/invoices` → **200 itemized GST invoice** (line items, CGST/SGST or IGST split, discount, round-off, sequential `INV-YYYY-NNNN` numbers). Verified: 2 items 350k − 10k disc → 340k taxable → CGST+SGST 30,600 each → 401,200 grand.
+- `GET /api/projects/:id/invoices` → returns enriched invoice (items, cgst/sgst/igst, taxable, grandTotal, **balanceDue**, status paid/partial/unpaid).
+- `POST /api/projects/:id/invoices/:invoiceId/pdf` → **200 GST Tax-Invoice PDF** (company header, bill-to, itemized table, CGST/SGST/IGST, total-in-words, bank remittance, signature).
+- Payment allocation: `POST /payments` with `allocations:[{invoiceId,amount}]` accumulates `paid_amount` and recomputes status → balance tracking works (verified 250k paid → partial, balance 151,200).
+- FinanceScreen invoice builder: itemized line rows, client + GSTIN, discount, GST% selector (0/5/12/18/28), intra/inter-state toggle, due date, **live GST totals**, **Fill from Quote** button, Download PDF per invoice.
 
 ## ⚠️ KNOWN QUALITY CAVEATS (not bugs, but "quality results" concerns)
 - **AI image generation now REAL by default (keyless).** Renders/swaps generate actual photoreal JPEGs via Pollinations (Flux) out-of-the-box — NO API key required. Premium providers (OpenAI GPT-Image, Freepik, HF, Gemini Imagen, Stability) still take precedence if their key is set in `.env` (`OPENAI_API_KEY`, etc.) for tier-1 quality. `LIVE_IMAGE_GEN` is no longer required for keyless renders.

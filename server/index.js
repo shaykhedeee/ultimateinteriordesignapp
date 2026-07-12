@@ -20,6 +20,7 @@ import cutlistEngine from './services/cutlist-engine.js';
 import { generateCNCCutPlan } from './services/cnc-cut-generator.js';
 import { generateCNCGCode } from './services/cnc-gcode-generator.js';
 import { generateJaliGCode } from './services/jali-panel.js';
+import { computeInvoice, isInterStateSupply } from './services/invoice-math.js';
 
 import pdfBuilder from './services/pdf-builder.js';
 import { generateInteriorAsset, getProviderStatus } from './services/image-provider.js';
@@ -1439,6 +1440,19 @@ app.post('/api/projects/:id/quotation/pdf', async (req, res) => {
     const fileName = `${req.params.id}-quotation.pdf`;
     const destPath = path.join(storageDir, 'proposals', fileName);
     await pdfBuilder.generateQuotationPDF(req.params.id, destPath, req.body.quotation);
+    res.download(destPath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GST tax-invoice PDF for a specific invoice
+app.post('/api/projects/:id/invoices/:invoiceId/pdf', async (req, res) => {
+  try {
+    const fileName = `${req.params.invoiceId}-tax-invoice.pdf`;
+    const destPath = path.join(storageDir, 'invoices', fileName);
+    fs.mkdirSync(path.join(storageDir, 'invoices'), { recursive: true });
+    await pdfBuilder.generateInvoicePDF(req.params.invoiceId, destPath, { supplier: req.body.supplier });
     res.download(destPath);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3375,29 +3389,95 @@ app.post('/api/estimate-sets/:estimateId/payment-plan', (req, res) => {
 // INVOICES API
 app.get('/api/projects/:id/invoices', (req, res) => {
   const rows = db.prepare("SELECT * FROM invoices WHERE project_id = ?").all(req.params.id);
-  res.json(rows.map(r => ({
-    id: r.id,
-    projectId: r.project_id,
-    invoiceNumber: r.invoice_number,
-    description: r.description,
-    grandTotal: r.amount,
-    balanceDue: r.status === 'paid' ? 0 : r.amount,
-    status: r.status
-  })));
+  res.json(rows.map(r => {
+    const paid = Number(r.paid_amount) || 0;
+    const grand = Number(r.grand_total != null ? r.grand_total : r.amount) || 0;
+    const balanceDue = Math.max(0, grand - paid);
+    const status = balanceDue <= 0 ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
+    let items = [];
+    try { items = r.items_json ? JSON.parse(r.items_json) : []; } catch { items = []; }
+    return {
+      id: r.id,
+      projectId: r.project_id,
+      invoiceNumber: r.invoice_number,
+      description: r.description,
+      items,
+      clientName: r.client_name,
+      clientAddress: r.client_address,
+      clientGstin: r.client_gstin,
+      issueDate: r.issue_date,
+      dueDate: r.due_date,
+      subTotal: Number(r.subtotal) || 0,
+      discount: Number(r.discount) || 0,
+      taxable: Number(r.taxable) || 0,
+      cgst: Number(r.cgst) || 0,
+      sgst: Number(r.sgst) || 0,
+      igst: Number(r.igst) || 0,
+      gstRate: Number(r.gst_rate) || 0,
+      isInterState: !!r.is_inter_state,
+      roundOff: Number(r.round_off) || 0,
+      grandTotal: grand,
+      paidAmount: paid,
+      balanceDue,
+      amount: grand,
+      status
+    };
+  }));
 });
 
 app.post('/api/projects/:id/invoices', (req, res) => {
   const projectId = req.params.id;
-  const { invoiceNumber, description, amount } = req.body;
+  const b = req.body || {};
   const id = 'inv_' + nanoid(6);
-  
+
+  // Sequential, human-friendly invoice number: INV-YYYY-<seq>
+  const year = new Date().getFullYear();
+  const last = db.prepare(
+    "SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY invoice_number DESC LIMIT 1"
+  ).get(`INV-${year}-%`);
+  let seq = 1;
+  if (last) {
+    const m = String(last.invoice_number).match(/INV-\d{4}-(\d+)/);
+    if (m) seq = parseInt(m[1], 10) + 1;
+  }
+  const invoiceNumber = b.invoiceNumber || `INV-${year}-${String(seq).padStart(4, '0')}`;
+
+  // GST computation (single source of truth)
+  const items = Array.isArray(b.items) && b.items.length
+    ? b.items
+    : [{ description: b.description || 'Invoice item', qty: 1, rate: Number(b.amount) || 0, amount: Number(b.amount) || 0 }];
+
+  const supplierGstin = (b.supplier && b.supplier.gstNo) || (b.supplier && b.supplier.gstin) || '';
+  const clientGstin = b.clientGstin || '';
+  const isInterState = b.isInterState != null
+    ? !!b.isInterState
+    : isInterStateSupply(supplierGstin, clientGstin);
+
+  const calc = computeInvoice({
+    items,
+    discount: b.discount || 0,
+    isGstEnabled: b.isGstEnabled !== false,
+    gstRate: b.gstRate || 18,
+    isInterState,
+    paidAmount: 0
+  });
+
   db.prepare(`
-    INSERT INTO invoices (id, project_id, invoice_number, description, amount, status)
-    VALUES (?, ?, ?, ?, ?, 'unpaid')
-  `).run(id, projectId, invoiceNumber || ('INV-' + Date.now().toString().slice(-6)), description || 'Invoice description', amount);
-  
-  logTimelineEvent(projectId, 'invoice.created', `Invoice Created: ${invoiceNumber}`, `Amount: ₹${amount.toLocaleString()}`);
-  res.json({ success: true, id });
+    INSERT INTO invoices (
+      id, project_id, invoice_number, description, amount, status,
+      items_json, client_name, client_address, client_gstin,
+      issue_date, due_date, subtotal, discount, taxable,
+      cgst, sgst, igst, gst_rate, is_inter_state, round_off, grand_total, paid_amount
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, projectId, invoiceNumber, b.description || items[0].description, calc.grandTotal, calc.status,
+    JSON.stringify(calc.items), b.clientName || '', b.clientAddress || '', clientGstin,
+    b.issueDate || new Date().toISOString().slice(0, 10), b.dueDate || '', calc.subTotal, calc.discount, calc.taxable,
+    calc.cgst, calc.sgst, calc.igst, calc.gstRate, calc.isInterState ? 1 : 0, calc.roundOff, calc.grandTotal, 0
+  );
+
+  logTimelineEvent(projectId, 'invoice.created', `Invoice Created: ${invoiceNumber}`, `Amount: Rs.${calc.grandTotal.toLocaleString()}`);
+  res.json({ success: true, id, invoiceNumber, ...calc });
 });
 
 app.post('/api/payment-plans/:planId/invoices', (req, res) => {
@@ -3446,7 +3526,15 @@ app.post('/api/projects/:id/payments', (req, res) => {
   
   if (allocations && allocations.length > 0) {
     allocations.forEach(alloc => {
-      db.prepare("UPDATE invoices SET status = 'paid' WHERE id = ?").run(alloc.invoiceId);
+      const inv = db.prepare("SELECT * FROM invoices WHERE id = ?").get(alloc.invoiceId);
+      if (!inv) return;
+      const currentPaid = Number(inv.paid_amount) || 0;
+      const add = Number(alloc.amount) || Number(amount) || 0;
+      const newPaid = currentPaid + add;
+      const grand = Number(inv.grand_total != null ? inv.grand_total : inv.amount) || 0;
+      const balance = Math.max(0, grand - newPaid);
+      const newStatus = balance <= 0 ? 'paid' : (newPaid > 0 ? 'partial' : 'unpaid');
+      db.prepare("UPDATE invoices SET paid_amount = ?, status = ? WHERE id = ?").run(newPaid, newStatus, alloc.invoiceId);
     });
   }
 
