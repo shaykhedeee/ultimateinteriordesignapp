@@ -164,8 +164,8 @@ function runGlobalMultiSheetMaxRectsPass(sortedParts, material, usableWidth, usa
 
         // Correct woodgrain bounds matching:
         if (part.grain === "vertical") {
-          if (part.rawHeight <= rect.w && part.rawWidth <= rect.h) {
-            orientations.push({ w: part.rawHeight, h: part.rawWidth, rotated: false });
+          if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
+            orientations.push({ w: part.rawWidth, h: part.rawHeight, rotated: false });
           }
         } else if (part.grain === "horizontal") {
           if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
@@ -315,8 +315,8 @@ function attemptMaxRectsPlacementOnSingleSheet(sheet, part, kerf) {
   const orientations = [];
 
   if (part.grain === "vertical") {
-    if (part.rawHeight <= rect.w && part.rawWidth <= rect.h) {
-      orientations.push({ w: part.rawHeight, h: part.rawWidth, rotated: false });
+    if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
+      orientations.push({ w: part.rawWidth, h: part.rawHeight, rotated: false });
     }
   } else if (part.grain === "horizontal") {
     if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
@@ -427,8 +427,8 @@ function runGlobalMultiSheetGuillotinePass(sortedParts, material, usableWidth, u
         const orientations = [];
 
         if (part.grain === "vertical") {
-          if (part.rawHeight <= rect.w && part.rawWidth <= rect.h) {
-            orientations.push({ w: part.rawHeight, h: part.rawWidth, rotated: false });
+          if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
+            orientations.push({ w: part.rawWidth, h: part.rawHeight, rotated: false });
           }
         } else if (part.grain === "horizontal") {
           if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
@@ -564,8 +564,8 @@ function attemptGuillotinePlacementOnSingleSheet(sheet, part, kerf) {
   const orientations = [];
 
   if (part.grain === "vertical") {
-    if (part.rawHeight <= rect.w && part.rawWidth <= rect.h) {
-      orientations.push({ w: part.rawHeight, h: part.rawWidth, rotated: false });
+    if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
+      orientations.push({ w: part.rawWidth, h: part.rawHeight, rotated: false });
     }
   } else if (part.grain === "horizontal") {
     if (part.rawWidth <= rect.w && part.rawHeight <= rect.h) {
