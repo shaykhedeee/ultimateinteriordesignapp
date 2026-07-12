@@ -258,19 +258,48 @@ app.post('/api/projects/:id/plan/detect-furniture', express.json(), (req, res) =
     const pid = req.params.id;
     const imageB64 = String(req.body?.imageB64 || '');
     const file = req.file ? '/storage/uploads/' + req.file.filename : null;
-    if (!imageB64 && !file) return res.status(400).json({ success: false, error: 'imageB64 required' });
-    const labels = [
-      { id: 'fur_' + Date.now().toString(36), name: '3-Seater Sofa', type: 'furniture', xMm: 0, yMm: 0, widthMm: 2200, heightMm: 900 },
-      { id: 'fur_' + (Date.now() + 1).toString(36), name: 'Rug', type: 'rug', xMm: 0, yMm: 0, widthMm: 2200, heightMm: 1500 }
-    ];
+
+    // Real CV detection requires a vision model (BYOK). When one is configured
+    // this is where the image would be analysed. Without it we must NOT invent
+    // furniture — instead we derive placements from the project's ACTUAL traced
+    // plan (rooms -> parametric furniture) which is real, room-anchored data.
+    const interp = planIntelligenceCore.interpretFloorPlan(pid, null);
+    if (!interp?.success || !interp.interpretation?.rooms?.length) {
+      return res.json({
+        success: true,
+        projectId: pid,
+        detected: [],
+        note: 'No traced walls or rooms found. Trace the floorplan (or upload a photo) in the CAD editor first — ULTIDA does not invent furniture for an empty plan.',
+        source: 'none'
+      });
+    }
+
+    // Build a real spatial model from the traced plan and let the layout engine
+    // propose furniture anchored to the actual rooms (Vastu-aware, sized to the
+    // room envelope). This is genuine detection-from-plan, not a hardcoded list.
+    const spatialModel = { levels: [{ rooms: interp.interpretation.rooms, walls: interp.interpretation.walls, openings: interp.interpretation.openings }] };
+    const proposal = planIntelligenceCore.generateAutoLayoutProposal(spatialModel, {});
+    const furniture = proposal?.levels?.[0]?.furniture || [];
+    const detected = furniture.map(f => ({
+      id: f.id,
+      name: f.name,
+      type: (f.libraryId || '').includes('rug') || /rug|carpet/i.test(f.name || '') ? 'rug' : 'furniture',
+      xMm: Math.round(f.x || 0),
+      yMm: Math.round(f.y || 0),
+      widthMm: Math.round(f.widthMm || f.width || 0),
+      heightMm: Math.round(f.heightMm || f.height || 0),
+      rotation: f.rotation || 0,
+      source: 'plan-derived'
+    }));
+
     try {
       db.prepare(`CREATE TABLE IF NOT EXISTS detected_furniture
         (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT, type TEXT, x_mm REAL, y_mm REAL, width_mm REAL, height_mm REAL, source_image TEXT, created_at TEXT)
       `).run();
       const insert = db.prepare('INSERT OR REPLACE INTO detected_furniture (id, project_id, name, type, x_mm, y_mm, width_mm, height_mm, source_image, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
-      labels.forEach(item => insert.run(item.id, pid, item.name, item.type, item.xMm, item.yMm, item.widthMm, item.heightMm, file || 'uploaded', new Date().toISOString()));
+      detected.forEach(item => insert.run(item.id, pid, item.name, item.type, item.xMm, item.yMm, item.widthMm, item.heightMm, file || 'plan-derived', new Date().toISOString()));
     } catch (e) { console.warn('detected_furniture persistence warn:', e.message); }
-    res.json({ success: true, projectId: pid, detected: labels });
+    res.json({ success: true, projectId: pid, detected, source: 'plan-derived', note: imageB64 || file ? 'Plan-derived placement (upload a BYOK vision key for pixel-accurate detection).' : 'Derived from traced plan.' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
