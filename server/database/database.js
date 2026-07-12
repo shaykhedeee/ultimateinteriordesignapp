@@ -427,6 +427,8 @@ try { db.exec("ALTER TABLE projects ADD COLUMN stale_drawings INTEGER DEFAULT 0;
 try { db.exec("ALTER TABLE projects ADD COLUMN stale_pricing INTEGER DEFAULT 0;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN active_floor_plan_version_id TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN active_spatial_model_version_id TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE cad_drawings ADD COLUMN plan_text TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE cad_drawings ADD COLUMN north_angle REAL DEFAULT 0;"); } catch (e) {}
 
 // Seed default material catalog if empty
 try {

@@ -40,7 +40,7 @@ import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
 import { buildShoeRackDXF, buildShoeRackPDF, shoeRackModel } from './services/shoe-rack.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import skpReader from './services/skp-reader.js';
-import { previewVastu, applyVastu, analyzeVastuPlan, suggestVastuLayout, applyVastuFull } from './services/vastu-auto.js';
+import { previewVastu, applyVastu, analyzeVastuPlan, suggestVastuLayout, applyVastuFull, interpretVastuText } from './services/vastu-auto.js';
 import { applyKitchenTemplate } from './services/kitchen-templates.js';
 import { getTvUnitLibrary, applyTvUnit } from './services/tv-unit-library.js';
 import { traceDxf } from './services/dxf-trace.js';
@@ -2592,6 +2592,21 @@ app.get('/api/projects/:id/vastu/suggest', (req, res) => {
     const s = suggestVastuLayout(req.params.id);
     if (!s.ok) return res.status(404).json({ error: s.reason });
     res.json(s);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Auto-Vastu: read the plan's text ("west entrance", room labels) -> orientation ---
+app.post('/api/projects/:id/vastu/interpret-text', express.json(), (req, res) => {
+  try {
+    const planText = (req.body && req.body.planText) || '';
+    const r = interpretVastuText(req.params.id, { planText });
+    if (!r.ok) return res.status(404).json({ error: r.reason });
+    // Persist the orientation so the analysis + apply steps reuse it.
+    db.prepare('UPDATE cad_drawings SET plan_text = ?, north_angle = ? WHERE project_id = ?')
+      .run(planText, r.northAngle || 0, req.params.id);
+    res.json({ ok: true, ...r, persisted: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

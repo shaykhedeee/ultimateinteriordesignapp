@@ -1,20 +1,25 @@
 import db from '../database/database.js';
 
 /**
- * Auto-Vastu engine.
+ * Auto-Vastu engine — full knowledge base + floor-plan scanner.
  *
- * Two layers:
- *   1. LEGACY (kept for backward-compat tests): add Pooja if absent, move beds
- *      out of forbidden zones. Exposed as previewVastu / applyVastu.
- *   2. FULL engine (this task): scans the floor-plan GEOMETRY, derives the 9
- *      Vastu zones from the plan bounding box, classifies EVERY furniture item,
- *      computes its actual zone, judges compliance against a full furniture
- *      matrix, and proposes a precise target coordinate for each misplaced item.
- *      Exposed as analyzeVastuPlan / suggestVastuLayout / applyVastuFull.
+ * Layers:
+ *   - LEGACY (back-compat): previewVastu / applyVastu (pooja + bed).
+ *   - FULL: analyzeVastuPlan / suggestVastuLayout / applyVastuFull.
+ *   - TEXT: interpretVastuText / parsePlanText — reads textual cues ON or ABOUT
+ *           the floor plan ("west entrance", "north kitchen", room labels) to
+ *           infer the plot orientation and per-room Vastu zones, then realigns
+ *           the geometric scan accordingly.
  *
- * North is assumed "up" (min-y = North). If a CAD row carries northAngle (deg,
- * clockwise from up) it is applied as a rotation before zoning.
+ * Orientation model:
+ *   - Geometry gives a bounding box. By default North = up (min-y).
+ *   - Entrance direction (derived from door labels / text) rotates the compass
+ *     so the analysis matches the REAL cardinal orientation of the plot.
+ *   - northAngle (deg, clockwise from "up") is applied before zoning.
  */
+
+const ZONES = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'C'];
+const DIR_ORDER = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 const VASTU = {
   poojaZone: 'NE',
@@ -183,7 +188,7 @@ function classify(item) {
     ['stove', /stove|burner|chulha|hob|gas\s*stove/],
     ['kitchen', /kitchen|modular/],
     ['dining', /dining|canteen/],
-    ['sofa', /sofa|lounge|cou[çc]h|seating|settee/],
+    ['sofa', /sofa|lounge|couch|settee/],
     ['tv_unit', /\btv\b|television|led\s*panel/],
     ['study_desk', /study|desk|office|workstation/],
     ['wardrobe', /wardrobe|almirah|cupboard/],
@@ -209,6 +214,135 @@ function loadCad(projectId) {
 
 function hasPooja(furniture) {
   return furniture.some(f => (f.type || '').toLowerCase().includes('pooja') || (f.libraryId || '').toLowerCase().includes('pooja') || (f.name || '').toLowerCase().includes('mandir'));
+}
+
+// ─── TEXT UNDERSTANDING: read the floor plan's words ─────────────────────────
+/**
+ * Parse directional cues written ON or ABOUT the plan: room labels, door
+ * labels/positions, and a free-text `planText` (e.g. "west entrance, north
+ * kitchen, SE toilet"). Returns:
+ *   - entrance: 'N'|'NE'|...|null   (main door direction)
+ *   - roomHints: { roomId/name -> zone }  (textually implied zone)
+ *   - plotNorth: zone at the TOP of the page if text overrides geometry
+ *   - tokens: recognized list for transparency
+ */
+export function parsePlanText({ rooms = [], openings = [], planText = '' } = {}) {
+  const text = ` ${planText || ''} `.toLowerCase();
+  const find = (re) => { const m = text.match(re); return m ? m[1] : null; };
+  const dirFromWord = (w) => {
+    if (!w) return null;
+    const s = (' ' + ('' + w).toLowerCase().trim() + ' ');
+    // Space-bounded so "west" never matches the key "southwest", and "se" matches the abbreviation.
+    const DIR_WORDS = [
+      ['north', 'N'], ['north-east', 'NE'], ['north east', 'NE'], ['northeast', 'NE'],
+      ['east', 'E'], ['south-east', 'SE'], ['south east', 'SE'], ['southeast', 'SE'],
+      ['south', 'S'], ['south-west', 'SW'], ['south west', 'SW'], ['southwest', 'SW'],
+      ['west', 'W'], ['north-west', 'NW'], ['north west', 'NW'], ['northwest', 'NW'],
+      ['ne', 'NE'], ['se', 'SE'], ['sw', 'SW'], ['nw', 'NW'], ['n', 'N'], ['e', 'E'], ['s', 'S'], ['w', 'W'],
+    ];
+    for (const [kw, z] of DIR_WORDS) {
+      if (s === ' ' + kw + ' ' || s.includes(' ' + kw + ' ')) return z;
+    }
+    return null;
+  };
+
+  // 1) Explicit entrance direction: "west entrance", "main door north", "entry east"
+  let entrance = find(/(?:main\s+)?(?:entrance|entry|door|main door)\s+(?:is\s+)?(?:in\s+)?(?:the\s+)?(north|north-?east|east|south-?east|south|south-?west|west|north-?west)/)
+    || find(/(north|north-?east|east|south-?east|south|south-?west|west|north-?west)\s+(?:facing\s+)?(?:entrance|entry|main door|main entrance)/);
+
+  // 2) Door labels in openings metadata (type/label/side)
+  for (const o of openings) {
+    const lbl = `${o.label || ''} ${o.name || ''} ${o.type || ''} ${o.side || ''}`.toLowerCase();
+    if (/(main|entrance|entry)/.test(lbl)) {
+      // Explicit direction field wins; never read "east" out of the word "entrance".
+      const d = o.direction ? dirFromWord(o.direction) : dirFromWord(lbl.replace(/\b(entrance|entry|main)\b/g, ''));
+      if (d && !entrance) entrance = d;
+    }
+  }
+
+  // 3) Per-room zone hints from room names ("north kitchen", "SE bedroom")
+  const roomHints = {};
+  for (const r of rooms) {
+    const name = `${r.name || ''} ${r.type || ''}`.toLowerCase();
+    const d = dirFromWord(name);
+    if (d) roomHints[r.id || r.name] = d;
+  }
+
+  // 4) Free-text "zone room" pairs: e.g. "north kitchen", "se toilet", "sw master bedroom"
+  const pairs = [...text.matchAll(/(north|north-?east|east|south-?east|south|south-?west|west|north-?west|ne|se|sw|nw|n|e|s|w)\s+([a-z ]+?)(?=\s*,|\s+and|\.|$)/g)];
+  for (const m of pairs) {
+    const dir = dirFromWord(m[1]);
+    const noun = m[2].trim().replace(/\s+/g, ' ');
+    if (dir && noun.length > 1) {
+      const rc = rooms.find(r => `${r.name || ''} ${r.type || ''}`.toLowerCase().includes(noun.split(' ')[0]));
+      if (rc) roomHints[rc.id || rc.name] = dir;
+    }
+  }
+
+  // 5) Plot orientation override: "north is up / top", "plot faces east"
+  let plotNorthTop = true;
+  if (/north\s+is\s+(?:at\s+)?(?:the\s+)?bottom|north\s+(?:points|faces)\s+south|rotate.*north.*down/.test(text)) plotNorthTop = false;
+
+  return {
+    entrance: dirFromWord(entrance),
+    roomHints,
+    plotNorthTop,
+    tokens: { rooms: rooms.length, openings: openings.length, text: planText ? planText.slice(0, 200) : '' },
+  };
+}
+
+/**
+ * Combine geometry + text understanding into an ORIENTATION decision.
+ * Decides northAngle (rotation so the compass matches reality) and an
+ * entranceZone, then re-derives room zones from text hints where available.
+ */
+export function interpretVastuText(projectId, opts = {}) {
+  const cad = loadCad(projectId);
+  if (!cad) return { ok: false, reason: 'NO_CAD' };
+  const rooms = JSON.parse(cad.rooms_json || '[]');
+  const openings = JSON.parse(cad.openings_json || '[]');
+  const planText = opts.planText || cad.plan_text || '';
+
+  const parsed = parsePlanText({ rooms, openings, planText });
+
+  // Geometry-derived baseline northAngle.
+  let northAngle = Number(cad.north_angle || cad.northAngle || 0) || 0;
+  if (!parsed.plotNorthTop) northAngle += 180; // text says north is at the bottom
+
+  // If an entrance direction is stated, align that direction to the page's
+  // main-entrance edge. We rotate so the stated entrance sits at the
+  // geometrically-detected main door edge (bottom-center by default).
+  let entranceZone = null;
+  if (parsed.entrance) {
+    entranceZone = parsed.entrance;
+    // Find the geometrically-detected main entrance edge from door positions.
+    const mainDoor = openings.find(o => /(main|entrance|entry)/i.test(`${o.label || ''} ${o.type || ''}`)) || openings[0];
+    const bounds = planBounds(rooms, [], JSON.parse(cad.walls_json || '[]'));
+    if (bounds) {
+      let edge = 'S';
+      if (mainDoor && mainDoor.x != null) {
+        edge = zoneOfPoint(mainDoor.x, mainDoor.y ?? bounds.maxY, bounds, northAngle);
+      } else if (openings.length) {
+        const ds = openings.map(o => ({ o, z: o.x != null ? zoneOfPoint(o.x, o.y ?? bounds.maxY, bounds, northAngle) : 'S' }));
+        const counts = {};
+        ds.forEach(d => counts[d.z] = (counts[d.z] || 0) + 1);
+        edge = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+      }
+      // Rotate so the detected entrance edge lines up with the stated direction.
+      const dirIndex = DIR_ORDER.indexOf(entranceZone);
+      const edgeIndex = DIR_ORDER.indexOf(edge);
+      if (dirIndex >= 0 && edgeIndex >= 0) northAngle = (northAngle + (edgeIndex - dirIndex) * 45) % 360;
+    }
+  }
+
+  return {
+    ok: true,
+    northAngle,
+    entranceZone,
+    roomHints: parsed.roomHints,
+    plotNorthTop: parsed.plotNorthTop,
+    parsed,
+  };
 }
 
 // ─── LEGACY API (unchanged behaviour — preserves existing tests) ─────────────
@@ -278,21 +412,39 @@ export function applyVastu(projectId) {
 
 /**
  * Scan the floor plan and report the Vastu compliance of EVERY furniture item,
- * with a precise target coordinate for each misplaced item.
+ * with a precise target coordinate for each misplaced item. Now also folds in
+ * text-derived orientation (entrance direction + per-room zone hints) and
+ * exposes compass data for illustration.
  */
-export function analyzeVastuPlan(projectId) {
+export function analyzeVastuPlan(projectId, opts = {}) {
   const cad = loadCad(projectId);
   if (!cad) return { ok: false, reason: 'NO_CAD' };
   const furniture = JSON.parse(cad.furniture_json || '[]');
   const rooms = JSON.parse(cad.rooms_json || '[]');
   const walls = JSON.parse(cad.walls_json || '[]');
-  const northAngle = Number(cad.north_angle || cad.northAngle || 0) || 0;
+  const openings = JSON.parse(cad.openings_json || '[]');
+
+  // Orientation: explicit northAngle, else text interpretation.
+  let northAngle = Number(cad.north_angle || cad.northAngle || 0) || 0;
+  let orientation = null;
+  if (opts.useText !== false) {
+    const interp = interpretVastuText(projectId, { planText: opts.planText || cad.plan_text || '' });
+    if (interp.ok) {
+      orientation = { northAngle: interp.northAngle, entranceZone: interp.entranceZone, roomHints: interp.roomHints, plotNorthTop: interp.plotNorthTop };
+      northAngle = interp.northAngle;
+    }
+  }
 
   const bounds = planBounds(rooms, furniture, walls);
 
   const roomReports = rooms.map(r => {
-    const z = zoneOfRoom(r, bounds, northAngle);
-    return { id: r.id, name: r.name || r.type || 'Room', zone: z, centroid: roomCentroid(r) };
+    const geomZone = zoneOfRoom(r, bounds, northAngle);
+    const textZone = orientation?.roomHints?.[r.id || r.name];
+    return {
+      id: r.id, name: r.name || r.type || 'Room',
+      zone: textZone || geomZone, geomZone, textZone: textZone || null,
+      centroid: roomCentroid(r),
+    };
   });
 
   const items = [];
@@ -306,10 +458,9 @@ export function analyzeVastuPlan(projectId) {
     const declaredZone = f.vastuZone || f.zone;
     let zone = declaredZone;
     if (!zone || !rule.allowed.includes(zone)) {
-      // Scan the actual geometry to find where it really sits.
       const room = roomForPoint(f.x, f.y, rooms);
       if (f.x != null && bounds) zone = zoneOfPoint(f.x, f.y, bounds, northAngle);
-      else if (room) zone = zoneOfRoom(room, bounds, northAngle);
+      else if (room) zone = orientation?.roomHints?.[room.id || room.name] || zoneOfRoom(room, bounds, northAngle);
       else zone = declaredZone || '?';
     }
     const compliant = rule.allowed.includes(zone);
@@ -317,7 +468,7 @@ export function analyzeVastuPlan(projectId) {
     let suggestion = null;
     if (!compliant) {
       const targetRoom = roomForPoint(f.x, f.y, rooms)
-        || rooms.find(r => rule.allowed.includes(zoneOfRoom(r, bounds, northAngle)))
+        || rooms.find(r => rule.allowed.includes(orientation?.roomHints?.[r.id || r.name] || zoneOfRoom(r, bounds, northAngle)))
         || rooms[0];
       const target = roomCornerToward(targetRoom, rule.ideal[0], bounds);
       suggestion = {
@@ -332,7 +483,6 @@ export function analyzeVastuPlan(projectId) {
     items.push({ id: f.id, name: f.name || f.type, type: key, label: rule.label, zone, ideal: rule.ideal, status, suggestion });
   }
 
-  // Missing key items (presence-based, not zone-based — legacy-safe).
   const missingKeyItems = [];
   const poojaItems = furniture.filter(isPooja);
   const nePooja = poojaItems.find(f => {
@@ -342,7 +492,7 @@ export function analyzeVastuPlan(projectId) {
     return false;
   });
   if (!nePooja) {
-    const neRoom = rooms.find(r => zoneOfRoom(r, bounds, northAngle) === 'NE');
+    const neRoom = rooms.find(r => (orientation?.roomHints?.[r.id || r.name] || zoneOfRoom(r, bounds, northAngle)) === 'NE');
     const tgt = neRoom ? roomCornerToward(neRoom, 'NE', bounds) : zoneCentroid('NE', bounds);
     missingKeyItems.push({ key: 'pooja', zone: 'NE', target: tgt, summary: 'No Pooja mandir in North-East (NE). NE is Eshanya — add one there.' });
   }
@@ -357,6 +507,7 @@ export function analyzeVastuPlan(projectId) {
   return {
     ok: true,
     northAngle,
+    orientation,
     bounds,
     roomReports,
     items,
@@ -366,14 +517,11 @@ export function analyzeVastuPlan(projectId) {
   };
 }
 
-/**
- * Ideal blueprint — for each room, what Vastu says should be placed there.
- */
 export function suggestVastuLayout(projectId) {
   const cad = loadCad(projectId);
   if (!cad) return { ok: false, reason: 'NO_CAD' };
   const rooms = JSON.parse(cad.rooms_json || '[]');
-  const northAngle = Number(cad.northAngle || cad.northAngle || 0) || 0;
+  const northAngle = Number(cad.north_angle || cad.northAngle || 0) || 0;
   const bounds = planBounds(rooms, [], JSON.parse(cad.walls_json || '[]'));
 
   const perRoom = rooms.map(r => {
@@ -435,4 +583,18 @@ export function applyVastuFull(projectId) {
   return { ok: true, applied, analysis: { counts: analysis.counts, needsApply: analysis.needsApply } };
 }
 
-export default { previewVastu, applyVastu, analyzeVastuPlan, suggestVastuLayout, applyVastuFull, VASTU, VASTU_FURNITURE_RULES };
+export { ZONES, DIR_ORDER };
+
+// Illustration metadata for the front-end compass (9 zones + governing meaning).
+export const VastuCompassData = ZONES.map(z => ({
+  zone: z,
+  label: { N: 'North', NE: 'North-East', E: 'East', SE: 'South-East', S: 'South', SW: 'South-West', W: 'West', NW: 'North-West', C: 'Center' }[z],
+  color: { N: '#60A5FA', NE: '#34D399', E: '#A3E635', SE: '#F97316', S: '#EF4444', SW: '#C9A84C', W: '#818CF8', NW: '#22D3EE', C: '#94A3B8' }[z],
+  governs: {
+    N: 'Wealth · Career · Water', NE: 'Pooja · Clarity · Eshanya', E: 'Health · Social · Solar',
+    SE: 'Fire · Kitchen · Agni', S: 'Fame · Rest · Yama', SW: 'Stability · Master bed · Nairutya',
+    W: 'Gains · Storage', NW: 'Guests · Air · Vayu', C: 'Brahmasthan · Open & light',
+  }[z],
+}));
+
+export default { previewVastu, applyVastu, analyzeVastuPlan, suggestVastuLayout, applyVastuFull, VASTU, VASTU_FURNITURE_RULES, parsePlanText, interpretVastuText };
