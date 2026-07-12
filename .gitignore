@@ -74,5 +74,10 @@ output/
 # ── Analysis scratch ────────────────────────────────────────
 _analysis/
 
+# ── Playwright E2E report/trace artifacts ──────────────────
+tests/e2e/tests/
+tests/e2e/report/
+test-results/
+
 # debug artifacts
 ds*.json

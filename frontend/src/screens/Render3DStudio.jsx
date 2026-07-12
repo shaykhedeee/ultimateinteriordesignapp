@@ -67,7 +67,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        const res = await fetch('http://127.0.0.1:8787/api/material-catalog');
+        const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
         if (res.ok) {
           const data = await res.json();
           setCatalogLaminates(data.filter(item => item.category === 'laminate'));
@@ -141,7 +141,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
           category: 'laminate'
         }
       ];
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ laminates: updatedLaminates, hardware: [], notes: 'Walkthrough per-cabinet finish update' })
@@ -495,7 +495,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         { type: 'shutter_facade', name, code, color }
       ];
 
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -621,7 +621,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setActiveColor(colorName);
     setIsGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/change-color`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/change-color`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -710,7 +710,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const fetchProviderStatus = async () => {
     try {
       // Use the enhanced diagnostics endpoint
-      const res = await fetch('http://127.0.0.1:8787/api/diagnostics/api-keys');
+      const res = await fetch('http://127.0.0.1:5055/api/diagnostics/api-keys');
       const data = await res.json();
       setProviderStatus(data);
       // Set the active provider to match server config
@@ -724,7 +724,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchProviderHealth = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8787/api/diagnostics/api-health');
+      const res = await fetch('http://127.0.0.1:5055/api/diagnostics/api-health');
       const data = await res.json();
       setProviderHealth(data);
     } catch (err) {
@@ -735,7 +735,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   // Start SSE progress stream for render pipeline
   const startRenderProgressSSE = (pid) => {
     if (sseRef.current) sseRef.current.close();
-    const es = new EventSource(`http://127.0.0.1:8787/api/projects/${pid}/renders/progress`);
+    const es = new EventSource(`http://127.0.0.1:5055/api/projects/${pid}/renders/progress`);
     es.onmessage = (e) => {
       try {
         const { percentage, message } = JSON.parse(e.data);
@@ -769,7 +769,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadProjectData = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
       const data = await res.json();
       setProject(data);
       if (data.client_brief_json) {
@@ -790,7 +790,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     try {
       const yes = await window.__auraConfirm?.confirm('Regenerate Renders', 'Regenerating all renders may consume API credits. Continue?');
       if (!yes) return;
-      await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/jobs`, {
+      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -810,11 +810,11 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCADAndMaterials = async () => {
     try {
-      const resCAD = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cad`);
+      const resCAD = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
       const drawing = await resCAD.json();
       setCadDrawing(drawing);
 
-      const resMat = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`);
+      const resMat = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`);
       const materials = await resMat.json();
       setSelectedLaminates(JSON.parse(materials.laminates_json || '[]'));
 
@@ -826,7 +826,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`);
       const data = await res.json();
       setRendersList(data);
       if (data.length > 0) {
@@ -839,7 +839,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCorrections = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
       const data = await res.json();
       setCorrectionsList(data.items || []);
     } catch (err) {
@@ -885,7 +885,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         if (val?.file) formData.append(key, val.file);
       });
 
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/generate`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/generate`, {
         method: 'POST',
         body: formData
       });
@@ -928,7 +928,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const downloadSelectedRender = async () => {
     if (!selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/${selectedRender.id}/download`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/download`);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
@@ -951,7 +951,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     if (!selectedRender || !revisionRequest.trim()) return;
     setIsGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/edit`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -977,7 +977,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleReview = async (status) => {
     if (!selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, note: reviewNote })
@@ -996,7 +996,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleLogCorrection = async () => {
     if (!mistakeDescription.trim() || !mistakeCorrection.trim() || !selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/mistake`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1020,7 +1020,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchCatalogMaterials = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8787/api/material-catalog');
+      const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
       if (res.ok) {
         const data = await res.json();
         setCatalogMaterials(data);
@@ -1036,7 +1036,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     try {
       // Fetch render image from server and convert to blob
       const imgUrl = selectedRender.image_url?.startsWith('/storage')
-        ? `http://127.0.0.1:8787${selectedRender.image_url}`
+        ? `http://127.0.0.1:5055${selectedRender.image_url}`
         : selectedRender.image_url;
 
       const imgRes = await fetch(imgUrl);
@@ -1046,7 +1046,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('renderImage', imgBlob, 'render.png');
       formData.append('room', selectedRender.room || targetRoom);
 
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/analyse-components`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/analyse-components`, {
         method: 'POST',
         body: formData
       });
@@ -1103,7 +1103,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       // 1. Fetch render image blob
       setSwapperStepMessage('Downloading active render image...');
       const renderImgUrl = srcRender.image_url.startsWith('/storage')
-        ? `http://127.0.0.1:8787${srcRender.image_url}`
+        ? `http://127.0.0.1:5055${srcRender.image_url}`
         : srcRender.image_url;
       const renderImgRes = await fetch(renderImgUrl);
       const renderImgBlob = await renderImgRes.blob();
@@ -1135,7 +1135,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       // 3. Post to laminate-swap API
       setSwapperStepMessage('Running visual editor pipeline. Recolor, lighting & shadow matching in progress...');
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders/laminate-swap`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/laminate-swap`, {
         method: 'POST',
         body: formData
       });
@@ -1245,7 +1245,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const approveRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/renders`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -1772,7 +1772,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-slate-800 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-slate-400">Before</span>
                           <img 
-                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
+                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
                             alt="Original Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1780,7 +1780,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-[var(--gold)]/50 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-[var(--gold)]">After (Swapped)</span>
                           <img 
-                            src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : selectedRender.image_url} 
+                            src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
                             alt="Swapped Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1788,7 +1788,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       </div>
                     ) : (
                       <img 
-                        src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : selectedRender.image_url} 
+                        src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
                         alt="Design View"
                         className="w-full h-full object-cover"
                       />
@@ -1913,7 +1913,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                             >
                               <div className="w-full h-10 rounded border border-slate-800 bg-slate-900 overflow-hidden relative">
                                 {mat.swatch_url ? (
-                                  <img src={`http://127.0.0.1:8787${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
+                                  <img src={`http://127.0.0.1:5055${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
                                 ) : (
                                   <div className="w-full h-full" style={{ backgroundColor: mat.color || '#A0A0A0' }} />
                                 )}
@@ -1959,7 +1959,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 {selectedRender ? (
                   <>
                     <img 
-                      src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : (selectedRender.image_url || '')} 
+                      src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : (selectedRender.image_url || '')} 
                       alt="Bespoke Design Render"
                       className="w-full h-full object-contain"
                     />
@@ -1969,7 +1969,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       </button>
                       <button onClick={() => {
                         const a = document.createElement('a');
-                        a.href = selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : selectedRender.image_url;
+                        a.href = selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url;
                         a.download = `ultida-render-${Date.now()}.png`;
                         a.target = '_blank';
                         a.click();
@@ -2105,7 +2105,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                                   >
                                     <div className="w-full h-8 rounded border border-slate-800 bg-slate-900 overflow-hidden">
                                       {mat.swatch_url ? (
-                                        <img src={`http://127.0.0.1:8787${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
+                                        <img src={`http://127.0.0.1:5055${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
                                       ) : (
                                         <div className="w-full h-full" style={{ backgroundColor: mat.color || '#A0A0A0' }} />
                                       )}
@@ -2238,7 +2238,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 }`}
               >
                 <img 
-                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${ren.image_url}` : (ren.image_url || '')} 
+                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${ren.image_url}` : (ren.image_url || '')} 
                   alt="Variant swatch"
                   className="w-full h-full object-cover"
                 />

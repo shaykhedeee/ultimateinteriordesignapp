@@ -132,6 +132,8 @@ export async function refineRenderPromptWithGemini({ prompt, room, style, budget
   return { prompt, provider: 'deterministic-compiler', refined: false };
 }
 
+import { getCompanyBrainContext } from './aura-agents.js';
+
 /**
  * chatWithAura — real conversational LLM call for the AURA co-pilot.
  * Priority chain: OpenRouter → Gemini → OpenAI GPT-4o-mini → null (rule engine)
@@ -139,15 +141,20 @@ export async function refineRenderPromptWithGemini({ prompt, room, style, budget
  */
 export async function chatWithAura({ message, history = [], tools = [] }) {
   const toolList = tools.map(t => `- ${t.id}: ${t.label} (triggers action "${t.action}")`).join('\n');
+  const companyKnowledge = getCompanyBrainContext();
   const system = [
-    'You are AURA, an AI design co-pilot for an Indian interior-design studio (ULTIDA).',
-    'You help with elevations, 3D renders, floorplan detection, cutlists, budget optimization,',
-    'Vastu checks, and client handoff. Be concise, professional, and use Indian residential context.',
+    'You are AURA, a Multi-Agent AI design orchestrator for ULTIDA.',
+    'You manage 8 specialized agents: Layout Analyst, 3D Director, Materials Expert, Product Engineer, Finance Controller, Technical Drafter, Client Manager, and Style Curator.',
+    'Based on the user prompt, adopt the persona of the best-suited agent to fulfill the request.',
+    companyKnowledge,
+    'If the user tells you to "remember" a preference, standard, or rule, end your reply with:',
+    'LEARN:<The rule to remember in a concise sentence>',
     'If the user clearly wants a specific action executed, end your reply with a single line:',
     'ACTION:<toolId> where toolId is one of:',
     toolList,
-    'Otherwise just answer conversationally. Do not invent dimensions or claim actions you did not take.'
-  ].join('\n');
+    'Otherwise just answer conversationally as the specialized agent. Do not claim actions you did not take.'
+  ].filter(Boolean).join('\n');
+  
   const messages = [
     { role: 'system', content: system },
     ...history.slice(-10).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text })),
@@ -276,8 +283,16 @@ async function callOpenAiGptChat(messages) {
 }
 
 function parseAuraReply(content, model) {
-  const actionMatch = content.match(/ACTION:([a-z_]+)\s*$/i);
-  const text = actionMatch ? content.replace(/ACTION:[a-z_]+\s*$/i, '').trim() : content;
+  const actionMatch = content.match(/ACTION:([a-z_]+)/i);
+  const learnMatch = content.match(/LEARN:(.+)/i);
+  
+  let text = content;
+  if (actionMatch) text = text.replace(actionMatch[0], '');
+  if (learnMatch) text = text.replace(learnMatch[0], '');
+  text = text.trim();
+
   const toolId = actionMatch ? actionMatch[1].toLowerCase() : null;
-  return { text: text || content, toolId, model };
+  const learnedRule = learnMatch ? learnMatch[1].trim() : null;
+  
+  return { text: text || content, toolId, learnedRule, model };
 }

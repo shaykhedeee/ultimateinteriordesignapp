@@ -369,6 +369,20 @@ export async function handleChatMessage(message, projectId = null) {
     remember(projectId, 'user', message);
     remember(projectId, 'aura', text);
   }
+  
+  if (llm?.learnedRule) {
+    try {
+      db.prepare(`INSERT INTO company_brain_kb (id, category, learned_rule, source) VALUES (?, ?, ?, ?)`).run(
+        'kb-' + Date.now().toString(36),
+        'general',
+        llm.learnedRule,
+        'aura_chat'
+      );
+      text = text + `\n\n(Learned company rule: "${llm.learnedRule}")`;
+    } catch(e) {
+      console.warn("Failed to learn rule", e.message);
+    }
+  }
 
   return {
     success: true,

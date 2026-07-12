@@ -76,10 +76,10 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
     setLoading(true);
     try {
       const [pRes, lRes, hRes, mRes] = await Promise.all([
-        fetch('http://127.0.0.1:8787/api/projects').then(r => r.ok ? r.json() : []),
-        fetch('http://127.0.0.1:8787/api/leads').then(r => r.ok ? r.json() : []),
-        fetch('http://127.0.0.1:8787/api/diagnostics/api-health').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('http://127.0.0.1:8787/api/material-catalog').then(r => r.ok ? r.json() : [])
+        fetch('http://127.0.0.1:5055/api/projects').then(r => r.ok ? r.json() : []),
+        fetch('http://127.0.0.1:5055/api/leads').then(r => r.ok ? r.json() : []),
+        fetch('http://127.0.0.1:5055/api/diagnostics/api-health').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('http://127.0.0.1:5055/api/material-catalog').then(r => r.ok ? r.json() : [])
       ]);
 
       const loadedProjects = Array.isArray(pRes) ? pRes : (Array.isArray(pRes?.projects) ? pRes.projects : []);
@@ -96,10 +96,10 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       const topProjects = loadedProjects.slice(0, 8);
       const [readResults, quotResults] = await Promise.all([
         Promise.all(topProjects.map(p =>
-          fetch(`http://127.0.0.1:8787/api/projects/${p.id}/readiness`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
+          fetch(`http://127.0.0.1:5055/api/projects/${p.id}/readiness`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
         )),
         Promise.all(topProjects.map(p =>
-          fetch(`http://127.0.0.1:8787/api/projects/${p.id}/quotation`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
+          fetch(`http://127.0.0.1:5055/api/projects/${p.id}/quotation`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
         ))
       ]);
       setReadinessMap(Object.fromEntries(readResults));
@@ -354,7 +354,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                     onClick={async () => {
                       if (!newProj.name.trim()) { __toast?.show('Project name is required'); return; }
                       try {
-                        const res = await fetch('http://127.0.0.1:8787/api/projects', {
+                        const res = await fetch('http://127.0.0.1:5055/api/projects', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ name: newProj.name.trim(), client_name: newProj.client_name.trim(), budget: newProj.budget ? Number(newProj.budget) : '' })
                         });
@@ -410,7 +410,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!window.confirm(`Delete project "${p.name}" and all its data? This cannot be undone.`)) return;
-                            fetch(`http://127.0.0.1:8787/api/projects/${p.id}`, { method: 'DELETE' })
+                            fetch(`http://127.0.0.1:5055/api/projects/${p.id}`, { method: 'DELETE' })
                               .then(r => r.json())
                               .then(d => {
                                 if (d.success) {
@@ -491,6 +491,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
   const [selectedAction, setSelectedAction] = useState(null); // next action click state
   const [actionProgress, setActionProgress] = useState(false);
   const [smartRenderImg, setSmartRenderImg] = useState(null); // generated render url
+  const [smartRenderId, setSmartRenderId] = useState(null); // generated render record id
   const [smartRenderBusy, setSmartRenderBusy] = useState(false);
   const [smartRenderFullscreen, setSmartRenderFullscreen] = useState(false);
 
@@ -499,7 +500,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     const pid = selectedProjectId || 'proj_demo';
     setSmartRenderBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${pid}/renders/generate`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${pid}/renders/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -513,7 +514,8 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       if (data.success && data.variants && data.variants.length) {
         const v = data.variants[0];
         const u = v.url || v.filePath || '';
-        setSmartRenderImg(u.startsWith('http') ? u : `http://127.0.0.1:8787${u}`);
+        setSmartRenderImg(u.startsWith('http') ? u : `http://127.0.0.1:5055${u}`);
+        setSmartRenderId(v.id || null);
       } else {
         throw new Error(data.error || 'Render failed');
       }
@@ -551,10 +553,10 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
         try {
           const fd = new FormData();
           fd.append('floorplan', file);
-          const res = await fetch(`http://127.0.0.1:8787/api/projects/${pid}/floorplan`, { method: 'POST', body: fd });
+          const res = await fetch(`http://127.0.0.1:5055/api/projects/${pid}/floorplan`, { method: 'POST', body: fd });
           const data = await res.json();
           if (data?.success && data.floorplanUrl) {
-            setUploadedImageUrl(`http://127.0.0.1:8787${data.floorplanUrl}`);
+            setUploadedImageUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
             __toast?.success('Floor plan uploaded & linked to project.');
           }
         } catch (err) {
@@ -568,7 +570,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
   const ensureProject = async (name) => {
     const safeName = (name || 'Untitled Smart Project').toString().trim() || 'Untitled Smart Project';
     try {
-      const res = await fetch('http://127.0.0.1:8787/api/projects', {
+      const res = await fetch('http://127.0.0.1:5055/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: safeName })
@@ -608,31 +610,79 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     }
   };
 
-  const handleRunNextAction = (actionKey) => {
+  const handleRunNextAction = async (actionKey) => {
     setSelectedAction(actionKey);
     setActionProgress(true);
-    
-    setTimeout(() => {
+    const pid = selectedProjectId || 'proj_demo';
+    const BASE = 'http://127.0.0.1:5055';
+    const finish = (msg, tab) => {
       setActionProgress(false);
-      if (actionKey === 'RCP') {
-        __toast?.success("RCP Planner activated.");
-        onNavigateToTab('drawings');
-      } else if (actionKey === 'Elevation') {
-        __toast?.success("2D Elevation Drafter initialized.");
-        onNavigateToTab('drawings');
-      } else if (actionKey === 'BOM') {
-        __toast?.success("BOM takeoff compiled.");
-        onNavigateToTab('finance');
-      } else if (actionKey === 'Layout Plan') {
-
-        onNavigateToTab('cad');
-      } else if (actionKey === 'Video') {
-        __toast?.success("Walkthrough path serialized.");
-        onNavigateToTab('renders');
-      } else {
-        __toast?.success(`Executed ${actionKey}`);
+      if (msg) __toast?.success(msg);
+      if (tab) onNavigateToTab(tab);
+    };
+    try {
+      switch (actionKey) {
+        case 'Region Edit': {
+          // Real region-restyle via the render edit endpoint.
+          if (!smartRenderId) { finish('Generate a render first, then Region Edit becomes active.'); break; }
+          const res = await fetch(`${BASE}/api/projects/${pid}/renders/edit`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assetId: smartRenderId, revisionRequest: 'Refine the selected region, keep the overall composition and materials.' })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.imageUrl) setSmartRenderImg(data.imageUrl.startsWith('http') ? data.imageUrl : `${BASE}${data.imageUrl}`);
+          finish(res.ok ? 'Region re-styled via AI edit.' : (data.error || 'Region edit unavailable.'));
+          break;
+        }
+        case 'Upscale': {
+          const res = await fetch(`${BASE}/api/projects/${pid}/renders/upscale`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ renderId: smartRenderId })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.render?.url) setSmartRenderImg(data.render.url.startsWith('http') ? data.render.url : `${BASE}${data.render.url}`);
+          finish(res.ok ? 'Render upscaled to 4K.' : (data.error || 'Upscale failed.'));
+          break;
+        }
+        case 'Video': {
+          const res = await fetch(`${BASE}/api/projects/${pid}/renders/walkthrough`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room: 'living' })
+          });
+          const data = await res.json().catch(() => ({}));
+          finish(res.ok ? `Walkthrough compiled (${data.count || 0} angles) — view in Render Studio.` : (data.error || 'Walkthrough failed.'), 'renders');
+          break;
+        }
+        case 'Camera Angles': {
+          const res = await fetch(`${BASE}/api/projects/${pid}/renders/generate`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ room: 'living', style: 'indian-contemporary', variantCount: 3, modelTier: 'standard' })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.variants?.[0]) { const v = data.variants[0]; const u = v.url || v.filePath || ''; if (u) setSmartRenderImg(u.startsWith('http') ? u : `${BASE}${u}`); }
+          finish(res.ok ? 'Camera angle set generated.' : 'Camera generation failed.');
+          break;
+        }
+        case 'Download': {
+          if (smartRenderImg) {
+            const a = document.createElement('a');
+            a.href = smartRenderImg; a.download = `smart_render_${Date.now()}.png`;
+            document.body.appendChild(a); a.click(); a.remove();
+          }
+          finish(smartRenderImg ? 'Image download started.' : 'No render to download yet.');
+          break;
+        }
+        case 'Lineage': finish(null, 'renders'); break;
+        case 'Layout Plan': finish(null, 'cad'); break;
+        case 'Elevation': finish('Opening 2D elevation drafter.', 'drawings'); break;
+        case 'RCP': finish('Opening RCP planner.', 'drawings'); break;
+        case 'BOM': finish('Opening BOM takeoff.', 'finance'); break;
+        default: finish(`Executed ${actionKey}`);
       }
-    }, 1200);
+    } catch (err) {
+      setActionProgress(false);
+      __toast?.error(`${actionKey} failed: ${err.message}`);
+    }
   };
 
   return (
@@ -978,7 +1028,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             </div>
             <button 
               onClick={() => {
-                fetch(`http://127.0.0.1:8787/api/projects/${project?.id}/cad`, {
+                fetch(`http://127.0.0.1:5055/api/projects/${project?.id}/cad`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -1301,7 +1351,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
     
     setGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/renders/generate`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/renders/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1317,7 +1367,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
         if (data.success && data.variants && data.variants.length > 0) {
           const v = data.variants[0];
           const imgUrl = v.url || v.filePath || '';
-          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:8787${imgUrl}`;
+          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:5055${imgUrl}`;
           setGeneratedResult(fullImgUrl);
           __toast?.success("Concept variant generated and saved to project renders!");
         } else {
@@ -1473,7 +1523,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
       fd.append('room', 'living');
       fd.append('imageB64', 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
       
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/photo-edit`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/photo-edit`, {
         method: 'POST',
         body: fd
       });
@@ -1481,7 +1531,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
         const data = await res.json();
         if (data.success) {
           const imgUrl = data.imageUrl || '';
-          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:8787${imgUrl}`;
+          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:5055${imgUrl}`;
           setResult(fullImgUrl);
           __toast?.success("Photo patch generated and saved as reference!");
         } else {
@@ -1712,7 +1762,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
     const pixelsPerMeter = 100;
 
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/cad`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1901,7 +1951,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
     }
 
     try {
-      const cadRes = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/cad`);
+      const cadRes = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`);
       if (!cadRes.ok) throw new Error("Could not fetch project CAD drawing");
       const cadData = await cadRes.json();
 
@@ -1928,7 +1978,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
 
       furniture.push(newCabinet);
 
-      const saveRes = await fetch(`http://127.0.0.1:8787/api/projects/${project.id}/cad`, {
+      const saveRes = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2586,7 +2636,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     setLiveRunning(true);
     try {
       let res;
-      const url = `http://127.0.0.1:8787${route.p(project.id)}`;
+      const url = `http://127.0.0.1:5055${route.p(project.id)}`;
       if (route.multipart) {
         const fd = new FormData();
         res = await fetch(url, { method: route.m, body: fd });
@@ -3117,9 +3167,9 @@ function SettingsWorkspace() {
   const [brand, setBrand] = React.useState({
     studioName: '', tagline: '', designerName: '', phone: '', email: '', logoColor:'#C9A84C'
   });
-  const API = 'http://127.0.0.1:8787/api/settings/api-keys';
-  const APP_API = 'http://127.0.0.1:8787/api/settings/app-settings';
-  const MODELS_API = 'http://127.0.0.1:8787/api/settings/provider-models';
+  const API = 'http://127.0.0.1:5055/api/settings/api-keys';
+  const APP_API = 'http://127.0.0.1:5055/api/settings/app-settings';
+  const MODELS_API = 'http://127.0.0.1:5055/api/settings/provider-models';
 
   const [geminiModels, setGeminiModels] = React.useState([]);
   const [openaiModels, setOpenaiModels] = React.useState([]);

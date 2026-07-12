@@ -170,12 +170,12 @@ export default function FinanceScreen({ projectId }) {
     setIsLoading(true);
     try {
       const [resProj, resInvoices, resPayments, resVariations, resPOs, resQuotation] = await Promise.all([
-        fetch(`http://127.0.0.1:8787/api/projects/${projectId}`),
-        fetch(`http://127.0.0.1:8787/api/projects/${projectId}/invoices`),
-        fetch(`http://127.0.0.1:8787/api/projects/${projectId}/payments`),
-        fetch(`http://127.0.0.1:8787/api/projects/${projectId}/variation-orders`),
-        fetch(`http://127.0.0.1:8787/api/projects/${projectId}/purchase-orders`),
-        fetch(`http://127.0.0.1:8787/api/projects/${projectId}/quotation`)
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}`),
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices`),
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payments`),
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/variation-orders`),
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/purchase-orders`),
+        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation`)
       ]);
 
       const proj = await resProj.json();
@@ -276,7 +276,7 @@ export default function FinanceScreen({ projectId }) {
   // Save Quotation to API
   const handleSaveQuotation = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/quotation`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -297,7 +297,7 @@ export default function FinanceScreen({ projectId }) {
       });
 
       // Synchronize back-end estimates sets
-      await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/estimate-sets`, {
+      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/estimate-sets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -327,7 +327,7 @@ export default function FinanceScreen({ projectId }) {
   // Export PDF
   const handleDownloadPDF = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/quotation/pdf`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -378,7 +378,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreateInvoice = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/invoices`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -413,7 +413,7 @@ export default function FinanceScreen({ projectId }) {
   // Download a GST tax-invoice PDF for a given invoice id
   const handleDownloadInvoicePDF = async (invoiceId) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/invoices/${invoiceId}/pdf`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices/${invoiceId}/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ supplier: { name: profile.name, address: profile.address, gstNo: profile.gstNo, bankDetails: profile.bankDetails } })
@@ -434,7 +434,7 @@ export default function FinanceScreen({ projectId }) {
     e.preventDefault();
     try {
       const allocations = selectedInvoiceId ? [{ invoiceId: selectedInvoiceId, amount: parseFloat(paymentAmount) || 0 }] : [];
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/payments`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -455,7 +455,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreateVariation = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/variation-orders`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/variation-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -475,7 +475,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreatePO = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/purchase-orders`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/purchase-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

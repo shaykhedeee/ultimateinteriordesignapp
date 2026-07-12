@@ -30,7 +30,7 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
 
   const loadSavedCutlist = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cutlist`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`);
       const data = await res.json();
       const safe = data && typeof data === 'object' ? data : {};
       const loadedParts = JSON.parse(safe.cutlist_data_json || '[]');
@@ -65,7 +65,7 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
   const runNestingOptimization = async () => {
     setIsCalculating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cutlist/calculate`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -86,7 +86,7 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
 
   const downloadExcelWorkbook = () => {
     // Simulated Download or call backend
-    window.open(`http://127.0.0.1:8787/api/projects/${projectId}/signoff/pdf`, '_blank');
+    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/signoff/pdf`, '_blank');
   };
 
   // Render optimized panel maps nested inside 8x4 sheet boundaries

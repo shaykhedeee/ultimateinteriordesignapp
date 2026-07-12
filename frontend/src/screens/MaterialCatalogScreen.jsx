@@ -72,7 +72,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchProjectDetails = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setStalePricing(data.stale_pricing === 1);
@@ -84,7 +84,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchCatalog = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8787/api/material-catalog');
+      const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
       if (res.ok) {
         const data = await res.json();
         const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
@@ -98,7 +98,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchQuotation = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/quotation`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation`);
       const data = await res.json();
       if (data && data.quotation_json) {
         const q = safeParse(data?.quotation_json, {});
@@ -113,7 +113,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const saveQuotation = async () => {
     try {
-      await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/quotation`, {
+      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,7 +131,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       });
       
       // Auto log timeline event
-      await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/estimate-sets`, {
+      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/estimate-sets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -187,7 +187,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const exportQuotationPDF = async () => {
     await saveQuotation();
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/quotation/pdf`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -217,7 +217,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchSelections = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`);
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`);
       const data = await res.json();
       setSelectedLaminates(JSON.parse(data.laminates_json || '[]'));
       setSelectedHardware(JSON.parse(data.hardware_json || '[]'));
@@ -244,7 +244,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const handleAddLaminateSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://127.0.0.1:8787/api/material-catalog', {
+      const res = await fetch('http://127.0.0.1:5055/api/material-catalog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -272,7 +272,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const handleAddHwSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://127.0.0.1:8787/api/material-catalog', {
+      const res = await fetch('http://127.0.0.1:5055/api/material-catalog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -302,7 +302,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
     const ok = await window.__auraConfirm?.confirm?.('Delete Material', 'Deactivate this material item?') || Promise.resolve(false);
     if (ok) {
       try {
-        await fetch(`http://127.0.0.1:8787/api/material-catalog/${id}`, {
+        await fetch(`http://127.0.0.1:5055/api/material-catalog/${id}`, {
           method: 'DELETE'
         });
         fetchCatalog();
@@ -314,7 +314,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const handleRegeneratePricing = async () => {
     try {
-      await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/jobs`, {
+      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'pricing_generation' })
@@ -329,7 +329,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const saveMaterials = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/materials`, {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ laminates: selectedLaminates, hardware: selectedHardware, notes })

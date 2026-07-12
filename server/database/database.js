@@ -42,7 +42,7 @@ db.exec(`
     phone TEXT,
     budget REAL,
     unit_system TEXT DEFAULT 'metric',
-    status TEXT DEFAULT 'closed', -- 'closed', 'brief_complete', 'cad_approved', 'renders_approved', 'signed_off', 'production'
+    status TEXT DEFAULT 'brief', -- lifecycle: 'brief' -> 'cad_approved' -> 'renders_approved' -> 'signed_off' -> 'production' (terminal 'closed' only when archived)
     current_step TEXT DEFAULT 'brief',
     advance_paid_amount REAL DEFAULT 0,
     total_cost REAL DEFAULT 0,
@@ -734,6 +734,16 @@ try {
     last_used_at TIMESTAMP
   );`).run();
 } catch (e) { console.warn("api_keys schema warn:", e.message); }
+
+try {
+  db.prepare(`CREATE TABLE IF NOT EXISTS company_brain_kb (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    learned_rule TEXT NOT NULL,
+    source TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );`).run();
+} catch (e) { console.warn("company_brain_kb schema warn:", e.message); }
 
 import dbClient from './db-client.js';
 export default dbClient;

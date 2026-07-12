@@ -909,7 +909,99 @@ To make it category-defining, do this:
 1. make the **scene graph** the source of truth
 2. make the **standards docs** executable rules
 3. make the **3D editor** real, not fake
-4. make **elevations and cutlists** come from the same model
+5. make **elevations and cutlists** come from the same model
 5. make AI a **copilot**, not the only engine
 
 That is the path to the ultimate interior designer app.
+
+---
+
+# MASTER ARCHITECTURE OF RECORD (authoritative — keep in sync with code)
+
+> This section is the **single source of truth** for the shipped product. The
+> strategy sections above describe *what to build*; this section records *what is
+> actually built and how it is wired*, so future work never drifts from the
+> launch-state contract. Update it whenever a pipeline, route, or data contract changes.
+
+## A. Reality Check vs Blueprint (where we landed)
+
+| Blueprint assumption | Implemented reality |
+|---|---|
+| Next.js / React / TS | **Vite + React 18 + JSX (no TS)**, ESM. Single SPA, no URL router — screens switch via `activeTab` state in `frontend/src/App.jsx` |
+| NestJS backend | **Express** monolith `server/index.js` (~4000 lines), better-sqlite3 |
+| Python CV service | In-repo Node services (no separate Python service in main app) |
+| PostgreSQL at scale | **SQLite** (better-sqlite3) via `dbClient` wrapper that also supports Postgres |
+| Blender headless render | **AI image generation** (Pollinations keyless + provider fallback) producing photoreal renders; deterministic geometry stays in the scene/cutlist layer |
+| BullMQ/Temporal jobs | In-process job rows in `jobs` table + SSE progress |
+
+**Decision: this is intentional.** For a local-first studio OS the Vite SPA + Express + SQLite stack ships and runs with zero external infra. The blueprint's *architecture principles* (scene-graph-as-truth, standards-as-rules, elevations+cutlist from one model) are honored in the data layer even though the renderer is AI-image-based.
+
+## B. Canonical Data Model (shipped tables)
+
+- `projects` — client, budget, `client_brief_json` (selectedSpaces, budgetTier, lifestyle…), status, current_step.
+- `cad_data` — `walls_json`, `furniture_json`, `floor_plan_json`, `annotations_json` (the **measured truth** for elevations).
+- `photo_elevations` — `model_json` (cabinets with measured `widthMm/heightMm/depthMm/xOffsetMm/zOffsetMm`), `dims_json`, `wall_json`, `confidence`.
+- `cutlist_projects` / `cutlist_modules` / `cutlist_parts` — generated BOM (parts carry `elevationSource` trace).
+- `design_renders` — AI render records per project.
+- `invoices` / `invoice_items` / `payments` — GST billing.
+- `jobs` — async job queue + progress.
+
+## C. Cutlist Precision Pipeline (the hardened core)
+
+Source of truth for cut dimensions = **measured 2D wall elevations**, NOT room templates.
+
+1. `getElevationCabinets(projectId)` reads `cad_data.walls_json.cabinets` + `photo_elevations.model_json.cabinets`.
+2. Each cabinet → `buildElevationModules()` → a cutlist module with **measured** `widthMm/heightMm/depthMm`, typed (base/wall/tall/wardrobe/tv-unit…) by `classifyCabinetToModuleType`.
+3. `mergeElevationModules()` lets elevation modules **override** template defaults for the same room+type.
+4. `precisionPartsForModule()` derives every part from the measured W/H/D; `part()` dims are precision-clamped (≥10 mm, integer).
+5. Every generated part stores `elevationSource` (source wall/photo, measured dims, confidence) for traceability.
+
+Verified: a 1847×871×560 mm measured base → side panel 871×560, bottom 1811 (=1847−2×18); no 3000 mm template leaks.
+
+## D. API Contract (stable endpoints)
+
+| Method + path | Purpose |
+|---|---|
+| `POST /api/projects` | create project (201) |
+| `GET /api/projects/:id` | full project (incl. `cad_data`, `client_brief_json`) |
+| `GET /api/projects/:id/renders` | list AI renders |
+| `POST /api/projects/:id/renders/generate` | spawn render job (SSE progress) |
+| `POST /api/projects/:id/elevations/from-renders` | DXF+PDF elevations from 3D unit library |
+| `GET /api/projects/:id/cutlist` | current cutlist (modules + parts) |
+| `POST /api/projects/:id/cutlist/refresh` | **rebuild cutlist from elevations + templates** |
+| `POST /api/projects/:id/cutlist/calculate` | nesting/optimization |
+| `POST /api/projects/:id/invoices` | itemized GST invoice |
+| `POST /api/projects/:id/invoices/:id/pdf` | tax-invoice PDF |
+| `POST /payments` (`allocations:[{invoiceId,amount}]`) | payment + balance tracking |
+
+Server serves the built `dist` SPA on the same port (**default 5055**), so E2E hits one origin.
+
+## E. Automated QA (no manual regression testing)
+
+Two layers, both run in CI / pre-commit:
+
+1. **Unit + integration** — `npm test` → `node --test tests/*.test.js` (≈376 pass). Covers cutlist math, CNC G-code, invoice GST, elevation accuracy.
+2. **End-to-end (real browser)** — `npm run test:e2e` → Playwright against the built app + live server. Specs in `tests/e2e/`:
+   - `magic-planner.spec.mjs` — dashboard → Client Intake (brief) → Plan Intelligence (CAD) flow.
+   - `render-studio.spec.mjs` — 3D Render Studio mounts; "Generate Renders" creates a render record.
+   - `elevations.spec.mjs` — Drawings & Elevations mounts with generation controls; Cutlist "Calculate/Refresh" rebuilds the cutlist.
+   - Nav buttons carry `data-testid="nav-<tab>"` for stable selectors.
+   - `playwright.config.mjs` builds + boots the server (`webServer`) so regressions in routing/state are caught automatically.
+
+## F. Launch Checklist (definition of "done")
+
+- [x] Every nav tab renders without throwing (E2E guards this).
+- [x] Cutlist derives from measured elevations (precision pipeline + tests).
+- [x] Invoice GST math + PDF + payment balance (unit tests).
+- [x] CNC emits real G-code (unit tests).
+- [x] E2E suite green on a clean build.
+- [ ] Manual polish pass on premium gold-on-black consistency (ongoing).
+- [ ] Smart Project action-grid buttons (Region Edit / Upscale / Video) wired past toast stubs (known gap).
+
+## G. Golden Rules (do not violate without updating this file)
+
+1. Geometry/cutlist truth lives in the DB (elevations, modules, parts) — never only in a rendered image.
+2. `dbClient` exposes `.prepare()` but **not** `.transaction()` — use `runInTransaction()` (raw better-sqlite3 handle) for atomic writes.
+3. The SPA has no URL router; add `data-testid="nav-<tab>"` to any new nav control so E2E stays stable.
+4. Port default is **5055**; never hardcode `8787` in new code (legacy string remains in a few fetch URLs — migrate on touch).
+5. Keep the E2E suite green after every feature change.

@@ -6,7 +6,7 @@ import {
   Building2, FileText, Layers, Scissors, Award
 } from 'lucide-react';
 
-const API = 'http://127.0.0.1:8787';
+const API = 'http://127.0.0.1:5055';
 
 /* Stage funnel order (matches backend readiness weights) */
 const FUNNEL = [

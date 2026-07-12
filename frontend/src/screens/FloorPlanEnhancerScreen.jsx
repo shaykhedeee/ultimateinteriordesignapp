@@ -108,11 +108,11 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
     if (!projectId) return;
     setBusy(true); setError(null);
     try {
-      const r = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/floorplan/analyze-enhance`, { method: 'POST' });
+      const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/analyze-enhance`, { method: 'POST' });
       const d = await r.json();
       if (!d.success) { setError(d.message || d.error); setData(null); }
       else setData(d);
-    } catch (e) { setError('Could not reach enhancement service. Is the server running on :8787?'); }
+    } catch (e) { setError('Could not reach enhancement service. Is the server running on :5055?'); }
     setBusy(false);
   }, [projectId]);
 
@@ -122,7 +122,7 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
     if (!sug.target) return;
     setApplying(sug.id);
     try {
-      const r = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/floorplan/apply-enhancement`, {
+      const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/apply-enhancement`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: sug.target })
       });
       const d = await r.json();

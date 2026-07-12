@@ -182,6 +182,10 @@ app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// In-memory cache of the last provider health check, so /render/providers and
+// /pipeline/providers can report REAL active state instead of guessing by key length.
+const providerHealthCache = { updatedAt: 0, results: {} };
+
 // Decode the user's shared 3D renders into accurate, dimensioned 2D
 // elevation DXF+PDF (wardrobe/kitchen/pooja/tv-unit/entry/vanity).
 app.post('/api/projects/:id/elevations/from-renders', express.json(), async (req, res) => {
@@ -219,7 +223,17 @@ function activeImageProviders() {
     { id: 'imagineart',  name: 'Imagine.Art Visualizer',     envKey: 'IMAGINEART_API_KEY' },
     { id: 'pollinations',name: 'Pollinations (free fallback)',envKey: null },
   ];
-  return list.map(p => ({ ...p, active: p.envKey ? has(p.envKey) : (process.env.POLLINATIONS_ENABLED !== 'false') }));
+  const health = providerHealthCache.results || {};
+  return list.map(p => {
+    const configured = p.envKey ? has(p.envKey) : (process.env.POLLINATIONS_ENABLED !== 'false');
+    // A keyed provider is only "active" if it is configured AND a health check
+    // has confirmed validity (or no health check has run yet, so fall back to configured).
+    let active = configured;
+    if (p.envKey && health[p.id] && health[p.id].status) {
+      active = health[p.id].status === 'pass';
+    }
+    return { ...p, configured, active };
+  });
 }
 app.get('/api/pipeline/providers', (req, res) => {
   const providers = activeImageProviders();
@@ -580,6 +594,9 @@ app.get('/api/diagnostics/api-health', async (req, res) => {
   } else { results.pollinations = { status: 'disabled' }; }
 
   const passCount = Object.values(results).filter(r => r.status === 'pass').length;
+  // Persist for /render/providers and /pipeline/providers accuracy.
+  providerHealthCache.results = results;
+  providerHealthCache.updatedAt = Date.now();
   res.json({ tested: Object.keys(results).length, passing: passCount, results });
 });
 
@@ -710,10 +727,12 @@ app.post('/api/projects', express.json(), (req, res) => {
     if (!name) return res.status(400).json({ error: 'name is required' });
     const projectId = 'proj_' + nanoid(10);
     const defaultBrief = { rooms: [], style: '', budgetTier: '', notes: '' };
-    db.prepare(`INSERT INTO projects (id, lead_id, name, client_name, email, phone, budget, client_brief_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    // New projects start at the intake stage, not the terminal 'closed' state.
+    const initialStatus = 'brief';
+    db.prepare(`INSERT INTO projects (id, lead_id, name, client_name, email, phone, budget, status, current_step, client_brief_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(projectId, null, name, b.client_name || '', b.email || '', b.phone || '', b.budget || '',
-           JSON.stringify(defaultBrief), new Date().toISOString());
+           initialStatus, 'brief', JSON.stringify(defaultBrief), new Date().toISOString());
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     res.status(201).json(project);
   } catch (err) {
@@ -1834,6 +1853,62 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Smart Project real actions: Upscale + Walkthrough (no toast stubs) ──
+app.post('/api/projects/:id/renders/upscale', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const sourceId = req.body.renderId || null;
+    const renderRow = sourceId
+      ? db.prepare('SELECT * FROM design_renders WHERE id = ? AND project_id = ?').get(sourceId, projectId)
+      : db.prepare('SELECT * FROM design_renders WHERE project_id = ? ORDER BY rowid DESC LIMIT 1').get(projectId);
+    if (!renderRow) return res.status(404).json({ error: 'No render to upscale. Generate a render first.' });
+    const params = {
+      room: renderRow.room || 'living',
+      style: 'indian-contemporary',
+      variantCount: 1,
+      modelTier: 'high',
+      upscale: true,
+      customInstruction: 'ultra high resolution, 4k, sharp detail, professional interior photography, no artifacts'
+    };
+    const result = await visualizerEngine.generateFastRenderVariants(projectId, params);
+    if (result.variants && result.variants.length) {
+      const v = result.variants[0];
+      const id = v.id || ('render_' + nanoid(10));
+      db.prepare(`INSERT OR REPLACE INTO design_renders (id, project_id, image_url, room, prompt, review_status) VALUES (?,?,?,?,?,'unreviewed')`)
+        .run(id, projectId, v.filePath || v.url || '', v.room || params.room, v.prompt || 'upscaled');
+      return res.json({ success: true, render: { id, url: v.filePath || v.url }, variants: result.variants });
+    }
+    return res.status(502).json({ error: 'Upscale provider returned no variants' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/projects/:id/renders/walkthrough', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const angles = ['front elevation', 'three-quarter hero', 'corner detail', 'back wall'];
+    const frames = [];
+    for (const a of angles) {
+      const params = {
+        room: req.body.room || 'living',
+        style: 'indian-contemporary',
+        variantCount: 1,
+        modelTier: 'standard',
+        customInstruction: `cinematic interior walkthrough frame — ${a}, consistent materials and lighting`
+      };
+      const r = await visualizerEngine.generateFastRenderVariants(projectId, params);
+      if (r.variants && r.variants[0]) {
+        const v = r.variants[0];
+        const id = v.id || ('walk_' + nanoid(10));
+        db.prepare(`INSERT OR REPLACE INTO design_renders (id, project_id, image_url, room, prompt, review_status) VALUES (?,?,?,?,?,'unreviewed')`)
+          .run(id, projectId, v.filePath || v.url || '', v.room || params.room, v.prompt || a);
+        frames.push({ id, url: v.filePath || v.url, angle: a });
+      }
+    }
+    if (!frames.length) return res.status(502).json({ error: 'Walkthrough generation returned no frames' });
+    return res.json({ success: true, frames, count: frames.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Photo Edit & Mask-Guided Inpainting API
