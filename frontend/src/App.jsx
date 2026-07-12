@@ -27,6 +27,7 @@ const CutlistNestingScreen     = lazy(() => import('./screens/CutlistNestingScre
 const DesignStudioScreen       = lazy(() => import('./screens/DesignStudioScreen.jsx'));
 import PresentationStudio       from './screens/PresentationStudio.jsx';
 import PipelineStudio            from './screens/PipelineStudio.jsx';
+import CommandCenterScreen       from './screens/CommandCenterScreen.jsx';
 const WhiteLabelStudio          = lazy(() => import('./screens/WhiteLabelStudio.jsx'));
 const LandingPage               = lazy(() => import('./components/landing/LandingPage.jsx'));
 
@@ -408,7 +409,7 @@ export function App() {
   // ── Screen router ──
   const renderScreen = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardScreen projectId={selectedProjectId} onNavigateToTab={setActiveTab} />;
+      case 'dashboard': return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={setActiveTab} />;
       case 'crm':       return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
       case 'projects':  return <ProjectManagementScreen onNavigateToProject={(id) => { setSelectedProjectId(id); setActiveTab('brief'); }} />;
       case 'brief':     return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;

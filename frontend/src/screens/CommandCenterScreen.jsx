@@ -39,7 +39,8 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
     { title: 'Walkthrough Config', desc: 'Reorder walkthrough path', tab: 'renders', roles: ['realestate'] },
     { title: 'SVG Elevation Builder', desc: 'Auto-dimension drawings', tab: 'drawings', roles: ['designer'] },
     { title: 'BOM Cost Calculator', desc: 'SQFT board yield schedule', tab: 'finance', roles: ['designer', 'brand'] },
-    { title: 'Invoice Ledger', desc: 'Milestone & billing logs', tab: 'finance', roles: ['brand'] }
+    { title: 'Invoice Ledger', desc: 'Milestone & billing logs', tab: 'finance', roles: ['brand'] },
+    { title: 'Project Board', desc: 'All projects, kanban & status', tab: 'projects', roles: ['designer', 'brand', 'realestate'] }
   ];
 
   const specialistTools = allSpecialistTools.filter(tool => tool.roles.includes(workspaceMode));
@@ -2365,8 +2366,64 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
       case 'FileText': return <FileText className="w-5 h-5" />;
       case 'Grid': return <Grid className="w-5 h-5" />;
       case 'Plus': return <Plus className="w-5 h-5" />;
+      case 'Sun': return <Sun className="w-5 h-5" />;
       default: return <Sparkles className="w-5 h-5" />;
     }
+  };
+
+  // ── Live action: every specialist tool hits its REAL backend route ──
+  // Maps each tool to the production endpoint it drives, so the command
+  // center is fully connected (no orphaned tools).
+  const LIVE_TOOL_ROUTES = {
+    cad_ingest:           { m: 'POST', p: id => `/api/projects/${id}/floorplan/auto-trace`, body: {} },
+    ortho_calibrate:      { m: 'POST', p: id => `/api/projects/${id}/plan/measure`, body: { rooms: [] } },
+    vastu_annotate:       { m: 'POST', p: id => `/api/projects/${id}/vastu/auto-apply`, body: {} },
+    extruder_3d:          { m: 'POST', p: id => `/api/projects/${id}/scenes`, body: { fromCad: true } },
+    render_concept:       { m: 'POST', p: id => `/api/projects/${id}/renders/generate`, body: { room: 'living', style: 'modern-luxury', variantCount: 1 } },
+    camera_director:      { m: 'GET',  p: id => `/api/projects/${id}/renders` },
+    material_swapper:      { m: 'POST', p: id => `/api/projects/${id}/renders/laminate-swap`, body: { from: 'walnut', to: 'oak' } },
+    ambient_lighting:     { m: 'POST', p: id => `/api/projects/${id}/renders/suggest-palette`, body: { mood: 'golden_hour' } },
+    walkthrough_animator: { m: 'POST', p: id => `/api/projects/${id}/cad/video`, body: {}, multipart: true },
+    carcass_config:       { m: 'POST', p: id => `/api/projects/${id}/cutlist/calculate`, body: { refresh: true } },
+    hardware_spec:        { m: 'POST', p: id => `/api/projects/${id}/cutlist/calculate`, body: { hardware: true } },
+    nesting_calc:         { m: 'POST', p: id => `/api/projects/${id}/cutlist/optimize`, body: {} },
+    swatch_match:         { m: 'GET',  p: id => `/api/projects/${id}/materials` },
+    elevation_draft:      { m: 'GET',  p: id => `/api/projects/${id}/drawings/elevations/auto/dxf` },
+    rcp_planner:          { m: 'GET',  p: id => `/api/projects/${id}/drawings/rcp` },
+    dxf_compiler:         { m: 'GET',  p: id => `/api/projects/${id}/drawings/elevations/auto/dxf` }
+  };
+
+  const [liveRunning, setLiveRunning] = useState(false);
+  const runLiveTool = async () => {
+    if (!project) { __toast?.error('Select a project first (top-right picker).'); return; }
+    const route = LIVE_TOOL_ROUTES[activeTool.key];
+    if (!route) { __toast?.info('Open this tool in its workspace tab to run it.'); onNavigateToTab(TOOL_TAB[activeTool.key] || 'cad'); return; }
+    setLiveRunning(true);
+    try {
+      let res;
+      const url = `http://127.0.0.1:8787${route.p(project.id)}`;
+      if (route.multipart) {
+        const fd = new FormData();
+        res = await fetch(url, { method: route.m, body: fd });
+      } else {
+        res = await fetch(url, { method: route.m, headers: { 'Content-Type': 'application/json' }, body: route.m === 'POST' ? JSON.stringify(route.body) : undefined });
+      }
+      const ok = res.ok || res.status === 202;
+      __toast?.[ok ? 'success' : 'error'](`${activeTool.name}: ${ok ? 'queued / completed' : 'failed (' + res.status + ')'}`);
+      if (ok && TOOL_TAB[activeTool.key]) onNavigateToTab(TOOL_TAB[activeTool.key]);
+    } catch (err) {
+      __toast?.error('Live run failed: ' + err.message);
+    } finally {
+      setLiveRunning(false);
+    }
+  };
+
+  // Where each tool's results are best viewed (so "Run live" lands on the right screen)
+  const TOOL_TAB = {
+    cad_ingest: 'cad', ortho_calibrate: 'cad', vastu_annotate: 'cad', extruder_3d: 'studio',
+    render_concept: 'renders', camera_director: 'renders', material_swapper: 'renders', ambient_lighting: 'renders',
+    walkthrough_animator: 'renders', carcass_config: 'cutlist', hardware_spec: 'cutlist', nesting_calc: 'cutlist',
+    swatch_match: 'materials', elevation_draft: 'drawings', rcp_planner: 'drawings', dxf_compiler: 'drawings'
   };
 
   const handleRunTool = () => {
@@ -2687,24 +2744,44 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
               )}
             </div>
 
-            {/* Run Button */}
-            <button
-              onClick={handleRunTool}
-              disabled={isRunning}
-              className="w-full py-3 bg-[var(--gold)] hover:bg-[var(--gold-bright)] disabled:bg-slate-800 disabled:text-slate-500 text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-[var(--gold)]/5 cursor-pointer"
-            >
-              {isRunning ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  Executing AI Pipeline...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-3.5 h-3.5" />
-                  Run AI Specialist Tool
-                </>
-              )}
-            </button>
+            {/* Run Button (simulated preview) + Live run (real backend) */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={handleRunTool}
+                disabled={isRunning}
+                className="flex-1 py-3 bg-[var(--gold)] hover:bg-[var(--gold-bright)] disabled:bg-slate-800 disabled:text-slate-500 text-[#0A0A0D] text-xs font-semibold tracking-wide rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-[var(--gold)]/5 cursor-pointer"
+              >
+                {isRunning ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Executing AI Pipeline...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3.5 h-3.5" />
+                    Run AI Specialist Tool
+                  </>
+                )}
+              </button>
+              <button
+                onClick={runLiveTool}
+                disabled={liveRunning || !project}
+                title={project ? `Run ${activeTool.name} on the live project` : 'Select a project first'}
+                className="flex-1 py-3 bg-slate-900 border border-[var(--gold)]/40 hover:border-[var(--gold)]/70 disabled:opacity-40 text-[var(--gold)] text-xs font-semibold tracking-wide rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {liveRunning ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Live run...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                    Run live on project
+                  </>
+                )}
+              </button>
+            </div>
 
             {/* Live Interactive Results Visualizer Area */}
             {isRunning && (
