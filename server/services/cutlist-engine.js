@@ -67,7 +67,8 @@ export function createOrRefreshCutlist(projectId) {
   const existing = getCutlistByProject(projectId);
   const cutlistId = existing?.id || nanoid(12);
   const laminates = matchLaminates(project);
-  const modules = buildModules(project, laminates).map((module) => ({ ...module, cutlistProjectId: cutlistId }));
+  const elevationModules = getElevationCabinets(project.id);
+  const modules = buildModules(project, laminates, elevationModules).map((module) => ({ ...module, cutlistProjectId: cutlistId }));
   const parts = modules
     .flatMap((module, moduleIndex) => generatePartsForModule(module, moduleIndex))
     .flatMap(splitOversizePart)
@@ -114,7 +115,7 @@ export function createOrRefreshCutlist(projectId) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const tx = db.transaction(() => {
+  runInTransaction(() => {
     db.prepare('DELETE FROM cutlist_parts WHERE cutlist_project_id = ?').run(cutlistId);
     db.prepare('DELETE FROM cutlist_modules WHERE cutlist_project_id = ?').run(cutlistId);
     insertCutlist.run(cutlistId, projectId, payload.status, JSON.stringify(payload), payload.createdAt, now);
@@ -160,7 +161,6 @@ export function createOrRefreshCutlist(projectId) {
       );
     });
   });
-  tx();
 
   return getCutlist(cutlistId);
 }
@@ -241,11 +241,10 @@ export function deleteCutlistModule(cutlistId, moduleId) {
   if (cutlist.modules.length <= 1) throw new Error('A cutlist must keep at least one module.');
   const found = cutlist.modules.some((module) => module.id === moduleId);
   if (!found) throw new Error('Cutlist module not found');
-  const tx = db.transaction(() => {
+  runInTransaction(() => {
     db.prepare('DELETE FROM cutlist_parts WHERE cutlist_project_id = ? AND module_id = ?').run(cutlistId, moduleId);
     db.prepare('DELETE FROM cutlist_modules WHERE cutlist_project_id = ? AND id = ?').run(cutlistId, moduleId);
   });
-  tx();
   return regenerateCutlistParts(cutlistId);
 }
 
@@ -287,7 +286,7 @@ export function regenerateCutlistParts(cutlistId) {
     (id, cutlist_project_id, module_id, part_code, name, material, length_mm, width_mm, thickness_mm, quantity, edge_band, edge_l1, edge_l2, edge_w1, edge_w2, grain, formula_length, formula_width, notes, payload, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const tx = db.transaction(() => {
+  runInTransaction(() => {
     db.prepare('DELETE FROM cutlist_parts WHERE cutlist_project_id = ?').run(cutlistId);
     db.prepare('UPDATE cutlist_projects SET payload = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(payload), now, cutlistId);
     parts.forEach((part) => {
@@ -316,7 +315,6 @@ export function regenerateCutlistParts(cutlistId) {
       );
     });
   });
-  tx();
   return getCutlist(cutlistId);
 }
 
@@ -689,6 +687,14 @@ export function buildCutlistAccuracyAudit({ cutlist = {}, project = null, module
     score -= 10;
   }
 
+  const elevationDerivedCount = modules.filter((module) => module.elevationDerived).length;
+  if (elevationDerivedCount) {
+    strengths.push(`${elevationDerivedCount} module(s) use dimensions measured directly from 2D wall elevations — higher cutlist fidelity.`);
+    // Elevation measurements are a stronger source of truth than generic attachments,
+    // so they offset the missing raw-source-file penalty.
+    if (!rawSourceCount) score = Math.min(100, score + 10);
+  }
+
   const hasFloorPlan = Boolean(project?.floorPlan?.filePath || project?.floorPlan?.previewPath);
   if (!hasFloorPlan) {
     warnings.push('No project floor plan file is attached.');
@@ -767,11 +773,187 @@ function createManualModule(cutlistProjectId, input) {
     furnitureRequirement: input.furnitureRequirement || '',
     sizeNote: input.sizeNote || '',
     createdFrom: 'manual-cutlist-module-v1',
-    createdAt: new Date().toISOString()
   }, input);
 }
 
-export function buildModules(project, laminates) {
+// ---- PRECISION: derive cutlist module dimensions from measured 2D wall elevations ----
+// The cutlist must be generated from REAL measured elevations, not room templates.
+// Elevations live in cad_data.walls_json (per-wall 'cabinets') and photo_elevations.model_json.
+
+export function getElevationCabinets(projectId) {
+  const db = getDb();
+  const out = [];
+  try {
+    const cad = db.prepare('SELECT walls_json, furniture_json FROM cad_drawings WHERE project_id = ?').get(projectId);
+    if (cad) {
+      const walls = safeParse(cad.walls_json) || [];
+      const furniture = safeParse(cad.furniture_json) || [];
+      for (const wall of walls) {
+        const cabs = Array.isArray(wall.cabinets) ? wall.cabinets : [];
+        const wallRoom = wall.roomIdPrimary || wall.room || '';
+        const wallLen = roundDim(Number(wall.lengthMm || wall.w || 0)) || null;
+        const wallH = roundDim(Number(wall.heightMm || wall.h || 0)) || null;
+        for (const cab of cabs) {
+          out.push(normalizeElevationCabinet(cab, { type: 'wall', wallId: wall.id || wall.wallId || 'wall', room: wallRoom, wallLengthMm: wallLen, wallHeightMm: wallH }));
+        }
+      }
+      for (const cab of furniture) {
+        if (Array.isArray(cab.cabinets)) {
+          for (const c of cab.cabinets) out.push(normalizeElevationCabinet(c, { type: 'wall', wallId: cab.id || 'furn', room: cab.room || '', wallLengthMm: null, wallHeightMm: null }));
+        }
+      }
+    }
+  } catch (e) { /* no cad data */ }
+  try {
+    const rows = db.prepare('SELECT id, wall_id, wall_name, model_json, confidence FROM photo_elevations WHERE project_id = ?').all(projectId);
+    for (const row of rows) {
+      const model = safeParse(row.model_json) || {};
+      const cabs = Array.isArray(model.cabinets) ? model.cabinets : [];
+      const wallRoom = roomFromWallName(row.wall_name);
+      for (const cab of cabs) {
+        out.push(normalizeElevationCabinet(cab, { type: 'photo', wallId: row.wall_id || row.id, photoId: row.id, room: wallRoom, wallLengthMm: roundDim(Number(model.lengthMm)) || null, wallHeightMm: roundDim(Number(model.heightMm)) || null, confidence: row.confidence }));
+      }
+    }
+  } catch (e) { /* no photo elevations */ }
+  return out.filter(Boolean);
+}
+
+function safeParse(value) {
+  if (!value) return null;
+  try { return typeof value === 'string' ? JSON.parse(value) : value; } catch { return null; }
+}
+
+function roomFromWallName(name = '') {
+  const n = String(name).toLowerCase();
+  if (n.includes('kitchen')) return 'kitchen';
+  if (n.includes('master') || n.includes('bed')) return 'masterBed';
+  if (n.includes('kids')) return 'kids';
+  if (n.includes('living') || n.includes('hall')) return 'living';
+  if (n.includes('pooja') || n.includes('mandir')) return 'pooja';
+  if (n.includes('foyer') || n.includes('entry')) return 'foyer';
+  if (n.includes('study')) return 'study';
+  if (n.includes('dining')) return 'dining';
+  if (n.includes('utility')) return 'utility';
+  return 'custom';
+}
+
+function roundDim(value) {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function normalizeElevationCabinet(cab, ctx) {
+  if (!cab) return null;
+  const w = roundDim(Number(cab.widthMm || cab.width || 0));
+  const h = roundDim(Number(cab.heightMm || cab.height || 0));
+  if (!w || !h) return null;
+  const d = roundDim(Number(cab.depthMm || cab.depth || 0)) || null;
+  const moduleType = classifyCabinetToModuleType(cab, h, d);
+  return {
+    ctx,
+    cab,
+    widthMm: w,
+    heightMm: h,
+    depthMm: d,
+    moduleType,
+    room: ctx.room || 'custom',
+    name: cab.name || cab.type || moduleType
+  };
+}
+
+function depthForType(type) {
+  const map = {
+    'kitchen-base': 560, 'kitchen-drawer': 560, 'kitchen-wall': 350, 'kitchen-tall-pantry': 600,
+    'wardrobe': 600, 'tv-unit': 450, 'display-storage': 380, 'low-storage': 420, 'mandir': 420,
+    'foyer-storage': 380, 'study-desk': 550, 'crockery': 420, 'utility-base': 560, 'utility-wall': 350,
+    'bed-back-panel': 100, 'side-table-pair': 400, 'bookshelf': 350, 'balcony-storage': 380, 'custom-storage': 450
+  };
+  return map[type] || 450;
+}
+
+function classifyCabinetToModuleType(cab, h, d) {
+  const t = String(cab.type || cab.style || '').toLowerCase();
+  if (t.includes('wardrobe')) return 'wardrobe';
+  if (t.includes('pantry') || t.includes('tall') || t.includes('appliance')) return 'kitchen-tall-pantry';
+  if (t.includes('wall')) return 'kitchen-wall';
+  if (t.includes('drawer')) return 'kitchen-drawer';
+  if (t.includes('base') || t.includes('counter') || t.includes('kitchen') || t.includes('sink')) return 'kitchen-base';
+  if (t.includes('tv') || t.includes('entertainment')) return 'tv-unit';
+  if (t.includes('mandir') || t.includes('pooja')) return 'mandir';
+  if (t.includes('study') || t.includes('desk')) return 'study-desk';
+  if (t.includes('crockery') || t.includes('dining')) return 'crockery';
+  if (t.includes('foyer') || t.includes('shoe') || t.includes('console')) return 'foyer-storage';
+  if (t.includes('bookshelf') || t.includes('book')) return 'bookshelf';
+  if (t.includes('balcony')) return 'balcony-storage';
+  if (t.includes('bed') || t.includes('headboard')) return 'bed-back-panel';
+  // height/depth heuristics for typed-but-unknown cabinets
+  if (h >= 1900) return 'wardrobe';
+  if (h <= 900 && d >= 480) return 'kitchen-base';
+  if (h <= 600) return 'low-storage';
+  if (h >= 1400) return 'tv-unit';
+  return 'custom-storage';
+}
+
+// Convert normalized elevation cabinets into full cutlist modules whose dimensions are
+// the REAL measured elevations, so the standards service yields production-accurate parts.
+export function buildElevationModules(elevationModules, project, laminates) {
+  return elevationModules.map((entry) => {
+    const moduleType = entry.moduleType;
+    const depthMm = entry.depthMm || depthForType(moduleType);
+    const selectedLaminate = laminateForModule(moduleType, laminates);
+    const sourceId = entry.ctx.photoId || entry.ctx.wallId || 'elevation';
+    return {
+      id: `elev_${nanoid(10)}`,
+      room: entry.room,
+      roomLabel: roomLabels[entry.room] || entry.room,
+      moduleType,
+      name: `${entry.name} (from ${entry.ctx.type} elevation)`,
+      widthMm: entry.widthMm,
+      heightMm: entry.heightMm,
+      depthMm,
+      material: (moduleType.includes('kitchen') || entry.room === 'utility')
+        ? `${DEFAULT_SETTINGS.wetZoneBoard} ${DEFAULT_SETTINGS.boardThicknessMm}mm`
+        : `${DEFAULT_SETTINGS.dryZoneBoard} ${DEFAULT_SETTINGS.boardThicknessMm}mm`,
+      finish: selectedLaminate ? `${selectedLaminate.brand} ${selectedLaminate.collection} - ${selectedLaminate.finish}` : finishFallback(project),
+      hardware: hardwareForBudget(project.budgetTier),
+      sourceMarkerId: sourceId,
+      placementNote: `Dimensions measured from 2D wall elevation (${entry.ctx.type}${entry.ctx.wallId ? ', wall ' + entry.ctx.wallId : ''}). Verify against site before cutting.`,
+      furnitureRequirement: '',
+      sizeNote: `${entry.widthMm}x${entry.heightMm}x${depthMm}`,
+      createdFrom: 'elevation-v1',
+      elevationDerived: true,
+      elevationSource: {
+        type: entry.ctx.type,
+        wallId: entry.ctx.wallId || null,
+        photoId: entry.ctx.photoId || null,
+        cabinetId: entry.cab?.id || null,
+        xOffsetMm: entry.cab?.xOffsetMm ?? null,
+        zOffsetMm: entry.cab?.zOffsetMm ?? null,
+        wallLengthMm: entry.ctx.wallLengthMm ?? null,
+        wallHeightMm: entry.ctx.wallHeightMm ?? null,
+        confidence: entry.ctx.confidence ?? null,
+        widthMm: entry.widthMm,
+        heightMm: entry.heightMm,
+        depthMm
+      }
+    };
+  });
+}
+
+// Precision merge: measured-elevation modules take precedence (same room+type) over
+// template defaults; template modules remain only where no elevation data exists.
+export function mergeElevationModules(templateModules, elevModules) {
+  if (!elevModules.length) return templateModules;
+  const superseded = new Set();
+  for (const em of elevModules) {
+    const match = templateModules.find((m) => m.room === em.room && m.moduleType === em.moduleType);
+    if (match) superseded.add(match.id);
+  }
+  const kept = templateModules.filter((m) => !superseded.has(m.id));
+  return [...elevModules, ...kept];
+}
+
+export function buildModules(project, laminates, elevationModules = []) {
   const selectedSpaces = Array.isArray(project.selectedSpaces) ? project.selectedSpaces : [];
   const markers = project.floorPlan?.annotations?.markers || [];
   const modules = [];
@@ -793,7 +975,9 @@ export function buildModules(project, laminates) {
       }));
     }
   }
-  return modules;
+  // PRECISION: measured 2D wall elevations are the source of truth for dimensions.
+  const elevModules = elevationModules && elevationModules.length ? buildElevationModules(elevationModules, project, laminates) : [];
+  return mergeElevationModules(modules, elevModules);
 }
 
 function modulesForSpace(space, project, laminates, markers) {
@@ -1096,6 +1280,26 @@ function boundedDimension(value, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(6000, Math.max(100, Math.round(parsed)));
+}
+
+// Atomic transaction wrapper. The db client wrapper exposes .prepare() (delegating to
+// better-sqlite3) but not .transaction(), so we use the raw better-sqlite3 handle when
+// available and fall back to manual BEGIN/COMMIT/ROLLBACK otherwise.
+function runInTransaction(fn) {
+  const db = getDb();
+  const raw = db && db.sqlite;
+  if (raw && typeof raw.transaction === 'function') {
+    return raw.transaction(fn)();
+  }
+  db.prepare('BEGIN').run();
+  try {
+    const result = fn();
+    db.prepare('COMMIT').run();
+    return result;
+  } catch (err) {
+    try { db.prepare('ROLLBACK').run(); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 function addCutlistCover(doc, cutlist) {

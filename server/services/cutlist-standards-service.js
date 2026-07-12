@@ -153,8 +153,8 @@ function part(module, prefix, suffix, name, lengthFormula, widthFormula, thickne
     g: cfg.shutterGapMm || 3
   };
 
-  const lengthMm = evaluateFormula(lengthFormula, vars);
-  const widthMm = evaluateFormula(widthFormula, vars);
+  const lengthMm = Math.max(10, Math.round(evaluateFormula(lengthFormula, vars)));
+  const widthMm = Math.max(10, Math.round(evaluateFormula(widthFormula, vars)));
 
   // Map human-readable edge bands to individual fields (L1, L2, W1, W2)
   let edge_l1 = null;
@@ -210,6 +210,7 @@ function part(module, prefix, suffix, name, lengthFormula, widthFormula, thickne
     grain,
     formula_length: String(lengthFormula),
     formula_width: String(widthFormula),
+    elevationSource: module.elevationSource || null,
     notes: module.placementNote || module.furnitureRequirement || 'Generated from approved brief with Indian modular furniture standards.'
   };
 }
