@@ -1173,6 +1173,10 @@ export async function recordGenerationCost({ projectId, assetId, sourceType, cou
   const costInfo = getProviderCost(sourceType);
   const totalCost = costInfo.perImage * count;
   const db = getDb();
+  // generation_costs.project_id is NOT NULL; a missing id (e.g. a standalone
+  // placeholder render) must not silently drop the cost row — fall back to a
+  // sentinel so the record persists and the warning spam stops.
+  const pid = projectId || 'unknown';
   
   try {
     db.prepare(`
@@ -1180,7 +1184,7 @@ export async function recordGenerationCost({ projectId, assetId, sourceType, cou
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       nanoid(12),
-      projectId,
+      pid,
       assetId || null,
       sourceType,
       count,
