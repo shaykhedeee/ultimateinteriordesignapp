@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { safeParse } from '../lib/safe.js';
+import { computeQuote, buildMilestones, MILESTONE_SCHEDULES } from '../lib/boq.js';
 import { 
   Plus, Trash2, Save, X, PlusCircle, ChevronDown, Percent, 
   IndianRupee, FileText, CheckCircle2, ShoppingBag, TrendingUp, 
@@ -186,31 +187,16 @@ export default function FinanceScreen({ projectId }) {
     }
   };
 
-  // --- Quotation Calculations ---
-  const subTotal = useMemo(() => {
-    return quoteItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-  }, [quoteItems]);
+  // --- Quotation Calculations (shared single source of truth) ---
+  const { subTotal, taxable: taxableTotal, gstValue, grandTotal } = useMemo(
+    () => computeQuote({ items: quoteItems, discount, isGstEnabled, gstRate: gstPercentage }),
+    [quoteItems, discount, isGstEnabled, gstPercentage]
+  );
 
-  const taxableTotal = useMemo(() => {
-    return Math.max(0, subTotal - discount);
-  }, [subTotal, discount]);
-
-  const gstValue = useMemo(() => {
-    return isGstEnabled ? Math.round(taxableTotal * (gstPercentage / 100)) : 0;
-  }, [taxableTotal, isGstEnabled, gstPercentage]);
-
-  const grandTotal = useMemo(() => {
-    return taxableTotal + gstValue;
-  }, [taxableTotal, gstValue]);
-
-  const paymentMilestones = useMemo(() => {
-    return [
-      { stage: '1. Booking Advance (To initiate design & drawings)', percentage: 10, amount: Math.round(grandTotal * 0.10) },
-      { stage: '2. Design Finalized (Before initiating factory production)', percentage: 50, amount: Math.round(grandTotal * 0.50) },
-      { stage: '3. Material Dispatch (Upon dispatch from factory)', percentage: 35, amount: Math.round(grandTotal * 0.35) },
-      { stage: '4. Final Handover & Sign-off (Post-installation)', percentage: 5, amount: Math.round(grandTotal * 0.05) }
-    ];
-  }, [grandTotal]);
+  const paymentMilestones = useMemo(
+    () => buildMilestones(grandTotal, MILESTONE_SCHEDULES.finance),
+    [grandTotal]
+  );
 
   // Add Item to Quotation
   const handleAddQuoteItem = () => {
