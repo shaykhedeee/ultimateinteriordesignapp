@@ -60,12 +60,11 @@ async function getBinary(urlPath) {
   });
 }
 
-function writeLegacySkpHeader(buf) {
+function writeLegacySkpHeader() {
   const header = Buffer.alloc(64);
   header.write('SKP', 0, 'ascii');
   header.writeUInt16LE(700, 3); // version
   header.writeUInt32LE(1, 5);   // entities count placeholder
-  buf.copy(header, 9);
   return header;
 }
 
@@ -85,11 +84,11 @@ function parseLocalSkp(buffer) {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line || line.startsWith('%') || line.startsWith('#')) continue;
-    const m = line.match(/^(Entities|Component|Group|Material|Layer|InsUnits|Edge|Face|TRI)\s+(.+)$/i);
+    const m = line.match(/^(Entities|Component|Group|Materials?|Layer|InsUnits|Edge|Face|TRI)\s+(.+)$/i);
     if (!m) continue;
     const kind = m[1].toLowerCase();
     const payload = m[2].trim();
-    if (kind === 'material') materials.add(payload);
+    if (kind === 'material' || kind === 'materials') materials.add(payload);
     else if (kind === 'layer') layers.add(payload);
     else if (kind === 'insunits') insunits = parseInt(payload, 10) || 4;
     else if (kind === 'edge') {
@@ -206,7 +205,7 @@ function buildLocalSkp(textPayload, opts = {}) {
   ];
   for (const line of textPayload) lines.push(String(line));
   const body = Buffer.from(lines.join('\r\n'), 'utf8');
-  const header = writeLegacySkpHeader(body);
+  const header = writeLegacySkpHeader();
   return Buffer.concat([header, body]);
 }
 

@@ -22,9 +22,31 @@ out/
 
 # ── Database & local storage ──────────────────────────────────
 storage/ultimate_interior.db
+storage/ultimate_interior.db-wal
+storage/ultimate_interior.db-shm
 storage/assets/*.png
 storage/assets/*.jpg
 storage/assets/*.svg
+
+# Generated pipeline output (regenerates from the app — do not version)
+storage/elevations/
+storage/briefs/
+storage/cad/
+storage/rooms/
+storage/floorplans/
+storage/render/
+storage/renders/
+storage/exports/
+storage/projects/
+storage/materials/
+storage/learning/
+storage/*.jsonl
+storage/*.dxf
+storage/*.pdf
+storage/*.rt
+storage/*.skp
+storage/elevation-learning.jsonl
+storage/archived/
 
 # ── Uploads (large binary files) ─────────────────────────────
 uploads/
