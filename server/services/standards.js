@@ -34,20 +34,15 @@ function snapBay(desired) {
 // an arbitrary 223mm panel.
 function layoutBays(totalMm, preferredBay) {
   const base = preferredBay;                 // e.g. 600 — the standard bay
-  let n = Math.max(1, Math.round(totalMm / base));
+  const n = Math.max(1, Math.round(totalMm / base));
   const bays = [];
-  // If the last (remainder) bay would be tiny (<50% of a standard bay), use
-  // one fewer full bay so the remainder stays a sane size (real filler gap).
-  let used = (n - 1) * base;
-  let rem = totalMm - used;
-  if (rem < base * 0.5 && n > 1) { n -= 1; used = (n - 1) * base; rem = totalMm - used; }
   for (let i = 0; i < n; i++) {
     if (i === n - 1) {
-      // final bay: snap DOWN to nearest standard if it fits, else keep exact
-      // remainder (tagged filler only if genuinely narrow). Never overflow.
-      const snapped = snapBay(rem);
-      if (snapped <= rem) bays.push({ w: snapped, filler: snapped < 450 });
-      else bays.push({ w: rem, filler: rem < 450 });
+      // Final bay takes the EXACT remainder so the run fills the wall with no
+      // gap and no overflow (sum is always == totalMm). Tagged filler only if
+      // genuinely narrow (<450mm); otherwise it is a valid full-width bay.
+      const rem = totalMm - base * (n - 1);
+      bays.push({ w: rem, filler: rem < 450 });
     } else {
       bays.push({ w: base, filler: false });
     }
@@ -66,8 +61,8 @@ function wardrobe(L, H, D) {
   const cabinets = [];
   const loftH = H >= 2400 ? 600 : (H > 2100 ? Math.min(450, H - 2050) : 0);
   const drawerH = 750;                       // bottom drawer bank (standard)
-  const hangerH = Math.min(1200, H - loftH - drawerH - 300); // hanging section
-  const shelfH = H - loftH - drawerH - hangerH;              // mid shelf section
+  const hangerH = Math.max(0, Math.min(1200, H - loftH - drawerH - 300)); // hanging section
+  const shelfH = Math.max(0, H - loftH - drawerH - hangerH);              // mid shelf section
   const bays = layoutBays(L, 600).map(b => b.w);
   let x = 0;
   for (const w of bays) {
@@ -116,7 +111,7 @@ function kitchen(L, H, D) {
 function tvUnit(L, H, D) {
   const cabinets = [];
   const baseH = 500, baseD = 450;
-  const openH = H - baseH > 0 ? H - baseH : 0;
+  const openH = Math.max(0, H - baseH);
   const bays = layoutBays(L, 600);
   let x = 0;
   for (const b of bays) {
@@ -138,7 +133,7 @@ function vanity(L, H, D) {
     // counter slab marker (thin top line) + drawer bank below
     pushCab(cabinets, { type: 'base', widthMm: b.w, heightMm: counterH, depthMm: counterD, xOffsetMm: x, zOffsetMm: 0, tag: 'DRAWER', name: b.filler ? 'Filler' : 'Vanity drawer bank', material: { counter: true, basin: i === 0 } });
     // mirror / open above (not full wall height for vanity — only up to 1200mm)
-    const aboveH = Math.min(1200 - counterH, H - counterH);
+    const aboveH = Math.max(0, Math.min(1200 - counterH, H - counterH));
     if (aboveH > 150) pushCab(cabinets, { type: 'open', widthMm: b.w, heightMm: aboveH, depthMm: 150, xOffsetMm: x, zOffsetMm: counterH, tag: 'OPEN UNIT', name: 'Mirror cabinet', material: { openShelf: true, shelves: 1 } });
     x += b.w;
   });

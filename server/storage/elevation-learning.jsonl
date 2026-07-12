@@ -1160,3 +1160,17 @@
 {"ts":"2026-07-12T00:00:25.411Z","unitType":"vanity","dims":{"widthMm":1829,"heightMm":2667,"depthMm":533},"components":0,"material":null}
 {"ts":"2026-07-12T00:00:25.442Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667},"components":0,"material":null}
 {"ts":"2026-07-12T00:00:25.529Z","unitType":"tv-unit","dims":{"widthMm":2286,"heightMm":2032},"components":0,"material":null}
+{"ts":"2026-07-12T00:11:19.047Z","unitType":"wardrobe","dims":{"widthMm":2400,"heightMm":2100,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-12T00:11:19.090Z","unitType":"kitchen","dims":{},"components":0,"material":null}
+{"ts":"2026-07-12T00:11:19.108Z","unitType":"tv-unit","dims":{},"components":0,"material":null}
+{"ts":"2026-07-12T00:11:42.542Z","unitType":"wardrobe","dims":{"widthMm":2400,"heightMm":2100,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-12T00:11:42.587Z","unitType":"kitchen","dims":{},"components":0,"material":null}
+{"ts":"2026-07-12T00:11:42.608Z","unitType":"tv-unit","dims":{},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:30.984Z","unitType":"wardrobe","dims":{"widthMm":2400,"heightMm":2100,"depthMm":600},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:31.075Z","unitType":"kitchen","dims":{},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:31.136Z","unitType":"tv-unit","dims":{},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:31.515Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667,"depthMm":559},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:31.543Z","unitType":"wardrobe","dims":{"widthMm":1600,"heightMm":2667},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:31.583Z","unitType":"vanity","dims":{"widthMm":1829,"heightMm":2667,"depthMm":533},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:31.611Z","unitType":"wardrobe","dims":{"widthMm":2184,"heightMm":2667},"components":0,"material":null}
+{"ts":"2026-07-12T00:12:31.637Z","unitType":"tv-unit","dims":{"widthMm":2286,"heightMm":2032},"components":0,"material":null}
