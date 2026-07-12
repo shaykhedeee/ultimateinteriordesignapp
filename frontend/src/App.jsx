@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 // Import Screens
-import CRMLeadDashboard       from './screens/CRMLeadDashboard.jsx';
+import ClientBoard              from './screens/CRMLeadDashboard.jsx';
 import ClientBriefStudio      from './screens/ClientBriefStudio.jsx';
 import InteractiveCADScreen   from './screens/InteractiveCADScreen.jsx';
 import ProjectManagementScreen from './screens/ProjectManagementScreen.jsx';
@@ -68,7 +68,7 @@ const NAV_CONFIG = [
   {
     title: 'Client Acquisition',
     items: [
-      { id: 'crm',      label: 'CRM & Call Board',    icon: Inbox,     shortcut: '⌘2', alwaysOn: true },
+      { id: 'crm',      label: 'Client Board',      icon: Inbox,     shortcut: '⌘2', alwaysOn: true },
       { id: 'projects', label: 'Project Pipeline',     icon: BarChart3, shortcut: '⌘3', alwaysOn: true }
     ]
   },
@@ -158,7 +158,7 @@ const WORKFLOW_SPECIALISTS = {
 
 const TAB_META = {
   dashboard: { title: 'Command Center',    sub: 'Workspace overview & AI orchestration hub' },
-  crm:       { title: 'CRM & Call Board',  sub: 'Manage leads, qualify via AI calling, close deals' },
+  crm:       { title: 'Client Board',  sub: 'Track every client through the deal pipeline — designs sent, tokens paid, closing' },
   projects:  { title: 'Project Pipeline',  sub: 'Active projects, kanban workflow & status tracking' },
   brief:     { title: 'Client Intake',      sub: 'Capture lifestyle, budget, rooms, references and floor plan uploads' },
   cad:       { title: 'Plan Intelligence', sub: 'Review rooms, walls, openings, scale, services and confidence' },
@@ -454,7 +454,7 @@ export function App() {
   const renderScreen = () => {
     switch (activeTab) {
       case 'dashboard': return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={setActiveTab} />;
-      case 'crm':       return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
+      case 'crm':       return <ClientBoard onProjectCreated={handleProjectClosed} />;
       case 'projects':  return <ProjectManagementScreen onNavigateToProject={(id) => { setSelectedProjectId(id); setActiveTab('brief'); }} />;
       case 'brief':     return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
       case 'cad':       return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
@@ -471,7 +471,7 @@ export function App() {
       case 'presentation':  return <PresentationStudio projectId={selectedProjectId} />;
       case 'pipeline':      return <PipelineStudio projectId={selectedProjectId} />;
       case 'brand':         return <WhiteLabelStudio onBack={() => setActiveTab('dashboard')} />;
-      default:              return <CRMLeadDashboard onProjectClosed={handleProjectClosed} />;
+      default:              return <ClientBoard onProjectCreated={handleProjectClosed} />;
     }
   };
 

@@ -3455,7 +3455,7 @@ function OverviewWorkspace({ projects, leads, health, readinessMap, quotationMap
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 { category: 'Client Acquisition', items: [
-                  { tab: 'crm', label: 'CRM & Call Board' },
+                  { tab: 'crm', label: 'Client Board' },
                   { tab: 'projects', label: 'Project Pipeline' }
                 ]},
                 { category: 'Spatial Design & CAD', items: [

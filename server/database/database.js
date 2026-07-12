@@ -457,6 +457,12 @@ invoiceCols.forEach(c => { try { db.exec(`ALTER TABLE invoices ADD COLUMN ${c};`
 try { db.exec("ALTER TABLE cad_drawings ADD COLUMN plan_text TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE cad_drawings ADD COLUMN north_angle REAL DEFAULT 0;"); } catch (e) {}
 
+// ── Client Board pipeline fields ──
+try { db.exec("ALTER TABLE leads ADD COLUMN deal_stage TEXT DEFAULT 'new';"); } catch (e) {}
+try { db.exec("ALTER TABLE leads ADD COLUMN tokens_paid REAL DEFAULT 0;"); } catch (e) {}
+try { db.exec("ALTER TABLE leads ADD COLUMN designs_sent INTEGER DEFAULT 0;"); } catch (e) {}
+try { db.exec("ALTER TABLE leads ADD COLUMN notes TEXT;"); } catch (e) {}
+
 // Seed default material catalog if empty
 try {
   const count = db.prepare("SELECT COUNT(*) as cnt FROM material_catalog").get().cnt;

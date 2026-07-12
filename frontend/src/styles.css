@@ -975,6 +975,16 @@ select.form-input {
 .status-disqualified { color: #f87171; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.25); }
 .status-closed       { color: var(--gold); background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.25); }
 
+/* Client Board deal-stage pills */
+.stage-new      { color: #94a3b8; background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.25); }
+.stage-designs   { color: #60a5fa; background: rgba(96,165,250,0.10); border: 1px solid rgba(96,165,250,0.28); }
+.stage-token     { color: #c084fc; background: rgba(192,132,252,0.10); border: 1px solid rgba(192,132,252,0.28); }
+.stage-closing   { color: #fbbf24; background: rgba(251,191,36,0.10); border: 1px solid rgba(251,191,36,0.28); }
+.stage-won       { color: #2DD4AA; background: rgba(45,212,170,0.10); border: 1px solid rgba(45,212,170,0.30); }
+.stage-lost      { color: #f87171; background: rgba(248,113,113,0.10); border: 1px solid rgba(248,113,113,0.28); }
+.pill-token      { color: #c084fc; background: rgba(192,132,252,0.10); border: 1px solid rgba(192,132,252,0.30); }
+.pill-designs    { color: #60a5fa; background: rgba(96,165,250,0.10); border: 1px solid rgba(96,165,250,0.30); }
+
 /* Score badges */
 .score-high { color: #2DD4AA; background: rgba(45,212,170,0.08); border: 1px solid rgba(45,212,170,0.25); }
 .score-mid  { color: #fbbf24; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); }

@@ -629,25 +629,59 @@ app.get('/api/leads', (req, res) => {
   res.json(rows);
 });
 
-// Import leads (CSV / Excel simulation)
+// Import leads (CSV / Excel paste)
 app.post('/api/leads/import', (req, res) => {
   const { leadList } = req.body;
   if (!Array.isArray(leadList)) return res.status(400).json({ error: "Invalid leads list" });
 
   const inserted = [];
   const insert = db.prepare(`
-    INSERT INTO leads (id, name, email, phone, location, budget, area, requirements, score, voice_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')
+    INSERT INTO leads (id, name, email, phone, location, budget, area, requirements, score, voice_status, deal_stage, tokens_paid, designs_sent, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?)
   `);
 
   leadList.forEach(item => {
     const id = 'lead_' + nanoid(6);
     const score = leadScorer.calculateScore(item);
-    insert.run(id, item.name, item.email, item.phone, item.location, item.budget, item.area, item.requirements, score);
-    inserted.push({ id, ...item, score });
+    const stage = ['new','designs_sent','token_paid','closing','won','lost'].includes(item.deal_stage) ? item.deal_stage : 'new';
+    insert.run(
+      id, item.name, item.email, item.phone, item.location, item.budget, item.area, item.requirements, score,
+      stage,
+      Number(item.tokens_paid) || 0,
+      item.designs_sent ? 1 : 0,
+      item.notes || ''
+    );
+    inserted.push({ id, ...item, score, deal_stage: stage });
   });
 
   res.json({ message: `Imported ${inserted.length} leads successfully`, leads: inserted });
+});
+
+// Update a single client (stage / tokens / designs-sent / notes) — Client Board
+app.patch('/api/leads/:id', (req, res) => {
+  try {
+    const { deal_stage, tokens_paid, designs_sent, notes, voice_status } = req.body || {};
+    const lead = db.prepare("SELECT * FROM leads WHERE id = ?").get(req.params.id);
+    if (!lead) return res.status(404).json({ error: "Client not found" });
+
+    const nextStage = deal_stage && ['new','designs_sent','token_paid','closing','won','lost'].includes(deal_stage)
+      ? deal_stage : lead.deal_stage;
+    const nextTokens = tokens_paid !== undefined ? Number(tokens_paid) || 0 : lead.tokens_paid;
+    const nextDesigns = designs_sent !== undefined ? (designs_sent ? 1 : 0) : lead.designs_sent;
+    const nextNotes = notes !== undefined ? notes : lead.notes;
+    // voice_status mirrors stage for legacy call-board consumers (kept for backwards-compat, not surfaced in UI)
+    const nextVoice = voice_status || (nextStage === 'won' ? 'human_closed' : nextStage === 'lost' ? 'human_lost' : lead.voice_status);
+
+    db.prepare(`
+      UPDATE leads
+      SET deal_stage = ?, tokens_paid = ?, designs_sent = ?, notes = ?, voice_status = ?
+      WHERE id = ?
+    `).run(nextStage, nextTokens, nextDesigns, nextNotes, nextVoice, req.params.id);
+
+    res.json({ success: true, id: req.params.id, deal_stage: nextStage, tokens_paid: nextTokens, designs_sent: nextDesigns });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Trigger voice qualification call (simulate)
