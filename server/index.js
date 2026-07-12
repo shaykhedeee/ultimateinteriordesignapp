@@ -3704,6 +3704,16 @@ app.delete('/api/keys/:provider', (req, res) => {
   }
 });
 
+// Serve the built frontend (dist) as a static SPA — but only for non-API,
+// non-storage routes, so REST calls still get clean JSON error responses.
+if (fs.existsSync(frontendDistDir)) {
+  app.use(express.static(frontendDistDir));
+  // SPA fallback: any unmatched GET that isn't an API/storage path returns index.html.
+  app.get(/^(?!\/(api|storage)\/).*/, (req, res) => {
+    res.sendFile(path.join(frontendDistDir, 'index.html'));
+  });
+}
+
 // Global error handler — MUST be the last middleware. Converts any uncaught
 // error into clean JSON so the frontend never receives an HTML error page
 // (which would crash res.json() and white-screen the app).

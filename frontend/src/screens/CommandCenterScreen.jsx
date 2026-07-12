@@ -2425,7 +2425,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     walkthrough_animator: { m: 'POST', p: id => `/api/projects/${id}/cad/video`, body: {}, multipart: true },
     carcass_config:       { m: 'POST', p: id => `/api/projects/${id}/cutlist/calculate`, body: { refresh: true } },
     hardware_spec:        { m: 'POST', p: id => `/api/projects/${id}/cutlist/calculate`, body: { hardware: true } },
-    nesting_calc:         { m: 'POST', p: id => `/api/projects/${id}/cutlist/optimize`, body: {} },
+    nesting_calc:        { m: 'POST', p: id => `/api/projects/${id}/cutlist/calculate`, body: { optimize: true } },
     swatch_match:         { m: 'GET',  p: id => `/api/projects/${id}/materials` },
     elevation_draft:      { m: 'GET',  p: id => `/api/projects/${id}/drawings/elevations/auto/dxf` },
     rcp_planner:          { m: 'GET',  p: id => `/api/projects/${id}/drawings/rcp` },
