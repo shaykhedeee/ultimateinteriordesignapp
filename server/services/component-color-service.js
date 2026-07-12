@@ -285,8 +285,6 @@ class ComponentColorService {
       'TV': this.colorPalettes.tvUnit,
       'TV_Unit': this.colorPalettes.tvUnit,
       'wardrobe': this.colorPalettes.wardrobe,
-      'WARDROBE': this.colorPalettes.wardrobe,
-      'wardrobe': this.colorPalettes.wardrobe,
       'kitchen-cabinet': this.colorPalettes.kitchenCabinet,
       'kitchen_base': this.colorPalettes.kitchenCabinet,
       'wall': this.colorPalettes.wallPaint,
@@ -419,10 +417,16 @@ class ComponentColorService {
   }
   
   getColorFamily(colorHex) {
+    // Accept either a hex string or a color name (looked up across palettes).
+    let hex = colorHex;
+    if (typeof hex !== 'string' || !hex.startsWith('#')) {
+      hex = this._hexForName(String(colorHex || ''));
+    }
+    if (!hex || hex.length < 7) return 'neutral';
     // Simplified color family detection
-    const r = parseInt(colorHex.slice(1, 3), 16);
-    const g = parseInt(colorHex.slice(3, 5), 16);
-    const b = parseInt(colorHex.slice(5, 7), 16);
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
     
     if (r > 200 && g > 180 && b > 160) return 'neutral';
     if (r > 150 && g > 130 && b < 100) return 'earth';
@@ -430,6 +434,17 @@ class ComponentColorService {
     if (r < 80 && g < 80 && b < 80) return 'neutral';
     if (r > 180 && g < 100 && b < 100) return 'bold';
     return 'neutral';
+  }
+
+  _hexForName(name) {
+    const target = name.trim().toLowerCase();
+    for (const comp of Object.values(this.colorPalettes)) {
+      for (const material of Object.values(comp.materials)) {
+        const found = material.colors.find(c => c.name.toLowerCase() === target);
+        if (found) return found.hex;
+      }
+    }
+    return null;
   }
 
   /**

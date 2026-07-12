@@ -15,7 +15,14 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [filters, setFilters] = useState({ walls:true, openings:true, furniture:true, rugs:true, cabinets:true });
   const [pixelsPerMeter, setPixelsPerMeter] = useState(40);
   const [selectedWallId, setSelectedWallId] = useState(null);
-  const [activeTab, setActiveTab] = useState('walls'); // 'walls' | 'photo'
+  const [activeTab, setActiveTab] = useState('walls'); // 'walls' | 'photo' | 'cnc'
+  const [cncWidth, setCncWidth] = useState(900);
+  const [cncHeight, setCncHeight] = useState(2100);
+  const [cncDepth, setCncDepth] = useState(560);
+  const [cncShelves, setCncShelves] = useState(3);
+  const [cncShutter, setCncShutter] = useState('double');
+  const [cncResult, setCncResult] = useState(null);
+  const [cncLoading, setCncLoading] = useState(false);
   const [photoElevations, setPhotoElevations] = useState([]);
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoUpload, setPhotoUpload] = useState(null);
@@ -349,6 +356,34 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
     showToast("Cabinet module placed on elevation!");
   };
 
+  const handleCalculateNesting = async () => {
+    setCncLoading(true);
+    try {
+      const res = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/cnc-cut-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          widthMm: cncWidth,
+          heightMm: cncHeight,
+          depthMm: cncDepth,
+          numShelves: cncShelves,
+          shutterType: cncShutter
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCncResult(data);
+        showToast("CNC Nesting computed successfully!", "success");
+      } else {
+        showToast(data.error || "Nesting calculation failed", "error");
+      }
+    } catch (e) {
+      showToast("Server error during nesting", "error");
+    } finally {
+      setCncLoading(false);
+    }
+  };
+
   // Remove cabinet
   const handleRemoveCabinet = (cabId) => {
     const updated = furniture.filter(f => f.id !== cabId);
@@ -573,6 +608,10 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'walls' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
             >CAD Walls</button>
             <button
+              onClick={() => setActiveTab('cnc')}
+              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'cnc' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
+            >CNC Nesting</button>
+            <button
               onClick={() => setActiveTab('photo')}
               className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'photo' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
             >Photo-Generated</button>
@@ -684,7 +723,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         </div>
 
         {/* Blueprint view screen */}
-        {activeTab !== 'photo' && (
+        {activeTab === 'walls' && (
         <div className="flex-1 border border-slate-800 bg-[#080c14] relative flex items-center justify-center p-4 rounded-xl overflow-hidden">
           {selectedWall ? (
             <svg 
@@ -717,14 +756,11 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                 <text x="10" y="30" fill="#ffffff" fontSize="7" fontWeight="bold">DWG: WALL ELEVATION</text>
                 <text x="10" y="42" fill="#9ca3af" fontSize="6">PROJECT: {projectId}</text>
                 <text x="10" y="52" fill="#9ca3af" fontSize="6">SCALE: {scale}  |  HEIGHT: {wallHeight}mm</text>
-                <text x="10" y="65" fill="var(--gold)" fontSize="6" fontWeight="bold">REV 1.0 (PRODUCTION SIGN-OFF)</text>
+                <text x="10" y="62" fill="#e8c97a" fontSize="6" fontWeight="bold">REV: 1.0  |  AURABRAIN</text>
               </g>
 
-              {/* The Wall Elevation Projection — driven by the SAME analyzer as the DXF */}
               {(() => {
-                if (!model) return null;
-                const wallW = model.lengthMm * scaleX;
-                const wallH = model.heightMm * scaleY;
+                const wallLength = getWallLengthMm(selectedWall);
                 const startX = marginX;
                 const startY = svgH - marginY - wallH;
                 const RED = '#ef4444';      // dimension/annotation color (benchmark)
@@ -953,24 +989,65 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
         </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh]">
-        {/* AI Assisted Elevation Editor */}
-        <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
-          <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">AI Elevation Copilot</label>
-          <textarea
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            placeholder="E.g., 'increase base widths to 900', 'remove lofts', 'convert bases to drawers'..."
-            className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 resize-none h-16 outline-none focus:border-[var(--gold)]/50"
-          />
-          <button
-            onClick={handleAiEdit}
-            disabled={isProcessingAi}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5"
-          >
-            {isProcessingAi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Modify with AI'}
-          </button>
-        </div>
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh] overflow-y-auto">
+        {activeTab === 'cnc' ? (
+          <div className="space-y-4 text-xs">
+            <h3 className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest">CNC Carcass Configuration</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-slate-400 block mb-0.5">Carcass Width (mm)</label>
+                <input type="number" value={cncWidth} onChange={e=>setCncWidth(parseInt(e.target.value)||900)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Carcass Height (mm)</label>
+                <input type="number" value={cncHeight} onChange={e=>setCncHeight(parseInt(e.target.value)||2100)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Depth (mm)</label>
+                <input type="number" value={cncDepth} onChange={e=>setCncDepth(parseInt(e.target.value)||560)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Number of Shelves</label>
+                <input type="number" value={cncShelves} onChange={e=>setCncShelves(parseInt(e.target.value)||0)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Shutter Front Type</label>
+                <select value={cncShutter} onChange={e=>setCncShutter(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200">
+                  <option value="double">Double Hinged Shutter</option>
+                  <option value="single">Single Hinged Shutter</option>
+                  <option value="none">Open Module (No shutter)</option>
+                </select>
+              </div>
+              <button
+                onClick={handleCalculateNesting}
+                disabled={cncLoading}
+                className="w-full py-2.5 bg-[var(--gold)] hover:bg-[#b0923d] text-slate-950 font-black uppercase text-[11px] rounded-lg tracking-wider transition"
+              >
+                {cncLoading ? "Optimizing Nesting..." : "Re-Calculate Cut Plan"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* AI Assisted Elevation Editor */}
+            <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
+              <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">AI Elevation Copilot</label>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="E.g., 'increase base widths to 900', 'remove lofts', 'convert bases to drawers'..."
+                className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 resize-none h-16 outline-none focus:border-[var(--gold)]/50"
+              />
+              <button
+                onClick={handleAiEdit}
+                disabled={isProcessingAi}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5"
+              >
+                {isProcessingAi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Modify with AI'}
+              </button>
+            </div>
+          </>
+        )}
 
         <div className="flex justify-between items-center shrink-0 border-t border-slate-800 pt-3">
           <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">

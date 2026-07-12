@@ -52,8 +52,8 @@ class LeadScorer {
       if (reqText.includes(kw)) score -= 5;
     });
 
-    // Constrain score between 1 and 99
-    return Math.max(5, Math.min(99, score));
+    // Constrain score between 1 and 100 (per documented contract)
+    return Math.max(1, Math.min(100, score));
   }
 }
 
