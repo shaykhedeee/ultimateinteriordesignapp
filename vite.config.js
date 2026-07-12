@@ -19,8 +19,22 @@ export default defineConfig({
         // Split heavy vendors so they cache independently and parse in parallel.
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react')) return 'vendor-react';
-            if (id.includes('three') || id.includes('@react-three')) return 'vendor-3d';
+            // 3D stack first (before the generic react match) so @react-three
+            // isn't mis-bucketed into vendor-react.
+            if (id.includes('/three/') || id.includes('three-stdlib') || id.includes('@react-three')) return 'vendor-3d';
+            // React core + its runtime peers MUST share one chunk. Libraries like
+            // use-sync-external-store (zustand, react-router) touch React.useState at
+            // module-eval time; if they load before the react chunk, React is
+            // undefined and the whole app fails to mount. Keeping them together
+            // guarantees React initializes first.
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('/scheduler/') ||
+              id.includes('use-sync-external-store') ||
+              id.includes('react-router') ||
+              id.includes('/zustand/')
+            ) return 'vendor-react';
             if (id.includes('chart') || id.includes('d3')) return 'vendor-charts';
             if (id.includes('pdf') || id.includes('jspdf') || id.includes('canvas')) return 'vendor-pdf';
             return 'vendor';
