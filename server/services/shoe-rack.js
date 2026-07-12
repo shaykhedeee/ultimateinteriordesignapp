@@ -57,11 +57,6 @@ export function shoeRackModel(opts = {}) {
   }
   if (typeof o.led !== 'boolean') o.led = SHOE_RACK_DEFAULTS.led;
   if (!['bar', 'knob', 'none'].includes(o.handleStyle)) o.handleStyle = 'bar';
-  for (const k of Object.keys(SHOE_RACK_DEFAULTS)) {
-    if (o[k] === undefined || o[k] === null || (typeof o[k] === 'number' && Number.isNaN(o[k]))) o[k] = SHOE_RACK_DEFAULTS[k];
-  }
-  if (typeof o.led !== 'boolean') o.led = SHOE_RACK_DEFAULTS.led;
-  if (!['bar', 'knob', 'none'].includes(o.handleStyle)) o.handleStyle = 'bar';
   const T = o.carcassThk;
   const totalW = o.tallWidth + o.benchWidth;
   const shoeBayH = o.totalHeight - o.topCabH - o.plinthH;
