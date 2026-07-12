@@ -34,6 +34,17 @@ _Last updated: 2026-07-12 (session: Smart Project + Laminate Swapper + Render St
 - **Smart Project action grid** (Region Edit / Camera Angles / Upscale / Video / Lineage) mostly still toasts "Executed X" without real backend work — only RCP/Elevation/BOM/Layout/Video navigate to other tabs. These are stubs pending real implementations.
 - **`Quick Generate` reference gallery** (CommandCenterScreen ~L2294) shows an Unsplash inspiration thumbnail strip — intentional mood-board reference, NOT a fake render output.
 
+## ✅ FIXED THIS SESSION (cont.)
+5. **Floor Plan Enhancer — was a DEAD/COSMETIC step (now fully working)**
+   - Root cause: the backend `enhanceFloorPlan` + `/floorplan/analyze-enhance` existed and worked, but **NO frontend wired to it**. The Smart Project "Enhance top view" step only toggled a CSS filter; PipelineStudio "Enhance" was manual room-size sliders. Result: the real Vastu/spatial enhancer was unreachable.
+   - Fix: built a dedicated **FloorPlanEnhancerScreen** (nav: "Floor Plan Enhancer", Wand2 icon, under Spatial Design) backed by the real endpoint:
+     - Renders the **interpreted plan as SVG** (room polygons from traced-wall face detection + auto-layout furniture footprints + openings).
+     - Live **enhancement-score gauge** (0–100) + severity-coloured suggestion cards (High/Medium/Low) with **Apply Fix** buttons.
+     - Added `POST /floorplan/apply-enhancement` that **persists** each fix to `cad_drawings` (add Pooja room in NE, add furniture, rotate bed headboard South, zone note).
+     - Analysis loop **merges persisted rooms/furniture** so applied fixes register and the score actually converges (no re-suggesting the same thing).
+     - Clear empty-state for "no traced walls" (tells user to draw in Plan Intelligence first).
+   - **Verified live:** empty plan → score 75, 1 high-priority (add Pooja); Apply Pooja → score 100, 0 suggestions (fully optimized).
+
 ## 🔲 NEXT CANDIDATES TO HARDEN (if continuing)
 - Wire the Smart Project `handleRunNextAction` real actions (Region Edit, Upscale, Video) to actual endpoints instead of toasts.
 - Add a live-provider path + key-status banner so user knows they're in mock mode.
