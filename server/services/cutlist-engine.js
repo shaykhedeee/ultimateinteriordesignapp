@@ -771,7 +771,7 @@ function createManualModule(cutlistProjectId, input) {
   }, input);
 }
 
-function buildModules(project, laminates) {
+export function buildModules(project, laminates) {
   const selectedSpaces = Array.isArray(project.selectedSpaces) ? project.selectedSpaces : [];
   const markers = project.floorPlan?.annotations?.markers || [];
   const modules = [];
@@ -897,7 +897,7 @@ function createModule({ room, moduleType, name, dimensions, project, laminates, 
   };
 }
 
-function generatePartsForModule(module, moduleIndex) {
+export function generatePartsForModule(module, moduleIndex) {
   return precisionPartsForModule(module, moduleIndex, DEFAULT_SETTINGS);
 }
 
@@ -1975,6 +1975,8 @@ export default {
   addCutlistModule,
   deleteCutlistModule,
   regenerateCutlistParts,
+  buildModules,
+  generatePartsForModule,
   buildSheetLayout,
   cutlistToCsv,
   MAXCUT_CSV_HEADERS,
