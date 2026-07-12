@@ -8,7 +8,8 @@
     "start": "node server/index.js",
     "dev": "node scripts/dev-cli.mjs",
     "build": "vite build",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:screens": "node scripts/screen-render-smoke.mjs"
   },
   "engines": {
     "node": ">=18"
