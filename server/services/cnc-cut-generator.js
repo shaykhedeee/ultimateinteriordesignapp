@@ -169,6 +169,7 @@ export function generateCNCCutPlan(moduleData = {}) {
     sheet: { w: SHEET_W, h: SHEET_H, stock },
     sheetCount: sheets.length,
     sheets: sheets.map(s => ({ index: s.index, parts: s.parts })),
+    placed,
     parts: placed.map(p => p.name),
     partCount: placed.length,
     cutlist
