@@ -4,7 +4,7 @@ import {
   Compass, Code, Clipboard, Download, CheckCircle2, Lock, 
   ArrowRight, FileText, Layout, Info, Sparkles, Image as ImageIcon,
   RefreshCw, MessageSquare, Plus, AlertTriangle, XCircle, CheckCircle, Trash2, Eye, ShieldAlert,
-  Palette
+  Palette, Maximize
 } from 'lucide-react';
 import { buildSlotMaterial, LAMINATE_COLORS } from '../lib/threeMaterials';
 import { getSlotsForModuleType, defaultMaterialAssignments, resolveMaterial, SLOT_LABELS } from '../lib/materialSlots';
@@ -531,6 +531,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [furnitureRequirement, setFurnitureRequirement] = useState('');
   const [customInstruction, setCustomInstruction] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   // SSE render progress
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderProgressMsg, setRenderProgressMsg] = useState('');
@@ -1886,24 +1887,45 @@ export default function Render3DStudio({ projectId, onComplete }) {
                   )}
                 </div>
 
-                {/* 2. Material Shortcut */}
+                {/* 2. Material Source */}
                 {selectedSwapComponent && (
                   <div className="space-y-2 border-t border-slate-850 pt-2.5">
                     <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
                       Material Source
                     </label>
-                    <div className="text-[9px] text-slate-400 leading-relaxed">
-                      Use the catalog to pick a curated laminate, stone, or fabric swatch.
-                      Your selection is remembered across screens.
+                    <div className="grid grid-cols-3 gap-1.5 max-h-[160px] overflow-y-auto pr-1">
+                      {catalogMaterials.length === 0 ? (
+                        <div className="text-[9px] text-slate-500 italic col-span-3 text-center py-2">
+                          No catalog materials loaded.
+                        </div>
+                      ) : (
+                        catalogMaterials.map((mat) => {
+                          const isSelected = selectedCatalogMaterial?.id === mat.id;
+                          return (
+                            <button
+                              key={mat.id}
+                              onClick={() => setSelectedCatalogMaterial(mat)}
+                              className={`p-1 rounded-lg border text-left transition flex flex-col gap-1 ${
+                                isSelected
+                                  ? 'border-[var(--gold)] bg-[var(--gold)]/10 ring-1 ring-[var(--gold)]'
+                                  : 'border-slate-800 hover:border-slate-600 bg-slate-950/60'
+                              }`}
+                            >
+                              <div className="w-full h-10 rounded border border-slate-800 bg-slate-900 overflow-hidden relative">
+                                {mat.swatch_url ? (
+                                  <img src={`http://127.0.0.1:8787${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full" style={{ backgroundColor: mat.color || '#A0A0A0' }} />
+                                )}
+                              </div>
+                              <div className="text-[7px] font-bold text-slate-300 truncate w-full text-center mt-1">
+                                {mat.name}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
-                    <button
-                      onClick={() => {
-                        window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'materials' }));
-                      }}
-                      className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-[10px] font-black uppercase tracking-wider"
-                    >
-                      Open Material Catalog
-                    </button>
                   </div>
                 )}
 
@@ -1932,14 +1954,30 @@ export default function Render3DStudio({ projectId, onComplete }) {
             </div>
           ) : (
             /* Active Image Render and Recolor Panel */
-            <div className="flex-grow bg-slate-950 border border-slate-850 rounded-xl overflow-hidden relative flex flex-row min-h-0">
+            <div className={`flex-grow bg-slate-950 border border-slate-850 rounded-xl overflow-hidden relative flex flex-row min-h-0 ${isFullscreen ? 'fixed inset-4 z-[100] shadow-2xl shadow-black border-slate-700' : ''}`}>
               <div className="flex-grow flex items-center justify-center relative min-w-0 h-full">
                 {selectedRender ? (
-                  <img 
-                    src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : (selectedRender.image_url || '')} 
-                    alt="Bespoke Design Render"
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    <img 
+                      src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : (selectedRender.image_url || '')} 
+                      alt="Bespoke Design Render"
+                      className="w-full h-full object-contain"
+                    />
+                    <div className="absolute top-4 right-4 flex gap-2 z-10">
+                      <button onClick={() => setIsFullscreen(!isFullscreen)} className="bg-slate-900/80 hover:bg-[var(--gold)] text-slate-200 hover:text-slate-950 p-2.5 rounded-lg transition backdrop-blur-sm shadow-lg border border-slate-700 hover:border-[var(--gold)]">
+                        {isFullscreen ? <Eye className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                      </button>
+                      <button onClick={() => {
+                        const a = document.createElement('a');
+                        a.href = selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:8787${selectedRender.image_url}` : selectedRender.image_url;
+                        a.download = `ultida-render-${Date.now()}.png`;
+                        a.target = '_blank';
+                        a.click();
+                      }} className="bg-slate-900/80 hover:bg-[var(--gold)] text-slate-200 hover:text-slate-950 p-2.5 rounded-lg transition backdrop-blur-sm shadow-lg border border-slate-700 hover:border-[var(--gold)]">
+                        <Download className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <div className="text-xs text-slate-500 flex flex-col items-center gap-2.5">
                     <ImageIcon className="w-12 h-12 opacity-25" />

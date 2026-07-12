@@ -35,6 +35,7 @@ import { analyzeRCP } from './services/rcp-analyzer.js';
 import { runCvWallDetect, sanitize } from './services/cv-wall-client.js';
 import { generateElevationDXF } from './services/dxf-generator.js';
 import { buildElevationDXF } from './services/dxf-writer.js';
+import { buildFloorPlanDXF } from './services/dxf-writer.js';
 import { renderElevationPDF, renderCombinedElevationsPDF } from './services/pdf-elevation.js';
 import { getAllDecodedModels, DECODED_UNITS } from './services/render-elevation-decode.js';
 import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
@@ -135,6 +136,29 @@ app.get('/api/projects/:id/drawings/elevations/auto/dxf', async (req, res)=>{ tr
   res.set('Content-Disposition', `attachment; filename=ultida-elevation-${pid}-${model.wallId}.dxf`);
   res.send(dxf);
 }catch(e){ res.status(500).json({ success:false, error:e.message }); } });
+
+// Floor-plan DXF (true-mm, AutoCAD R2010) — the primary "Export DXF" path.
+// Degrades gracefully: if cad_drawings is missing it still returns a valid
+// (empty) sheet instead of a bare 404, so the user always gets a file.
+app.get('/api/projects/:id/drawings/floorplan/dxf', (req, res) => {
+  try {
+    const pid = req.params.id;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1").get(pid);
+    let walls = [], openings = [], rooms = [], furniture = [], ppm = 40;
+    if (cad) {
+      walls = JSON.parse(cad.walls_json || '[]');
+      openings = JSON.parse(cad.openings_json || '[]');
+      rooms = JSON.parse(cad.rooms_json || '[]');
+      furniture = JSON.parse(cad.furniture_json || '[]');
+      ppm = parseFloat(cad.pixels_per_meter) || 40;
+    }
+    const dxf = buildFloorPlanDXF({ walls, openings, rooms, furniture, pixelsPerMeter: ppm, projectId: pid, scale: '1:50', rev: '1.0', sheet: 'FLOOR PLAN' });
+    res.set('Content-Type', 'application/dxf');
+    res.set('Content-Disposition', `attachment; filename="ultida-floorplan-${pid}.dxf"`);
+    res.send(dxf);
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 app.post('/api/projects/:id/cad/render-to-dxf', express.json(), (req, res)=>{
   try {
     const pid = req.params.id;

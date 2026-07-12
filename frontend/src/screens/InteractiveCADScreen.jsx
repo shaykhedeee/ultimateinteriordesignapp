@@ -1988,7 +1988,22 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         <div className="mt-auto space-y-2 shrink-0">
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => exportToDXF({ walls, openings, furniture, rooms, measures, pixelsPerMeter, hasUnderlay: !!sketchUrl, componentLayers })}
+              onClick={async () => {
+                try {
+                  const r = await fetch(`http://127.0.0.1:8787/api/projects/${projectId}/drawings/floorplan/dxf`);
+                  if (!r.ok) throw new Error('server');
+                  const blob = await r.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = `ultida-floorplan-${projectId}.dxf`; a.click();
+                  URL.revokeObjectURL(url);
+                  __toast?.success?.('Floor-plan DXF downloaded');
+                } catch (e) {
+                  // offline fallback: client R12 exporter (still produces a file)
+                  exportToDXF({ walls, openings, furniture, rooms, measures, pixelsPerMeter, hasUnderlay: !!sketchUrl, componentLayers });
+                  __toast?.warn?.('Server unavailable — used offline DXF export');
+                }
+              }}
               className="py-2.5 bg-slate-800 hover:bg-slate-700 text-brand-500 border border-slate-750 font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition"
             >
               <Download className="w-3.5 h-3.5" />
