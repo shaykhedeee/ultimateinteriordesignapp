@@ -992,22 +992,106 @@ app.post('/api/projects/:id/floorplan/analyze-enhance', async (req, res) => {
     if (!interp.success) {
       return res.status(422).json({ success: false, error: interp.error, message: interp.message });
     }
+    // Merge persisted rooms/furniture (incl. previously-applied enhancements)
+    // so the analysis loop converges: applied fixes no longer re-suggest.
+    const cad = db.prepare('SELECT north_angle, rooms_json, furniture_json FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    let persistedRooms = [], persistedFurniture = [];
+    try { persistedRooms = JSON.parse(cad?.rooms_json || '[]'); } catch {}
+    try { persistedFurniture = JSON.parse(cad?.furniture_json || '[]'); } catch {}
+    const hasPts = (r) => Array.isArray(r.points) && r.points.length >= 3;
+    const mergedRooms = [...interp.interpretation.rooms];
+    for (const pr of persistedRooms) {
+      if (hasPts(pr) && !mergedRooms.some(m => m.id === pr.id)) mergedRooms.push(pr);
+    }
+    interp.interpretation.rooms = mergedRooms;
+
     // Build a spatial model from the interpreted rooms so the auto-layout
     // generator can place furniture.
     const spatialModel = {
       levels: [{
         levelId: 'level_0', name: 'Ground Floor', elevationMm: 0,
-        rooms: interp.interpretation.rooms.map(r => ({ id: r.id, type: r.type, name: r.name, points: r.points })),
+        rooms: mergedRooms.map(r => ({ id: r.id, type: r.type, name: r.name, points: r.points })),
         walls: interp.interpretation.walls,
         openings: interp.interpretation.openings
       }]
     };
     const normalized = planIntelligenceCore.normalizeIntake({});
     const layout = planIntelligenceCore.generateAutoLayoutProposal(spatialModel, normalized);
-    const cad = db.prepare('SELECT north_angle FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    // Fold persisted furniture (applied enhancements) into the layout used for analysis.
+    if (persistedFurniture.length) layout.levels[0].furniture = [...(layout.levels[0].furniture || []), ...persistedFurniture.filter(f => !layout.levels[0].furniture.some(x => x.id === f.id))];
     const northAngle = Number(cad?.north_angle ?? 0);
     const enhance = planIntelligenceCore.enhanceFloorPlan({ interpretation: interp.interpretation, layout, northAngle });
     res.json({ success: true, interpretation: interp.interpretation, layout, enhancement: enhance, northAngle });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Apply a single enhancement suggestion to the project's CAD (persisted).
+app.post('/api/projects/:id/floorplan/apply-enhancement', express.json(), (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const target = req.body?.target;
+    if (!target || !target.kind) return res.status(400).json({ success: false, error: 'NO_TARGET' });
+    const cad = db.prepare('SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    if (!cad) return res.status(404).json({ success: false, error: 'NO_CAD' });
+    let rooms = JSON.parse(cad.rooms_json || '[]');
+    let furniture = JSON.parse(cad.furniture_json || '[]');
+    let walls = JSON.parse(cad.walls_json || '[]');
+    const ppm = Number(cad.pixels_per_meter) || 40;
+    const toPx = (mm) => (mm / 1000) * ppm;
+    let applied = null;
+
+    if (target.kind === 'add_room') {
+      // place a small room in the requested zone corner, computed from wall bounds (px)
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const w of walls) {
+        const x1 = Number(w.x1 ?? w.x ?? 0), y1 = Number(w.y1 ?? w.y ?? 0);
+        const x2 = Number(w.x2 ?? (w.x + (w.w || 0)) ?? 0), y2 = Number(w.y2 ?? (w.y + (w.h || 0)) ?? 0);
+        minX = Math.min(minX, x1, x2); maxX = Math.max(maxX, x1, x2);
+        minY = Math.min(minY, y1, y2); maxY = Math.max(maxY, y1, y2);
+      }
+      const rw = toPx(800), rh = toPx(600);
+      let x = minX, y = minY;
+      if (target.preferredZone === 'NE') { x = maxX - rw; y = minY; }
+      else if (target.preferredZone === 'NW') { x = minX; y = minY; }
+      else if (target.preferredZone === 'SE') { x = maxX - rw; y = maxY - rh; }
+      else if (target.preferredZone === 'SW') { x = minX; y = maxY - rh; }
+      const newRoom = {
+        id: 'room_' + (nanoid ? nanoid(5) : Date.now()),
+        name: (target.type === 'pooja' ? 'Pooja / Mandir' : 'Enhanced Room'),
+        type: target.type || 'other',
+        x, y, w: rw, h: rh,
+        points: [{ x, y }, { x: x + rw, y }, { x: x + rw, y: y + rh }, { x, y: y + rh }],
+        widthMm: 800, heightMm: 600, areaMm2: 480000,
+        color: '#C9A84C', confidence: 1.0, appliedEnhancement: target.id
+      };
+      rooms.push(newRoom);
+      applied = newRoom.id;
+    } else if (target.kind === 'add_furniture') {
+      const w = toPx(target.widthMm || 600), h = toPx(target.heightMm || 2000);
+      const newF = {
+        id: 'furn_' + (nanoid ? nanoid(5) : Date.now()),
+        type: target.libraryId || 'wardrobe',
+        name: (target.libraryId || 'wardrobe').toUpperCase(),
+        width: target.widthMm || 600, height: target.heightMm || 2000,
+        x: 100, y: 100, roomId: target.roomId || null,
+        appliedEnhancement: target.id
+      };
+      furniture.push(newF);
+      applied = newF.id;
+    } else if (target.kind === 'rotate_furniture') {
+      const f = furniture.find(x => x.id === target.furnitureId);
+      if (f) { f.rotation = 180; f.headboard = target.headboard || 'South'; f.appliedEnhancement = target.id; applied = f.id; }
+    } else if (target.kind === 'rezone_furniture') {
+      // annotate as a note on the furniture/room for the user to act on
+      const f = furniture.find(x => x.id === target.furnitureId);
+      if (f) { f.zoneNote = 'move-to-' + (target.toZone || 'SE'); f.appliedEnhancement = target.id; applied = f.id; }
+    }
+
+    db.prepare(`UPDATE cad_drawings SET rooms_json = ?, furniture_json = ? WHERE project_id = ?`)
+      .run(JSON.stringify(rooms), JSON.stringify(furniture), projectId);
+    res.json({ success: true, appliedId: applied, kind: target.kind, rooms: rooms.length, furniture: furniture.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -4,7 +4,7 @@ import {
   BarChart3, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, Zap,
   CheckCircle2, Clock, Layers, IndianRupee,
-  TrendingUp, ArrowRight, Bell, Award, Paintbrush
+  TrendingUp, ArrowRight, Bell, Award, Paintbrush, Wand2
 } from 'lucide-react';
 
 // Import Screens
@@ -31,6 +31,7 @@ import PipelineStudio            from './screens/PipelineStudio.jsx';
 import CommandCenterScreen       from './screens/CommandCenterScreen.jsx';
 const WhiteLabelStudio          = lazy(() => import('./screens/WhiteLabelStudio.jsx'));
 const LandingPage               = lazy(() => import('./components/landing/LandingPage.jsx'));
+import FloorPlanEnhancerScreen from './screens/FloorPlanEnhancerScreen.jsx';
 
 
 
@@ -78,6 +79,7 @@ const NAV_CONFIG = [
       { id: 'cad',      label: 'Plan Intelligence',    icon: Compass,     shortcut: null },
       { id: 'studio',   label: 'Editable 3D Scene',    icon: Layers,      shortcut: null },
       { id: 'vastu',    label: 'Vastu Studio',         icon: Compass,     shortcut: null },
+      { id: 'enhancer', label: 'Floor Plan Enhancer',  icon: Wand2,      shortcut: null },
       { id: 'drawings', label: 'Drawings & Elevations', icon: CheckSquare, shortcut: null, staleFlag: 'stale_drawings' }
     ]
   },
@@ -419,6 +421,7 @@ export function App() {
       case 'cad':       return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
       case 'studio':    return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
       case 'vastu':     return <VastuStudioScreen projectId={selectedProjectId} onApplyDone={() => setActiveTab('cad')} />;
+      case 'enhancer': return <FloorPlanEnhancerScreen projectId={selectedProjectId} onApplied={() => fetchData()} />;
       case 'drawings':  return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
       case 'materials': return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => setActiveTab('renders')} />;
       case 'renders':   return <Render3DStudio projectId={selectedProjectId} onComplete={() => setActiveTab('cutlist')} />;
