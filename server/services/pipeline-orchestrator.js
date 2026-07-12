@@ -14,7 +14,7 @@ import { generateSkpDirect } from './skp-reader.js';
 
 const OUT = path.join(projectRoot, '_deliverables', '{{PROJECT_ID}}');
 
-function ensure(...p){ fs.mkdirSync(p.join('/'), {recursive:true}); return p.join('/'); }
+function ensure(...p){ fs.mkdirSync(path.join(...p), {recursive:true}); return path.join(...p); }
 function write(p,b){ fs.writeFileSync(p, Buffer.isBuffer(b)?b:Buffer.from(b)); return p; }
 
 import zlib from 'zlib';

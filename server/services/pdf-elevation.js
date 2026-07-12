@@ -99,7 +99,13 @@ export function drawElevation(doc, model, opts = {}) {
   // Cabinets (detail + handle + material callouts)
   const cabinets = model.cabinets || [];
   for (const c of cabinets) {
-    const x = toX(c.xOffsetMm), y = toY(c.zOffsetMm + c.heightMm), w = c.widthMm * scale, h = c.heightMm * scale;
+    // Defensive: pipeline cabinets may omit geometry fields — default to 0 so a
+    // partial cabinet still renders instead of throwing "unsupported number: NaN".
+    const xOff = Number(c.xOffsetMm) || 0;
+    const zOff = Number(c.zOffsetMm) || 0;
+    const hgt = Number(c.heightMm) || 0;
+    const wid = Number(c.widthMm) || 0;
+    const x = toX(xOff), y = toY(zOff + hgt), w = wid * scale, h = hgt * scale;
     const m = c.material || {};
     const tag = c.tag || c.type || 'SHUTTER';
     const isOpen = m.openShelf || tag === 'OPEN' || tag === 'OPEN UNIT' || tag === 'OPEN SHELF' || tag.includes('SHELVES') || tag.includes('NICHE');
