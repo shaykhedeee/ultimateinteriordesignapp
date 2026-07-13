@@ -80,3 +80,17 @@ test('analyzeProjectElevations -> valid DXF end-to-end', () => {
   assert.ok(dxf.includes('SECTION') && dxf.endsWith('EOF'), 'valid DXF envelope');
   assert.ok(!dxf.includes('NaN'), 'no NaN coordinates in DXF');
 });
+
+test('REGRESSION: pathological ~1km wall does not crash DXF export', () => {
+  // A stray 40,000px wall at 40px/m => 1,000,000mm (1km). Previously this made
+  // drawElevation emit a gigantic entity list, and toString's `out.push(...lines)`
+  // spread overflowed the call stack ("Maximum call stack size exceeded").
+  const wall = { id: 'w1', x1: 0, y1: 0, x2: 40000, y2: 0, heightMm: 2700, thicknessMm: 75 };
+  const m = analyzeWallElevation({ wall, openings: [], furniture: [], pixelsPerMeter: 40, projectId: 'X', sheetName: 'ELEVATION A' });
+  // Wall length must be sanity-clamped (residential wall <= 20m) and flagged.
+  assert.equal(m.lengthClamped, true);
+  assert.ok(m.lengthMm <= 20000, 'wall length clamped to sane max');
+  // And the DXF must build without throwing (concat, not spread, in toString).
+  const dxf = buildElevationDXF(m, { scale: '1:25', rev: '1.0', projectId: 'X', sheet: m.wallName });
+  assert.ok(dxf.includes('ENTITIES') && dxf.trim().endsWith('EOF'), 'valid DXF despite huge input');
+});

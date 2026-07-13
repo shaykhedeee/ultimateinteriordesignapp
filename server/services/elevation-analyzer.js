@@ -142,7 +142,15 @@ export function analyzeWallElevation({
   const dx = num(wall.x2) - num(wall.x1);
   const dy = num(wall.y2) - num(wall.y1);
   const pxLen = Math.hypot(dx, dy);
-  const lengthMm = Math.round((pxLen / ppm) * 1000);
+  let lengthMm = Math.round((pxLen / ppm) * 1000);
+  // Sanity guard: residential interior walls are <= ~20 m. A longer value almost
+  // always means a unit/coordinate error in the source CAD (e.g. a stray 40,000px
+  // wall at 40px/m => 1000 m). Clamp to a safe max and flag it so downstream
+  // drawing code never generates a kilometre-long elevation.
+  const MAX_WALL_MM = 20000;
+  let lengthClamped = false;
+  if (!Number.isFinite(lengthMm) || lengthMm <= 0) { lengthMm = 1; lengthClamped = true; }
+  else if (lengthMm > MAX_WALL_MM) { lengthMm = MAX_WALL_MM; lengthClamped = true; }
   const heightMm = num(wall.heightMm ?? wallHeightMm, DEFAULT_CEILING_MM);
   const thicknessMm = num(wall.thicknessMm ?? 75);
 
@@ -205,7 +213,8 @@ export function analyzeWallElevation({
     cabinets: wallCabinets,
     coverage: { usedMm, freeMm, utilizationPct, overflow, gaps },
     confidence,
-    notes
+    notes,
+    lengthClamped
   };
 }
 
