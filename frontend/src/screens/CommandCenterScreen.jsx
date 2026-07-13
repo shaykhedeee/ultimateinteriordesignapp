@@ -25,6 +25,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [health, setHealth] = useState(null);
   const [readinessMap, setReadinessMap] = useState({});
   const [quotationMap, setQuotationMap] = useState({});
+  const [pendingApprovals, setPendingApprovals] = useState(null);
 
   const allWorkflowTabs = [
     { id: 'overview', label: 'Studio Overview', desc: 'Workspace health & KPIs', roles: ['designer', 'brand', 'realestate'] },
@@ -76,10 +77,10 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
     setLoading(true);
     try {
       const [pRes, lRes, hRes, mRes] = await Promise.all([
-        fetch('http://127.0.0.1:5055/api/projects').then(r => r.ok ? r.json() : []),
-        fetch('http://127.0.0.1:5055/api/leads').then(r => r.ok ? r.json() : []),
-        fetch('http://127.0.0.1:5055/api/diagnostics/api-health').then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch('http://127.0.0.1:5055/api/material-catalog').then(r => r.ok ? r.json() : [])
+        fetch('/api/projects').then(r => r.ok ? r.json() : []),
+        fetch('/api/leads').then(r => r.ok ? r.json() : []),
+        fetch('/api/diagnostics/api-health').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/material-catalog').then(r => r.ok ? r.json() : [])
       ]);
 
       const loadedProjects = Array.isArray(pRes) ? pRes : (Array.isArray(pRes?.projects) ? pRes.projects : []);
@@ -87,6 +88,16 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       setLeads(Array.isArray(lRes) ? lRes : []);
       setHealth(hRes);
       setMaterialsCatalog(mRes);
+
+      // Real "pending approvals" aggregate (plan review items + unapproved
+      // laminate swaps + unpaid invoices) — drives the command-center KPI.
+      try {
+        const paRes = await fetch('/api/pending-approvals');
+        if (paRes.ok) {
+          const pa = await paRes.json();
+          setPendingApprovals(pa.success ? pa : null);
+        }
+      } catch { /* non-critical */ }
 
       if (loadedProjects.length > 0 && !selectedProjectId) {
         setSelectedProjectId(loadedProjects[0].id);
@@ -96,10 +107,10 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
       const topProjects = loadedProjects.slice(0, 8);
       const [readResults, quotResults] = await Promise.all([
         Promise.all(topProjects.map(p =>
-          fetch(`http://127.0.0.1:5055/api/projects/${p.id}/readiness`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
+          fetch(`/api/projects/${p.id}/readiness`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
         )),
         Promise.all(topProjects.map(p =>
-          fetch(`http://127.0.0.1:5055/api/projects/${p.id}/quotation`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
+          fetch(`/api/projects/${p.id}/quotation`).then(r => r.ok ? r.json() : null).then(d => [p.id, d]).catch(() => [p.id, null])
         ))
       ]);
       setReadinessMap(Object.fromEntries(readResults));
@@ -120,9 +131,26 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   // Pipeline calculations
   const totalLeads = leads.length;
   const activeProjectsCount = projects.length;
-  const pendingApprovalsCount = projects.filter(p => p.status === 'cad_approved').length;
+  // Prefer the real aggregate (plan review items + unapproved swaps + unpaid
+  // invoices); fall back to the project-status proxy until it loads.
+  const pendingApprovalsCount = pendingApprovals
+    ? pendingApprovals.total
+    : projects.filter(p => p.status === 'cad_approved').length;
   const productionCount = projects.filter(p => p.status === 'production').length;
   const pipelineValue = ((totalLeads * 3.5) + (activeProjectsCount * 12.5)).toFixed(1);
+  const workflowStages = [
+    { id: 'brief', label: 'Intake', detail: 'Client intake and scope' },
+    { id: 'cad', label: 'Plan', detail: 'Plan intelligence and floorplan cleanup' },
+    { id: 'studio', label: 'Scene', detail: 'Editable scene graph' },
+    { id: 'drawings', label: 'Docs', detail: 'Elevations and technical sheets' },
+    { id: 'renders', label: 'Renders', detail: 'Blender base + AI polish' },
+    { id: 'materials', label: 'Materials', detail: 'Swaps and pricing' },
+    { id: 'cutlist', label: 'Production', detail: 'Cutlist and nesting' },
+    { id: 'finance', label: 'Finance', detail: 'Quote and billing' },
+    { id: 'presentation', label: 'Delivery', detail: 'Pack and handoff' }
+  ];
+  const workflowIndex = Math.max(0, workflowStages.findIndex(s => s.id === (activeProject?.current_step || activeProject?.status || 'brief')));
+  const workflowProgress = Math.round((workflowIndex / Math.max(1, workflowStages.length - 1)) * 100);
 
   return (
     <div className="h-full w-full overflow-y-auto p-6 space-y-5 font-sans" style={{ background:'transparent', color:'var(--text-primary)' }}>
@@ -165,7 +193,11 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
         {[
           { label:'Leads In Queue',    val:totalLeads,         sub:'Intake & brief',       accent:'var(--text-secondary)', glow:false },
           { label:'Active Projects',   val:activeProjectsCount, sub:'In design pipeline',  accent:'var(--gold)',           glow:false },
-          { label:'Pending Approvals', val:pendingApprovalsCount, sub:'Awaiting signoff',  accent:'var(--blue-soft)',      glow:false },
+          { label:'Pending Approvals', val:pendingApprovalsCount,
+            sub: pendingApprovals
+              ? `Reviews ${pendingApprovals.reviewItems} · Swaps ${pendingApprovals.laminateSwaps} · Invoices ${pendingApprovals.invoices}`
+              : 'Awaiting signoff',
+            accent:'var(--blue-soft)',      glow:false },
           { label:'Production Ready',  val:productionCount,    sub:'BOM & drawings frozen', accent:'var(--emerald)',       glow:false },
           { label:'Pipeline Value',    val:`INR ${pipelineValue}L`, sub:'Estimated yield', accent:'var(--gold)',           glow:true  },
         ].map((kpi, idx) => (
@@ -183,6 +215,51 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
             <span style={{ fontSize:'9px', color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', display:'block', marginTop:'6px' }}>{kpi.sub}</span>
           </div>
         ))}
+      </div>
+
+      <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'18px', padding:'16px 18px', boxShadow:'var(--shadow-card)' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'12px', marginBottom:'12px', flexWrap:'wrap' }}>
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'3px' }}>
+              <BarChart3 style={{ width:13, height:13, color:'var(--gold)' }} />
+              <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Workflow Spine</span>
+            </div>
+            <p style={{ fontSize:'10px', color:'var(--text-muted)', fontWeight:500 }}>The scene graph drives every downstream output. Current stage and next output stay visible here.</p>
+          </div>
+          <div style={{ minWidth:'180px', textAlign:'right' }}>
+            <div style={{ fontSize:'9px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--text-muted)' }}>Progress</div>
+            <div style={{ fontSize:'22px', fontWeight:900, color:'var(--gold-bright)', lineHeight:1 }}>{workflowProgress}%</div>
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:`repeat(${workflowStages.length}, minmax(0, 1fr))`, gap:'8px' }}>
+          {workflowStages.map((stage, idx) => {
+            const active = idx === workflowIndex;
+            const done = idx < workflowIndex;
+            return (
+              <button
+                key={stage.id}
+                onClick={() => onNavigateToTab(stage.id)}
+                style={{
+                  border:'1px solid',
+                  borderColor: active ? 'var(--gold-border)' : done ? 'rgba(34,197,94,0.28)' : 'rgba(255,255,255,0.05)',
+                  background: active ? 'rgba(201,168,76,0.08)' : done ? 'rgba(34,197,94,0.05)' : 'rgba(0,0,0,0.18)',
+                  borderRadius:'14px',
+                  padding:'11px 10px',
+                  textAlign:'left',
+                  minHeight:'84px',
+                  cursor:'pointer'
+                }}
+              >
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'6px', gap:'8px' }}>
+                  <span style={{ fontSize:'9px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color: active ? 'var(--gold-bright)' : done ? 'var(--emerald)' : 'var(--text-muted)' }}>{String(idx + 1).padStart(2, '0')}</span>
+                  {done ? <CheckCircle2 size={12} color="var(--emerald)" /> : active ? <Circle size={12} color="var(--gold)" /> : <Circle size={12} color="var(--text-muted)" />}
+                </div>
+                <div style={{ fontSize:'11px', fontWeight:800, color: active ? 'var(--text-primary)' : 'var(--text-secondary)', lineHeight:1.2 }}>{stage.label}</div>
+                <div style={{ fontSize:'9px', color:'var(--text-muted)', marginTop:'4px', lineHeight:1.35 }}>{stage.detail}</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── Main Layout: Tabs + Left column & Sidebar right column ── */}
@@ -388,7 +465,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                     onClick={async () => {
                       if (!newProj.name.trim()) { __toast?.show('Project name is required'); return; }
                       try {
-                        const res = await fetch('http://127.0.0.1:5055/api/projects', {
+                        const res = await fetch('/api/projects', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ name: newProj.name.trim(), client_name: newProj.client_name.trim(), budget: newProj.budget ? Number(newProj.budget) : '' })
                         });
@@ -444,7 +521,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!window.confirm(`Delete project "${p.name}" and all its data? This cannot be undone.`)) return;
-                            fetch(`http://127.0.0.1:5055/api/projects/${p.id}`, { method: 'DELETE' })
+                            fetch(`/api/projects/${p.id}`, { method: 'DELETE' })
                               .then(r => r.json())
                               .then(d => {
                                 if (d.success) {
@@ -534,7 +611,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     const pid = selectedProjectId || 'proj_demo';
     setSmartRenderBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${pid}/renders/generate`, {
+      const res = await fetch(`/api/projects/${pid}/renders/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -548,7 +625,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
       if (data.success && data.variants && data.variants.length) {
         const v = data.variants[0];
         const u = v.url || v.filePath || '';
-        setSmartRenderImg(u.startsWith('http') ? u : `http://127.0.0.1:5055${u}`);
+        setSmartRenderImg(u.startsWith('http') ? u : `${u}`);
         setSmartRenderId(v.id || null);
       } else {
         throw new Error(data.error || 'Render failed');
@@ -587,10 +664,10 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
         try {
           const fd = new FormData();
           fd.append('floorplan', file);
-          const res = await fetch(`http://127.0.0.1:5055/api/projects/${pid}/floorplan`, { method: 'POST', body: fd });
+          const res = await fetch(`/api/projects/${pid}/floorplan`, { method: 'POST', body: fd });
           const data = await res.json();
           if (data?.success && data.floorplanUrl) {
-            setUploadedImageUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+            setUploadedImageUrl(`${data.floorplanUrl}`);
             __toast?.success('Floor plan uploaded & linked to project.');
           }
         } catch (err) {
@@ -604,7 +681,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
   const ensureProject = async (name) => {
     const safeName = (name || 'Untitled Smart Project').toString().trim() || 'Untitled Smart Project';
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/projects', {
+      const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: safeName })
@@ -648,7 +725,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
     setSelectedAction(actionKey);
     setActionProgress(true);
     const pid = selectedProjectId || 'proj_demo';
-    const BASE = 'http://127.0.0.1:5055';
+    const BASE = '';
     const finish = (msg, tab) => {
       setActionProgress(false);
       if (msg) __toast?.success(msg);
@@ -1062,7 +1139,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             </div>
             <button 
               onClick={() => {
-                fetch(`http://127.0.0.1:5055/api/projects/${project?.id}/cad`, {
+                fetch(`/api/projects/${project?.id}/cad`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -1385,7 +1462,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
     
     setGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/renders/generate`, {
+      const res = await fetch(`/api/projects/${project.id}/renders/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1401,7 +1478,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
         if (data.success && data.variants && data.variants.length > 0) {
           const v = data.variants[0];
           const imgUrl = v.url || v.filePath || '';
-          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:5055${imgUrl}`;
+          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `${imgUrl}`;
           setGeneratedResult(fullImgUrl);
           __toast?.success("Concept variant generated and saved to project renders!");
         } else {
@@ -1557,7 +1634,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
       fd.append('room', 'living');
       fd.append('imageB64', 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
       
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/photo-edit`, {
+      const res = await fetch(`/api/projects/${project.id}/photo-edit`, {
         method: 'POST',
         body: fd
       });
@@ -1565,7 +1642,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
         const data = await res.json();
         if (data.success) {
           const imgUrl = data.imageUrl || '';
-          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `http://127.0.0.1:5055${imgUrl}`;
+          const fullImgUrl = imgUrl.startsWith('http') ? imgUrl : `${imgUrl}`;
           setResult(fullImgUrl);
           __toast?.success("Photo patch generated and saved as reference!");
         } else {
@@ -1796,7 +1873,7 @@ function QuickLayoutWorkspace({ project, onNavigateToTab }) {
     const pixelsPerMeter = 100;
 
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`, {
+      const res = await fetch(`/api/projects/${project.id}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1985,7 +2062,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
     }
 
     try {
-      const cadRes = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`);
+      const cadRes = await fetch(`/api/projects/${project.id}/cad`);
       if (!cadRes.ok) throw new Error("Could not fetch project CAD drawing");
       const cadData = await cadRes.json();
 
@@ -2012,7 +2089,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
 
       furniture.push(newCabinet);
 
-      const saveRes = await fetch(`http://127.0.0.1:5055/api/projects/${project.id}/cad`, {
+      const saveRes = await fetch(`/api/projects/${project.id}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2466,6 +2543,16 @@ const ALL_SPECIALIST_AI_TOOLS = [
     icon: 'Sparkles'
   },
   {
+    key: 'blender_export',
+    name: 'Blender Base Export',
+    category: 'AI Renders',
+    desc: 'Export deterministic Blender/Cycles geometry from the approved scene graph.',
+    inputs: 'Current project scene version',
+    outputs: 'Saved Blender Python script and optional base render',
+    updateBehavior: 'Creates a geometry-faithful render source',
+    icon: 'Camera'
+  },
+  {
     key: 'camera_director',
     name: 'FOV Camera Angle Planner',
     category: 'AI Renders',
@@ -2649,6 +2736,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     vastu_annotate:       { m: 'GET',  p: id => `/api/projects/${id}/vastu/analyze`, body: {} },
     extruder_3d:          { m: 'POST', p: id => `/api/projects/${id}/scenes`, body: { fromCad: true } },
     render_concept:       { m: 'POST', p: id => `/api/projects/${id}/renders/generate`, body: { room: 'living', style: 'modern-luxury', variantCount: 1 } },
+    blender_export:       { m: 'POST', p: id => `/api/projects/${id}/scene/blender-export`, body: {} },
     camera_director:      { m: 'GET',  p: id => `/api/projects/${id}/renders` },
     material_swapper:      { m: 'POST', p: id => `/api/projects/${id}/renders/laminate-swap`, body: { from: 'walnut', to: 'oak' } },
     ambient_lighting:     { m: 'POST', p: id => `/api/projects/${id}/renders/suggest-palette`, body: { mood: 'golden_hour' } },
@@ -2670,7 +2758,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
     setLiveRunning(true);
     try {
       let res;
-      const url = `http://127.0.0.1:5055${route.p(project.id)}`;
+      const url = `${route.p(project.id)}`;
       if (route.multipart) {
         const fd = new FormData();
         res = await fetch(url, { method: route.m, body: fd });
@@ -2690,7 +2778,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
   // Where each tool's results are best viewed (so "Run live" lands on the right screen)
   const TOOL_TAB = {
     cad_ingest: 'cad', ortho_calibrate: 'cad', vastu_annotate: 'vastu', extruder_3d: 'studio',
-    render_concept: 'renders', camera_director: 'renders', material_swapper: 'renders', ambient_lighting: 'renders',
+    render_concept: 'renders', blender_export: 'renders', camera_director: 'renders', material_swapper: 'renders', ambient_lighting: 'renders',
     walkthrough_animator: 'renders', carcass_config: 'cutlist', hardware_spec: 'cutlist', nesting_calc: 'cutlist',
     swatch_match: 'materials', elevation_draft: 'drawings', rcp_planner: 'drawings', dxf_compiler: 'drawings'
   };
@@ -3201,9 +3289,9 @@ function SettingsWorkspace() {
   const [brand, setBrand] = React.useState({
     studioName: '', tagline: '', designerName: '', phone: '', email: '', logoColor:'#C9A84C'
   });
-  const API = 'http://127.0.0.1:5055/api/settings/api-keys';
-  const APP_API = 'http://127.0.0.1:5055/api/settings/app-settings';
-  const MODELS_API = 'http://127.0.0.1:5055/api/settings/provider-models';
+  const API = '/api/settings/api-keys';
+  const APP_API = '/api/settings/app-settings';
+  const MODELS_API = '/api/settings/provider-models';
 
   const [geminiModels, setGeminiModels] = React.useState([]);
   const [openaiModels, setOpenaiModels] = React.useState([]);

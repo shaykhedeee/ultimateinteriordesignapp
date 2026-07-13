@@ -144,6 +144,28 @@ app.get('/api/projects/review-queue', (req, res) => {
   }
 });
 
+// Aggregate "pending approvals" across all projects so the command center can
+// surface what actually needs a designer's sign-off (plan review items, laminate
+// swaps awaiting approval, invoices awaiting payment). Real signal behind the
+// UI_UX_ACHIEVEMENTS "what needs designer review" KPI.
+app.get('/api/pending-approvals', (req, res) => {
+  try {
+    const reviewItems = db.prepare(`
+      SELECT COUNT(*) AS c FROM floor_plan_review_items
+      WHERE status NOT IN ('accepted','corrected','ignored')
+    `).get().c;
+    const laminateSwaps = db.prepare(`
+      SELECT COUNT(*) AS c FROM laminate_swap_history WHERE approved = 0
+    `).get().c;
+    const invoices = db.prepare(`
+      SELECT COUNT(*) AS c FROM invoices WHERE status IN ('unpaid','partial')
+    `).get().c;
+    res.json({ success: true, reviewItems, laminateSwaps, invoices, total: reviewItems + laminateSwaps + invoices });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/projects/:id/approve-layout', (req, res) => {
   try {
     const projectId = req.params.id;
