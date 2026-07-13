@@ -694,6 +694,18 @@ app.post('/api/leads/:id/send-designs', async (req, res) => {
     const project = db.prepare('SELECT * FROM projects WHERE lead_id = ? ORDER BY created_at DESC LIMIT 1').get(leadId);
     if (!project) return res.status(404).json({ error: 'NO_PROJECT', message: 'This client has no project yet — create one before sending designs.' });
 
+    // Client approval gate: designs cannot be sent until the client has
+    // signed off on the proposal pack. This is the "Designs Sent" stage gate.
+    const signoff = db.prepare("SELECT * FROM signoffs WHERE project_id = ? AND status = 'approved' ORDER BY signed_at DESC LIMIT 1").get(project.id);
+    if (!signoff) {
+      return res.status(409).json({
+        success: false,
+        error: 'APPROVAL_REQUIRED',
+        message: 'Client sign-off required before sending designs. Generate and have the client approve the proposal pack first.',
+        signoffUrl: `/api/projects/${project.id}/signoff/pdf`
+      });
+    }
+
     const ts = Date.now();
     const fileName = `designs-${leadId}-${ts}.pdf`;
     const destPath = path.join(storageDir, 'uploads', fileName);
@@ -2280,6 +2292,26 @@ app.get('/api/providers/status', (req, res) => {
 // ==========================================
 // 6. COMPREHENSIVE SIGNOFF CONTRACT
 // ==========================================
+
+// Client approval gate — record a client sign-off on a proposal pack.
+// Required before "Send Designs" can advance the project to production.
+app.post('/api/projects/:id/signoff', express.json(), (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+    const { clientName, packType = 'signoff', signatureToken } = req.body || {};
+    const id = 'so_' + (nanoid ? nanoid(10) : Date.now());
+    const signedAt = new Date().toISOString();
+    db.prepare(`INSERT INTO signoffs (id, project_id, lead_id, client_name, pack_type, signature_token, status, signed_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'approved', ?)`)
+      .run(id, projectId, project.lead_id || null, clientName || project.client_name || null, packType, signatureToken || null, signedAt);
+    logTimelineEvent(projectId, 'client.signoff', 'Client signed off proposal pack', `${packType} approved by ${clientName || 'client'}`);
+    res.json({ success: true, id, status: 'approved', signedAt, signoffUrl: `/api/projects/${projectId}/signoff/pdf` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.get('/api/projects/:id/signoff/pdf', async (req, res) => {
   try {

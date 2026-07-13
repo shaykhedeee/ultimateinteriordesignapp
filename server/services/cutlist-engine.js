@@ -420,7 +420,9 @@ export function buildSheetLayout(cutlistOrParts, moduleInput = []) {
           w: placed.w,
           h: placed.h,
           rotated: placed.rotated,
-          fromNestOptimizer: true
+          fromNestOptimizer: true,
+          grainLocked: orig.grain === 'vertical' || orig.grain === 'horizontal',
+          grainAngle: orig.grain === 'vertical' ? 90 : orig.grain === 'horizontal' ? 0 : null
         });
         sheet.usedAreaSqM += (orig.lengthMm * orig.widthMm) / 1_000_000;
       }
@@ -1230,7 +1232,12 @@ function placePieceMaxRects(sheet, piece) {
     y: best.rect.y,
     w: best.candidate.w,
     h: best.candidate.h,
-    rotated: best.candidate.rotated
+    rotated: best.candidate.rotated,
+    // Grain direction lock: a piece with directional grain (vertical/horizontal)
+    // is grain-locked — its grain axis cannot be rotated by the packer. Surface
+    // this so the sheet preview can draw a grain arrow and warn if misaligned.
+    grainLocked: piece.grain === 'vertical' || piece.grain === 'horizontal',
+    grainAngle: piece.grain === 'vertical' ? 90 : piece.grain === 'horizontal' ? 0 : null
   };
   sheet.pieces.push(placed);
   sheet.usedAreaSqM += (piece.lengthMm * piece.widthMm) / 1_000_000;

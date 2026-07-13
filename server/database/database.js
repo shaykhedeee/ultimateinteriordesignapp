@@ -487,6 +487,24 @@ try { db.exec("ALTER TABLE leads ADD COLUMN tokens_paid REAL DEFAULT 0;"); } cat
 try { db.exec("ALTER TABLE leads ADD COLUMN designs_sent INTEGER DEFAULT 0;"); } catch (e) {}
 try { db.exec("ALTER TABLE leads ADD COLUMN notes TEXT;"); } catch (e) {}
 
+// Client approval / sign-off gate. A project may not be advanced to
+// "designs sent" / production until the client has signed off (recorded here).
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS signoffs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      lead_id TEXT,
+      client_name TEXT,
+      pack_type TEXT DEFAULT 'signoff',     -- brief | signoff | quotation
+      signature_token TEXT,                 -- opaque client signature token
+      status TEXT DEFAULT 'approved',       -- approved | revoked
+      signed_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+} catch (e) {}
+
 // Seed default material catalog if empty
 try {
   const count = db.prepare("SELECT COUNT(*) as cnt FROM material_catalog").get().cnt;
