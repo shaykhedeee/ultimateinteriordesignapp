@@ -2019,7 +2019,7 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
 
     let result;
     try {
-      result = await withTimeout(visualizerEngine.generateFastRenderVariants(projectId, params), 20000, 'render-generate');
+      result = await withTimeout(visualizerEngine.generateFastRenderVariants(projectId, params), 45000, 'render-generate');
     } catch (e) {
       console.warn('render generate fell back (provider timeout/unconfigured):', e.message);
       // No live provider configured (BYOK) — synthesize a labeled placeholder so

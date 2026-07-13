@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nanoid } from 'nanoid';
+import sharp from 'sharp';
 import db from '../database/database.js';
 import { getGeminiStatus } from './gemini-service.js';
 import { isNativeOpenAiKey, openAiKeyType } from './provider-config.js';
@@ -108,10 +109,10 @@ const ROOM_LANGUAGE = {
   'whole-home': 'Cohesive warm-white luxury: cream walls, beige marble floors, walnut/charcoal ribbed two-tone storage, cove + arched-mirror LED, sage accents, black hardware.'
 };
 
-export async function generateInteriorAsset({ projectId, room, title, prompt, style, budgetTier, tags, model = 'auto', reuseFirst = true }) {
+export async function generateInteriorAsset({ projectId, room, title, prompt, style, budgetTier, tags, model = 'auto', reuseFirst = true, qualityMode = 'standard' }) {
   const id = nanoid(12);
   const safeRoom = String(room || 'room').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const base = { id, projectId, room, safeRoom, title, prompt: enhanceInteriorPrompt(prompt, room), style, budgetTier, tags };
+  const base = { id, projectId, room, safeRoom, title, prompt: enhanceInteriorPrompt(prompt, room, qualityMode, style), style, budgetTier, tags, qualityMode };
   const providers = generationProviderPriority({ reuseFirst });
 
   for (const provider of providers) {
@@ -122,39 +123,39 @@ export async function generateInteriorAsset({ projectId, room, title, prompt, st
     }
     if (provider === 'gemini-imagen') {
       const live = await tryGenerateGeminiImagen(base);
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'openai-gpt-image-1') {
       const live = await tryGenerateOpenAiGptImage1(base);
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'openai') {
       const live = await tryGenerateOpenAiImage(base);
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'stability-sdxl') {
       const live = await tryGenerateStabilityImage({ ...base, model: 'sdxl' });
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'stability-flux') {
       const live = await tryGenerateStabilityImage({ ...base, model: 'flux' });
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'freepik') {
       const live = await tryGenerateFreepikImage(base);
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'huggingface' || provider === 'hf') {
       const live = await tryGenerateHuggingFaceImage(base);
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'pollinations') {
       const live = await tryGeneratePollinationsImage(base);
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'vyro' || provider === 'imagine') {
       const live = await tryGenerateVyroImage(base);
-      if (live) return mirrorAssetToReferenceLibrary(live);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
     }
     if (provider === 'pexels') {
       const stock = await tryDownloadPexelsImage(base);
@@ -935,16 +936,19 @@ export function getProviderStatus() {
 
 function providerPriority() {
   const hasPremiumKey = Boolean(process.env.OPENAI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.STABILITY_API_KEY || process.env.FREEPIK_API_KEY || process.env.HUGGINGFACE_API_KEY);
-  // Default: real photoreal renders out-of-the-box via keyless Pollinations
-  // (no API key required). When a premium provider key is present we still
-  // prefer it (set via env), otherwise Pollinations leads and the SVG mock is
-  // only the absolute last resort.
-  const primary = process.env.IMAGE_PROVIDER || (hasPremiumKey ? 'library-reuse' : 'pollinations');
-  const fallbacks = (process.env.IMAGE_PROVIDER_FALLBACKS || 'gemini-imagen,openai-gpt-image-1,openai,huggingface,stability-sdxl,stability-flux,freepik,pollinations,pexels,curated,mock')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return [...new Set([primary, ...fallbacks, 'mock'])];
+  // When a premium (paid) provider key is present, lead with the best photoreal
+  // models so client renders are VRay/Lumion-class, not library-reuse/drafts.
+  // Pollinations (keyless) is the dependable fallback when no key is set.
+  const premiumLead = ['openai-gpt-image-1', 'gemini-imagen', 'openai', 'stability-flux', 'stability-sdxl', 'freepik', 'huggingface'];
+  const primary = process.env.IMAGE_PROVIDER
+    || (hasPremiumKey ? 'openai-gpt-image-1' : 'pollinations');
+  const fallbacks = (process.env.IMAGE_PROVIDER_FALLBACKS
+    || (hasPremiumKey
+      ? 'openai-gpt-image-1,gemini-imagen,openai,stability-flux,stability-sdxl,freepik,huggingface,library-reuse,pollinations,pexels,curated,mock'
+      : 'library-reuse,gemini-imagen,openai-gpt-image-1,openai,huggingface,stability-sdxl,stability-flux,freepik,pollinations,pexels,curated,mock')
+  ).split(',').map((item) => item.trim()).filter(Boolean);
+  const ordered = hasPremiumKey ? [...new Set([primary, ...premiumLead, ...fallbacks, 'library-reuse', 'pollinations', 'pexels', 'curated', 'mock'])] : [...new Set([primary, ...fallbacks, 'mock'])];
+  return ordered;
 }
 
 function generationProviderPriority({ reuseFirst = true } = {}) {
@@ -1043,6 +1047,48 @@ function mirrorAssetToReferenceLibrary(asset) {
   return asset;
 }
 
+// Real 2x super-resolution (Lanczos) via sharp — turns a ~1280px AI draft into
+// a crisp ~2560px client still that reads like a VRay/Lumion final export.
+// Skipped for tiny/non-raster assets and when the preset needs no upscale.
+const RASTER_EXT = /\.(png|jpe?g|webp)$/i;
+async function upscaleInPlace(asset, qualityMode) {
+  try {
+    const factor = qualityPreset(qualityMode).upscale || 1;
+    if (factor <= 1 || !asset?.filePath || !RASTER_EXT.test(asset.filePath)) return asset;
+    const abs = asset.filePath.startsWith('/storage/')
+      ? path.join(storageDir, asset.filePath.replace('/storage/', ''))
+      : path.resolve(asset.filePath);
+    if (!fs.existsSync(abs)) return asset;
+    const meta = await sharp(abs).metadata();
+    if (!meta.width || !meta.height || meta.width < 900) return asset; // already small, skip
+    const outW = Math.round(meta.width * factor);
+    const outH = Math.round(meta.height * factor);
+    const isPng = /\.png$/i.test(abs);
+    const sharpPipe = sharp(abs)
+      .resize(outW, outH, { kernel: 'lanczos3', fit: 'fill' });
+    const outBuf = isPng
+      ? await sharpPipe.png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer()
+      : await sharpPipe.webp({ quality: 92 }).toBuffer();
+    const outPath = abs.replace(/\.(png|jpe?g|webp)$/i, isPng ? '.png' : '.webp');
+    fs.writeFileSync(outPath, outBuf);
+    if (outPath !== abs) { try { fs.unlinkSync(abs); } catch {} }
+    asset.filePath = `/storage/${path.relative(storageDir, outPath).split(path.sep).join('/')}`;
+    asset.upscaled = true;
+    asset.width = outW;
+    asset.height = outH;
+    asset.reusableScore = Math.min(99, (asset.reusableScore || 90) + 4);
+  } catch (err) {
+    console.warn(`[image-provider] upscale skipped: ${err.message}`);
+  }
+  return asset;
+}
+
+async function finalizeLiveAsset(live, qualityMode) {
+  const mirrored = mirrorAssetToReferenceLibrary(live);
+  await upscaleInPlace(mirrored, qualityMode);
+  return mirrored;
+}
+
 function geminiImageKeys() {
   return [
     process.env.GEMINI_API_KEY,
@@ -1054,17 +1100,76 @@ function geminiImageKeys() {
   ].filter(Boolean);
 }
 
-function enhanceInteriorPrompt(prompt, room) {
+// ── Render quality presets (drive resolution + prompt depth + upscaling) ──
+// 'ultra' approximates a VRay/Lumion final still: highest detail, 2x
+// super-resolution, architectural-photography tone. 'studio' is the client
+// deliverable default. 'standard' balances speed/cost. 'draft' is exploration.
+const QUALITY_PRESETS = {
+  draft:   { upscale: 1,  detail: 'concise',    tone: 'clean visualization',       seed: true },
+  standard:{ upscale: 1,  detail: 'rich',        tone: 'professional visualization', seed: true },
+  studio:  { upscale: 2,  detail: 'photoreal',   tone: 'architectural photography',  seed: true },
+  ultra:   { upscale: 2,  detail: 'photoreal-8k',tone: 'architectural photography',  seed: true }
+};
+function qualityPreset(mode) {
+  return QUALITY_PRESETS[mode] || QUALITY_PRESETS.standard;
+}
+
+// VRay / Lumion-grade rendering spec. This is the single highest-leverage
+// change: it teaches ANY image model (including keyless FLUX) to emit a
+// physically-based, ray-traced, editorial interior still instead of a flat AI
+// image. Keyed by room + quality so the language tightens with the preset.
+const RENDER_ENGINE_SPEC = (quality, room) => {
+  const p = qualityPreset(quality);
+  return [
+    // ── Engine / renderer language ──
+    'Rendered with a physically-based renderer (VRay / Corona / Lumion class):',
+    'global illumination with brute-force + irradiance cache, ray-traced soft shadows,',
+    'physically-correct light falloff, HDRI environment lighting (overcast+interior bounce),',
+    'real-time GI bounce, subtle bloom, filmic ACES tone mapping, 35mm architectural lens,',
+    'f/8 aperture, shallow depth of field on foreground styling, straight verticals, 2-point perspective.',
+    // ── Material response (photoreal PBR) ──
+    'Photoreal PBR materials: anisotropic brushed metal, clear-coated lacquer,',
+    'subsurface-scattering on-fabric and skin-adjacent textiles, micro-scratched stone,',
+    'grounded contact shadows + ambient occlusion in seams and under cabinets,',
+    'real reflections in marble and glass with correct Fresnel, no plastic sheen.',
+    // ── Lighting mood ──
+    `Lighting: balanced ${p.tone} — soft directional daylight through glazed openings,`,
+    'warm 2700K cove + under-cabinet LED, arched-mirror halo, hidden glow behind wood slats,',
+    'practical lamps with real bloom, high dynamic range, crisp highlights, deep soft shadows.',
+    // ── Composition / camera ──
+    'Composition: hero 3/4 interior view, editorial styling, intentional negative space,',
+    'styled with real props (books, vase, tray), no clutter, museum-grade restraint.',
+    // ── Output fidelity ──
+    p.detail === 'photoreal-8k'
+      ? 'Output 8K UHD, ultra-fine surface detail, pixel-sharp, zero blur, zero banding.'
+      : p.detail === 'photoreal'
+        ? 'Output 4K, fine surface detail, crisp, minimal noise.'
+        : 'Output clean and detailed.',
+    // ── Hard exclusions (keep it a sellable still) �─
+    'Strict exclusions: no humans, no figures, no silhouettes, no pets, no watermark, no text,',
+    'no logos, no distorted furniture, no impossible architecture, no unrequested objects,',
+    'no cold blue corporate palette, no cheap flat cgi, no oversaturated cartoon colors,',
+    'no double images, no melted geometry.'
+  ].join(' ');
+};
+
+function enhanceInteriorPrompt(prompt, room, quality = 'standard', style) {
   const roomLanguage = ROOM_LANGUAGE[room] || ROOM_LANGUAGE['whole-home'];
+  const engineSpec = RENDER_ENGINE_SPEC(quality, room);
+  const detailBoost = qualityPreset(quality).detail === 'concise'
+    ? 'Clean, legible interior visualization.'
+    : 'Layered, photoreal, magazine-grade interior with tangible materiality.';
   return [
     prompt,
-    `Render as a Lumion-like professional 3D architectural interior visualization for ${room}.`,
+    `Render as a ${quality === 'ultra' || quality === 'studio' ? 'VRay/Lumion-class photoreal' : 'professional 3D'} architectural interior visualization for ${room}.`,
+    engineSpec,
     ULTIDA_DESIGN_LANGUAGE,
     `Room-specific composition: ${roomLanguage}`,
+    detailBoost,
+    style ? `Design direction: ${style}.` : '',
     'Indian contemporary luxury residential context, realistic scale, real materials, corrected perspective, straight verticals, natural daylight balanced with warm ambient lighting and editorial styling.',
-    'Show clear laminate, veneer, fluted/ribbed wood, stone, upholstery, integrated LED lighting, storage, and styling details with photoreal surface response.',
-    'Strict exclusions: no humans, no human figures, no silhouettes, no mannequins, no pets, no watermark, no text labels, no logos, no distorted furniture, no impossible architecture, no unrequested objects, no cold blue corporate palette, no cheap flat renders.'
-  ].join(' ');
+    'Show clear laminate, veneer, fluted/ribbed wood, stone, upholstery, integrated LED lighting, storage, and styling details with photoreal surface response.'
+  ].filter(Boolean).join(' ');
 }
 
 function pexelsQuery(room, style) {

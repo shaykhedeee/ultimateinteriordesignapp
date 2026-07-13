@@ -1334,7 +1334,8 @@ export async function generateFastRenderVariants(projectId, params = {}) {
       style: renderPlan.style,
       budgetTier: renderPlan.budgetTier,
       tags: [...renderPlan.tags, `variant-${index + 1}`, params.modelTier || 'standard'],
-      reuseFirst: false
+      reuseFirst: false,
+      qualityMode: params.qualityMode || params.modelTier || 'studio'
     });
 
     insertGeneratedAsset(db, projectId, asset);
