@@ -8,6 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import zlib from 'node:zlib';
 import { BASE, startOnce } from './_test-server.mjs';
 
 async function api(method, path, body, headers = {}) {
@@ -99,3 +100,48 @@ test('Client-brief PDF generates and includes 2D floor plan + Vastu pages', asyn
   assert.equal(head, '%PDF-', 'must be a real PDF');
   assert.ok(b.buf.length > 2000, 'brief should have real content');
 });
+
+// Decode hex-encoded PDF text streams (pdfkit compresses + hex-encodes text).
+function decodePdfText(buf) {
+  const s = buf.toString('latin1');
+  const re = /stream\r?\n?([\s\S]*?)\r?\n?endstream/g;
+  let m, t = '';
+  while ((m = re.exec(s))) {
+    try { t += zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); } catch {}
+  }
+  return (t.match(/<([0-9A-Fa-f]+)>/g) || []).map(h => {
+    const x = h.slice(1, -1); let o = '';
+    for (let i = 0; i < x.length; i += 2) o += String.fromCharCode(parseInt(x.substr(i, 2), 16));
+    return o;
+  }).join('').replace(/\s+/g, ' ');
+}
+
+test('Quotation PDF (GET mirror) reflects saved line items', async () => {
+  const base = await startOnce();
+  const cp = await api('POST', '/api/projects', { name: 'Regression Quotation', client_name: 'Reg' });
+  const pid = cp.json.id;
+  const quotation = { items: [{ room: 'Kitchen', name: 'Carcass', rate: 250000, sqft: 1, amount: 250000 }, { room: 'Wardrobe', name: 'Sliding', rate: 120000, sqft: 1, amount: 120000 }], subTotal: 370000, gstValue: 66600, grandTotal: 436600 };
+  const save = await api('POST', `/api/projects/${pid}/quotation`, { quotation });
+  assert.equal(save.status, 200, `quotation save ${save.status}`);
+  const pdf = await api('GET', `/api/projects/${pid}/quotation/pdf`);
+  assert.equal(pdf.status, 200, `quotation pdf ${pdf.status}`);
+  const txt = decodePdfText(pdf.buf);
+  assert.ok(txt.includes('Kitchen'), 'saved Kitchen line item must appear in PDF');
+  assert.ok(txt.includes('Wardrobe'), 'saved Wardrobe line item must appear in PDF');
+});
+
+test('Client-brief Vastu section reports room zones + recommendations', async () => {
+  const base = await startOnce();
+  const cp = await api('POST', '/api/projects', { name: 'Regression Vastu Brief', client_name: 'Reg' });
+  const pid = cp.json.id;
+  await api('POST', `/api/projects/${pid}/plan`, {
+    walls: [{ id: 'W1', x1: 0, y1: 0, x2: 5000, y2: 0 }, { id: 'W2', x1: 5000, y1: 0, x2: 5000, y2: 3500 }, { id: 'W3', x1: 5000, y1: 3500, x2: 0, y2: 3500 }, { id: 'W4', x1: 0, y1: 3500, x2: 0, y2: 0 }],
+    rooms: [{ name: 'Hall', x: 0, y: 0, w: 5000, h: 3500 }]
+  });
+  const b = await api('GET', `/api/projects/${pid}/brief/pdf`);
+  const txt = decodePdfText(b.buf);
+  assert.ok(txt.includes('Vastu'), 'should contain Vastu section');
+  assert.ok(txt.includes('Hall'), 'should list room placement by zone');
+  assert.ok(txt.includes('Recommended') || txt.includes('Room Placement'), 'should surface zones/recommendations, not just "compliant"');
+});
+

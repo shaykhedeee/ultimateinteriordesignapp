@@ -246,14 +246,37 @@ class PDFBuilder {
           doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(15).text('Vastu Compliance Summary', 42, 50);
           doc.fillColor('#475569').font('Helvetica').fontSize(9).text(`Overall score: ${vp.score ?? 'N/A'} / 10`, 42, 75);
           let vy = 100;
-          const items = vp.issues || vp.findings || [];
-          items.slice(0, 25).forEach((it, i) => {
-            const txt = typeof it === 'string' ? it : (it.label || it.zone || it.issue || JSON.stringify(it));
-            doc.fillColor('#475569').font('Helvetica').fontSize(8.5).text(`• ${txt}`, 42, vy, { width: 511 });
+          const addLine = (txt, color = '#475569') => {
+            doc.fillColor(color).font('Helvetica').fontSize(8.5).text(txt, 42, vy, { width: 511 });
             vy += 16;
             if (vy > 720) { doc.addPage(); vy = 50; }
-          });
-          if (!items.length) doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text('No Vastu issues detected — plan is compliant.', 42, 100);
+          };
+          // Per-room zone mapping (real geomZone from the plan)
+          const rooms = vp.roomReports || [];
+          if (rooms.length) {
+            doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(10).text('Room Placement by Zone', 42, vy); vy += 18;
+            rooms.forEach(r => addLine(`• ${r.name || 'Room'}: ${r.geomZone || r.zone || 'n/a'}`));
+          }
+          // Issues / findings
+          const issues = vp.issues || vp.findings || vp.items || [];
+          if (issues.length) {
+            doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(10).text('Observations', 42, vy); vy += 18;
+            issues.slice(0, 20).forEach(it => {
+              const t = typeof it === 'string' ? it : (it.label || it.issue || it.summary || JSON.stringify(it));
+              addLine(`• ${t}`);
+            });
+          }
+          // Missing key Vastu items (e.g. Pooja in NE) — the real compliance gaps
+          const missing = vp.missingKeyItems || [];
+          if (missing.length) {
+            doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(10).text('Recommended Vastu Elements', 42, vy); vy += 18;
+            missing.slice(0, 20).forEach(m => {
+              const t = (m.summary || m.key || JSON.stringify(m));
+              addLine(`• ${t}`, '#B45309');
+            });
+          }
+          if (!rooms.length && !issues.length && !missing.length)
+            doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text('No Vastu issues detected — plan is compliant.', 42, vy);
         }
       } catch (e) { /* vastu section optional */ }
 
@@ -561,6 +584,14 @@ class PDFBuilder {
     if (!project) throw new Error("Project not found");
 
     quotation = quotation || {};
+    // Always prefer saved line items from the project so the GET mirror and any
+    // caller render what was actually stored (not an empty sheet).
+    if ((!quotation.items || !quotation.items.length) && project.quotation_json) {
+      try {
+        const saved = JSON.parse(project.quotation_json);
+        if (saved && Array.isArray(saved.items) && saved.items.length) quotation = saved;
+      } catch { /* ignore malformed stored quotation */ }
+    }
     const items = quotation.items || [];
     const discount = quotation.discount || 0;
     const isGstEnabled = quotation.isGstEnabled !== false;
