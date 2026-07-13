@@ -59,7 +59,21 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const STATUS_ORDER = ['brief','cad_approved','scene_ready','materials_selected','renders_approved','production','billing'];
+const STATUS_ORDER = ['brief','plan_review','cad_approved','scene_ready','materials_selected','renders_approved','signoff','production','billing'];
+
+// Map a backend status (lifecycle stage) to a 0-100 progress position. Unknown
+// statuses fall back to the last known stage so the bar never jumps to 0.
+const STATUS_PROGRESS = {
+  brief: 5,
+  plan_review: 18,
+  cad_approved: 30,
+  scene_ready: 45,
+  materials_selected: 60,
+  renders_approved: 72,
+  signoff: 82,
+  production: 90,
+  billing: 100
+};
 
 const NAV_CONFIG = [
   {
@@ -404,11 +418,10 @@ export function App() {
   // ── Project progress ──
   const getStepIndex = (proj) => {
     if (!proj) return 0;
-    const idx = STATUS_ORDER.indexOf(proj.status || '');
-    return idx >= 0 ? idx + 2 : 1;
+    return STATUS_PROGRESS[proj.status] ?? STATUS_PROGRESS.brief;
   };
   const stepIndex = getStepIndex(selectedProject);
-  const stepPct   = Math.round(Math.min((stepIndex / 7) * 100, 100));
+  const stepPct   = Math.min(stepIndex, 100);
 
   // ── AURA chat ──
   const AURA_API = 'http://127.0.0.1:5055/api/aura/chat';
@@ -436,11 +449,43 @@ export function App() {
     const navMap = { openElevationGenerator:'drawings', generateFromLastWall:'drawings', openRenderStudio:'renders', regenerateLastRender:'renders', renderFromAngle:'renders', runAiDetect:'cad', runCvTrace:'cad', refreshCutlist:'cutlist', openCutlist:'cutlist', openPresentation:'presentation', generateQuotation:'presentation', openMaterials:'materials', optimizeCutlist:'cutlist', openJobs:'jobs', openVastu:'vastu', openCad:'cad', applyVastuFixes:'vastu' };
     const target = navMap[actionId];
     if (['generateFromLastWall','runAiDetect','runCvTrace','refreshCutlist','generateQuotation','optimizeCutlist'].includes(actionId)) {
-      const routeMap = { generateFromLastWall: `/api/projects/${selectedProjectId}/drawings/elevations/auto/dxf`, runAiDetect: `/api/projects/${selectedProjectId}/cad/ai-detect`, runCvTrace: `/api/projects/${selectedProjectId}/cad/cv-trace`, refreshCutlist: `/api/projects/${selectedProjectId}/cutlist/recalc`, generateQuotation: `/api/projects/${selectedProjectId}/client-share?pack=quotation`, optimizeCutlist: `/api/projects/${selectedProjectId}/cutlist/optimize` };
+      // Map to REAL backend routes (verified against server/index.js).
+      const routeMap = {
+        generateFromLastWall: `/api/projects/${selectedProjectId}/drawings/elevations/auto/dxf`, // GET download
+        runAiDetect:         `/api/projects/${selectedProjectId}/cad/ai-detect`,                  // POST
+        runCvTrace:          `/api/projects/${selectedProjectId}/cad/ai-detect`,                  // POST (cv-trace → ai-detect)
+        refreshCutlist:      `/api/projects/${selectedProjectId}/cutlist/refresh`,                // POST
+        generateQuotation:   `/api/projects/${selectedProjectId}/client-share?pack=quotation`,   // POST
+        optimizeCutlist:     `/api/projects/${selectedProjectId}/cutlist/calculate`              // POST
+      };
       const route = routeMap[actionId];
       if (!route) { if (target) setActiveTab(target); return; }
-      const opts = { method: route.includes('client-share') ? 'POST' : 'POST', headers:{'Content-Type':'application/json'} };
-      try { await fetch(`http://127.0.0.1:5055${route}`, opts); if (target) setActiveTab(target); } catch (e) { window.__toast?.error(e.message || 'AURA action failed'); }
+      const isGet = actionId === 'generateFromLastWall';
+      if (isGet) {
+        // File-download actions (e.g. DXF) should open the URL so the browser
+        // saves the file rather than having fetch consume the bytes silently.
+        const a = document.createElement('a');
+        a.href = `http://127.0.0.1:5055${route}`;
+        a.download = '';
+        document.body.appendChild(a); a.click(); a.remove();
+        window.__toast?.success(`AURA → ${preview?.title || actionId} — download started`);
+        if (target) setActiveTab(target);
+        return;
+      }
+      const opts = { method: 'POST', headers:{'Content-Type':'application/json'} };
+      try {
+        const res = await fetch(`http://127.0.0.1:5055${route}`, opts);
+        if (!res.ok) {
+          let msg = `${res.status} on ${route}`;
+          try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
+          window.__toast?.error(`AURA action failed: ${msg}`);
+        } else {
+          window.__toast?.success(`AURA → ${preview?.title || actionId} done`);
+          if (target) setActiveTab(target);
+        }
+      } catch (e) {
+        window.__toast?.error(e.message || 'AURA action failed');
+      }
       return;
     }
     if (target) setActiveTab(target);
@@ -462,22 +507,34 @@ export function App() {
     setTimeout(() => setActiveTab('brief'), 700);
   };
 
+  // Canonical workflow spine — every "Complete" button advances here AND syncs
+  // the backend current_step so the progress bar + AI co-pilot stay coherent.
+  const NEXT_TAB = { brief:'cad', cad:'studio', studio:'drawings', drawings:'renders', renders:'materials', materials:'cutlist', cutlist:'finance', finance:'presentation', presentation:'presentation' };
+  const advance = (tab) => {
+    if (selectedProjectId && tab) {
+      fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/advance-step`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ step: tab })
+      }).catch(()=>{});
+    }
+    setActiveTab(tab);
+  };
+
   // ── Screen router ──
   const renderScreen = () => {
     switch (activeTab) {
       case 'dashboard': return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={setActiveTab} />;
       case 'crm':       return <ClientBoard onProjectCreated={handleProjectClosed} />;
       case 'projects':  return <ProjectManagementScreen onNavigateToProject={(id) => { setSelectedProjectId(id); setActiveTab('brief'); }} />;
-      case 'brief':     return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => setActiveTab('cad')} />;
-      case 'cad':       return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => setActiveTab('studio')} />;
-      case 'studio':    return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => setActiveTab('drawings')} />;
-      case 'vastu':     return <VastuStudioScreen projectId={selectedProjectId} onApplyDone={() => setActiveTab('cad')} />;
+      case 'brief':     return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => advance('cad')} />;
+      case 'cad':       return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => advance('studio')} />;
+      case 'studio':    return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => advance('drawings')} />;
+      case 'vastu':     return <VastuStudioScreen projectId={selectedProjectId} onApplyDone={() => advance('cad')} />;
       case 'enhancer': return <FloorPlanEnhancerScreen projectId={selectedProjectId} onApplied={() => fetchData()} />;
-      case 'drawings':  return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => setActiveTab('materials')} />;
-      case 'materials': return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => setActiveTab('renders')} />;
-      case 'renders':   return <Render3DStudio projectId={selectedProjectId} onComplete={() => setActiveTab('cutlist')} />;
-      case 'cutlist':   return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => setActiveTab('crm')} />;
-      case 'finance':       return <FinanceScreen projectId={selectedProjectId} />;
+      case 'drawings':  return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => advance('renders')} />;
+      case 'materials': return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => advance('cutlist')} />;
+      case 'renders':   return <Render3DStudio projectId={selectedProjectId} onComplete={() => advance('materials')} />;
+      case 'cutlist':   return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => advance('finance')} />;
+      case 'finance':       return <FinanceScreen projectId={selectedProjectId} onComplete={() => advance('presentation')} />;
       case 'timeline':      return <TimelineScreen projectId={selectedProjectId} />;
       case 'jobs':          return <JobsScreen projectId={selectedProjectId} />;
       case 'presentation':  return <PresentationStudio projectId={selectedProjectId} />;

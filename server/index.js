@@ -872,6 +872,28 @@ app.post('/api/projects/:id/status', (req, res) => {
   res.json({ success: true, message: `Project status updated to ${status}` });
 });
 
+// Advance a project through the canonical workflow spine. Keeps `status` (lifecycle
+// stage) and `current_step` (next actionable tab) in sync so the AI co-pilot and
+// progress bar reflect reality. idempotent: re-posting the same step is a no-op.
+const WORKFLOW_STEP_STATUS = {
+  brief: 'brief',
+  cad: 'cad_approved',
+  studio: 'scene_ready',
+  drawings: 'scene_ready',
+  renders: 'renders_approved',
+  materials: 'materials_selected',
+  cutlist: 'production',
+  finance: 'billing',
+  presentation: 'billing'
+};
+app.post('/api/projects/:id/advance-step', (req, res) => {
+  const { step } = req.body || {};
+  if (!step || !WORKFLOW_STEP_STATUS[step]) return res.status(400).json({ error: 'Unknown workflow step' });
+  const status = WORKFLOW_STEP_STATUS[step];
+  db.prepare("UPDATE projects SET status = ?, current_step = ? WHERE id = ?").run(status, step, req.params.id);
+  res.json({ success: true, step, status, current_step: step });
+});
+
 // Get project Sales Readiness KPI checklist and score
 app.get('/api/projects/:id/readiness', (req, res) => {
   const projectId = req.params.id;
