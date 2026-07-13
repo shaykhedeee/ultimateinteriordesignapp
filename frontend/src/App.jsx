@@ -3,7 +3,7 @@ import {
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
   BarChart3, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, Zap,
-  CheckCircle2, Clock, Layers, IndianRupee,
+  CheckCircle2, Clock, Layers, IndianRupee, BookOpen,
   TrendingUp, ArrowRight, Bell, Award, Paintbrush, Wand2,
   Archive, Database, Download, Upload, RefreshCw, ShieldCheck
 } from 'lucide-react';
@@ -27,6 +27,7 @@ const Render3DStudio           = lazy(() => import('./screens/Render3DStudio.jsx
 const CutlistNestingScreen     = lazy(() => import('./screens/CutlistNestingScreen.jsx'));
 const DesignStudioScreen       = lazy(() => import('./screens/DesignStudioScreen.jsx'));
 const VastuStudioScreen        = lazy(() => import('./screens/VastuStudioScreen.jsx'));
+const DesignLibraryScreen      = lazy(() => import('./screens/DesignLibraryScreen.jsx'));
 import PresentationStudio       from './screens/PresentationStudio.jsx';
 import PipelineStudio            from './screens/PipelineStudio.jsx';
 import DeliverablesVault         from './screens/DeliverablesVault.jsx';
@@ -104,6 +105,7 @@ const NAV_CONFIG = [
     title: 'Visualization',
     items: [
       { id: 'renders',  label: 'Render Studio',        icon: Sparkles,    shortcut: null, staleFlag: 'stale_renders' },
+      { id: 'designlib',label: 'Design Library',       icon: BookOpen,    shortcut: null, alwaysOn: true },
       { id: 'jobs',     label: 'Background Jobs',      icon: Clock,       shortcut: null }
     ]
   },
@@ -533,6 +535,7 @@ export function App() {
       case 'drawings':  return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => advance('renders')} />;
       case 'materials': return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => advance('cutlist')} />;
       case 'renders':   return <Render3DStudio projectId={selectedProjectId} onComplete={() => advance('materials')} />;
+      case 'designlib':  return <DesignLibraryScreen onUseInspiration={(cat) => { setActiveTab('renders'); }} />;
       case 'cutlist':   return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => advance('finance')} />;
       case 'finance':       return <FinanceScreen projectId={selectedProjectId} onComplete={() => advance('presentation')} />;
       case 'timeline':      return <TimelineScreen projectId={selectedProjectId} />;

@@ -161,25 +161,30 @@ export async function chatWithAura({ message, history = [], tools = [] }) {
     { role: 'user', content: message }
   ];
 
-  // 1) Primary Local Quantized LLM (Qwen2.5-0.5B)
+  // Helper: race the local LLM against a hard timeout so a missing/slow 350MB
+  // model download can never stall the chat (this laptop has no GPU).
+  const withTimeout = (p, ms) => Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('local-llm-timeout')), ms))
+  ]);
+
+  // 1) Local Quantized LLM (Qwen2.5-0.5B) — optional, non-blocking
   try {
-    const localRes = await callLocalLLM(messages);
-    if (localRes) {
-      return parseAuraReply(localRes, 'local:qwen2.5-0.5b');
-    }
+    const localRes = await withTimeout(callLocalLLM(messages), 8000);
+    if (localRes) return parseAuraReply(localRes, 'local:qwen2.5-0.5b');
   } catch (err) {
-    console.warn('[gemini-service] Local LLM failed/unconfigured, falling back to remote APIs:', err.message);
+    // Expected on machines without the model weights / GPU — fall through.
   }
 
-  // 2) OpenRouter (with one 429-aware retry)
-  const orResult = await callOpenRouterChat(messages);
-  if (orResult) return orResult;
-
-  // 3) Gemini fallback (higher free quota, avoids OpenRouter 429s)
+  // 2) Gemini (free Google AI Studio key) — primary reliable cloud path
   const gemResult = await callGeminiChat(system, message, history);
   if (gemResult) return gemResult;
 
-  // 4) OpenAI GPT-4o-mini final fallback (uses project OPENAI_API_KEY)
+  // 3) OpenRouter (with 429-aware retry across free models)
+  const orResult = await callOpenRouterChat(messages);
+  if (orResult) return orResult;
+
+  // 4) OpenAI GPT-4o-mini final fallback
   const oaiResult = await callOpenAiGptChat(messages);
   if (oaiResult) return oaiResult;
 
@@ -189,7 +194,14 @@ export async function chatWithAura({ message, history = [], tools = [] }) {
 async function callOpenRouterChat(messages) {
   const key = resolveKey('openrouter');
   if (!key) return null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  // Try several free models; if one is rate-limited (429) move to the next.
+  const models = [
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'mistralai/mistral-7b-instruct-v0.3:free',
+    'nousresearch/hermes-3-llama-3.1-8b:free',
+    'deepseek/deepseek-r1-distill-qwen-14b:free'
+  ];
+  for (const model of models) {
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -199,22 +211,24 @@ async function callOpenRouterChat(messages) {
           'HTTP-Referer': process.env.APP_URL || 'http://127.0.0.1:5055',
           'X-Title': 'ULTIDA AURA'
         },
-        body: JSON.stringify({ model: 'meta-llama/llama-3.3-70b-instruct:free', messages, temperature: 0.4 })
+        body: JSON.stringify({ model, messages, temperature: 0.4 })
       });
       if (response.status === 429) {
-        const retryAfter = Number(response.headers.get('retry-after') || '3');
-        console.warn(`AURA chat: OpenRouter 429, retry in ${retryAfter}s`);
-        await new Promise(r => setTimeout(r, Math.min(retryAfter, 5) * 1000));
+        console.warn(`AURA chat: OpenRouter ${model} rate-limited (429), trying next model`);
         continue;
       }
-      if (!response.ok) { console.warn(`AURA chat failed: OpenRouter ${response.status}`); return null; }
+      if (response.status === 404) {
+        console.warn(`AURA chat: OpenRouter model ${model} unavailable (404)`);
+        continue;
+      }
+      if (!response.ok) { console.warn(`AURA chat failed: OpenRouter ${model} ${response.status}`); continue; }
       const payload = await response.json();
       const content = payload?.choices?.[0]?.message?.content?.trim();
-      if (!content) return null;
-      return parseAuraReply(content, payload?.model || 'meta-llama/llama-3.3-70b-instruct:free');
+      if (!content) continue;
+      return parseAuraReply(content, payload?.model || model);
     } catch (err) {
       console.warn('AURA chat error:', err.message);
-      return null;
+      continue;
     }
   }
   return null;

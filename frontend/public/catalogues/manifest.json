@@ -1,0 +1,46 @@
+{
+  "merino-play": {
+    "cover": "/catalogues/merino-play.png",
+    "swatch": "/catalogues/merino-play-p4.png"
+  },
+  "merino-fabwood": {
+    "cover": "/catalogues/merino-fabwood.png",
+    "swatch": "/catalogues/merino-fabwood-p4.png"
+  },
+  "merino-ewc": {
+    "cover": "/catalogues/merino-ewc.png",
+    "swatch": "/catalogues/merino-ewc-p4.png"
+  },
+  "sampada": {
+    "cover": "/catalogues/sampada.png",
+    "swatch": "/catalogues/sampada-p4.png"
+  },
+  "shaurya": {
+    "cover": "/catalogues/shaurya.png",
+    "swatch": "/catalogues/shaurya-p4.png"
+  },
+  "hanex": {
+    "cover": "/catalogues/hanex.png",
+    "swatch": "/catalogues/hanex-p4.png"
+  },
+  "grande": {
+    "cover": "/catalogues/grande.png",
+    "swatch": "/catalogues/grande-p4.png"
+  },
+  "woodline": {
+    "cover": "/catalogues/woodline.png",
+    "swatch": "/catalogues/woodline-p4.png"
+  },
+  "laminate-1mm": {
+    "cover": "/catalogues/laminate-1mm.png",
+    "swatch": "/catalogues/laminate-1mm-p4.png"
+  },
+  "pentone": {
+    "cover": "/catalogues/pentone.png",
+    "swatch": "/catalogues/pentone-p4.png"
+  },
+  "lvt-flooring": {
+    "cover": "/catalogues/lvt-flooring.png",
+    "swatch": "/catalogues/lvt-flooring-p4.png"
+  }
+}

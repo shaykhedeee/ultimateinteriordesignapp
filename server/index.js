@@ -832,7 +832,17 @@ app.post('/api/projects', express.json(), (req, res) => {
     const initialStatus = 'brief';
     // Honor a caller-supplied lead_id so a project can be created already
     // linked to a client (the send-designs flow keys off projects.lead_id).
-    const leadId = b.lead_id ? String(b.lead_id) : null;
+    let leadId = b.lead_id ? String(b.lead_id) : null;
+    // If a lead_id was supplied but no matching lead exists, create a lightweight
+    // lead (so the FK holds and the sales pipeline stays coherent) instead of 500ing.
+    if (leadId) {
+      const existingLead = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+      if (!existingLead) {
+        db.prepare(`INSERT OR IGNORE INTO leads (id, name, email, phone, created_at)
+          VALUES (?, ?, ?, ?, ?)`)
+          .run(leadId, b.client_name || name, b.email || '', b.phone || '', new Date().toISOString());
+      }
+    }
     db.prepare(`INSERT INTO projects (id, lead_id, name, client_name, email, phone, budget, status, current_step, client_brief_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(projectId, leadId, name, b.client_name || '', b.email || '', b.phone || '', b.budget || '',
@@ -1171,6 +1181,73 @@ app.post('/api/projects/:id/floorplan/analyze-enhance', async (req, res) => {
     const northAngle = Number(cad?.north_angle ?? 0);
     const enhance = planIntelligenceCore.enhanceFloorPlan({ interpretation: interp.interpretation, layout, northAngle });
     res.json({ success: true, interpretation: interp.interpretation, layout, enhancement: enhance, northAngle });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ----------------------------------------------------------
+// Create / replace a floor plan from real dimensions (mm).
+// This is the keystone entry point for the Floor Analyser, Vastu
+// furniture placement, wall measurement, and editable DXF export:
+// every downstream tool reads the cad_drawings row it writes.
+// Accepts { walls, openings, rooms, furniture, pixelsPerMeter, northAngle }.
+// Wall helper: compute true length (mm) from either {x1,y1,x2,y2} or
+// {x,y,w,h} (axis-aligned) so callers may use either convention.
+function wallLengthMm(w) {
+  const x1 = Number(w.x1 ?? w.x ?? 0), y1 = Number(w.y1 ?? w.y ?? 0);
+  const x2 = Number(w.x2 ?? (w.x + (w.w || 0)) ?? 0), y2 = Number(w.y2 ?? (w.y + (w.h || 0)) ?? 0);
+  return Math.round(Math.hypot(x2 - x1, y2 - y1));
+}
+app.post('/api/projects/:id/plan', express.json(), (req, res) => {
+  try {
+    const projectId = req.params.id;
+    if (!db.prepare('SELECT id FROM projects WHERE id = ?').get(projectId))
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    const b = req.body || {};
+    const walls = Array.isArray(b.walls) ? b.walls : [];
+    const openings = Array.isArray(b.openings) ? b.openings : [];
+    const rooms = Array.isArray(b.rooms) ? b.rooms : [];
+    const furniture = Array.isArray(b.furniture) ? b.furniture : [];
+    const ppm = Number(b.pixelsPerMeter) || 40;
+    const northAngle = Number(b.northAngle ?? 0);
+
+    // Persist as a fresh cad_drawings row (INSERT OR REPLACE keeps one active plan).
+    const existing = db.prepare('SELECT id FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    const cadId = existing ? existing.id : 'cad_' + nanoid(6);
+    db.prepare(`
+      INSERT OR REPLACE INTO cad_drawings
+        (id, project_id, walls_json, openings_json, furniture_json, rooms_json, measures_json, pixels_per_meter, north_angle, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(cadId, projectId, JSON.stringify(walls), JSON.stringify(openings),
+          JSON.stringify(furniture), JSON.stringify(rooms), JSON.stringify([]), ppm, northAngle, new Date().toISOString());
+
+    // Derived measurements — the app "knows what a wall is and how to measure it".
+    const measures = walls.map((w, i) => ({
+      wallIndex: i,
+      id: w.id || `W${i + 1}`,
+      lengthMm: wallLengthMm(w),
+      lengthM: +(wallLengthMm(w) / 1000).toFixed(3)
+    }));
+    const totalWallMm = measures.reduce((a, m) => a + m.lengthMm, 0);
+    const roomAreaMm2 = rooms.reduce((a, r) => {
+      const w = Number(r.w ?? r.widthMm ?? r.width ?? 0);
+      const h = Number(r.h ?? r.heightMm ?? r.height ?? 0);
+      return a + w * h;
+    }, 0);
+
+    res.json({
+      success: true,
+      cadId,
+      walls: walls.length,
+      rooms: rooms.length,
+      openings: openings.length,
+      furniture: furniture.length,
+      measures,
+      totalWallMm,
+      totalWallM: +(totalWallMm / 1000).toFixed(3),
+      roomAreaM2: +(roomAreaMm2 / 1e6).toFixed(3)
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -3972,6 +4049,8 @@ const ensureApiKeysTable = () => {
     db.prepare('ALTER TABLE api_keys ADD COLUMN key_value TEXT').run();
   } catch (e) { /* column already exists */ }
   try { db.prepare('ALTER TABLE api_keys ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP').run(); } catch (e) {}
+  // One row per provider — keeps the BYOK upsert idempotent.
+  try { db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_provider ON api_keys(provider)').run(); } catch (e) {}
 };
 ensureApiKeysTable();
 
@@ -4249,12 +4328,12 @@ app.post('/api/keys', express.json(), (req, res) => {
   try {
     const { provider, key } = req.body;
     if (!provider || !key) return res.status(400).json({ success: false, error: 'provider and key are required' });
+    const p = provider.toLowerCase();
     const stmt = db.prepare(`
-      INSERT INTO api_keys (provider, key_value, updated_at)
-      VALUES (?, ?, datetime('now'))
-      ON CONFLICT(provider) DO UPDATE SET key_value = excluded.key_value, updated_at = excluded.updated_at
+      INSERT OR REPLACE INTO api_keys (id, provider, key_enc, key_value, label, created_at, updated_at)
+      VALUES ('key_' || ?, ?, '', ?, ?, COALESCE((SELECT created_at FROM api_keys WHERE provider = ?), datetime('now')), datetime('now'))
     `);
-    stmt.run(provider.toLowerCase(), key);
+    stmt.run(p, p, key, p, p);
     // Also inject into process.env for immediate use this session
     const envMap = { openai: 'OPENAI_API_KEY', gemini: 'GEMINI_API_KEY', openrouter: 'OPENROUTER_API_KEY', freepik: 'FREEPIK_API_KEY', huggingface: 'HUGGINGFACE_API_KEY', stability: 'STABILITY_API_KEY' };
     if (envMap[provider.toLowerCase()]) process.env[envMap[provider.toLowerCase()]] = key;
@@ -4446,8 +4525,94 @@ app.use((err, req, res, next) => {
   res.status(err && err.status ? err.status : 500).json({ success: false, error: msg });
 });
 
+// ==========================================
+// MATERIAL CATALOGUE SEEDING (from real laminate PDFs)
+// ==========================================
+// On boot, if material_catalog is empty, load the curated seed built from the
+// reference-library laminate catalogues (Merino, Sampada, Shaurya, Hanex,
+// Grande, Woodline, Pentone, LVT). Real entries are verbatim PDF extractions.
+import { fileURLToPath as __fut } from 'url';
+import { dirname as __dir } from 'path';
+const __seedDir = __dir(__fut(import.meta.url));
+let SEED_LAMINATES = [];
+try {
+  SEED_LAMINATES = JSON.parse(fs.readFileSync(path.join(__seedDir, 'data', 'seed-laminates.json'), 'utf-8'));
+} catch (e) {
+  console.warn('[seed] could not load seed-laminates.json:', e.message);
+}
+function seedMaterialCatalogIfEmpty() {
+  try {
+    const insert = db.prepare(`INSERT OR IGNORE INTO material_catalog
+      (id, category, subcategory, code, name, brand, finish, color, price_per_sqft, rating, is_active, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`);
+    // Merge-seed: add any seed laminate whose code isn't already present, so the
+    // real catalogue always shows even if the table has prior (user-added) rows.
+    // Idempotent & non-destructive (never wipes existing selections).
+    const existing = db.prepare('SELECT code FROM material_catalog WHERE code IS NOT NULL AND code != ?').all('');
+    const have = new Set(existing.map(r => r.code));
+    // dbClient wrapper exposes prepare().run() but not transaction(), so loop
+    // the inserts directly (atomicity not required for a one-time idempotent seed).
+    let added = 0;
+    for (const m of SEED_LAMINATES) {
+      if (!m.code || have.has(m.code)) continue;
+      insert.run('mat_' + nanoid(6), m.category, m.subcategory || '', m.code, m.name,
+        m.brand || '', m.finish || '', m.color || '', m.pricePerSqft || 0, m.rating || 4.5, m.source || 'seed');
+      added++;
+    }
+    if (added > 0) console.log(`[seed] merged ${added} laminates into material_catalog (${SEED_LAMINATES.length} in seed)`);
+    else console.log(`[seed] material_catalog already has all ${SEED_LAMINATES.length} seed laminates`);
+  } catch (e) {
+    console.warn('[seed] material_catalog seeding skipped:', e.message);
+  }
+}
+
+// Real catalogue brochures (rasterized PDF covers from reference-library).
+function loadBrochures() {
+  const manifestPath = path.join(__seedDir, '..', 'frontend', 'public', 'catalogues', 'manifest.json');
+  let covers = {};
+  try { covers = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); } catch {}
+  const meta = [
+    { slug: 'merino-play',   brand: 'Merino',     title: 'Merino Laminates PLAY 2025',        pages: 88, color: '#0891b2', pdf: 'spacious-venture-onboarding/reference-library/laminates/Merino-Laminates-Play-E-Catalogue-2025.pdf' },
+    { slug: 'merino-fabwood',brand: 'Merino',     title: 'Merino FABWood (E1 Grade)',         pages: 43, color: '#0d9488', pdf: 'spacious-venture-onboarding/reference-library/laminates/Merino-FABWood-E-Catalogue-E1-Grade.pdf' },
+    { slug: 'merino-ewc',    brand: 'Merino',     title: 'Merino EWC External Cladding',      pages: 26, color: '#7c3aed', pdf: 'spacious-venture-onboarding/reference-library/laminates/Merino-EWC-E-Catalouge.pdf' },
+    { slug: 'sampada',       brand: 'Sampada',    title: 'Sampada Trend Book',                pages: 17, color: '#db2777', pdf: 'spacious-venture-onboarding/reference-library/laminates/Sampada-TrendBook.pdf' },
+    { slug: 'shaurya',       brand: 'Shaurya',    title: 'Shaurya Laminates Catalogue',       pages: 32, color: '#ea580c', pdf: 'spacious-venture-onboarding/reference-library/laminates/Shaurya_Catalogue_ECatalogue.pdf' },
+    { slug: 'hanex',         brand: 'Hanex',      title: 'Merino HANEX Solid Surfaces',       pages: 6,  color: '#2563eb', pdf: 'spacious-venture-onboarding/reference-library/laminates/Hanex.pdf' },
+    { slug: 'grande',        brand: 'Grande',     title: 'Grande Collection',                 pages: 20, color: '#16a34a', pdf: 'spacious-venture-onboarding/reference-library/laminates/Grande-Collection.pdf' },
+    { slug: 'woodline',      brand: 'Woodline',   title: 'Woodline 1mm Laminates',             pages: 82, color: '#92400e', pdf: 'spacious-venture-onboarding/reference-library/laminates/woodline-1mm.pdf' },
+    { slug: 'laminate-1mm',  brand: '1mm',        title: '1mm Laminate Catalogue',            pages: 72, color: '#475569', pdf: 'spacious-venture-onboarding/reference-library/laminates/1mm-catalogue.pdf' },
+    { slug: 'pentone',       brand: 'Pentone',    title: 'Pentone Catalogue 2025',            pages: 42, color: '#dc2626', pdf: 'spacious-venture-onboarding/reference-library/laminates/PENTONE CATALOGUE_2025 VERSON-4.pdf' },
+    { slug: 'lvt-flooring',  brand: 'LVT',        title: 'LVT Flooring',                      pages: 8,  color: '#0891b2', pdf: 'spacious-venture-onboarding/reference-library/laminates/LVT-Flooring.pdf' },
+  ];
+  return meta.map(m => ({ ...m, cover: (covers[m.slug] && covers[m.slug].cover) || `/catalogues/${m.slug}.png` }));
+}
+
+// Design reference library (indian-interiors images + floor plans) for the
+// in-app Inspiration / teaching view. Served from frontend/public/reference-library.
+function loadDesignLibrary() {
+  const base = path.join(__seedDir, '..', 'frontend', 'public', 'reference-library');
+  const groups = {
+    'living-rooms': 'Living Rooms', 'kitchens': 'Kitchens', 'bedrooms': 'Bedrooms',
+    'wardrobes': 'Wardrobes', 'tv-units': 'TV Units', 'pooja-units': 'Pooja Units',
+    'dining-areas': 'Dining Areas', 'study-home-office': 'Study / Home Office',
+    'renders-3d': '3D Renders', 'floor-plans': 'Floor Plans'
+  };
+  const out = [];
+  for (const [folder, label] of Object.entries(groups)) {
+    const dir = path.join(base, folder);
+    if (!fs.existsSync(dir)) continue;
+    const files = fs.readdirSync(dir).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+    out.push({ category: folder, label, count: files.length, images: files.map(f => `/reference-library/${folder}/${f}`) });
+  }
+  return out;
+}
+
+app.get('/api/catalogue/brochures', (req, res) => res.json(loadBrochures()));
+app.get('/api/design-library', (req, res) => res.json(loadDesignLibrary()));
+
 // Seed DB and start Express
 app.listen(port, () => {
+  seedMaterialCatalogIfEmpty();
   console.log(`Ultimate Interior Design API running at http://127.0.0.1:${port}`);
   if (fs.existsSync(frontendDistDir)) {
     console.log(`Ultimate Interior Design app running at http://127.0.0.1:${port}`);

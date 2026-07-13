@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 import db from '../database/database.js';
 import { buildStandardModel } from './standards.js';
 import { drawElevation } from './pdf-elevation.js';
+import { analyzeVastuPlan } from './vastu-auto.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -145,6 +146,127 @@ class PDFBuilder {
           y = 50;
         }
       });
+
+      // ---- ENHANCED SECTIONS: 2D, 3D, Materials, Vastu, Estimate ----
+      // All reads are defensive: if a section has no data yet we print a
+      // "not generated yet" note instead of crashing, so the brief is always
+      // whole and printable.
+
+      // 2D FLOORPLAN (vector trace from real cad_drawings walls/rooms)
+      try {
+        const drawing = db.prepare('SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+        doc.addPage();
+        doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(15).text('2D Floor Plan', 42, 50);
+        if (drawing && (drawing.walls_json || drawing.rooms_json)) {
+          const walls = JSON.parse(drawing.walls_json || '[]');
+          const rooms = JSON.parse(drawing.rooms_json || '[]');
+          // compute bounds in mm
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          const pts = w => {
+            const x1 = Number(w.x1 ?? w.x ?? 0), y1 = Number(w.y1 ?? w.y ?? 0);
+            const x2 = Number(w.x2 ?? (w.x + (w.w || 0)) ?? 0), y2 = Number(w.y2 ?? (w.y + (w.h || 0)) ?? 0);
+            return [[x1, y1], [x2, y2]];
+          };
+          for (const w of walls) for (const [x, y] of pts(w)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+          for (const r of rooms) { const x = Number(r.x || 0), y = Number(r.y || 0), w = Number(r.w ?? r.widthMm ?? r.width ?? 0), h = Number(r.h ?? r.heightMm ?? r.height ?? 0); minX = Math.min(minX, x); maxX = Math.max(maxX, x + w); minY = Math.min(minY, y); maxY = Math.max(maxY, y + h); }
+          if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 1000; maxY = 1000; }
+          const pad = 60, pageW = 595 - 84, pageH = 720;
+          const sx = (pageW - pad * 2) / Math.max(1, (maxX - minX));
+          const sy = (pageH - pad * 2) / Math.max(1, (maxY - minY));
+          const sc = Math.min(sx, sy);
+          const ox = 42 + pad, oy = 70 + pad;
+          const T = (x, y) => [ox + (x - minX) * sc, oy + (maxY - y) * sc];
+          // room fills
+          for (const r of rooms) {
+            const [rx, ry] = T(Number(r.x || 0), Number(r.y || 0) + (Number(r.h ?? r.heightMm ?? r.height ?? 0)));
+            const rw = (Number(r.w ?? r.widthMm ?? r.width ?? 0)) * sc;
+            const rh = (Number(r.h ?? r.heightMm ?? r.height ?? 0)) * sc;
+            doc.fillColor('#F1F5F9').rect(rx, ry, rw, rh).fill();
+            doc.fillColor('#0F172A').font('Helvetica').fontSize(8).text(r.name || 'Room', rx + 4, ry + 4, { width: rw - 8 });
+          }
+          // walls
+          doc.lineWidth(2).strokeColor('#0F172A');
+          for (const w of walls) {
+            const [x1, y1] = T(...pts(w)[0]);
+            const [x2, y2] = T(...pts(w)[1]);
+            doc.moveTo(x1, y1).lineTo(x2, y2).stroke();
+          }
+          doc.fillColor('#475569').font('Helvetica').fontSize(9).text(`Plan scale: ${sc.toFixed(4)} px/mm · ${walls.length} walls · ${rooms.length} rooms`, 42, 700);
+        } else {
+          doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('Floor plan not generated yet — trace or upload a plan in the CAD editor.', 42, 80);
+        }
+      } catch (e) { doc.fillColor('#94A3B8').font('Helvetica').fontSize(10).text('Floor plan section unavailable.', 42, 80); }
+
+      // 3D RENDERS (design_renders image_url)
+      try {
+        const renders = db.prepare('SELECT * FROM design_renders WHERE project_id = ? ORDER BY created_at DESC').all(projectId);
+        if (renders.length) {
+          doc.addPage();
+          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(15).text(`3D Renders (${renders.length})`, 42, 50);
+          let ry = 80;
+          for (const r of renders.slice(0, 4)) {
+            const url = r.image_url || '';
+            if (url && fs.existsSync(path.join(storageDir, url.replace(/^\/storage\//, '')))) {
+              try {
+                const ip = path.join(storageDir, url.replace(/^\/storage\//, ''));
+                doc.image(ip, 42, ry, { width: 240, height: 150, fit: [240, 150] });
+                doc.fillColor('#475569').font('Helvetica').fontSize(8).text(r.room || 'Render', 42, ry + 154);
+                ry += 175;
+              } catch { /* skip unreadable image */ }
+            } else {
+              doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text(`• ${r.room || 'Render'}: ${r.prompt ? r.prompt.slice(0, 60) : 'pending'}`, 42, ry);
+              ry += 18;
+            }
+            if (ry > 720) { doc.addPage(); ry = 50; }
+          }
+        }
+      } catch (e) { /* renders section optional */ }
+
+      // MATERIALS (material_selections)
+      try {
+        const sel = db.prepare('SELECT * FROM material_selections WHERE project_id = ?').get(projectId);
+        if (sel) {
+          doc.addPage();
+          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(15).text('Material & Finish Schedule', 42, 50);
+          const laminates = JSON.parse(sel.laminates_json || '[]');
+          const hardware = JSON.parse(sel.hardware_json || '[]');
+          let my = 80;
+          const addLine = (label, val) => { doc.fillColor('#475569').font('Helvetica-Bold').fontSize(9).text(label, 42, my); doc.fillColor('#0F172A').font('Helvetica').fontSize(9).text(val || 'N/A', 180, my); my += 18; };
+          laminates.slice(0, 20).forEach((l, i) => addLine(`Laminate ${i + 1}`, `${l.brand || ''} ${l.name || l.code || ''} (${l.code || ''})`));
+          hardware.slice(0, 10).forEach((h, i) => addLine(`Hardware ${i + 1}`, `${h.brand || ''} ${h.name || h.code || ''}`));
+          if (!laminates.length && !hardware.length) doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text('No materials selected yet.', 42, 80);
+        }
+      } catch (e) { /* materials section optional */ }
+
+      // VASTU SUMMARY (analyzeVastuPlan)
+      try {
+        const vp = analyzeVastuPlan(projectId);
+        if (vp && vp.ok) {
+          doc.addPage();
+          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(15).text('Vastu Compliance Summary', 42, 50);
+          doc.fillColor('#475569').font('Helvetica').fontSize(9).text(`Overall score: ${vp.score ?? 'N/A'} / 10`, 42, 75);
+          let vy = 100;
+          const items = vp.issues || vp.findings || [];
+          items.slice(0, 25).forEach((it, i) => {
+            const txt = typeof it === 'string' ? it : (it.label || it.zone || it.issue || JSON.stringify(it));
+            doc.fillColor('#475569').font('Helvetica').fontSize(8.5).text(`• ${txt}`, 42, vy, { width: 511 });
+            vy += 16;
+            if (vy > 720) { doc.addPage(); vy = 50; }
+          });
+          if (!items.length) doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text('No Vastu issues detected — plan is compliant.', 42, 100);
+        }
+      } catch (e) { /* vastu section optional */ }
+
+      // ESTIMATE SUMMARY (estimate_sets) — populated by the Quotation engine
+      try {
+        const est = db.prepare('SELECT * FROM estimate_sets WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+        if (est) {
+          doc.addPage();
+          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(15).text('Budget Estimate Summary', 42, 50);
+          doc.fillColor('#475569').font('Helvetica').fontSize(9).text(`Estimated total: INR ${(est.total_amount ?? est.total ?? 0).toLocaleString()}`, 42, 80);
+          doc.fillColor('#94A3B8').font('Helvetica').fontSize(8).text('Full line-item quotation available via the Finance screen (Export Quotation PDF).', 42, 100);
+        }
+      } catch (e) { /* estimate section optional */ }
 
       // Footer numbering
       const range = doc.bufferedPageRange();

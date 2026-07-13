@@ -272,7 +272,8 @@ db.exec(`
     color TEXT,
     price_per_sqft REAL DEFAULT 0,
     rating REAL DEFAULT 5.0,
-    is_active INTEGER DEFAULT 1
+    is_active INTEGER DEFAULT 1,
+    source TEXT DEFAULT 'manual'
   );
 
   CREATE TABLE IF NOT EXISTS timeline_events (
@@ -504,6 +505,12 @@ try {
     );
   `);
 } catch (e) {}
+
+// Ensure the source column exists (added for catalogue provenance). Defensive
+// migration so existing databases get the column without a full reset.
+try {
+  db.prepare('ALTER TABLE material_catalog ADD COLUMN source TEXT DEFAULT \'manual\'').run();
+} catch (e) { /* column already exists */ }
 
 // Seed default material catalog if empty
 try {

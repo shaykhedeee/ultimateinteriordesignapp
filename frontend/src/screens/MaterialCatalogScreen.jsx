@@ -24,7 +24,7 @@ const TYPE_LABELS = {
 };
 
 export default function MaterialCatalogScreen({ projectId, onComplete }) {
-  const [notes, setNotes] = useState('');
+  const [brochures, setBrochures] = useState([]);
   const [selectedLaminates, setSelectedLaminates] = useState([]);
   const [selectedHardware, setSelectedHardware] = useState([]);
   
@@ -68,7 +68,15 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       fetchSelections();
     }
     fetchCatalog();
+    fetchBrochures();
   }, [projectId]);
+
+  const fetchBrochures = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:5055/api/catalogue/brochures');
+      if (res.ok) setBrochures(await res.json());
+    } catch (e) { console.error(e); }
+  };
 
   const fetchProjectDetails = async () => {
     try {
@@ -969,20 +977,32 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
               Digital Brochure Library
             </h3>
             <div className="space-y-2">
-              {BROCHURES.map((br, idx) => (
+              {brochures.length === 0 && (
+                <div className="text-[10px] text-slate-500">Loading catalogues…</div>
+              )}
+              {brochures.map((br, idx) => (
                 <div key={idx} className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between hover:border-slate-700 transition group">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs" style={{ background: br.color + '25', border: `1px solid ${br.color}35`, color: br.color }}>
-                      {br.brand[0]}
-                    </div>
+                    <img
+                      src={br.cover}
+                      alt={br.title}
+                      className="w-10 h-10 rounded-lg object-cover border border-slate-700"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
                     <div>
                       <strong className="text-[11px] text-slate-300 block leading-tight">{br.title}</strong>
                       <span className="text-[9px] text-slate-500">{br.brand} · {br.pages}pg</span>
                     </div>
                   </div>
-                  <button className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-[var(--gold)] transition opacity-0 group-hover:opacity-100">
+                  <a
+                    href={`/storage/reference-library/laminates/${encodeURIComponent(br.pdf.split('/').pop())}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-[var(--gold)] transition opacity-0 group-hover:opacity-100"
+                    title="Open full PDF catalogue"
+                  >
                     <Download className="w-3.5 h-3.5" />
-                  </button>
+                  </a>
                 </div>
               ))}
             </div>
