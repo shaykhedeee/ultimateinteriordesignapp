@@ -36,10 +36,16 @@ projectTest.describe('Cutlist & Nesting', () => {
     await expect(calc).toBeVisible();
   });
 
-  projectTest('clicking Run Nesting Slices refreshes the cutlist without crashing', async ({ page, project }) => {
+  projectTest('clicking Run Nesting Slices refreshes the cutlist without crashing', async ({ page, project, request }) => {
     await openProjectTab(page, project.id, 'cutlist');
     const calc = page.getByRole('button', { name: /Run Nesting Slices/i }).first();
     await expect(calc).toBeVisible();
+    // Seed a real cabinet set so the nesting run produces a cutlist (the screen
+    // calls POST /cutlist/calculate with cabinets).
+    const seed = await request.post(`${BASE_URL}/api/projects/${project.id}/cutlist/calculate`, {
+      data: { cabinets: [{ name: 'Base Cabinet', width: 900, height: 720, depth: 560, carcassPly: 18, backPly: 6, plinthH: 100 }] }
+    });
+    expect(seed.status(), 'cutlist/calculate should accept a cabinet').toBe(200);
     await calc.click();
     // After refresh the cutlist API should return a project cutlist payload.
     const projectId = project.id;

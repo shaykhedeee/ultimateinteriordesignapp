@@ -70,3 +70,28 @@ test('POST /renders/generate is bounded (no infinite hang when no provider)', as
   const r = await req('POST', `/api/projects/${pid}/renders/generate`, JSON.stringify({ room: 'Living', style: 'indian-contemporary' }), 25000);
   assert.ok(r.code >= 200 && r.code < 400, `renders/generate should resolve (got ${r.code})`);
 });
+
+test('cutlist GET reflects /cutlist/calculate output (production_cutlists is canonical)', async () => {
+  const projects = JSON.parse((await req('GET', '/api/projects')).body);
+  const pid = (projects.find(p => p.lead_id) || projects[0]).id;
+  const calc = await req('POST', `/api/projects/${pid}/cutlist/calculate`,
+    JSON.stringify({ cabinets: [{ name: 'Base', width: 900, height: 720, depth: 560, carcassPly: 18 }] }));
+  assert.equal(calc.code, 200, 'cutlist/calculate should accept a cabinet');
+  // The live GET must now return the computed cutlist (id + projectId), proving
+  // the GET reads the same store the UI's "Run Nesting Slices" writes.
+  const r = await req('GET', `/api/projects/${pid}/cutlist`);
+  assert.equal(r.code, 200, 'cutlist GET should be 200 after calculate (was 404 before coherence fix)');
+  const data = JSON.parse(r.body);
+  assert.ok(data.id && data.projectId, 'cutlist GET should carry id + projectId');
+});
+
+test('POST /api/projects honors lead_id (client-board send-designs depends on it)', async () => {
+  const lead = JSON.parse((await req('POST', '/api/leads/import',
+    JSON.stringify({ leadList: [{ name: 'Link Tester', phone: '+91 90000 11111', email: 'link@x.com', budget: 500000 }] }))).body);
+  const leadId = lead.leads[0].id;
+  const proj = JSON.parse((await req('POST', '/api/projects',
+    JSON.stringify({ name: 'Link Test', lead_id: leadId }))).body);
+  assert.equal(proj.lead_id, leadId, 'POST /api/projects should persist lead_id');
+  await req('DELETE', `/api/projects/${proj.id}`);
+  await req('DELETE', `/api/leads/${leadId}`);
+});

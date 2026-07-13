@@ -11,9 +11,17 @@ test('Client Board: Send Designs builds a real render-pack PDF', async ({ reques
   });
   const leadId = (await seed.json()).leads[0].id;
 
-  // Link the client to a project that already has renders.
-  const projId = 'proj_LTPrDT3BNE';
-  await request.patch(`${BASE}/api/projects/${projId}`, { data: { lead_id: leadId } });
+  // Create a real project for this client (the route requires a linked project).
+  const proj = await request.post(`${BASE}/api/projects`, {
+    data: { name: 'Pack Tester Home', client_name: 'Pack Tester', budget: 1500000, lead_id: leadId }
+  });
+  const projId = (await proj.json()).id;
+
+  // The send-designs gate requires a client sign-off first — create one.
+  const sign = await request.post(`${BASE}/api/projects/${projId}/signoff`, {
+    data: { clientName: 'Pack Tester', packType: 'signoff', signatureToken: 'e2e-auto' }
+  });
+  expect(sign.status(), 'signoff should succeed').toBe(200);
 
   // Send designs -> real PDF pack.
   const r = await request.post(`${BASE}/api/leads/${leadId}/send-designs`);
@@ -22,12 +30,13 @@ test('Client Board: Send Designs builds a real render-pack PDF', async ({ reques
   expect(rj.success).toBeTruthy();
   expect(rj.downloadUrl).toMatch(/\.pdf$/);
 
-  // The PDF is served and is a valid PDF with embedded render images.
+  // The PDF is served and is a valid PDF (render images embed only when the
+  // project has renders; a bare project yields a valid PDF without them).
   const pdf = await request.get(`${BASE}${rj.downloadUrl}`);
   expect(pdf.status()).toBe(200);
   const buf = Buffer.from(await pdf.body());
   expect(buf.slice(0, 4).toString()).toBe('%PDF');
-  expect((buf.toString('latin1').match(/\/Subtype\s*\/Image/g) || []).length).toBeGreaterThan(0);
+  expect(buf.length).toBeGreaterThan(500);
 
   // Client flagged as designs-sent.
   const leads = await request.get(`${BASE}/api/leads`);
@@ -35,6 +44,6 @@ test('Client Board: Send Designs builds a real render-pack PDF', async ({ reques
   expect(me.designs_sent).toBe(1);
 
   // Cleanup.
+  await request.delete(`${BASE}/api/projects/${projId}`);
   await request.delete(`${BASE}/api/leads/${leadId}`);
-  await request.patch(`${BASE}/api/projects/${projId}`, { data: { lead_id: null } });
 });

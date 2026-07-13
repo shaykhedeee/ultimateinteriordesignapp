@@ -8,6 +8,13 @@ import { fileURLToPath } from 'url';
 import { nanoid } from 'nanoid';
 import db from './database/database.js';
 
+// Safe JSON parse used by the cutlist GET (production_cutlists stores JSON strings).
+function safeParse(value, fallback) {
+  if (value == null) return fallback;
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
 // Global async error wrapper: any thrown error in an async route is forwarded
 // to the error handler below (so clients get JSON, never an HTML 500 page).
 const wrapAsync = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -349,9 +356,18 @@ app.post('/api/projects/:id/plan/detect-furniture', express.json(), (req, res) =
 app.get('/api/projects/:id/cutlist', (req, res) => {
   try {
     const projectId = req.params.id;
-    const cutlist = cutlistEngine.getCutlistByProject(projectId);
-    if (!cutlist) return res.status(404).json({ error: 'No cutlist yet — refresh from CAD.' });
-    res.json(cutlist);
+    // The canonical cutlist is the one produced by /cutlist/calculate ("Run
+    // Nesting Slices"), which persists to production_cutlists. Read from there
+    // so the GET reflects what the UI actually generated (previously this
+    // handler read a different table and 404'd after a nesting run).
+    const row = db.prepare('SELECT * FROM production_cutlists WHERE project_id = ?').get(projectId);
+    if (!row) return res.status(404).json({ error: 'No cutlist yet — run nesting or refresh from CAD.' });
+    res.json({
+      id: row.id,
+      projectId: row.project_id,
+      parts: safeParse(row.cutlist_data_json, []),
+      nesting: safeParse(row.optimized_sheets_json, {})
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -814,9 +830,12 @@ app.post('/api/projects', express.json(), (req, res) => {
     const defaultBrief = { rooms: [], style: '', budgetTier: '', notes: '' };
     // New projects start at the intake stage, not the terminal 'closed' state.
     const initialStatus = 'brief';
+    // Honor a caller-supplied lead_id so a project can be created already
+    // linked to a client (the send-designs flow keys off projects.lead_id).
+    const leadId = b.lead_id ? String(b.lead_id) : null;
     db.prepare(`INSERT INTO projects (id, lead_id, name, client_name, email, phone, budget, status, current_step, client_brief_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(projectId, null, name, b.client_name || '', b.email || '', b.phone || '', b.budget || '',
+      .run(projectId, leadId, name, b.client_name || '', b.email || '', b.phone || '', b.budget || '',
            initialStatus, 'brief', JSON.stringify(defaultBrief), new Date().toISOString());
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     res.status(201).json(project);
@@ -2526,18 +2545,18 @@ app.post('/api/projects/:id/cutlist/calculate', (req, res) => {
 
 
 
-app.get('/api/projects/:id/cutlist', (req, res) => {
-  const cutlist = db.prepare("SELECT * FROM production_cutlists WHERE project_id = ?").get(req.params.id);
-  res.json(cutlist || { cutlist_data_json: '[]', optimized_sheets_json: '{}' });
-});
-
 // ---- Cutlist EXPORT: CSV (workshop BOM) & DXF (CNC sheet layout) ----
 // Both derive from the same optimized sheet layout the preview uses, so what the
 // workshop sees matches the on-screen plan.
 function getSheetLayout(projectId) {
-  // The canonical cutlist (same one the /cutlist GET returns) is computed live by
-  // the cutlist engine from the project's modules/parts. Reuse it so exports match
-  // the on-screen plan exactly.
+  // "Run Nesting Slices" / /cutlist/calculate persists to production_cutlists —
+  // that is the canonical source for the on-screen plan and exports. Fall back
+  // to the cutlist engine (cutlist_projects) for projects built that way.
+  const row = db.prepare('SELECT optimized_sheets_json, cutlist_data_json FROM production_cutlists WHERE project_id = ?').get(projectId);
+  if (row) {
+    const sheets = safeParse(row.optimized_sheets_json, null);
+    if (sheets) return sheets;
+  }
   const cutlist = cutlistEngine.getCutlistByProject(projectId);
   if (!cutlist) return null;
   return cutlist.sheetLayout || cutlist.optimizedSheets || null;

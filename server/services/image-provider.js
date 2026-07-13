@@ -392,7 +392,9 @@ async function tryGenerateOpenAiImage({ id, projectId, room, safeRoom, title, pr
       prompt,
       size: process.env.OPENAI_IMAGE_SIZE || '1536x1024',
       quality: process.env.OPENAI_IMAGE_QUALITY || 'high',
-      response_format: 'b64_json',
+      // NOTE: gpt-image-1 always returns b64_json and rejects the
+      // response_format param (that param is only valid for dall-e-* models).
+      // The code below already handles both b64_json and url responses.
       n: 1
     });
     let imgBuffer;
@@ -672,8 +674,8 @@ async function tryGenerateStabilityImage({ id, projectId, room, safeRoom, title,
   try {
     if (!liveEnabled('stability') || !resolved) return null;
     const modelMap = {
-      'sdxl': 'stable-diffusion-xl-1024-v1-0',
-      'flux': 'stable-diffusion-3-large'
+      'sdxl': 'sd3.5-large',
+      'flux': 'sd3.5-large'
     };
     const stabilityModel = modelMap[model] || modelMap['sdxl'];
     const endpoint = `https://api.stability.ai/v2beta/stable-image/generate/sd3`;
