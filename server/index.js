@@ -1573,6 +1573,19 @@ app.post('/api/projects/:id/quotation/pdf', async (req, res) => {
   }
 });
 
+// GET mirror so the Finance / Materials screens (which fetch the PDF as a
+// download link) work without a body. Reuses the same generator.
+app.get('/api/projects/:id/quotation/pdf', async (req, res) => {
+  try {
+    const fileName = `${req.params.id}-quotation.pdf`;
+    const destPath = path.join(storageDir, 'proposals', fileName);
+    await pdfBuilder.generateQuotationPDF(req.params.id, destPath);
+    res.download(destPath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GST tax-invoice PDF for a specific invoice
 app.post('/api/projects/:id/invoices/:invoiceId/pdf', async (req, res) => {
   try {
@@ -1908,8 +1921,20 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
     setTimeout(() => broadcastRenderProgress(projectId, 45, "Retrieving room layout vectors and Vastu rules..."), 600);
     setTimeout(() => broadcastRenderProgress(projectId, 75, "Running multi-provider AI visualizer engine..."), 1200);
 
-    const result = await visualizerEngine.generateFastRenderVariants(projectId, params);
-    
+    let result;
+    try {
+      result = await withTimeout(visualizerEngine.generateFastRenderVariants(projectId, params), 20000, 'render-generate');
+    } catch (e) {
+      console.warn('render generate fell back (provider timeout/unconfigured):', e.message);
+      // No live provider configured (BYOK) — synthesize a labeled placeholder so
+      // the client still receives a coherent result instead of a hung request.
+      const placeholderId = 'render_' + nanoid(10);
+      db.prepare(`INSERT OR REPLACE INTO design_renders (id, project_id, image_url, room, prompt, review_status) VALUES (?,?,?,?,?,'unreviewed')`)
+        .run(placeholderId, projectId, '', params.room || 'living', params.customInstruction || 'AI render pending');
+      broadcastRenderProgress(projectId, 100, "Render pending — configure a provider to generate.");
+      return res.json({ success: true, render: { id: placeholderId, pending: true }, variants: [], sketchupScript: '', note: 'AI provider not configured — render queued as pending.' });
+    }
+
     broadcastRenderProgress(projectId, 100, "Success! Saving generated render variants...");
     
     // Insert variants into design_renders table so they are returned by GET /api/projects/:id/renders
@@ -2159,10 +2184,14 @@ app.post('/api/projects/:id/renders/mistake', async (req, res) => {
 app.post('/api/projects/:id/renders/edit', async (req, res) => {
   try {
     const { assetId, revisionRequest } = req.body;
+    if (!assetId) return res.status(400).json({ error: 'assetId is required' });
     const result = await visualizerEngine.editStudioRender(req.params.id, assetId, { revisionRequest });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // A render whose source image is missing (e.g. placeholder) should fail
+    // cleanly, not 500.
+    const status = /not found|missing|no render/i.test(err.message) ? 404 : 500;
+    res.status(status).json({ error: err.message });
   }
 });
 

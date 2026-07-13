@@ -55,3 +55,18 @@ test('AURA action routes resolve (no stale 404 endpoints)', async () => {
     assert.ok(r.code >= 200 && r.code < 500 && r.code !== 404, `${m} ${p} should resolve (got ${r.code})`);
   }
 });
+
+test('GET /quotation/pdf works without a body (screen downloads via GET)', async () => {
+  const projects = JSON.parse((await req('GET', '/api/projects')).body);
+  const fp = (projects.find(p => p.id.startsWith('fp_en')) || projects[0]).id;
+  const r = await req('GET', `/api/projects/${fp}/quotation/pdf`);
+  assert.equal(r.code, 200, 'GET quotation/pdf should be 200 (was 404 before GET route existed)');
+});
+
+test('POST /renders/generate is bounded (no infinite hang when no provider)', async () => {
+  const projects = JSON.parse((await req('GET', '/api/projects')).body);
+  const pid = (projects.find(p => p.lead_id) || projects[0]).id;
+  // 25s cap — if the route were unguarded it would hang far longer.
+  const r = await req('POST', `/api/projects/${pid}/renders/generate`, JSON.stringify({ room: 'Living', style: 'indian-contemporary' }), 25000);
+  assert.ok(r.code >= 200 && r.code < 400, `renders/generate should resolve (got ${r.code})`);
+});

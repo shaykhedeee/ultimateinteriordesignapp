@@ -438,6 +438,7 @@ class PDFBuilder {
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
     if (!project) throw new Error("Project not found");
 
+    quotation = quotation || {};
     const items = quotation.items || [];
     const discount = quotation.discount || 0;
     const isGstEnabled = quotation.isGstEnabled !== false;
