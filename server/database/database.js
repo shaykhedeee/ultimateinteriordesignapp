@@ -801,6 +801,14 @@ try {
   );`).run();
 } catch (e) { console.warn("company_brain_kb schema warn:", e.message); }
 
+// Scene-graph lineage: every render MUST derive from an approved scene version
+// (geometry is the source of truth — AI only polishes it). These columns make
+// the lineage auditable and let us reject renders that have no scene backing.
+try { db.exec("ALTER TABLE design_renders ADD COLUMN scene_version_id TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE design_renders ADD COLUMN geometry_hash TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE design_renders ADD COLUMN render_stage TEXT DEFAULT 'ai_polish';"); } catch (e) {}
+try { db.exec("ALTER TABLE design_renders ADD COLUMN source TEXT;"); } catch (e) {}
+
 import dbClient from './db-client.js';
 export default dbClient;
 

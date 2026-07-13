@@ -20,6 +20,7 @@ import JobsScreen             from './screens/JobsScreen.jsx';
 import DashboardScreen          from './screens/DashboardScreen.jsx';
 import AuraBrainChat          from './components/layout/AuraBrainChat.jsx';
 import AiStatusBanner         from './components/shell/AiStatusBanner.jsx';
+import PipelineRail           from './components/PipelineRail.jsx';
 
 // Heavy screens are code-split (lazy) so the initial bundle stays small and fast.
 const DrawingsElevationsStudio = lazy(() => import('./screens/DrawingsElevationsStudio.jsx'));
@@ -336,8 +337,8 @@ export function App() {
     const fn = async () => {
       try {
         const [settingsRes, brandRaw] = await Promise.all([
-          fetch('http://127.0.0.1:5055/api/settings/app-settings'),
-          fetch('http://127.0.0.1:5055/api/settings/app-settings')
+          fetch('/api/settings/app-settings'),
+          fetch('/api/settings/app-settings')
         ]);
         const settings = (await settingsRes.json())?.settings || {};
         const b = {
@@ -383,7 +384,7 @@ export function App() {
     if (!selectedProjectId) { setActiveJobs([]); return; }
     const fetchJobs = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/jobs`);
+        const res = await fetch(`/api/projects/${selectedProjectId}/jobs`);
         if (res.ok) { const d = await res.json(); const jobs = Array.isArray(d) ? d : Array.isArray(d?.jobs) ? d.jobs : []; setActiveJobs(jobs.filter(j => j.status === 'running')); }
       } catch {}
     };
@@ -400,8 +401,8 @@ export function App() {
   const fetchData = async () => {
     try {
       const [leadsRes, projRes] = await Promise.all([
-        fetch('http://127.0.0.1:5055/api/leads'),
-        fetch('http://127.0.0.1:5055/api/projects')
+        fetch('/api/leads'),
+        fetch('/api/projects')
       ]);
       setApiOnline(leadsRes.ok);
       const leads    = leadsRes.ok ? await leadsRes.json() : [];
@@ -427,7 +428,7 @@ export function App() {
   const stepPct   = Math.min(stepIndex, 100);
 
   // ── AURA chat ──
-  const AURA_API = 'http://127.0.0.1:5055/api/aura/chat';
+  const AURA_API = '/api/aura/chat';
   const handleSendMessage = async (text) => {
     const userMsg = { id:`u-${Date.now()}`, sender:'user', text, timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) };
     setChatMessages(p => [...p, userMsg]);
@@ -468,7 +469,7 @@ export function App() {
         // File-download actions (e.g. DXF) should open the URL so the browser
         // saves the file rather than having fetch consume the bytes silently.
         const a = document.createElement('a');
-        a.href = `http://127.0.0.1:5055${route}`;
+        a.href = `${route}`;
         a.download = '';
         document.body.appendChild(a); a.click(); a.remove();
         window.__toast?.success(`AURA → ${preview?.title || actionId} — download started`);
@@ -477,7 +478,7 @@ export function App() {
       }
       const opts = { method: 'POST', headers:{'Content-Type':'application/json'} };
       try {
-        const res = await fetch(`http://127.0.0.1:5055${route}`, opts);
+        const res = await fetch(`${route}`, opts);
         if (!res.ok) {
           let msg = `${res.status} on ${route}`;
           try { const j = await res.json(); if (j.error) msg = j.error; } catch {}
@@ -515,7 +516,7 @@ export function App() {
   const NEXT_TAB = { brief:'cad', cad:'studio', studio:'drawings', drawings:'renders', renders:'materials', materials:'cutlist', cutlist:'finance', finance:'presentation', presentation:'presentation' };
   const advance = (tab) => {
     if (selectedProjectId && tab) {
-      fetch(`http://127.0.0.1:5055/api/projects/${selectedProjectId}/advance-step`, {
+      fetch(`/api/projects/${selectedProjectId}/advance-step`, {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ step: tab })
       }).catch(()=>{});
     }
@@ -692,6 +693,11 @@ export function App() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* ── Pipeline Rail: the whole design→delivery journey, always visible ── */}
+        {selectedProject && (
+          <PipelineRail activeTab={activeTab} stepIndex={stepIndex} onNavigate={(id) => setActiveTab(id)} />
         )}
 
         {/* ── Footer ── */}

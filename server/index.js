@@ -33,6 +33,7 @@ import { computeInvoice, isInterStateSupply } from './services/invoice-math.js';
 import pdfBuilder from './services/pdf-builder.js';
 import { generateInteriorAsset, getProviderStatus } from './services/image-provider.js';
 import * as visualizerEngine from './services/visualizer-engine.js';
+import { exportSceneToBlender } from './services/scene-to-blender.js';
 import { analyzePhotoToElevation, learningSummary } from './services/photo-to-elevation.js';
 import colorService from './services/component-color-service.js';
 import planIntelligenceCore from './services/plan-intelligence-core.js';
@@ -2151,9 +2152,86 @@ app.get('/api/projects/:id/renders', (req, res) => {
   res.json(rows);
 });
 
+// ── Scene-graph lineage helpers (geometry is the source of truth) ───────────
+// Resolve the current approved scene version for a project. Returns null when
+// no scene graph exists yet — callers MUST refuse to generate AI renders
+// without one (Rule #1: renders derive from the scene, not from prompts alone).
+function getCurrentSceneVersion(projectId) {
+  try {
+    return db.prepare(
+      "SELECT * FROM scene_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1"
+    ).get(projectId);
+  } catch { return null; }
+}
+
+// Deterministic hash of the scene geometry so a render can be proven to match
+// the scene it was generated from. Stable across cosmetic re-saves.
+function geometryHashOf(sceneJson) {
+  try {
+    const s = typeof sceneJson === 'string' ? JSON.parse(sceneJson) : sceneJson;
+    // Only hash geometry-bearing fields, never transient UI state.
+    const geo = {
+      rooms: s.rooms || s.levels || s.spaces,
+      walls: s.walls,
+      openings: s.openings,
+      furniture: s.furniture
+    };
+    const norm = JSON.stringify(geo, Object.keys(geo).sort());
+    let h = 0;
+    for (let i = 0; i < norm.length; i++) h = ((h << 5) - h + norm.charCodeAt(i)) | 0;
+    return 'gh_' + (h >>> 0).toString(16);
+  } catch { return null; }
+}
+
+app.post('/api/projects/:id/scene/blender-export', async (req, res) => {
+  try {
+    const result = await exportSceneToBlender(req.params.id);
+    if (!result.ok) return res.status(422).json({ error: result.error, message: result.message });
+    return res.json({
+      success: true,
+      scriptPath: result.scriptPath,
+      sceneVersionId: result.sceneVersionId,
+      blenderAvailable: result.blendAvailable,
+      rendered: result.rendered,
+      renderPath: result.renderPath,
+      note: result.blendAvailable
+        ? 'Deterministic Cycles base render produced from scene geometry.'
+        : 'Blender not installed in this environment — the deterministic script is saved and ready to run on a Blender host.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDIO), visualizerFields, async (req, res) => {
   try {
     const projectId = req.params.id;
+
+    // ── Enforce Rule #1: geometry is the source of truth. ──
+    // A render must derive from the current scene graph, NOT from a free-text
+    // prompt. Refuse to generate (422) until a scene version exists, and thread
+    // the scene geometry into the render params so the AI engine cannot invent
+    // dimensions, wall lengths, or furniture scale (Rule #2).
+    const sceneRow = getCurrentSceneVersion(projectId);
+    const sceneVersionId = sceneRow?.id || null;
+    const geometryHash = sceneRow ? geometryHashOf(sceneRow.scene_json) : null;
+    let sceneGeometry = null;
+    if (sceneRow?.scene_json) {
+      try {
+        const s = JSON.parse(sceneRow.scene_json);
+        sceneGeometry = { rooms: s.rooms || s.levels || s.spaces, walls: s.walls, openings: s.openings, furniture: s.furniture };
+      } catch {}
+    }
+
+    // Rule #1 gate: without a scene graph there is no geometry truth to render.
+    // Refuse the AI render and tell the designer to build the scene first.
+    if (!sceneVersionId) {
+      return res.status(422).json({
+        error: 'no_scene_graph',
+        message: 'Generate the editable scene graph (Plan Intelligence → 3D Scene) before creating AI renders. Renders must derive from scene geometry, not free prompts.'
+      });
+    }
+
     const sitePhotoFile = req.files?.['sitePhoto']?.[0];
     const stylePhotoFile = req.files?.['stylePhoto']?.[0];
     const zoomedFloorPlanFile = req.files?.['zoomedFloorPlan']?.[0];
@@ -2177,6 +2255,11 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
       variantCount: req.body.variantCount,
       furnitureRequirement: req.body.furnitureRequirement,
       customInstruction: req.body.customInstruction,
+      // Scene-graph lineage: thread the actual geometry into the render so the
+      // AI engine restyles/relights only — it cannot invent layout or dimensions.
+      sceneVersionId,
+      geometryHash,
+      sceneGeometry,
       sitePhoto: sitePhotoFile ? `/storage/uploads/${sitePhotoFile.filename}` : req.body.sitePhotoBase64,
       stylePhoto: stylePhotoFile ? `/storage/uploads/${stylePhotoFile.filename}` : req.body.stylePhotoBase64,
       zoomedFloorPlan: zoomedFloorPlanFile ? `/storage/uploads/${zoomedFloorPlanFile.filename}` : req.body.zoomedFloorPlanBase64,
@@ -2195,8 +2278,8 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
       // No live provider configured (BYOK) — synthesize a labeled placeholder so
       // the client still receives a coherent result instead of a hung request.
       const placeholderId = 'render_' + nanoid(10);
-      db.prepare(`INSERT OR REPLACE INTO design_renders (id, project_id, image_url, room, prompt, review_status) VALUES (?,?,?,?,?,'unreviewed')`)
-        .run(placeholderId, projectId, '', params.room || 'living', params.customInstruction || 'AI render pending');
+      db.prepare(`INSERT OR REPLACE INTO design_renders (id, project_id, image_url, room, prompt, review_status, scene_version_id, geometry_hash, render_stage, source) VALUES (?,?,?,?,?,'unreviewed',?,?,'ai_polish','pending')`)
+        .run(placeholderId, projectId, '', params.room || 'living', params.customInstruction || 'AI render pending', sceneVersionId, geometryHash);
       broadcastRenderProgress(projectId, 100, "Render pending — configure a provider to generate.");
       return res.json({ success: true, render: { id: placeholderId, pending: true }, variants: [], sketchupScript: '', note: 'AI provider not configured — render queued as pending.' });
     }
@@ -2207,8 +2290,8 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
     if (result.variants && result.variants.length > 0) {
       const insertRender = db.prepare(`
         INSERT OR REPLACE INTO design_renders 
-        (id, project_id, image_url, room, prompt, review_status) 
-        VALUES (?, ?, ?, ?, ?, 'unreviewed')
+        (id, project_id, image_url, room, prompt, review_status, scene_version_id, geometry_hash, render_stage, source) 
+        VALUES (?, ?, ?, ?, ?, 'unreviewed', ?, ?, 'ai_polish', 'ai-image')
       `);
       for (const variant of result.variants) {
         insertRender.run(
@@ -2216,7 +2299,9 @@ app.post('/api/projects/:id/renders/generate', checkAccess(PRODUCTS.RENDER_STUDI
           projectId,
           variant.filePath || variant.url || '',
           variant.room || params.room || 'living',
-          variant.prompt || ''
+          variant.prompt || '',
+          sceneVersionId,
+          geometryHash
         );
       }
     }

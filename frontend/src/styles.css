@@ -114,6 +114,9 @@ html { height: 100%; }
 body {
   font-family: 'Inter', 'Outfit', -apple-system, sans-serif;
   background-color: var(--base-100);
+  background-image: radial-gradient(circle at top right, rgba(201,168,76,0.03), transparent 40%),
+                    radial-gradient(circle at bottom left, rgba(201,168,76,0.02), transparent 40%);
+  background-attachment: fixed;
   color: var(--text-primary);
   height: 100%;
   overflow: hidden;
@@ -137,7 +140,9 @@ body {
 
 .sidebar-chrome {
   width: var(--sidebar-w);
-  background: linear-gradient(180deg, #0C0C14 0%, #08080F 60%, #06060C 100%);
+  background: linear-gradient(180deg, rgba(12, 12, 20, 0.8) 0%, rgba(8, 8, 15, 0.7) 60%, rgba(6, 6, 12, 0.8) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-right: 1px solid rgba(255,255,255,0.04);
   position: relative;
   flex-shrink: 0;
@@ -387,7 +392,9 @@ body {
    ════════════════════════════════════════════════ */
 
 .app-header {
-  background: linear-gradient(90deg, #0A0A12 0%, #080810 100%);
+  background: linear-gradient(90deg, rgba(10, 10, 18, 0.75) 0%, rgba(8, 8, 16, 0.65) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255,255,255,0.05);
   padding: 0 24px;
   height: 52px;
@@ -520,11 +527,17 @@ body {
    ════════════════════════════════════════════════ */
 
 .panel {
-  background: var(--surface-1);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(145deg, rgba(30, 30, 36, 0.75), rgba(22, 22, 32, 0.45));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 18px;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.panel:hover {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(201, 168, 76, 0.15);
 }
 
 .panel-head {
@@ -593,20 +606,35 @@ body {
   background: linear-gradient(135deg, var(--gold-bright), var(--gold));
   color: #0A0A0D; font-weight: 800; font-size: 11px;
   border: none; border-radius: 10px; padding: 9px 14px; cursor: pointer;
-  letter-spacing: 0.03em; transition: filter 0.18s, transform 0.18s, box-shadow 0.18s;
-  box-shadow: 0 4px 18px rgba(201,168,76,0.22);
+  letter-spacing: 0.03em; transition: filter 0.2s, transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 18px rgba(201,168,76,0.3);
 }
-.btn-gold:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.btn-gold:hover { 
+  filter: brightness(1.1); 
+  transform: translateY(-2px); 
+  box-shadow: 0 8px 24px rgba(201,168,76,0.4), inset 0 1px 2px rgba(255,255,255,0.4);
+}
+.btn-gold:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(201,168,76,0.3);
+}
 
 .btn-ghost {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: rgba(255,255,255,0.035);
+  backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,0.08);
   color: var(--text-secondary); font-weight: 700; font-size: 10px;
   border-radius: 10px; padding: 8px 12px; cursor: pointer;
-  letter-spacing: 0.03em; text-transform: uppercase; transition: all 0.18s;
+  letter-spacing: 0.03em; text-transform: uppercase; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.btn-ghost:hover { color: var(--text-primary); border-color: var(--gold-border); background: rgba(201,168,76,0.06); }
+.btn-ghost:hover { 
+  color: var(--gold-bright); 
+  border-color: var(--gold-border); 
+  background: rgba(201,168,76,0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(201,168,76,0.15);
+}
 
 .btn-emerald {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -1472,3 +1500,17 @@ select.form-input {
   border-color: var(--gold-border);
   box-shadow: 0 0 0 3px rgba(201,168,76,0.10);
 }
+
+/* ── Pipeline Rail (design→delivery journey, always visible in sidebar) ── */
+.pipeline-rail { padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.05); }
+.pipeline-rail-title { font-size: 8px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+.pipeline-rail-list { display: flex; flex-direction: column; gap: 0; }
+.pipeline-step { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 4px; background: transparent; border: none; cursor: pointer; text-align: left; border-radius: 6px; transition: background .15s; }
+.pipeline-step:hover { background: rgba(255,255,255,0.04); }
+.pipeline-step-dot { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,0.06); color: var(--text-muted); flex-shrink: 0; }
+.pipeline-step.active .pipeline-step-dot { background: var(--gold); color: #1a1a1a; box-shadow: 0 0 0 3px rgba(201,168,76,0.18); }
+.pipeline-step.done .pipeline-step-dot { background: rgba(45,212,170,0.18); color: var(--emerald); }
+.pipeline-step-label { font-size: 10.5px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pipeline-step.active .pipeline-step-label { color: var(--gold); font-weight: 700; }
+.pipeline-step.done .pipeline-step-label { color: var(--text-primary); }
+.pipeline-step-line { position: absolute; left: 12px; top: 22px; width: 1px; height: calc(100% - 14px); background: rgba(255,255,255,0.08); }

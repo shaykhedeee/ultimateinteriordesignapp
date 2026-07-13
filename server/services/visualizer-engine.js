@@ -7,6 +7,7 @@ import { findReusableAssets, getProject, matchLaminates } from './design-engine.
 import { generateInteriorAsset, isNativeOpenAiKey, recordGenerationCost, resolveKey, generationProviderPriority } from './image-provider.js';
 import { refineRenderPromptWithGemini } from './gemini-service.js';
 import { buildRoomStylePayload, buildVisionPayload } from './prompt-harness.js';
+import { renderSceneWithBlender } from './blender-renderer.js';
 
 // Resolve a provider's API key from the BYOK api_keys DB table OR env (in that
 // order). This is what makes keys linked via the Settings UI actually drive the
@@ -353,206 +354,305 @@ export async function generateStudioRender(projectId, params) {
 
   let success = false;
 
-  // Provider 1: OpenAI DALL-E 3
-  if (process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(openAiKey())) {
-    try {
-      const { default: OpenAI } = await import('openai');
-      const openai = new OpenAI({ apiKey: openAiKey() });
-      const response = await openai.images.generate({
-        model: process.env.OPENAI_IMAGE_MODEL || 'dall-e-3',
-        prompt: basePrompt,
-        size: '1024x1024',
-        quality: 'hd',
-        n: 1
-      });
-      const url = response.data?.[0]?.url;
-      if (url) {
-        await downloadToFile(url, filePath);
-        sourceType = 'openai-visualizer';
-        success = true;
-      }
-    } catch (err) {
-      console.warn("OpenAI visualizer generation failed, trying Hugging Face:", err.message);
-    }
+  // 4. Build canonical scene graph representation and save to DB
+  const sceneJson = buildSceneGraphFromProject(projectId, room);
+  let sceneVersionId = null;
+  try {
+    const nextVer = (db.prepare('SELECT MAX(version_number) as v FROM scene_versions WHERE project_id = ?').get(projectId)?.v || 0) + 1;
+    sceneVersionId = nanoid(12);
+    const sceneHash = nanoid(16);
+    db.prepare(`
+      INSERT INTO scene_versions (id, project_id, version_number, scene_json, scene_hash, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(sceneVersionId, projectId, nextVer, JSON.stringify(sceneJson), sceneHash, new Date().toISOString());
+  } catch (err) {
+    console.warn("[visualizer-engine] failed to persist scene version:", err.message);
   }
 
-  // Provider 2: Hugging Face Serverless API (Flux / SDXL)
-  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && hfKey()) {
-    try {
-      console.log("Hugging Face live image generation triggered...");
-      const model = process.env.HUGGINGFACE_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
-      const endpoint = `https://api-inference.huggingface.co/models/${model}`;
-      const hfResponse = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${hfKey()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ inputs: basePrompt })
-      });
-      if (hfResponse.ok) {
-        const buffer = await hfResponse.arrayBuffer();
-        fs.writeFileSync(filePath, Buffer.from(buffer));
-        sourceType = 'huggingface-visualizer';
-        success = true;
-      } else {
-        const errText = await hfResponse.text();
-        console.warn(`Hugging Face API failed: ${hfResponse.status} - ${errText}`);
-      }
-    } catch (err) {
-      console.warn(`Hugging Face visualizer generation failed:`, err.message);
-    }
+  // Render base geometry using Blender/Cycles
+  let baseRenderPath = null;
+  let blenderSuccess = false;
+  try {
+    console.log(`[visualizer-engine] Rendering base geometry with Blender/Cycles for project ${projectId}...`);
+    const cameraPreset = params.cameraPreset || 'perspective_main';
+    const qualityMode = params.qualityMode || 'draft';
+    baseRenderPath = await renderSceneWithBlender(projectId, sceneJson, cameraPreset, { quality: qualityMode });
+    blenderSuccess = true;
+  } catch (err) {
+    console.error("[visualizer-engine] Blender rendering failed:", err.message);
   }
 
-  // Provider 3: Replicate API (Flux / SDXL)
-  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && replicateKey()) {
+  if (blenderSuccess && baseRenderPath) {
     try {
-      console.log("Replicate live image generation triggered...");
-      const model = process.env.REPLICATE_IMAGE_MODEL || 'black-forest-labs/flux-schnell';
-      const replResponse = await fetch('https://api.replicate.com/v1/predictions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${replicateKey()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          version: model,
-          input: { prompt: basePrompt }
-        })
-      });
-      if (replResponse.ok) {
-        let prediction = await replResponse.json();
-        const getPredictionUrl = prediction.urls.get;
-        let completed = false;
-        let pollAttempts = 0;
-        while (!completed && pollAttempts < 30) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const checkResp = await fetch(getPredictionUrl, {
-            headers: { 'Authorization': `Token ${replicateKey()}` }
-          });
-          if (checkResp.ok) {
-            prediction = await checkResp.json();
-            if (prediction.status === 'succeeded') {
-              const url = prediction.output?.[0] || prediction.output;
-              if (url) {
-                await downloadToFile(url, filePath);
-                sourceType = 'replicate-visualizer';
-                success = true;
-                completed = true;
-              }
-            } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
-              console.warn(`Replicate prediction ended with status: ${prediction.status}`);
-              completed = true;
+      fs.copyFileSync(baseRenderPath, filePath);
+      success = true;
+      sourceType = 'blender-cycles-base-render';
+      reusableScore = 96;
+      console.log(`[visualizer-engine] Using Blender base render as source: ${filePath}`);
+
+      // Try AI enhancement / polish if live generation is enabled
+      if (process.env.LIVE_IMAGE_GEN === 'true') {
+        if (isNativeOpenAiKey(openAiKey())) {
+          try {
+            console.log("[visualizer-engine] Running AI polish via OpenAI Image Edit...");
+            const { default: OpenAI } = await import('openai');
+            const openai = new OpenAI({ apiKey: openAiKey() });
+            const response = await openai.images.edit({
+              image: fs.createReadStream(baseRenderPath),
+              prompt: `A high-end luxury photorealistic interior render, hyper-detailed wood grains, marble reflections, soft ambient lighting, premium textures. Style: ${style}. Room: ${room}. Directives: ${basePrompt}`,
+              n: 1,
+              size: '1024x1024'
+            });
+            const url = response.data?.[0]?.url;
+            if (url) {
+              await downloadToFile(url, filePath);
+              sourceType = 'blender-cycles-ai-polish';
+              console.log("[visualizer-engine] AI polish completed successfully.");
             }
+          } catch (aiErr) {
+            console.warn("[visualizer-engine] OpenAI AI polish failed, keeping clean base render:", aiErr.message);
           }
-          pollAttempts++;
+        } else if (hfKey()) {
+          try {
+            console.log("[visualizer-engine] Running AI polish via Hugging Face img2img...");
+            const model = process.env.HUGGINGFACE_IMG2IMG_MODEL || 'stabilityai/stable-diffusion-xl-refiner-1.0';
+            const endpoint = `https://api-inference.huggingface.co/models/${model}`;
+            const imageBuffer = fs.readFileSync(baseRenderPath);
+            const hfResponse = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${hfKey()}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                inputs: `A realistic interior render, beautiful materials, photographic lighting, warm ambient glow: ${basePrompt}`,
+                image: imageBuffer.toString('base64')
+              })
+            });
+            if (hfResponse.ok) {
+              const resBuffer = await hfResponse.arrayBuffer();
+              fs.writeFileSync(filePath, Buffer.from(resBuffer));
+              sourceType = 'blender-cycles-ai-polish';
+              console.log("[visualizer-engine] Hugging Face AI polish completed successfully.");
+            } else {
+              const errText = await hfResponse.text();
+              console.warn(`[visualizer-engine] Hugging Face img2img failed: ${hfResponse.status} - ${errText}`);
+            }
+          } catch (aiErr) {
+            console.warn("[visualizer-engine] Hugging Face AI polish failed, keeping clean base render:", aiErr.message);
+          }
         }
       }
-    } catch (err) {
-      console.warn("Replicate visualizer generation failed:", err.message);
+    } catch (copyErr) {
+      console.error("[visualizer-engine] Failed to use Blender render, falling back to pure AI generation cascade:", copyErr.message);
+      blenderSuccess = false;
     }
   }
 
-  // Provider 4: Freepik API
-  if (!success && process.env.LIVE_IMAGE_GEN === 'true' && freepikKey()) {
-    try {
-      const endpoint = process.env.FREEPIK_IMAGE_ENDPOINT || 'https://api.freepik.com/v1/ai/text-to-image/flux-dev';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          'x-freepik-api-key': freepikKey()
-        },
-        body: JSON.stringify({
+  // Fallback to old image generation cascade if Blender failed or did not render
+  if (!success) {
+    // Provider 1: OpenAI DALL-E 3
+    if (process.env.LIVE_IMAGE_GEN === 'true' && isNativeOpenAiKey(openAiKey())) {
+      try {
+        const { default: OpenAI } = await import('openai');
+        const openai = new OpenAI({ apiKey: openAiKey() });
+        const response = await openai.images.generate({
+          model: process.env.OPENAI_IMAGE_MODEL || 'dall-e-3',
           prompt: basePrompt,
-          aspect_ratio: 'square_1_1'
-        })
-      });
-      if (response.ok) {
-        const payload = await response.json();
-        const value = payload?.data?.[0]?.url || payload?.url;
-        if (value) {
-          await downloadToFile(value, filePath);
-          sourceType = 'freepik-visualizer';
+          size: '1024x1024',
+          quality: 'hd',
+          n: 1
+        });
+        const url = response.data?.[0]?.url;
+        if (url) {
+          await downloadToFile(url, filePath);
+          sourceType = 'openai-visualizer';
           success = true;
         }
+      } catch (err) {
+        console.warn("OpenAI visualizer generation failed, trying Hugging Face:", err.message);
       }
-    } catch (err) {
-      console.warn("Freepik visualizer generation failed:", err.message);
+    }
+
+    // Provider 2: Hugging Face Serverless API (Flux / SDXL)
+    if (!success && process.env.LIVE_IMAGE_GEN === 'true' && hfKey()) {
+      try {
+        console.log("Hugging Face live image generation triggered...");
+        const model = process.env.HUGGINGFACE_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
+        const endpoint = `https://api-inference.huggingface.co/models/${model}`;
+        const hfResponse = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${hfKey()}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ inputs: basePrompt })
+        });
+        if (hfResponse.ok) {
+          const buffer = await hfResponse.arrayBuffer();
+          fs.writeFileSync(filePath, Buffer.from(buffer));
+          sourceType = 'huggingface-visualizer';
+          success = true;
+        } else {
+          const errText = await hfResponse.text();
+          console.warn(`Hugging Face API failed: ${hfResponse.status} - ${errText}`);
+        }
+      } catch (err) {
+        console.warn(`Hugging Face visualizer generation failed:`, err.message);
+      }
+    }
+
+    // Provider 3: Replicate API (Flux / SDXL)
+    if (!success && process.env.LIVE_IMAGE_GEN === 'true' && replicateKey()) {
+      try {
+        console.log("Replicate live image generation triggered...");
+        const model = process.env.REPLICATE_IMAGE_MODEL || 'black-forest-labs/flux-schnell';
+        const replResponse = await fetch('https://api.replicate.com/v1/predictions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${replicateKey()}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            version: model,
+            input: { prompt: basePrompt }
+          })
+        });
+        if (replResponse.ok) {
+          let prediction = await replResponse.json();
+          const getPredictionUrl = prediction.urls.get;
+          let completed = false;
+          let pollAttempts = 0;
+          while (!completed && pollAttempts < 30) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const checkResp = await fetch(getPredictionUrl, {
+              headers: { 'Authorization': `Token ${replicateKey()}` }
+            });
+            if (checkResp.ok) {
+              prediction = await checkResp.json();
+              if (prediction.status === 'succeeded') {
+                const url = prediction.output?.[0] || prediction.output;
+                if (url) {
+                  await downloadToFile(url, filePath);
+                  sourceType = 'replicate-visualizer';
+                  success = true;
+                  completed = true;
+                }
+              } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
+                console.warn(`Replicate prediction ended with status: ${prediction.status}`);
+                completed = true;
+              }
+            }
+            pollAttempts++;
+          }
+        }
+      } catch (err) {
+        console.warn("Replicate visualizer generation failed:", err.message);
+      }
+    }
+
+    // Provider 4: Freepik API
+    if (!success && process.env.LIVE_IMAGE_GEN === 'true' && freepikKey()) {
+      try {
+        const endpoint = process.env.FREEPIK_IMAGE_ENDPOINT || 'https://api.freepik.com/v1/ai/text-to-image/flux-dev';
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'x-freepik-api-key': freepikKey()
+          },
+          body: JSON.stringify({
+            prompt: basePrompt,
+            aspect_ratio: 'square_1_1'
+          })
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          const value = payload?.data?.[0]?.url || payload?.url;
+          if (value) {
+            await downloadToFile(value, filePath);
+            sourceType = 'freepik-visualizer';
+            success = true;
+          }
+        }
+      } catch (err) {
+        console.warn("Freepik visualizer generation failed:", err.message);
+      }
+    }
+
+    // Fallbacks: Serving pre-rendered high-fidelity assets to guarantee accuracy
+    if (!success) {
+      try {
+        let sourceName = 'kitchen_3d_render_final.png';
+        if (room === 'living') {
+          sourceName = 'tv_unit_render_final.png';
+        } else if (room === 'crockery') {
+          sourceName = 'crockery_unit_render.png';
+        } else if (room === 'temple') {
+          sourceName = 'cnc_teak_mandir_1779969965502.png';
+        } else if (room === 'masterBed') {
+          sourceName = 'smoked_glass_wardrobe_1779969938746.png';
+        }
+        
+        const sourcePath = path.join(process.cwd(), 'images', sourceName);
+        if (fs.existsSync(sourcePath)) {
+          fs.copyFileSync(sourcePath, filePath);
+          sourceType = 'studio-visualizer-mock';
+          reusableScore = 99;
+          success = true;
+          console.log(`Mock fallback served: ${sourceName}`);
+        } else {
+          throw new Error(`Curated studio mockup asset not found: ${sourcePath}`);
+        }
+      } catch (err) {
+        console.error("Visualizer fallback failed:", err.message);
+        // Absolute fallback - write basic SVG mock
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
+          <rect width="800" height="800" fill="#14161f"/>
+          <text x="50%" y="50%" font-family="Outfit, Arial" font-size="28" fill="#d4af37" text-anchor="middle">3D Render visualizer for ${room}</text>
+        </svg>`;
+        const fallbackSvgPath = path.join(storageDir, 'assets', `visualizer-${room}-${id}.svg`);
+        fs.writeFileSync(fallbackSvgPath, svg);
+        
+        db.prepare(`
+          INSERT INTO generated_assets
+          (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          id,
+          projectId,
+          room,
+          style,
+          budgetTier,
+          `3D Visualizer - ${room}`,
+          promptWithLogs,
+          'No watermarks, no distorted objects, no unaligned boundaries.',
+          `/storage/assets/visualizer-${room}-${id}.svg`,
+          JSON.stringify(['3d-studio-render', 'visualizer-concept']),
+          'svg-mock',
+          70,
+          new Date().toISOString()
+        );
+
+        return {
+          id,
+          projectId,
+          room,
+          style,
+          budgetTier,
+          title: `3D Visualizer - ${room}`,
+          prompt: promptWithLogs,
+          filePath: `/storage/assets/visualizer-${room}-${id}.svg`,
+          tags: ['3d-studio-render', 'visualizer-concept'],
+          sourceType: 'svg-mock',
+          reusableScore: 70,
+          createdAt: new Date().toISOString()
+        };
+      }
     }
   }
 
-  // Fallbacks: Serving pre-rendered high-fidelity assets to guarantee accuracy
-  if (!success) {
-    try {
-      let sourceName = 'kitchen_3d_render_final.png';
-      if (room === 'living') {
-        sourceName = 'tv_unit_render_final.png';
-      } else if (room === 'crockery') {
-        sourceName = 'crockery_unit_render.png';
-      } else if (room === 'temple') {
-        sourceName = 'cnc_teak_mandir_1779969965502.png';
-      } else if (room === 'masterBed') {
-        sourceName = 'smoked_glass_wardrobe_1779969938746.png';
-      }
-      
-      const sourcePath = path.join(process.cwd(), 'images', sourceName);
-      if (fs.existsSync(sourcePath)) {
-        fs.copyFileSync(sourcePath, filePath);
-        sourceType = 'studio-visualizer-mock';
-        reusableScore = 99;
-        success = true;
-        console.log(`Mock fallback served: ${sourceName}`);
-      } else {
-        throw new Error(`Curated studio mockup asset not found: ${sourcePath}`);
-      }
-    } catch (err) {
-      console.error("Visualizer fallback failed:", err.message);
-      // Absolute fallback - write basic SVG mock
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
-        <rect width="800" height="800" fill="#14161f"/>
-        <text x="50%" y="50%" font-family="Outfit, Arial" font-size="28" fill="#d4af37" text-anchor="middle">3D Render visualizer for ${room}</text>
-      </svg>`;
-      const fallbackSvgPath = path.join(storageDir, 'assets', `visualizer-${room}-${id}.svg`);
-      fs.writeFileSync(fallbackSvgPath, svg);
-      
-      db.prepare(`
-        INSERT INTO generated_assets
-        (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        id,
-        projectId,
-        room,
-        style,
-        budgetTier,
-        `3D Visualizer - ${room}`,
-        promptWithLogs,
-        'No watermarks, no distorted objects, no unaligned boundaries.',
-        `/storage/assets/visualizer-${room}-${id}.svg`,
-        JSON.stringify(['3d-studio-render', 'visualizer-concept']),
-        'svg-mock',
-        70,
-        new Date().toISOString()
-      );
-
-      return {
-        id,
-        projectId,
-        room,
-        style,
-        budgetTier,
-        title: `3D Visualizer - ${room}`,
-        prompt: promptWithLogs,
-        filePath: `/storage/assets/visualizer-${room}-${id}.svg`,
-        tags: ['3d-studio-render', 'visualizer-concept'],
-        sourceType: 'svg-mock',
-        reusableScore: 70,
-        createdAt: new Date().toISOString()
-      };
-    }
-  }
 
   // 5. Multi-Agent Critique Loop (Visual Validator Agent check render vs specifications)
   let retries = 0;
@@ -1235,6 +1335,30 @@ export function getApprovedRenderAssets(projectId) {
   }));
 }
 
+// Build a hard geometry-constraint block for the render prompt. This pins the
+// actual scene dimensions so the AI model polishes/restyles only and cannot
+// invent wall lengths, furniture scale, or room sizes (Rule #2).
+function buildGeometryConstraint(geo) {
+  const parts = [];
+  parts.push('STRICT GEOMETRY CONSTRAINTS — do not deviate from these exact measurements (mm):');
+  const rooms = Array.isArray(geo.rooms) ? geo.rooms : [];
+  const walls = Array.isArray(geo.walls) ? geo.walls : [];
+  const furniture = Array.isArray(geo.furniture) ? geo.furniture : [];
+  rooms.forEach((r, i) => {
+    parts.push(`- Room ${i + 1} (${r.type || r.name || 'space'}): ${Math.round(Number(r.w) || 0)}mm wide x ${Math.round(Number(r.h) || 0)}mm deep.`);
+  });
+  walls.forEach((w, i) => {
+    const len = Math.round(Math.hypot(Number(w.x2) - Number(w.x1), Number(w.y2) - Number(w.y1)));
+    if (len > 0) parts.push(`- Wall ${i + 1}: ${len}mm long.`);
+  });
+  furniture.forEach((f, i) => {
+    const dims = `${Math.round(Number(f.w) || 0)}mm W x ${Math.round(Number(f.h) || 0)}mm H x ${Math.round(Number(f.d) || 0)}mm D`;
+    parts.push(`- ${f.type || 'Item'} ${i + 1}: ${dims}. Keep this exact scale and placement; do not resize or relocate.`);
+  });
+  parts.push('Render the layout faithfully to these constraints. Restyle materials, lighting, and finishes only — never alter dimensions, positions, or counts.');
+  return parts.join(' ');
+}
+
 export async function generateFastRenderVariants(projectId, params = {}) {
   const db = getDb();
   const project = getProject(projectId);
@@ -1318,8 +1442,16 @@ export async function generateFastRenderVariants(projectId, params = {}) {
 
   for (let index = 0; index < variantCount; index += 1) {
     const direction = variantDirections[index] || variantDirections[0];
+    // Rule #2: AI may polish/relight/restyle but MUST NOT invent geometry.
+    // When the render derives from a real scene graph, pin the exact dimensions,
+    // wall lengths, furniture scale, and openings so the model cannot deviate.
+    const geometryConstraint = params.sceneGeometry
+      ? buildGeometryConstraint(params.sceneGeometry)
+      : '';
+
     const prompt = [
       renderPlan.prompt,
+      geometryConstraint,
       `Variant ${index + 1} direction: ${direction}.`,
       params.modelTier === 'precision'
         ? 'Prioritize spatial accuracy, component alignment, and exact furniture requirements over decorative drama.'
@@ -2140,4 +2272,115 @@ export function compileVariantGrid(projectId, params = {}) {
     };
   });
 }
+
+/**
+ * Builds a structured 3D scene graph from the 2D CAD/tracing project data.
+ * @param {string} projectId 
+ * @param {string} room 
+ * @returns {object} Canonical 3D scene graph JSON
+ */
+export function buildSceneGraphFromProject(projectId, room) {
+  const db = getDb();
+  let walls = [];
+  let openings = [];
+  let furniture = [];
+  let rooms = [];
+  
+  try {
+    const cad = db.prepare('SELECT walls_json, openings_json, furniture_json, rooms_json FROM cad_drawings WHERE project_id = ?').get(projectId);
+    if (cad) {
+      walls = JSON.parse(cad.walls_json || '[]');
+      openings = JSON.parse(cad.openings_json || '[]');
+      furniture = JSON.parse(cad.furniture_json || '[]');
+      rooms = JSON.parse(cad.rooms_json || '[]');
+    }
+  } catch (err) {
+    console.warn("[visualizer-engine] failed to fetch CAD data for scene graph:", err.message);
+  }
+
+  // Find active room boundaries
+  const activeRoom = rooms.find(r => r.roomIdPrimary === room || r.room === room || r.name === room) || rooms[0] || {};
+  const widthMm = activeRoom.widthMm || 4000;
+  const depthMm = activeRoom.heightMm || activeRoom.depthMm || 3000;
+  const heightMm = activeRoom.ceilingHeightMm || 2800;
+
+  // Filter walls matching this room
+  const roomWalls = walls.filter(w => w.roomIdPrimary === room || w.room === room || !w.room);
+  const placed_modules = [];
+
+  // Extract cabinets from walls
+  for (const wall of roomWalls) {
+    const cabs = Array.isArray(wall.cabinets) ? wall.cabinets : [];
+    for (const cab of cabs) {
+      placed_modules.push({
+        id: cab.id || nanoid(6),
+        type: cab.type || 'base',
+        widthMm: cab.widthMm || cab.w || 600,
+        heightMm: cab.heightMm || cab.h || 720,
+        depthMm: cab.depthMm || cab.d || 560,
+        xOffsetMm: cab.xOffsetMm || cab.x || 0,
+        yOffsetMm: cab.yOffsetMm || cab.y || 0,
+        zOffsetMm: cab.zOffsetMm || cab.z || 0,
+        rotationDeg: cab.rotationDeg || cab.rot || 0,
+        shutterMaterial: cab.shutterMaterial || 'shutter_cream'
+      });
+    }
+  }
+
+  // Extract furniture
+  const roomFurniture = furniture.filter(f => f.room === room || !f.room);
+  for (const furn of roomFurniture) {
+    if (Array.isArray(furn.cabinets)) {
+      for (const cab of furn.cabinets) {
+        placed_modules.push({
+          id: cab.id || nanoid(6),
+          type: cab.type || 'free',
+          widthMm: cab.widthMm || cab.w || 600,
+          heightMm: cab.heightMm || cab.h || 720,
+          depthMm: cab.depthMm || cab.d || 560,
+          xOffsetMm: cab.xOffsetMm || cab.x || 0,
+          yOffsetMm: cab.yOffsetMm || cab.y || 0,
+          zOffsetMm: cab.zOffsetMm || cab.z || 0,
+          rotationDeg: cab.rotationDeg || cab.rot || 0,
+          shutterMaterial: cab.shutterMaterial || 'shutter_wood'
+        });
+      }
+    } else {
+      placed_modules.push({
+        id: furn.id || nanoid(6),
+        type: furn.type || 'free',
+        widthMm: furn.widthMm || furn.w || 900,
+        heightMm: furn.heightMm || furn.h || 750,
+        depthMm: furn.depthMm || furn.d || 900,
+        xOffsetMm: furn.xOffsetMm || furn.x || 0,
+        yOffsetMm: furn.yOffsetMm || furn.y || 0,
+        zOffsetMm: furn.zOffsetMm || furn.z || 0,
+        rotationDeg: furn.rotationDeg || furn.rot || 0,
+        shutterMaterial: 'shutter_wood'
+      });
+    }
+  }
+
+  return {
+    room_shell: {
+      widthMm,
+      depthMm,
+      heightMm,
+      walls: roomWalls.map(w => ({
+        x1: w.x1 || 0,
+        y1: w.y1 || 0,
+        x2: w.x2 || 0,
+        y2: w.y2 || 0,
+        heightMm: w.heightMm || heightMm,
+        thicknessMm: w.thicknessMm || 150
+      }))
+    },
+    placed_modules,
+    lighting: [
+      { type: 'spot', xOffsetMm: widthMm / 4, yOffsetMm: depthMm / 4, zOffsetMm: heightMm - 100, intensityWatts: 50, temperatureKelvin: 3000 },
+      { type: 'spot', xOffsetMm: -widthMm / 4, yOffsetMm: -depthMm / 4, zOffsetMm: heightMm - 100, intensityWatts: 50, temperatureKelvin: 3000 }
+    ]
+  };
+}
+
 
