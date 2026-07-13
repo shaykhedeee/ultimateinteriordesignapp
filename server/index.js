@@ -4238,6 +4238,11 @@ app.post('/api/projects/:id/renders/laminate-swap',
       logTimelineEvent(projectId, 'render.laminate_swap', `Laminate Swap: ${params.componentType}`,
         `Changed to ${params.newMaterial || params.newColor} (${params.laminateBrand} ${params.laminateCode})`);
 
+      // Phase 2/3 staleness: a material swap changes the visual, so existing
+      // renders are now out of date until regenerated (geometry is truth, but
+      // the painted surface changed).
+      db.prepare("UPDATE projects SET stale_renders = 1 WHERE id = ?").run(projectId);
+
       res.json({ success: true, render: result });
     } catch (err) {
       console.error('[laminate-swap] Error:', err.message);
