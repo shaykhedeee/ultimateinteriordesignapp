@@ -21,6 +21,7 @@ const wrapAsync = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)
 
 // Services
 import voiceCallService from './services/voice-call-service.js';
+import { seedDemoProject } from './database/demo-seeder.js';
 import leadScorer from './services/lead-scorer.js';
 import geminiMultimodalService from './services/gemini-multimodal-service.js';
 import { getGeminiStatus } from './services/gemini-service.js';
@@ -119,6 +120,40 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.post('/api/projects/seed-demo', async (req, res) => {
+  try {
+    const result = await seedDemoProject();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/projects/review-queue', (req, res) => {
+  try {
+    const queue = db.prepare(`
+      SELECT p.*, l.name as lead_name, l.requirements, l.score as lead_score
+      FROM projects p
+      LEFT JOIN leads l ON p.lead_id = l.id
+      WHERE p.status = 'closed' OR p.current_step = 'brief'
+    `).all();
+    res.json({ success: true, queue });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/approve-layout', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    db.prepare("UPDATE projects SET current_step = 'production' WHERE id = ?").run(projectId);
+    logTimelineEvent(projectId, 'layout.approved', 'Layout plan approved by designer', 'Layout verified for modular rules and Vastu compliance.');
+    res.json({ success: true, message: 'Layout approved' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Dimension Validation Pipeline (Horizon-2 competitor feature)
 import dimensionValidator from './services/dimension-validator.js';
 app.get('/api/projects/:id/validate', (req, res) => {
@@ -141,6 +176,16 @@ app.get('/api/projects/:id/validate', (req, res) => {
     }
     const result = dimensionValidator.validateLayout({ modules, room });
     res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+import { checkSceneToElevationConsistency } from './services/consistency-checker.js';
+app.get('/api/projects/:id/consistency-check', (req, res) => {
+  try {
+    const report = checkSceneToElevationConsistency(req.params.id);
+    res.json({ success: true, ...report });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -224,6 +269,54 @@ app.post('/api/projects/:id/production-package', async (req, res) => {
       invoice: { id: invId, invoiceNumber, grandTotal: calc.grandTotal, gst: calc.cgst + calc.sgst + calc.igst },
       paymentPlan: { id: ppId, totalContractValue: g, milestones }
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+import { generateDeliveryPackPdf } from './services/delivery-package.js';
+app.post('/api/projects/:id/delivery-pack', wrapAsync(async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const destPath = await generateDeliveryPackPdf(projectId);
+    res.json({
+      success: true,
+      downloadUrl: `/storage/exports/${path.basename(destPath)}`
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+}));
+
+// PHASE 6 / BUILD ORDER #3: scene-to-elevation consistency check.
+// Verifies the elevation model agrees with the scene graph geometry (the
+// non-negotiable rule: elevations derive from the same scene, not re-drawn).
+app.get('/api/projects/:id/consistency/scene-elevation', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const sceneRow = db.prepare("SELECT scene_json FROM scene_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1").get(projectId);
+    const elevRows = db.prepare("SELECT id, wall_name, model_json FROM photo_elevations WHERE project_id = ?").all(projectId);
+    if (!sceneRow || !sceneRow.scene_json) return res.status(422).json({ error: 'no_scene_graph', message: 'Build the scene graph first.' });
+    const scene = JSON.parse(sceneRow.scene_json);
+    const sceneMods = Array.isArray(scene.placed_modules) ? scene.placed_modules : [];
+    const issues = [];
+    const checks = [];
+    for (const elev of elevRows) {
+      let model = {};
+      try { model = JSON.parse(elev.model_json || '{}'); } catch {}
+      const cabinets = Array.isArray(model.cabinets) ? model.cabinets : [];
+      for (const cab of cabinets) {
+        const sm = sceneMods.find((m) => m.id === cab.id);
+        if (!sm) { issues.push({ wall: elev.wall_name, moduleId: cab.id, issue: 'elevation module absent from scene graph' }); continue; }
+        const dw = Math.abs((cab.widthMm || 0) - (sm.widthMm || 0));
+        const dh = Math.abs((cab.heightMm || 0) - (sm.heightMm || 0));
+        const dx = Math.abs((cab.xOffsetMm || 0) - (sm.xOffsetMm || 0));
+        const ok = dw <= 5 && dh <= 5 && dx <= 5;
+        checks.push({ wall: elev.wall_name, moduleId: cab.id, sceneW: sm.widthMm, elevW: cab.widthMm, sceneH: sm.heightMm, elevH: cab.heightMm, deltaMm: { w: dw, h: dh, x: dx }, consistent: ok });
+        if (!ok) issues.push({ wall: elev.wall_name, moduleId: cab.id, issue: 'dimension mismatch vs scene', deltaMm: { w: dw, h: dh, x: dx } });
+      }
+    }
+    res.json({ success: true, consistent: issues.length === 0, checked: checks.length, issues, checks });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3325,6 +3418,53 @@ app.post('/api/projects/:id/scenes/:versionId/unlock', (req, res) => {
 
   res.json({ success: true, message: "Scene version unlocked" });
 });
+
+import { renderSceneWithBlender } from './services/blender-renderer.js';
+app.post('/api/projects/:id/scenes/:versionId/render-blender', wrapAsync(async (req, res) => {
+  const { cameraPreset = 'perspective_main', quality = 'draft', renderMask = false } = req.body;
+  const projectId = req.params.id;
+  const versionId = req.params.versionId;
+  
+  const version = db.prepare("SELECT * FROM scene_versions WHERE id = ?").get(versionId);
+  if (!version) return res.status(404).json({ success: false, error: 'Scene version not found' });
+  
+  const sceneJson = JSON.parse(version.scene_json);
+  
+  // 1. Run main render
+  const baseImgPath = await renderSceneWithBlender(projectId, sceneJson, cameraPreset, { quality });
+  const baseWebUrl = `/storage/render/${path.basename(baseImgPath)}`;
+  
+  let maskWebUrl = null;
+  if (renderMask) {
+    // 2. Run mask pass
+    const maskImgPath = await renderSceneWithBlender(projectId, sceneJson, cameraPreset, { quality, mode: 'mask' });
+    maskWebUrl = `/storage/render/${path.basename(maskImgPath)}`;
+  }
+  
+  // Persist asset record if main render succeeded
+  const assetId = 'asset_' + nanoid(6);
+  db.prepare(`
+    INSERT INTO generated_assets (id, project_id, room, style, budget_tier, title, prompt, file_path, source_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    assetId,
+    projectId,
+    sceneJson.room_shell?.roomType || 'kitchen',
+    sceneJson.settings?.style || 'scandinavian',
+    sceneJson.settings?.budgetBand || 'standard',
+    `Blender Render - Preset: ${cameraPreset}`,
+    `Headless Blender cycles render, preset: ${cameraPreset}`,
+    baseWebUrl,
+    'blender-renderer'
+  );
+
+  res.json({
+    success: true,
+    assetId,
+    baseRenderUrl: baseWebUrl,
+    maskUrl: maskWebUrl
+  });
+}));
 
 // Clear stale flags
 app.post('/api/projects/:id/stale/clear', (req, res) => {

@@ -870,6 +870,38 @@ function createManualModule(cutlistProjectId, input) {
 export function getElevationCabinets(projectId) {
   const db = getDb();
   const out = [];
+  
+  // 1. Prioritize unified Scene Graph as source of truth
+  try {
+    const sceneRow = db.prepare('SELECT scene_json FROM scene_versions WHERE project_id = ? AND is_current = 1 LIMIT 1').get(projectId);
+    if (sceneRow && sceneRow.scene_json) {
+      const scene = JSON.parse(sceneRow.scene_json);
+      const placed = scene.placed_modules || [];
+      for (const m of placed) {
+        out.push({
+          id: m.id,
+          name: `${m.type}_cabinet_${m.id}`,
+          widthMm: m.widthMm,
+          heightMm: m.heightMm,
+          depthMm: m.depthMm,
+          xOffsetMm: m.xOffsetMm,
+          yOffsetMm: m.yOffsetMm,
+          zOffsetMm: m.zOffsetMm,
+          rotationDeg: m.rotationDeg,
+          shutterMaterial: m.shutterMaterial,
+          moduleType: m.type,
+          room: m.room || 'kitchen',
+          confidence: 100,
+          sourceType: 'scene_graph'
+        });
+      }
+      if (out.length > 0) return out;
+    }
+  } catch (err) {
+    console.warn("[cutlist-engine] failed to read scene graph in getElevationCabinets:", err.message);
+  }
+
+  // 2. Fall back to legacy 2D drawing / CAD files
   try {
     const cad = db.prepare('SELECT walls_json, furniture_json FROM cad_drawings WHERE project_id = ?').get(projectId);
     if (cad) {
@@ -951,6 +983,8 @@ function normalizeElevationCabinet(cab, ctx) {
 function depthForType(type) {
   const map = {
     'kitchen-base': 560, 'kitchen-drawer': 560, 'kitchen-wall': 350, 'kitchen-tall-pantry': 600,
+    'kitchen-sink': 560, 'kitchen-hob': 560, 'kitchen-mesh-basket': 560, 'kitchen-rolling-shutter': 560,
+    'kitchen-corner': 560, 'kitchen-loft': 350, 'kitchen-appliance-garage': 600,
     'wardrobe': 600, 'tv-unit': 450, 'display-storage': 380, 'low-storage': 420, 'mandir': 420,
     'foyer-storage': 380, 'study-desk': 550, 'crockery': 420, 'utility-base': 560, 'utility-wall': 350,
     'bed-back-panel': 100, 'side-table-pair': 400, 'bookshelf': 350, 'balcony-storage': 380, 'custom-storage': 450
@@ -973,6 +1007,15 @@ function classifyCabinetToModuleType(cab, h, d) {
   if (t.includes('bookshelf') || t.includes('book')) return 'bookshelf';
   if (t.includes('balcony')) return 'balcony-storage';
   if (t.includes('bed') || t.includes('headboard')) return 'bed-back-panel';
+  // Standard kitchen module types (Phase plan: base, wall, tall, corner, sink,
+  // hob, drawer, mesh basket, rolling shutter, loft, appliance garage).
+  if (t.includes('mesh') || t.includes('basket')) return 'kitchen-mesh-basket';
+  if (t.includes('rolling') || t.includes('roller shutter')) return 'kitchen-rolling-shutter';
+  if (t.includes('corner')) return 'kitchen-corner';
+  if (t.includes('loft')) return 'kitchen-loft';
+  if (t.includes('appliance') && t.includes('garage')) return 'kitchen-appliance-garage';
+  if (t.includes('sink')) return 'kitchen-sink';
+  if (t.includes('hob')) return 'kitchen-hob';
   // height/depth heuristics for typed-but-unknown cabinets
   if (h >= 1900) return 'wardrobe';
   if (h <= 900 && d >= 480) return 'kitchen-base';

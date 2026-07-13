@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import RoomAnnotator from './RoomAnnotator.jsx';
-
-const API_BASE = 'http://127.0.0.1:5055';
+import { API_BASE } from '../config';
 
 const STEPS = [
   { id: 'analyze', label: 'Analyze', desc: 'Read floor plan inputs and detect rooms.' },

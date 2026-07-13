@@ -1544,6 +1544,26 @@ function getOrientationLighting(orientation) {
   return map[orientation] || map.East;
 }
 
+// KITCHEN RULE: every render prompt must carry explicit NEGATIVE constraints
+// derived from the client brief (e.g. "no false ceiling" / "no strip lights"
+// when the brief does not select them). This keeps AI polish faithful to the
+// agreed design language instead of inventing ceiling/lighting treatments.
+function briefNegativeConstraints(project) {
+  const out = [];
+  let brief = {};
+  try { brief = typeof project?.client_brief_json === 'string' ? JSON.parse(project.client_brief_json) : (project?.client_brief_json || {}); } catch {}
+  if (!brief || Object.keys(brief).length === 0) return out;
+  const lighting = String(brief.lightingPreference || brief.lighting || '').toLowerCase();
+  if (lighting && !/false.?ceiling|falseceiling/.test(lighting)) out.push('no false ceiling');
+  if (lighting && !/strip.?light|led strip|cove/.test(lighting)) out.push('no strip lights');
+  if (brief.cleaningPreference && /no\W*false|minimal/.test(String(brief.cleaningPreference).toLowerCase())) out.push('no ornate clutter');
+  if (Array.isArray(brief.dislikedColors) && brief.dislikedColors.length) {
+    out.push(`avoid ${brief.dislikedColors.join(', ')} color tones`);
+  }
+  if (brief.budgetTier === 'economy' || brief.budgetTier === 'value') out.push('no ultra-luxury marble slabs');
+  return out;
+}
+
 export function compileFastRenderPlan(project, params, corrections) {
   const room = params.room || project.selectedSpaces?.[0] || 'living';
   const style = params.style || project.primaryStyle || 'indian-contemporary';
@@ -1639,7 +1659,8 @@ export function compileFastRenderPlan(project, params, corrections) {
       'No generic western-only room.',
       'No humans, no human figures, no silhouettes, no mannequins, no pets.',
       'No impossible windows, doors, floating slabs, distorted furniture, bad perspective, watermarks, logos, text labels, fantasy objects, or showroom clutter.',
-      'Do not move marked components to another wall.'
+      'Do not move marked components to another wall.',
+      ...briefNegativeConstraints(project)
     ].join(' '),
     layoutConstraints,
     modelPlan: modelPlanFor(params),
