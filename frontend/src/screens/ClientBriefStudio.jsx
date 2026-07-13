@@ -272,7 +272,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.bhkConfig}
                   onChange={(e) => setBrief(prev => ({ ...prev, bhkConfig: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="1bhk">1 BHK Apartment</option>
                   <option value="2bhk">2 BHK Apartment</option>
@@ -287,7 +287,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.ceilingHeight}
                   onChange={(e) => setBrief(prev => ({ ...prev, ceilingHeight: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="2900mm">Standard Residential (2900mm / 9.5 ft)</option>
                   <option value="3000mm">Premium Residential (3000mm / 10 ft)</option>
@@ -300,7 +300,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.materialTier}
                   onChange={(e) => setBrief(prev => ({ ...prev, materialTier: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="gold-bwp">Gold Class (IS 710 BWP Marine Grade - 100% Waterproof carcass everywhere)</option>
                   <option value="silver-bwr">Silver Class (BWP wet carcass + BWR dry areas carcass)</option>
@@ -313,7 +313,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.lifestyle}
                   onChange={(e) => setBrief(prev => ({ ...prev, lifestyle: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="standard">Standard Couple</option>
                   <option value="family_with_kids">Family with Kids</option>
@@ -336,7 +336,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.cookingHabits}
                   onChange={(e) => setBrief(prev => ({ ...prev, cookingHabits: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="regular">Regular Home Cooking</option>
                   <option value="heavy_indian">Traditional Indian (Heavy frying / High-suction chimney required)</option>
@@ -350,7 +350,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.kitchenLayout}
                   onChange={(e) => setBrief(prev => ({ ...prev, kitchenLayout: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="l-shaped">L-Shaped Layout (Optimal corner workspace)</option>
                   <option value="parallel">Parallel Counter Layout (Chef dual-zone efficiency)</option>
@@ -364,7 +364,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.purifierSetup}
                   onChange={(e) => setBrief(prev => ({ ...prev, purifierSetup: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="under-sink">Under-Sink RO (Concealed premium utility carcass)</option>
                   <option value="wall-mount">Wall-Mounted RO (Standard cabinet casing)</option>
@@ -377,7 +377,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.pantrySystem}
                   onChange={(e) => setBrief(prev => ({ ...prev, pantrySystem: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="hettich-larder">6-Tier Hettich Soft-Close Larder Pull-out</option>
                   <option value="wire-baskets">Stainless Steel Modular Wire Pantry Baskets</option>
@@ -391,7 +391,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.poojaPreference}
                   onChange={(e) => setBrief(prev => ({ ...prev, poojaPreference: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="dedicated">Dedicated Pooja Room (Teak CNC Jali doors)</option>
                   <option value="integrated-tv">Integrated Pooja Niche (Inside living room TV wall)</option>
@@ -405,7 +405,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.partitionStyle}
                   onChange={(e) => setBrief(prev => ({ ...prev, partitionStyle: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="cnc-jali">CNC Carved Wooden Screen</option>
                   <option value="gold-metal">Brushed Gold Metal Partition Grid</option>
@@ -516,7 +516,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Floor Plan Upload */}
-              <div className="bg-slate-950 border border-slate-850 rounded-xl p-4 space-y-3">
+              <div className="bg-black/40 border border-white/5 shadow-2xl backdrop-blur-xl rounded-xl p-4 space-y-3">
                 <label className="text-slate-400 text-xs font-semibold block">Import Architectural Floorplan (IMAGEATTACH)</label>
                 
                 <div className="border-2 border-dashed border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-slate-700 transition relative">
@@ -556,14 +556,14 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                   onChange={(e) => setBrief(prev => ({ ...prev, notes: e.target.value }))}
                   rows="6"
                   placeholder="Enter mandatory structural notes, reading nooks, lighting constraints, or specific appliances placement details..."
-                  className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-slate-200 outline-none focus:border-[var(--gold)] resize-none"
+                  className="w-full bg-black/40 border border-white/5 shadow-2xl backdrop-blur-xl rounded-xl p-3 text-slate-200 outline-none focus:border-[var(--gold)] resize-none"
                   required
                 />
               </div>
             </div>
 
             {/* Style references dropzone */}
-            <div className="bg-slate-950 border border-slate-850 rounded-xl p-4 space-y-3">
+            <div className="bg-black/40 border border-white/5 shadow-2xl backdrop-blur-xl rounded-xl p-4 space-y-3">
               <label className="text-slate-400 text-xs font-semibold block">Style Inspiration References & Pinterest Moodboards</label>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -615,7 +615,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.vastuStrictness}
                   onChange={(e) => setBrief(prev => ({ ...prev, vastuStrictness: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="strict">Strict Adherence (Exact orientations mandatory)</option>
                   <option value="general">General Guidelines (Basic balance advice)</option>
@@ -628,7 +628,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.lightingPreference}
                   onChange={(e) => setBrief(prev => ({ ...prev, lightingPreference: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="warm-ambient">Warm Ambient (3000K Warm white / COB strip loops)</option>
                   <option value="cool-task">Cool Task (4000K Natural white / direct downlights)</option>
@@ -641,7 +641,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.chimneyVentRoute}
                   onChange={(e) => setBrief(prev => ({ ...prev, chimneyVentRoute: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="external">Direct External Venting (High suction)</option>
                   <option value="recirculating">Recirculating Carbon Filter (No ducting)</option>
@@ -653,7 +653,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 <select 
                   value={brief.shutterFinish}
                   onChange={(e) => setBrief(prev => ({ ...prev, shutterFinish: e.target.value }))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:border-[var(--gold)] outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-[var(--gold)]/50 focus:bg-black/60 outline-none transition-all font-medium shadow-inner"
                 >
                   <option value="acrylic">1.5mm High-Gloss Specular Acrylic (Mirror reflection)</option>
                   <option value="matte-laminate">Super-Matte Anti-Fingerprint Velvet Laminate</option>
@@ -691,7 +691,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
 
             {/* Checklists for Appliances and Fittings */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pt-2">
-              <div className="space-y-2 bg-slate-950 border border-slate-850 p-4 rounded-xl">
+              <div className="space-y-2 bg-black/40 border border-white/5 shadow-2xl backdrop-blur-xl p-4 rounded-xl">
                 <span className="font-bold text-slate-300 uppercase tracking-wider block border-b border-slate-800 pb-1.5">Appliances Profile</span>
                 <div className="grid grid-cols-2 gap-2">
                   {[
@@ -713,7 +713,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
                 </div>
               </div>
 
-              <div className="space-y-2 bg-slate-950 border border-slate-850 p-4 rounded-xl">
+              <div className="space-y-2 bg-black/40 border border-white/5 shadow-2xl backdrop-blur-xl p-4 rounded-xl">
                 <span className="font-bold text-slate-300 uppercase tracking-wider block border-b border-slate-800 pb-1.5">Fittings & Accessories</span>
                 <div className="grid grid-cols-2 gap-2">
                   {[
@@ -749,7 +749,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
             
             <div className="space-y-3.5 max-h-[42vh] overflow-y-auto pr-1">
               {brief.rooms.map((room, idx) => (
-                <div key={room.type || idx} className="bg-slate-950 border border-slate-850 p-3.5 rounded-xl space-y-3">
+                <div key={room.type || idx} className="bg-black/40 border border-white/5 shadow-2xl backdrop-blur-xl p-3.5 rounded-xl space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                     <span className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-wider">
                       Space #{idx + 1}: {room.type.toUpperCase()}
@@ -833,11 +833,11 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
       
       {/* 1. Client Onboarding Wizard steps (Left column) */}
-      <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between min-h-[50vh]">
+      <div className="lg:col-span-2 panel flex flex-col justify-between min-h-[50vh]">
         <div className="space-y-4">
-          <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-            <h2 className="text-sm font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-              <LayoutGrid className="w-4.5 h-4.5 text-[var(--gold)]" />
+          <div className="border-b border-white/10 pb-3 flex justify-between items-center">
+            <h2 className="text-sm font-extrabold text-[var(--gold-bright)] tracking-wider uppercase flex items-center gap-2">
+              <LayoutGrid className="w-4.5 h-4.5" />
               Client Intake & Onboarding Studio
             </h2>
             <span className="text-[10px] font-bold font-mono text-[var(--gold)] bg-[var(--gold)]/10 px-2.5 py-1 rounded">
@@ -845,9 +845,9 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
             </span>
           </div>
 
-          <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden">
+          <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden shadow-inner">
             <div 
-              className="bg-[var(--gold)] h-full transition-all duration-300"
+              className="bg-gradient-to-r from-[var(--gold)] to-[var(--gold-bright)] h-full transition-all duration-300 shadow-[0_0_10px_rgba(201,168,76,0.6)]"
               style={{ width: `${((currentStep - 1) / 5) * 100}%` }}
             ></div>
           </div>
@@ -857,14 +857,14 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
           </div>
         </div>
 
-        <div className="flex justify-between border-t border-slate-800 pt-4 mt-6">
+        <div className="flex justify-between border-t border-white/10 pt-4 mt-6">
           <button
             disabled={currentStep === 1}
             onClick={() => setCurrentStep(prev => prev - 1)}
             className={`px-4 py-2 text-xs font-bold uppercase rounded-lg flex items-center gap-1.5 transition ${
               currentStep === 1 
-                ? 'bg-slate-950 text-slate-600 cursor-not-allowed' 
-                : 'bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-300'
+                ? 'bg-slate-950/50 text-slate-600 cursor-not-allowed' 
+                : 'btn-ghost'
             }`}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -874,7 +874,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
           {currentStep < 6 ? (
             <button
               onClick={() => setCurrentStep(prev => prev + 1)}
-              className="px-4 py-2 bg-gradient-to-r from-[var(--gold)] to-[#B08968] text-slate-950 text-xs font-extrabold uppercase rounded-lg flex items-center gap-1.5 shadow-md shadow-[var(--gold)]/15 hover:brightness-110 transition"
+              className="btn-gold px-6 py-2 flex items-center gap-2"
             >
               Continue
               <ChevronRight className="w-4 h-4" />
@@ -882,10 +882,10 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
           ) : (
             <button
               onClick={saveBrief}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 text-xs font-extrabold uppercase rounded-lg flex items-center gap-1.5 shadow-lg shadow-emerald-500/10 hover:brightness-110 transition"
+              className="px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 text-xs font-extrabold uppercase rounded-lg flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:-translate-y-0.5 transition-all duration-300"
             >
               Compile & Save Brief
-              <Sparkles className="w-4.5 h-4.5" />
+              <Sparkles className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -894,24 +894,24 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
       {/* 2. Unified specs overview summary (Right column) */}
       <div className="space-y-6">
         {/* Actions panel */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <h3 className="text-xs font-extrabold text-slate-200 tracking-wider uppercase border-b border-slate-800 pb-2 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[var(--gold)]" /> Output Deliverables
+        <div className="panel space-y-4">
+          <h3 className="panel-head border-b border-white/10 pb-2 flex items-center gap-2">
+            <FileText className="ph-icon" /> Output Deliverables
           </h3>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
+          <p className="panel-sub leading-relaxed">
             Generate and export the formal design brief contract for client signature approval.
           </p>
           <div className="space-y-2">
             <button 
               onClick={saveBrief}
-              className="w-full py-3 bg-gradient-to-r from-[var(--gold)] to-[#B08968] hover:brightness-110 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition"
+              className="btn-gold w-full py-3 flex items-center justify-center gap-2"
             >
               <Save className="w-4 h-4" />
               Compile Specifications
             </button>
             <button 
               onClick={() => window.open(`http://127.0.0.1:5055/api/projects/${projectId}/brief/pdf`, '_blank')}
-              className="w-full py-3 bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-300 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition"
+              className="btn-ghost w-full py-3 flex items-center justify-center gap-2"
             >
               <Download className="w-4 h-4 text-[var(--gold)]" />
               Export Design Brief PDF
@@ -920,8 +920,8 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
         </div>
 
         {/* Onboarding specs quick highlights */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3.5 text-xs">
-          <h3 className="font-extrabold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-2">Onboarding Checklist</h3>
+        <div className="panel space-y-3.5 text-xs">
+          <h3 className="panel-head border-b border-white/10 pb-2">Onboarding Checklist</h3>
           
           <div className="space-y-2.5">
             <div className="flex items-center justify-between text-[11px]">
@@ -948,7 +948,7 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
             </div>
           </div>
 
-          <div className="bg-[var(--gold)]/5 border border-[var(--gold)]/10 p-3 rounded-lg text-[10px] text-slate-400 leading-relaxed">
+          <div className="bg-[var(--gold)]/10 border border-[var(--gold)]/20 p-3 rounded-xl text-[10px] text-[var(--gold-bright)] leading-relaxed shadow-inner">
             * Saving the brief automatically compiles the layout parameters and loads the floorplan underlay background in the 2D CAD canvas.
           </div>
         </div>

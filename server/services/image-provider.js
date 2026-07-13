@@ -129,6 +129,14 @@ export async function generateInteriorAsset({ projectId, room, title, prompt, st
       const live = await tryGenerateOpenAiGptImage1(base);
       if (live) return await finalizeLiveAsset(live, qualityMode);
     }
+    if (provider === 'pixazo') {
+      const live = await tryGeneratePixazoImage(base);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
+    }
+    if (provider === 'subnp') {
+      const live = await tryGenerateSubnpImage(base);
+      if (live) return await finalizeLiveAsset(live, qualityMode);
+    }
     if (provider === 'openai') {
       const live = await tryGenerateOpenAiImage(base);
       if (live) return await finalizeLiveAsset(live, qualityMode);
@@ -944,8 +952,8 @@ function providerPriority() {
     || (hasPremiumKey ? 'openai-gpt-image-1' : 'pollinations');
   const fallbacks = (process.env.IMAGE_PROVIDER_FALLBACKS
     || (hasPremiumKey
-      ? 'openai-gpt-image-1,gemini-imagen,openai,stability-flux,stability-sdxl,freepik,huggingface,library-reuse,pollinations,pexels,curated,mock'
-      : 'library-reuse,gemini-imagen,openai-gpt-image-1,openai,huggingface,stability-sdxl,stability-flux,freepik,pollinations,pexels,curated,mock')
+      ? 'openai-gpt-image-1,gemini-imagen,openai,stability-flux,stability-sdxl,freepik,huggingface,library-reuse,pollinations,pixazo,subnp,pexels,curated,mock'
+      : 'library-reuse,gemini-imagen,openai-gpt-image-1,openai,huggingface,stability-sdxl,stability-flux,freepik,pollinations,pixazo,subnp,pexels,curated,mock')
   ).split(',').map((item) => item.trim()).filter(Boolean);
   const ordered = hasPremiumKey ? [...new Set([primary, ...premiumLead, ...fallbacks, 'library-reuse', 'pollinations', 'pexels', 'curated', 'mock'])] : [...new Set([primary, ...fallbacks, 'mock'])];
   return ordered;
@@ -1300,6 +1308,127 @@ function hashString(value = '') {
     hash |= 0;
   }
   return hash;
+}
+
+// ── Pixazo AI (free/low-cost photoreal render provider) ────────────────────
+// Gated on PIXAZO_API_KEY. Uses the OpenAI-compatible images endpoint shape.
+// Any failure (missing key, network, bad payload) returns null so the
+// generation waterfall safely falls through to the next provider.
+async function tryGeneratePixazoImage({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags }) {
+  const apiKey = process.env.PIXAZO_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const endpoint = process.env.PIXAZO_IMAGE_ENDPOINT || 'https://gateway.pixazo.ai/v1/images/generations';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: process.env.PIXAZO_IMAGE_MODEL || 'gpt-image',
+        prompt,
+        n: 1,
+        size: process.env.PIXAZO_IMAGE_SIZE || '1536x1024',
+        response_format: 'b64_json'
+      })
+    });
+    if (!response.ok) {
+      console.warn(`[image-provider] Pixazo returned ${response.status}; skipping.`);
+      return null;
+    }
+    const payload = await response.json();
+    const b64 = payload?.data?.[0]?.b64_json || payload?.data?.[0]?.url;
+    if (!b64) return null;
+    const fileName = `${safeRoom || room}-${id}.png`;
+    const filePath = path.join(storageDir, 'assets', fileName);
+    if (b64.startsWith('http')) {
+      await downloadToFile(b64, filePath);
+    } else {
+      fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+    }
+    const asset = {
+      id,
+      projectId,
+      room,
+      style,
+      budgetTier,
+      title,
+      prompt,
+      negativePrompt: negativePrompt(),
+      filePath: `/storage/assets/${fileName}`,
+      tags: [...tags, 'pixazo-image'],
+      sourceType: 'pixazo-image',
+      provider: 'pixazo',
+      model: process.env.PIXAZO_IMAGE_MODEL || 'gpt-image',
+      reusableScore: 90
+    };
+    await recordGenerationCost({ projectId, assetId: id, sourceType: 'pixazo-image' });
+    return asset;
+  } catch (err) {
+    console.warn(`[image-provider] Pixazo generation failed, trying next provider: ${err.message}`);
+    return null;
+  }
+}
+
+// ── Subnp free image generation API ─────────────────────────────────────────
+// Gated on SUBNP_API_KEY. OpenAI-compatible generation endpoint; falls through
+// on any error so the waterfall continues.
+async function tryGenerateSubnpImage({ id, projectId, room, safeRoom, title, prompt, style, budgetTier, tags }) {
+  const apiKey = process.env.SUBNP_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const endpoint = process.env.SUBNP_IMAGE_ENDPOINT || 'https://subnp.com/api/free/generate';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: process.env.SUBNP_IMAGE_MODEL || 'default',
+        prompt,
+        n: 1,
+        size: process.env.SUBNP_IMAGE_SIZE || '1536x1024',
+        response_format: 'b64_json'
+      })
+    });
+    if (!response.ok) {
+      console.warn(`[image-provider] Subnp returned ${response.status}; skipping.`);
+      return null;
+    }
+    const payload = await response.json();
+    const b64 = payload?.data?.[0]?.b64_json || payload?.image || payload?.data?.[0]?.url;
+    if (!b64) return null;
+    const fileName = `${safeRoom || room}-${id}.png`;
+    const filePath = path.join(storageDir, 'assets', fileName);
+    if (typeof b64 === 'string' && b64.startsWith('http')) {
+      await downloadToFile(b64, filePath);
+    } else {
+      fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+    }
+    const asset = {
+      id,
+      projectId,
+      room,
+      style,
+      budgetTier,
+      title,
+      prompt,
+      negativePrompt: negativePrompt(),
+      filePath: `/storage/assets/${fileName}`,
+      tags: [...tags, 'subnp-image'],
+      sourceType: 'subnp-image',
+      provider: 'subnp',
+      model: process.env.SUBNP_IMAGE_MODEL || 'default',
+      reusableScore: 89
+    };
+    await recordGenerationCost({ projectId, assetId: id, sourceType: 'subnp-image' });
+    return asset;
+  } catch (err) {
+    console.warn(`[image-provider] Subnp generation failed, trying next provider: ${err.message}`);
+    return null;
+  }
 }
 
 export function getProviderCost(sourceType) {

@@ -55,7 +55,7 @@ function buildPrompt() {
 async function callGeminiVision(frames) {
   const status = getGeminiStatus();
   if (!status.configured || !status.enabled) return null;
-  const model = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+  const model = process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
   const parts = [{ text: buildPrompt() }];
   for (const f of frames) {
     parts.push({ inline_data: { mime_type: 'image/png', data: fileToBase64(f) } });
@@ -151,7 +151,7 @@ class GeminiMultimodalService {
       };
     }
 
-    const model = process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+    const model = process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
     const prompt = [
       'You are a professional interior design and architectural assistant.',
       'Analyze this floorplan image (which may be a blueprint or a handwritten drawing with measurements).',
@@ -166,6 +166,36 @@ class GeminiMultimodalService {
       '  "handwrittenNotes": [ "any handwritten note, text, or dimension seen" ]',
       '}'
     ].join('\n');
+
+    try {
+      if (process.env.EDEN_AI_KEY) {
+        // Try Eden AI multimodal first
+        const edenRes = await fetch('https://api.edenai.run/v2/multimodal/chat', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.EDEN_AI_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            providers: 'openai',
+            text: prompt,
+            file_url: `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}`
+          })
+        });
+        if (edenRes.ok) {
+          const payload = await edenRes.json();
+          // parse OpenAI's response from Eden AI structure
+          const text = payload['openai']?.generated_text || payload?.generated_text || '';
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return { success: true, ...parsed, source: 'eden-ai' };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[gemini-multimodal-service] Eden AI failed, falling back:', e.message);
+    }
 
     try {
       const parts = [
@@ -186,7 +216,7 @@ class GeminiMultimodalService {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) continue;
         const parsed = JSON.parse(jsonMatch[0]);
-        return { success: true, ...parsed };
+        return { success: true, ...parsed, source: 'gemini' };
       }
     } catch (e) {
       console.warn('[gemini-multimodal-service] Failed to analyze floorplan image:', e.message);

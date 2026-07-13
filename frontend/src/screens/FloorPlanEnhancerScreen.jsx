@@ -1,13 +1,17 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Sparkles, Compass, Check, AlertTriangle, ArrowUp, RotateCw, Plus, RefreshCw, Wand2, Info } from 'lucide-react';
+import { Sparkles, Compass, Check, AlertTriangle, ArrowUp, RotateCw, Plus, RefreshCw, Wand2, Info, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 
 /**
- * FloorPlanEnhancerScreen — the REAL floor-plan enhancer.
- * Backed by /api/projects/:id/floorplan/analyze-enhance (Vastu + spatial
- * intelligence) and /floorplan/apply-enhancement (persists fixes to cad_drawings).
- * Renders the interpreted plan as SVG (rooms + furniture + openings), a live
- * enhancement-score gauge, and actionable suggestion cards whose Apply button
- * mutates + persists the plan and re-runs the analysis.
+ * FloorPlanEnhancerScreen — the single home for a project's floor plan.
+ *
+ * Flow (one upload, reused everywhere):
+ *   1. User uploads a floor plan ONCE (DXF/DWG/PNG/JPG/PDF).
+ *   2. Server stores it as projects.floorplan_url AND seeds cad_drawings,
+ *      so every downstream tool (DXF export, elevations, Vastu, cutlist,
+ *      delivery) reads the SAME plan — no re-uploads.
+ *   3. We auto-vectorize (real mm for DXF; AI vision for images when a key
+ *      is set) and run the AI Plan Enhancer → live SVG preview + score +
+ *      actionable suggestions that persist fixes to cad_drawings.
  */
 const SEV = {
   high:   { color: '#F87171', bg: 'rgba(248,113,113,.12)', label: 'High Priority' },
@@ -17,7 +21,7 @@ const SEV = {
 
 function Gauge({ score }) {
   const r = 54, c = 2 * Math.PI * r;
-  const off = c * (1 - score / 100);
+  const off = c * (1 - (score || 0) / 100);
   const col = score >= 80 ? '#34D399' : score >= 60 ? '#FBBF24' : '#F87171';
   return (
     <svg viewBox="0 0 140 140" className="w-32 h-32">
@@ -25,7 +29,7 @@ function Gauge({ score }) {
       <circle cx="70" cy="70" r={r} fill="none" stroke={col} strokeWidth="12"
         strokeDasharray={c} strokeDashoffset={off} strokeLinecap="round"
         transform="rotate(-90 70 70)" style={{ transition: 'stroke-dashoffset .6s ease' }} />
-      <text x="70" y="66" textAnchor="middle" fill="#f1f5f9" fontSize="28" fontWeight="800">{score}</text>
+      <text x="70" y="66" textAnchor="middle" fill="#f1f5f9" fontSize="28" fontWeight="800">{score || 0}</text>
       <text x="70" y="86" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">ENHANCE</text>
     </svg>
   );
@@ -61,14 +65,17 @@ function PlanSVG({ interpretation, layout }) {
       {/* room polygons */}
       {rooms.map((rm, i) => {
         const pts = (rm.points || []).map(p => `${sx(p.x)},${sy(p.y)}`).join(' ');
+        const c0 = rm.points?.[0], c2 = rm.points?.[2];
         return (
           <g key={rm.id || i}>
             {pts && <polygon points={pts} fill={rm.color || '#1e3a5e'} fillOpacity="0.35"
               stroke={rm.appliedEnhancement ? '#C9A84C' : '#334155'} strokeWidth="2" />}
-            {pts && <text x={sx((rm.points[0].x + rm.points[2].x) / 2)} y={sy((rm.points[0].y + rm.points[2].y) / 2)}
-              fill="#cbd5e1" fontSize="13" fontWeight="700" textAnchor="middle">{rm.name}</text>}
-            {pts && <text x={sx((rm.points[0].x + rm.points[2].x) / 2)} y={sy((rm.points[0].y + rm.points[2].y) / 2) + 16}
-              fill="#64748b" fontSize="10" textAnchor="middle">{Math.round(rm.widthMm || 0)}×{Math.round(rm.heightMm || 0)}mm</text>}
+            {pts && c0 && c2 && (
+              <>
+                <text x={sx((c0.x + c2.x) / 2)} y={sy((c0.y + c2.y) / 2)} fill="#cbd5e1" fontSize="13" fontWeight="700" textAnchor="middle">{rm.name}</text>
+                <text x={sx((c0.x + c2.x) / 2)} y={sy((c0.y + c2.y) / 2) + 16} fill="#64748b" fontSize="10" textAnchor="middle">{Math.round(rm.widthMm || 0)}×{Math.round(rm.heightMm || 0)}mm</text>
+              </>
+            )}
           </g>
         );
       })}
@@ -99,30 +106,67 @@ function PlanSVG({ interpretation, layout }) {
 const KIND_ICON = { add_room: Plus, add_furniture: Plus, rotate_furniture: RotateCw, rezone_furniture: ArrowUp, annotate: Info };
 
 export default function FloorPlanEnhancerScreen({ projectId }) {
+  const [floorplanUrl, setFloorplanUrl] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [applying, setApplying] = useState(null);
+  const [uploadMsg, setUploadMsg] = useState(null);
+
+  const API = 'http://127.0.0.1:5055';
+
+  // Load the project's single stored floorplan (uploaded once, reused forever).
+  const loadFloorplan = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`${API}/api/projects/${projectId}`);
+      const p = await res.json();
+      setFloorplanUrl(p.floorplan_url || null);
+      if (p.floorplan_url) setUploadMsg('Floor plan already uploaded for this project — reused across all tools.');
+    } catch (_) { /* no-op */ }
+  }, [projectId]);
 
   const analyze = useCallback(async () => {
     if (!projectId) return;
     setBusy(true); setError(null);
     try {
-      const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/analyze-enhance`, { method: 'POST' });
+      const r = await fetch(`${API}/api/projects/${projectId}/floorplan/analyze-enhance`, { method: 'POST' });
       const d = await r.json();
       if (!d.success) { setError(d.message || d.error); setData(null); }
       else setData(d);
-    } catch (e) { setError('Could not reach enhancement service. Is the server running on :5055?'); }
+    } catch (e) { setError('Could not reach enhancement service. Is the server running?'); }
     setBusy(false);
   }, [projectId]);
 
-  useEffect(() => { analyze(); }, [analyze]);
+  useEffect(() => { loadFloorplan(); analyze(); }, [loadFloorplan, analyze]);
+
+  const onUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setError(null); setUploadMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('floorplan', file);
+      const res = await fetch(`${API}/api/projects/${projectId}/floorplan/auto-vectorize`, { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!d.success) { setError(d.message || d.error); }
+      else {
+        setFloorplanUrl(d.floorplanUrl);
+        setUploadMsg(d.message || 'Floor plan uploaded and vectorized.');
+        await analyze();
+      }
+    } catch (err) {
+      setError('Upload failed: ' + (err.message || err));
+    }
+    setUploading(false);
+  };
 
   const apply = async (sug) => {
     if (!sug.target) return;
     setApplying(sug.id);
     try {
-      const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/apply-enhancement`, {
+      const r = await fetch(`${API}/api/projects/${projectId}/floorplan/apply-enhancement`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: sug.target })
       });
       const d = await r.json();
@@ -145,29 +189,53 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
             </div>
             <div>
               <h1 className="text-lg font-bold text-slate-100">Floor Plan Enhancer</h1>
-              <p className="text-xs text-slate-500">Vastu-compliant layout intelligence — detect, score & fix your plan in real time.</p>
+              <p className="text-xs text-slate-500">Upload once — the plan is stored for the entire project. AI scores & fixes your layout in real time.</p>
             </div>
           </div>
-          <button onClick={analyze} disabled={busy}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#C9A84C] text-slate-950 font-bold text-xs hover:bg-[#C9A84C]/90 disabled:opacity-50">
-            <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Re-analyze
-          </button>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#C9A84C] text-slate-950 font-bold text-xs hover:bg-[#C9A84C]/90 cursor-pointer disabled:opacity-50">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploading ? 'Uploading…' : 'Upload Floor Plan (once)'}
+              <input type="file" accept=".dxf,.dwg,image/*,.pdf" onChange={onUpload} className="hidden" />
+            </label>
+            <button onClick={analyze} disabled={busy}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700 text-slate-200 text-xs hover:bg-slate-800 disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Re-analyze
+            </button>
+          </div>
         </div>
+
+        {uploadMsg && !error && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 mb-4 text-xs text-emerald-200/90">{uploadMsg}</div>
+        )}
 
         {error && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 mb-5">
-            <div className="flex items-center gap-2 text-amber-300 font-bold mb-1"><AlertTriangle className="w-4 h-4" /> Plan needs traced walls</div>
+            <div className="flex items-center gap-2 text-amber-300 font-bold mb-1"><AlertTriangle className="w-4 h-4" /> {error.includes('trace') || error.includes('walls') ? 'Plan needs walls' : 'Notice'}</div>
             <p className="text-sm text-amber-200/80">{error}</p>
-            <p className="text-xs text-slate-400 mt-2">Open <b>Plan Intelligence</b> (Compass tab), draw your walls + openings, then return here.</p>
+            <p className="text-xs text-slate-400 mt-2">Upload a DXF/DWG for true-mm auto-trace, or an image (add a Gemini key in Settings → API Keys for automatic room detection).</p>
           </div>
         )}
 
-        {data && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Plan + gauge */}
-            <div className="lg:col-span-2 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Preview + plan */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Your Floor Plan (stored once per project)</div>
+              {floorplanUrl ? (
+                <img src={`${API}${floorplanUrl}`} alt="Floor plan"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 object-contain max-h-[420px]" />
+              ) : (
+                <div className="h-48 flex flex-col items-center justify-center text-slate-500 rounded-lg border border-dashed border-slate-800">
+                  <ImageIcon className="w-8 h-8 mb-2" />
+                  <span className="text-xs">No floor plan yet — upload one above (DXF / image / PDF).</span>
+                </div>
+              )}
+            </div>
+
+            {data && (
               <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Interpreted Plan</div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Interpreted & Enhanced Plan</div>
                 <PlanSVG interpretation={data.interpretation} layout={data.layout} />
                 <div className="flex items-center gap-4 mt-3 text-[10px] text-slate-500">
                   <span>Rooms: <b className="text-slate-300">{data.interpretation?.rooms?.length || 0}</b></span>
@@ -175,48 +243,49 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
                   <span>North ∠: <b className="text-slate-300">{data.northAngle || 0}°</b></span>
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Score + suggestions */}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 flex flex-col items-center">
+              <Gauge score={score} />
+              <div className="text-xs text-slate-400 mt-1 text-center">{data?.enhancement?.summary}</div>
             </div>
 
-            {/* Score + suggestions */}
-            <div className="space-y-4">
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 flex flex-col items-center">
-                <Gauge score={score} />
-                <div className="text-xs text-slate-400 mt-1 text-center">{data.enhancement?.summary}</div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#C9A84C]" /> Enhancement Suggestions
               </div>
-
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#C9A84C]" /> Enhancement Suggestions
-                </div>
-                {sugs.length === 0 ? (
-                  <div className="text-xs text-emerald-400 flex items-center gap-2 py-3"><Check className="w-4 h-4" /> Plan is fully optimized.</div>
-                ) : (
-                  <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-                    {sugs.map((s) => {
-                      const sv = SEV[s.severity] || SEV.low;
-                      const Ico = KIND_ICON[s.target?.kind] || Info;
-                      return (
-                        <div key={s.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3" style={{ borderLeft: `3px solid ${sv.color}` }}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="text-xs font-bold text-slate-200">{s.title}</div>
-                            <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0" style={{ color: sv.color, background: sv.bg }}>{sv.label}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-1 leading-relaxed">{s.detail}</div>
-                          {s.target?.kind && (
-                            <button onClick={() => apply(s)} disabled={applying === s.id}
-                              className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 text-[#C9A84C] text-[10px] font-bold border border-[#C9A84C]/20 disabled:opacity-50">
-                              <Ico className="w-3 h-3" /> {applying === s.id ? 'Applying…' : 'Apply Fix'}
-                            </button>
-                          )}
+              {!data && !error && <div className="text-xs text-slate-400 py-3">Upload a floor plan to generate suggestions.</div>}
+              {sugs.length === 0 && data ? (
+                <div className="text-xs text-emerald-400 flex items-center gap-2 py-3"><Check className="w-4 h-4" /> Plan is fully optimized.</div>
+              ) : (
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  {sugs.map((s) => {
+                    const sv = SEV[s.severity] || SEV.low;
+                    const Ico = KIND_ICON[s.target?.kind] || Info;
+                    return (
+                      <div key={s.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3" style={{ borderLeft: `3px solid ${sv.color}` }}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-xs font-bold text-slate-200">{s.title}</div>
+                          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0" style={{ color: sv.color, background: sv.bg }}>{sv.label}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        <div className="text-[10px] text-slate-400 mt-1 leading-relaxed">{s.detail}</div>
+                        {s.target?.kind && (
+                          <button onClick={() => apply(s)} disabled={applying === s.id}
+                            className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 text-[#C9A84C] text-[10px] font-bold border border-[#C9A84C]/20 disabled:opacity-50">
+                            <Ico className="w-3 h-3" /> {applying === s.id ? 'Applying…' : 'Apply Fix'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

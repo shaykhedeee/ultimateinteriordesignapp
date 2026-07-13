@@ -275,40 +275,74 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
         {/* ── Right Column: Tools Hub + Pipeline check ── */}
         <div className="space-y-6">
           
-          {/* AI Specialist Tools Hub */}
+          {/* Project Execution Pipeline */}
           <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'18px', boxShadow:'var(--shadow-card)' }}>
             <div style={{ marginBottom:'14px' }}>
               <div style={{ display:'flex', alignItems:'center', gap:'7px', marginBottom:'3px' }}>
-                <Sliders style={{ width:13, height:13, color:'var(--gold)' }} />
-                <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>AI Specialist Tools</span>
+                <Layers style={{ width:13, height:13, color:'var(--gold)' }} />
+                <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Project Execution Pipeline</span>
               </div>
-              <p style={{ fontSize:'10px', color:'var(--text-muted)', fontWeight:500 }}>Jump directly into operational tool stages</p>
+              <p style={{ fontSize:'10px', color:'var(--text-muted)', fontWeight:500 }}>Next actionable steps for the selected project</p>
             </div>
             
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-              {allSpecialistTools.map((tool, idx) => {
-                const inRole = tool.roles.includes(workspaceMode);
+            <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+              {(() => {
+                if (!activeProject) return <div className="text-xs text-slate-500">Select a project first</div>;
+                let brief = null;
+                try { if (activeProject.client_brief_json) brief = JSON.parse(activeProject.client_brief_json); } catch(e){}
+                
+                const hasFloorplan = brief?.floorplanImageUrl || brief?.floorplanUrl;
+                const status = activeProject.status || 'new'; // 'new', 'brief_approved', 'cad_approved', etc.
+                
                 return (
-                <button
-                  key={idx}
-                  onClick={() => { if (!inRole) setWorkspaceMode(tool.roles[0]); onNavigateToTab(tool.tab); }}
-                  style={{
-                    background: inRole ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.02)',
-                    border: inRole ? '1px solid rgba(255,255,255,0.05)' : '1px dashed rgba(255,255,255,0.10)',
-                    borderRadius:'12px', padding:'10px 12px', textAlign:'left',
-                    cursor:'pointer', transition:'all 0.18s', display:'flex', flexDirection:'column', gap:'3px'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gold-border)'; e.currentTarget.style.background='rgba(201,168,76,0.05)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor= inRole ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.10)'; e.currentTarget.style.background= inRole ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.02)'; }}
-                >
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
-                    <span style={{ fontSize:'11px', fontWeight:700, color: inRole ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{tool.title}</span>
-                    <span style={{ fontSize:'7.5px', fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase', color: inRole ? 'var(--gold)' : 'var(--text-muted)', border:`1px solid ${inRole ? 'var(--gold-border)' : 'rgba(255,255,255,0.08)'}`, borderRadius:'99px', padding:'2px 6px', whiteSpace:'nowrap' }}>{inRole ? 'Open' : (tool.roles[0]==='designer'?'DS':tool.roles[0]==='brand'?'BR':'RE')}</span>
-                  </div>
-                  <span style={{ fontSize:'9px', color:'var(--text-muted)', fontWeight:500 }}>{tool.desc}</span>
-                </button>
+                  <>
+                    <div className="flex items-start gap-3 p-3 rounded-xl border border-white/5 bg-black/20">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${hasFloorplan ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[var(--gold)]/20 text-[var(--gold)]'}`}>
+                        {hasFloorplan ? <CheckCircle2 size={12} /> : <FileText size={12} />}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-xs font-bold text-slate-200">1. Client Brief & Floorplan</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{hasFloorplan ? 'Floorplan loaded.' : 'Upload client brief and layout.'}</p>
+                        {!hasFloorplan && (
+                          <button onClick={() => onNavigateToTab('brief')} className="mt-2 text-[10px] font-bold text-black bg-[var(--gold)] px-3 py-1.5 rounded-lg flex items-center gap-1 transition-transform hover:scale-105 active:scale-95">
+                            Go to Brief Studio <ArrowRight size={10} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${hasFloorplan && status !== 'cad_approved' ? 'border-[var(--gold-border)] bg-[var(--gold)]/5' : 'border-white/5 bg-black/20'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${status === 'cad_approved' ? 'bg-emerald-500/20 text-emerald-400' : (hasFloorplan ? 'bg-[var(--gold)]/20 text-[var(--gold)]' : 'bg-slate-800 text-slate-500')}`}>
+                        {status === 'cad_approved' ? <CheckCircle2 size={12} /> : <Sparkles size={12} />}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={`text-xs font-bold ${hasFloorplan && status !== 'cad_approved' ? 'text-[var(--gold-bright)]' : 'text-slate-200'}`}>2. AI Floor Analyzer</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Auto-extract walls and zones from the floorplan.</p>
+                        {hasFloorplan && status !== 'cad_approved' && (
+                          <button onClick={() => onNavigateToTab('cad')} className="mt-2 text-[10px] font-bold text-black bg-[var(--gold)] px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-[0_0_10px_rgba(201,168,76,0.3)] transition-transform hover:scale-105 active:scale-95 animate-pulse">
+                            Run AI Auto-Detect <ArrowRight size={10} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${status === 'cad_approved' ? 'border-[var(--gold-border)] bg-[var(--gold)]/5' : 'border-white/5 bg-black/20'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${status === 'production' ? 'bg-emerald-500/20 text-emerald-400' : (status === 'cad_approved' ? 'bg-[var(--gold)]/20 text-[var(--gold)]' : 'bg-slate-800 text-slate-500')}`}>
+                        {status === 'production' ? <CheckCircle2 size={12} /> : <Layers size={12} />}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={`text-xs font-bold ${status === 'cad_approved' ? 'text-[var(--gold-bright)]' : 'text-slate-200'}`}>3. Material & Cutlist</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Assign laminates and generate BOM.</p>
+                        {status === 'cad_approved' && (
+                          <button onClick={() => onNavigateToTab('product')} className="mt-2 text-[10px] font-bold text-black bg-[var(--gold)] px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-[0_0_10px_rgba(201,168,76,0.3)] transition-transform hover:scale-105 active:scale-95">
+                            Go to Material Config <ArrowRight size={10} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
                 );
-              })}
+              })()}
             </div>
           </div>
 
@@ -708,7 +742,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
             value={projectName} 
             onChange={e => setProjectName(e.target.value)} 
             placeholder="e.g. Verona Heights 3BHK"
-            className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:border-[var(--gold)] outline-none"
+            className="w-full panel rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:border-[var(--gold)] outline-none"
           />
           <button 
             onClick={async () => {
@@ -835,7 +869,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   type="number" 
                   value={scaleDistance} 
                   onChange={e => setScaleDistance(e.target.value)} 
-                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#C9A84C]"
+                  className="w-full panel rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#C9A84C]"
                 />
               </div>
               {calibrationPoints.length > 0 && (
@@ -854,7 +888,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                               pts[idx].x = Number(e.target.value);
                               setCalibrationPoints(pts);
                             }}
-                            className="w-full bg-slate-950 border border-slate-850 rounded-lg px-1.5 py-1 text-[9px] font-mono text-slate-200 outline-none"
+                            className="w-full panel rounded-lg px-1.5 py-1 text-[9px] font-mono text-slate-200 outline-none"
                           />
                           <input 
                             type="number" 
@@ -864,7 +898,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                               pts[idx].y = Number(e.target.value);
                               setCalibrationPoints(pts);
                             }}
-                            className="w-full bg-slate-950 border border-slate-850 rounded-lg px-1.5 py-1 text-[9px] font-mono text-slate-200 outline-none"
+                            className="w-full panel rounded-lg px-1.5 py-1 text-[9px] font-mono text-slate-200 outline-none"
                           />
                         </div>
                       </div>
@@ -969,7 +1003,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                               rms[idx].bounds.x = Number(e.target.value);
                               setMarkedRooms(rms);
                             }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                            className="w-full panel rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
                           />
                         </div>
                         <div>
@@ -982,7 +1016,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                               rms[idx].bounds.y = Number(e.target.value);
                               setMarkedRooms(rms);
                             }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                            className="w-full panel rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
                           />
                         </div>
                         <div>
@@ -995,7 +1029,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                               rms[idx].bounds.w = Number(e.target.value);
                               setMarkedRooms(rms);
                             }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                            className="w-full panel rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
                           />
                         </div>
                         <div>
@@ -1008,7 +1042,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                               rms[idx].bounds.h = Number(e.target.value);
                               setMarkedRooms(rms);
                             }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
+                            className="w-full panel rounded px-1 py-0.5 mt-0.5 text-slate-200 outline-none"
                           />
                         </div>
                       </div>
@@ -1019,7 +1053,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                       const newId = `z${Date.now()}`;
                       setMarkedRooms([...markedRooms, { id: newId, label: `New Zone ${markedRooms.length + 1}`, bounds: { x: 30, y: 30, w: 100, h: 80 } }]);
                     }}
-                    className="w-full py-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-[#C9A84C] font-bold uppercase text-[8px] rounded-lg transition"
+                    className="w-full py-1.5 panel hover:border-slate-700 text-[#C9A84C] font-bold uppercase text-[8px] rounded-lg transition"
                   >
                     + Add Custom Zone
                   </button>
@@ -1078,7 +1112,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   setSelectedZoneToRender(zone.label || zone.name);
                   triggerLoading('detection_done', 'Detecting objects in the layout — one moment.');
                 }}
-                className="w-full py-2.5 px-4 bg-slate-950 border border-slate-850 rounded-xl text-left text-xs font-bold hover:border-[var(--gold)]/50 hover:bg-[var(--gold)]/2 transition cursor-pointer text-slate-300"
+                className="w-full py-2.5 px-4 panel rounded-xl text-left text-xs font-bold hover:border-[var(--gold)]/50 hover:bg-[var(--gold)]/2 transition cursor-pointer text-slate-300"
               >
                 {zone.label || zone.name}
               </button>
@@ -1129,7 +1163,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                     className={`w-full py-2 rounded-xl text-xs font-semibold tracking-wide transition ${
                       assignMode === mode.id 
                         ? 'bg-[var(--gold)]/15 border border-[var(--gold)]/50 text-[var(--gold)]'
-                        : 'bg-slate-950 border border-slate-850 text-slate-350 hover:text-slate-200'
+                        : 'panel text-slate-350 hover:text-slate-200'
                     }`}
                   >
                     {mode.label}
@@ -1167,7 +1201,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                 generateSmartRender(zoneRoom, 'indian-contemporary');
                 triggerLoading('render_ready', 'Rendering photorealistic perspective viewpoint...');
               }}
-              className="py-3 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
+              className="py-3 panel hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >
               <Compass className="w-5 h-5 text-[var(--gold)]" />
               <span className="text-xs font-semibold tracking-wide">Perspective View</span>
@@ -1180,7 +1214,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                 generateSmartRender(zoneRoom, 'indian-contemporary');
                 triggerLoading('render_ready', 'Rendering isometric 3D spatial viewpoint...');
               }}
-              className="py-3 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
+              className="py-3 panel hover:border-[var(--gold)]/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-slate-200 cursor-pointer"
             >
               <Grid className="w-5 h-5 text-[var(--gold)]" />
               <span className="text-xs font-semibold tracking-wide">Isometric View</span>
@@ -1269,7 +1303,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
                   <button
                     key={act.key}
                     onClick={() => handleRunNextAction(act.key)}
-                    className="p-2.5 bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/50 rounded-xl text-center font-bold text-slate-300 hover:text-slate-100 transition cursor-pointer flex items-center justify-center gap-1.5"
+                    className="p-2.5 panel hover:border-[var(--gold)]/50 rounded-xl text-center font-bold text-slate-300 hover:text-slate-100 transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                     {act.label}
@@ -1280,7 +1314,7 @@ function SmartProjectWorkspace({ project, projects, onSelectProject, onNavigateT
 
             <button
               onClick={() => setWizardStep('name_project')}
-              className="w-full py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 text-xs font-semibold tracking-wide rounded-xl transition"
+              className="w-full py-2.5 panel text-slate-400 hover:text-slate-200 text-xs font-semibold tracking-wide rounded-xl transition"
             >
               Start New Project Flow
             </button>
@@ -1401,7 +1435,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
             <select 
               value={selectedRoom}
               onChange={e => setSelectedRoom(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]"
+              className="w-full panel rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]"
             >
               <option value="living">Grand Living Area</option>
               <option value="kitchen">Modular Kitchen</option>
@@ -1415,7 +1449,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
             <select 
               value={selectedStyle}
               onChange={e => setSelectedStyle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]"
+              className="w-full panel rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]"
             >
               <option value="modern-luxury">Modern Luxury</option>
               <option value="japandi-fusion">Japandi Fusion</option>
@@ -1429,7 +1463,7 @@ function QuickGenerateWorkspace({ project, onNavigateToTab }) {
             <textarea 
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)] h-24 resize-none font-sans"
+              className="w-full panel rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)] h-24 resize-none font-sans"
             />
           </div>
 
@@ -1578,7 +1612,7 @@ function PhotoEditWorkspace({ project, onNavigateToTab }) {
             <textarea 
               value={instructions}
               onChange={e => setInstructions(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)] h-24 resize-none font-sans"
+              className="w-full panel rounded-xl px-3 py-2 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)] h-24 resize-none font-sans"
             />
           </div>
 
@@ -2256,7 +2290,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     <select 
                       value={carcassMaterialId}
                       onChange={e => setCarcassMaterialId(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-850 rounded p-1 text-slate-200 outline-none focus:border-[var(--gold)]"
+                      className="w-full panel rounded p-1 text-slate-200 outline-none focus:border-[var(--gold)]"
                     >
                       {laminates.map(l => <option key={l.id} value={l.id}>{l.name} (₹{l.price_per_sqft})</option>)}
                     </select>
@@ -2266,7 +2300,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
                     <select 
                       value={shutterMaterialId}
                       onChange={e => setShutterMaterialId(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-850 rounded p-1 text-slate-200 outline-none focus:border-[var(--gold)]"
+                      className="w-full panel rounded p-1 text-slate-200 outline-none focus:border-[var(--gold)]"
                     >
                       {laminates.map(l => <option key={l.id} value={l.id}>{l.name} (₹{l.price_per_sqft})</option>)}
                     </select>
@@ -2348,7 +2382,7 @@ function DesignProductWorkspace({ project, materialsCatalog }) {
               .map((item, idx) => (
                 <div key={idx} className="bg-slate-900/40 border border-slate-850 rounded-2xl p-3 flex flex-col justify-between hover:border-[var(--gold)]/50 transition">
                   <div className="space-y-2">
-                    <div className="w-full h-28 rounded-xl overflow-hidden bg-slate-950 border border-slate-850">
+                    <div className="w-full h-28 rounded-xl overflow-hidden panel">
                       <img src="https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&w=600&q=80" alt={item.name} className="w-full h-full object-cover opacity-85" />
                     </div>
                     <div>
@@ -2880,7 +2914,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                           };
                           setRcpItems([...rcpItems, newPt]);
                         }}
-                        className="bg-slate-950 border border-slate-850 hover:border-[var(--gold)]/40 px-3 py-1.5 rounded-xl text-[10px] text-slate-350 hover:text-slate-200 transition cursor-pointer"
+                        className="panel hover:border-[var(--gold)]/40 px-3 py-1.5 rounded-xl text-[10px] text-slate-350 hover:text-slate-200 transition cursor-pointer"
                       >
                         + Add {type}
                       </button>
@@ -2902,7 +2936,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                   <select 
                     value={elevationWall} 
                     onChange={e => setElevationWall(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[var(--gold)]"
+                    className="w-full panel rounded-xl px-3 py-2 text-xs text-slate-200 outline-none focus:border-[var(--gold)]"
                   >
                     <option value="North Wall">North Wall (Master Bedroom Console Wall)</option>
                     <option value="South Wall">South Wall (Entry Door & Wardrobe Wall)</option>
@@ -2950,7 +2984,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
                         type="number" 
                         value={extrudeThickness} 
                         onChange={e => setExtrudeThickness(parseInt(e.target.value))} 
-                        className="w-full bg-slate-950 border border-slate-850 rounded-xl px-3 py-1.5 text-xs text-slate-200"
+                        className="w-full panel rounded-xl px-3 py-1.5 text-xs text-slate-200"
                       />
                     </div>
                     <div className="space-y-1">
@@ -3020,14 +3054,14 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
             {/* Live Interactive Results Visualizer Area */}
             {isRunning && (
-              <div className="h-40 rounded-2xl bg-slate-950 border border-slate-850/60 flex flex-col items-center justify-center text-slate-550 gap-2 animate-pulse">
+              <div className="h-40 rounded-2xl panel/60 flex flex-col items-center justify-center text-slate-550 gap-2 animate-pulse">
                 <RefreshCw className="w-6 h-6 animate-spin text-[var(--gold)]" />
                 <span className="text-[8px] font-black uppercase tracking-widest text-[var(--gold)]">Synthesizing CAD & Spatial coordinates...</span>
               </div>
             )}
 
             {toolResult && (
-              <div className="bg-slate-950 border border-slate-850/60 p-4 rounded-2xl space-y-4 animate-in slide-in-from-bottom-2">
+              <div className="panel/60 p-4 rounded-2xl space-y-4 animate-in slide-in-from-bottom-2">
                 <div className="flex items-center gap-2 text-xs text-slate-350">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>{toolResult.text}</span>
@@ -3051,7 +3085,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
                 {/* Case 2 Result: RCP light nodes display */}
                 {activeTool.key === 'rcp_planner' && toolResult.layoutPoints && (
-                  <div className="w-full h-36 bg-slate-950 border border-slate-850 rounded-xl relative overflow-hidden flex items-center justify-center">
+                  <div className="w-full h-36 panel rounded-xl relative overflow-hidden flex items-center justify-center">
                     <svg className="w-[300px] h-[120px] bg-slate-900 border border-slate-850/60 rounded-lg">
                       <defs>
                         <pattern id="rcpGrid" width="15" height="15" patternUnits="userSpaceOnUse">
@@ -3072,7 +3106,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
                 {/* Case 3 Result: 2D Elevation CAD drawing */}
                 {activeTool.key === 'elevation_draft' && toolResult.wallFace && (
-                  <div className="w-full h-40 bg-slate-950 border border-slate-850 rounded-xl relative overflow-hidden flex items-center justify-center">
+                  <div className="w-full h-40 panel rounded-xl relative overflow-hidden flex items-center justify-center">
                     <svg className="w-[320px] h-[140px] bg-slate-900 border border-slate-850/60 rounded-lg p-2 font-mono text-[6px]">
                       {/* Technical CAD drawing outlines */}
                       <rect x="20" y="20" width="280" height="90" fill="none" stroke="#64748b" strokeWidth="1" />
@@ -3117,7 +3151,7 @@ function SpecialistToolsWorkspace({ project, materialsCatalog, onNavigateToTab }
 
                 {/* Case 5 Result: 3D Extrusion build visual */}
                 {activeTool.key === 'extruder_3d' && toolResult.extruded && (
-                  <div className="w-full h-36 bg-slate-950 border border-slate-850 rounded-xl relative overflow-hidden flex items-center justify-center">
+                  <div className="w-full h-36 panel rounded-xl relative overflow-hidden flex items-center justify-center">
                     <div className="w-[120px] h-[100px] border border-[var(--gold)]/50 rounded transform rotate-x-45 rotate-z-45 relative flex items-center justify-center" style={{ transform: 'perspective(400px) rotateX(60deg) rotateZ(-45deg)' }}>
                       <div className="absolute inset-0 border-t-2 border-r-2 border-indigo-400 bg-indigo-950/20 translate-z-10" style={{ transform: 'translateZ(30px)' }}></div>
                       <div className="absolute inset-0 border-b-2 border-l-2 border-indigo-400 bg-indigo-950/20"></div>
@@ -3426,7 +3460,7 @@ function OverviewWorkspace({ projects, leads, health, readinessMap, quotationMap
   return (
     <div className="space-y-6 text-left animate-in fade-in duration-200">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <KpiCard icon={FolderKanban} label="Active Projects" value={loading ? '…' : kpis.projCount} accent="#C9A84C" sub={<><Building2 className="w-3.5 h-3.5 inline mr-1" /> Pipeline</>} />
         <KpiCard icon={UserPlus} label="Leads" value={loading ? '…' : kpis.leadCount} accent="#60A5FA" sub={<><Briefcase className="w-3.5 h-3.5 inline mr-1" /> Captured</>} />
         <KpiCard icon={CheckCircle2} label="Won Deals" value={loading ? '…' : kpis.wonCount} accent="#10B981" sub={<>Win rate {kpis.winRate}%</>} />
@@ -3438,84 +3472,47 @@ function OverviewWorkspace({ projects, leads, health, readinessMap, quotationMap
       {/* Middle Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Pipeline Funnel */}
-        <div className="lg:col-span-2 bg-slate-900/60 border border-slate-805/60 rounded-2xl p-5">
+        <div className="lg:col-span-2 panel rounded-2xl p-6 flex flex-col justify-center min-h-[220px]">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200"><Activity className="w-4 h-4 text-[var(--gold)]" /> Delivery Pipeline Funnel</h4>
-            <span className="text-[10px] text-slate-500 font-mono">weighted % complete</span>
+            <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200 uppercase tracking-widest"><Activity className="w-4 h-4 text-[var(--gold)]" /> Delivery Pipeline Funnel</h4>
+            <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">weighted % complete</span>
           </div>
           {loading ? (
-            <div className="text-slate-500 text-xs py-8 text-center">Loading pipeline…</div>
+            <div className="text-slate-500 text-xs py-8 text-center uppercase tracking-widest font-black">Loading pipeline…</div>
           ) : Object.keys(readinessMap).length === 0 ? (
-            <div className="text-slate-500 text-xs py-8 text-center">No projects yet — create one to populate the funnel.</div>
+            <div className="text-slate-500 text-xs py-8 text-center uppercase tracking-widest font-black">No projects yet — create one to populate the funnel.</div>
           ) : (
-            <FunnelAggregate readinessMap={readinessMap} />
-          )}
-          <div className="mt-5 border-t border-slate-800/80 pt-4 space-y-3">
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Operational Module Command Grid</span>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { category: 'Client Acquisition', items: [
-                  { tab: 'crm', label: 'Client Board' },
-                  { tab: 'projects', label: 'Project Pipeline' }
-                ]},
-                { category: 'Spatial Design & CAD', items: [
-                  { tab: 'brief', label: 'Client Intake' },
-                  { tab: 'cad', label: 'Plan Intel' },
-                  { tab: 'studio', label: 'Editable 3D Scene' },
-                  { tab: 'drawings', label: '2D Drawings' }
-                ]},
-                { category: 'Visualization & Sales', items: [
-                  { tab: 'renders', label: 'Render Studio' },
-                  { tab: 'presentation', label: 'Presentations' },
-                  { tab: 'pipeline', label: 'Pipeline Studio' }
-                ]},
-                { category: 'Production & Commerce', items: [
-                  { tab: 'materials', label: 'Materials' },
-                  { tab: 'cutlist', label: 'Cutlists & Nesting' },
-                  { tab: 'finance', label: 'Commerce & Quotes' },
-                  { tab: 'timeline', label: 'Timeline & Logs' }
-                ]}
-              ].map((grp, idx) => (
-                <div key={idx} className="bg-slate-950/40 border border-slate-850/60 rounded-xl p-3 space-y-2 flex flex-col justify-between hover:border-[var(--gold)]/20 transition-all duration-200">
-                  <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block">{grp.category}</span>
-                  <div className="space-y-1.5">
-                    {grp.items.map(item => (
-                      <button key={item.tab} onClick={() => navigate(item.tab)} className="w-full py-1.5 px-2 bg-slate-900 border border-slate-800 hover:border-[var(--gold)]/40 hover:bg-[var(--gold)]/5 rounded-lg text-[10px] font-bold text-slate-300 flex items-center justify-between transition cursor-pointer">
-                        <span>{item.label}</span>
-                        <ArrowUpRight className="w-2.5 h-2.5 text-slate-500 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="flex-1 flex items-center">
+              <FunnelAggregate readinessMap={readinessMap} />
             </div>
-          </div>
+          )}
         </div>
 
         {/* AI Provider Health */}
-        <div className="bg-slate-900/60 border border-slate-805/60 rounded-2xl p-5 flex flex-col justify-between">
+        <div className="panel rounded-2xl p-6 flex flex-col justify-between">
           <div>
-            <h4 className="text-xs font-bold flex items-center gap-2 mb-4 text-slate-200"><Cpu className="w-4 h-4 text-[var(--gold)]" /> Engine & Provider Health</h4>
+            <h4 className="text-xs font-bold flex items-center gap-2 mb-5 text-slate-200 uppercase tracking-widest"><Cpu className="w-4 h-4 text-[var(--gold)]" /> Engine & Provider Health</h4>
             {health ? (
-              <div className="space-y-2">
-                <ProviderPill name="Freepik"    status={health.freepik?.status} />
-                <ProviderPill name="HuggingFace" status={health.huggingface?.status} />
-                <ProviderPill name="OpenRouter" status={health.openrouter?.status} />
+              <div className="space-y-3 max-h-[140px] overflow-y-auto pr-2 custom-scrollbar">
+                {Object.entries(health).map(([key, data]) => {
+                  const names = { freepik: 'Freepik', huggingface: 'HuggingFace', openrouter: 'OpenRouter', gemini: 'Google AI Studio', openai: 'OpenAI', groq: 'Groq', perplexity: 'Perplexity', aimlapi: 'AIML API', pollinations: 'Pollinations' };
+                  return <ProviderPill key={key} name={names[key] || key} status={data.status} />;
+                })}
               </div>
             ) : (
-              <div className="text-slate-500 text-xs py-6 text-center">Health service unreachable.</div>
+              <div className="text-slate-500 text-xs py-6 text-center uppercase tracking-widest font-black">Health service unreachable.</div>
             )}
           </div>
-          <button onClick={() => navigate('brand')} className="mt-4 w-full py-2 rounded-xl border border-slate-800 text-slate-350 text-xs font-bold hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition">
-            Configure Providers
+          <button onClick={() => navigate('brand')} className="mt-6 w-full py-2.5 rounded-xl border border-white/10 text-slate-300 text-[10px] uppercase tracking-widest font-black hover:border-[var(--gold)]/40 hover:text-[var(--gold)] hover:bg-[var(--gold)]/5 transition-all duration-300 flex items-center justify-center gap-2">
+            Configure Providers <ArrowRight className="w-3 h-3" />
           </button>
         </div>
       </div>
 
       {/* Project Health Table */}
-      <div className="bg-slate-900/60 border border-slate-805/60 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200"><Building2 className="w-4 h-4 text-[var(--gold)]" /> Project Health</h4>
+      <div className="panel rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200 uppercase tracking-widest"><Building2 className="w-4 h-4 text-[var(--gold)]" /> Project Health</h4>
         </div>
         {sortedProjects.length === 0 ? (
           <div className="text-slate-500 text-xs py-8 text-center">No projects yet.</div>
@@ -3561,10 +3558,10 @@ function OverviewWorkspace({ projects, leads, health, readinessMap, quotationMap
       </div>
 
       {/* Recent Leads */}
-      <div className="bg-slate-900/60 border border-slate-855/60 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200"><UserPlus className="w-4 h-4 text-[var(--gold)]" /> Recent Leads</h4>
-          <button onClick={() => navigate('crm')} className="text-[11px] text-slate-400 hover:text-[var(--gold)] flex items-center gap-1">Open CRM <ArrowRight className="w-3 h-3" /></button>
+      <div className="panel rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h4 className="text-xs font-bold flex items-center gap-2 text-slate-200 uppercase tracking-widest"><UserPlus className="w-4 h-4 text-[var(--gold)]" /> Recent Leads</h4>
+          <button onClick={() => navigate('crm')} className="text-[10px] uppercase font-black tracking-widest text-slate-400 hover:text-[var(--gold)] flex items-center gap-1 transition-colors">Open CRM <ArrowRight className="w-3 h-3" /></button>
         </div>
         {recentLeads.length === 0 ? (
           <div className="text-slate-500 text-xs py-6 text-center">No leads captured yet.</div>
@@ -3574,15 +3571,15 @@ function OverviewWorkspace({ projects, leads, health, readinessMap, quotationMap
               const status = l.voice_status || 'new';
               const tone = status === 'human_closed' ? '#10B981' : status === 'qualified' ? '#34D399' : status === 'human_lost' ? '#EF4444' : '#64748B';
               return (
-                <div key={l.id} className="rounded-xl border border-slate-800 bg-slate-950/30 p-3.5 flex flex-col gap-1.5">
+                <div key={l.id} className="rounded-xl border border-white/5 bg-black/20 p-4 flex flex-col gap-2 hover:border-[var(--gold)]/20 transition-all duration-300">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-200 truncate">{l.name}</span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: tone + '22', color: tone }}>{status.replace('_', ' ')}</span>
+                    <span className="text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border" style={{ background: 'color-mix(in srgb, ' + tone + ' 10%, transparent)', color: tone, borderColor: 'color-mix(in srgb, ' + tone + ' 30%, transparent)' }}>{status.replace('_', ' ')}</span>
                   </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-450">
-                    <span className="font-mono">{fmtINR(l.budget)}</span>
+                  <div className="flex items-center gap-3 text-[10px] text-slate-450 font-medium tracking-wide">
+                    <span className="font-mono text-slate-300">{fmtINR(l.budget)}</span>
                     {l.area ? <span>{l.area} sqft</span> : null}
-                    {l.score != null ? <span className="ml-auto text-[var(--gold)] font-bold">Score {l.score}</span> : null}
+                    {l.score != null ? <span className="ml-auto text-[var(--gold)] font-bold bg-[var(--gold)]/10 px-2 py-0.5 rounded-md">Score {l.score}</span> : null}
                   </div>
                 </div>
               );
@@ -3596,15 +3593,16 @@ function OverviewWorkspace({ projects, leads, health, readinessMap, quotationMap
 
 function KpiCard({ icon: Icon, label, value, sub, accent = 'var(--gold)' }) {
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2 hover:border-[var(--gold)]/30 transition-all duration-200">
+    <div className="panel rounded-2xl p-5 flex flex-col gap-3 hover:border-[var(--gold)]/30 hover:shadow-[0_0_15px_rgba(201,168,76,0.15)] transition-all duration-300 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br opacity-0 group-hover:opacity-10 transition-opacity duration-500 rounded-bl-full pointer-events-none" style={{ backgroundImage: `radial-gradient(circle at top right, ${accent}, transparent)` }} />
       <div className="flex items-center justify-between">
         <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">{label}</span>
-        <span className="p-1.5 rounded-lg" style={{ background: 'color-mix(in srgb, ' + accent + ' 14%, transparent)', color: accent }}>
-          <Icon className="w-4 h-4" />
+        <span className="p-1.5 rounded-lg border" style={{ background: 'color-mix(in srgb, ' + accent + ' 8%, transparent)', color: accent, borderColor: 'color-mix(in srgb, ' + accent + ' 20%, transparent)' }}>
+          <Icon className="w-3.5 h-3.5" />
         </span>
       </div>
       <div className="text-2xl font-extrabold leading-none text-slate-100">{value}</div>
-      {sub && <div className="text-[10px] text-slate-400 flex items-center gap-1">{sub}</div>}
+      {sub && <div className="text-[10px] text-slate-400 flex items-center gap-1.5 font-medium tracking-wide">{sub}</div>}
     </div>
   );
 }
@@ -3630,10 +3628,11 @@ function ProviderPill({ name, status }) {
   const skip = status === 'skipped';
   const color = ok ? '#10B981' : skip ? '#64748B' : '#EF4444';
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-800 bg-slate-950/40">
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/5 bg-black/20 relative overflow-hidden group">
+      <div className="absolute inset-y-0 left-0 w-1 opacity-80" style={{ background: color }} />
       {ok ? <Wifi className="w-3.5 h-3.5" style={{ color }} /> : <WifiOff className="w-3.5 h-3.5" style={{ color }} />}
-      <span className="text-xs font-bold text-slate-200">{name}</span>
-      <span className="text-[10px] font-mono ml-auto" style={{ color }}>{skip ? 'BYOK' : ok ? 'LIVE' : 'DOWN'}</span>
+      <span className="text-[11px] font-black text-slate-200 uppercase tracking-wider">{name}</span>
+      <span className="text-[9px] font-black ml-auto border px-1.5 py-0.5 rounded-full" style={{ color, borderColor: 'color-mix(in srgb, ' + color + ' 30%, transparent)', background: 'color-mix(in srgb, ' + color + ' 10%, transparent)' }}>{skip ? 'BYOK' : ok ? 'LIVE' : 'DOWN'}</span>
     </div>
   );
 }

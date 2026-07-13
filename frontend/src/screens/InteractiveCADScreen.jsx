@@ -1038,7 +1038,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
       {/* Spoken floor-plan acknowledgement banner (canonical flow step 1) */}
       {ackText && (
-        <div className="w-full bg-slate-900 border border-[var(--gold)]/30 rounded-xl p-3 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-lg shadow-black/40">
+        <div className="w-full panel flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           <div className="flex items-center gap-2">
             <span className="text-[var(--gold)] text-lg">💡</span>
             <span className="text-xs font-black uppercase tracking-widest text-[var(--gold)]">Floor Plan Intel Report:</span>
@@ -1074,7 +1074,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       <div className="flex-1 flex flex-col xl:flex-row min-h-0 gap-4">
 
       {/* 1. Left CAD Controls Palette */}
-      <div className="w-full xl:w-72 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0">
+      <div className="w-full xl:w-72 panel flex flex-col gap-4 shrink-0">
         <div>
           <h2 className="text-xs font-extrabold uppercase tracking-wider text-brand-500 mb-1 flex items-center gap-1.5">
             <Compass className="w-4 h-4" /> Drafting Workspace
@@ -1098,10 +1098,10 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               <button
                 key={tool.id}
                 onClick={() => { setActiveTool(tool.id); setTempPoints([]); }}
-                className={`py-2 rounded-lg border text-xs font-medium flex flex-col items-center justify-center gap-1 transition ${
+                className={`py-2 rounded-lg border text-xs font-medium flex flex-col items-center justify-center gap-1 transition-all duration-200 ${
                   activeTool === tool.id 
-                    ? 'bg-brand-500/10 border-brand-500 text-brand-500 shadow-md' 
-                    : 'bg-slate-950 border-slate-850 hover:border-slate-700 text-slate-400'
+                    ? 'bg-[var(--gold)]/10 border-[var(--gold)] text-[var(--gold-bright)] shadow-[0_0_15px_rgba(201,168,76,0.2)]' 
+                    : 'bg-transparent border-white/10 hover:border-white/20 hover:bg-white/5 text-slate-400'
                 }`}
               >
                 {tool.icon}
@@ -1112,7 +1112,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         </div>
 
         {/* Snap & constraint options */}
-        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-850 space-y-2 text-xs">
+        <div className="bg-[var(--surface-2)]/60 backdrop-blur-md p-3 rounded-xl border border-white/5 space-y-2 text-xs shadow-inner">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Drafting Aids</label>
           <div className="flex items-center justify-between">
             <span>Snap to Grid</span>
@@ -1137,12 +1137,12 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             <select
               value={wallThicknessMm}
               onChange={(e) => setWallThicknessMm(parseInt(e.target.value))}
-              className="bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] text-slate-300 outline-none focus:border-brand-500"
+              className="input-lux py-1 px-2 w-auto max-w-[120px]"
             >
-              <option value="100">100mm (Internal Partition)</option>
-              <option value="150">150mm (Standard Wall)</option>
-              <option value="230">230mm (Brick Main Wall)</option>
-              <option value="300">300mm (Thick Structural)</option>
+              <option value="100">100mm</option>
+              <option value="150">150mm</option>
+              <option value="230">230mm</option>
+              <option value="300">300mm</option>
             </select>
           </div>
           <div className="flex items-center justify-between">
@@ -1154,23 +1154,23 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         {/* Add Library Symbols */}
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Symbols Library</label>
-          <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
-            <button onClick={() => addFurnitureSym('bed')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <button onClick={() => addFurnitureSym('bed')} className="btn-ghost py-1.5">
               + Bed
             </button>
-            <button onClick={() => addFurnitureSym('wardrobe')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
+            <button onClick={() => addFurnitureSym('wardrobe')} className="btn-ghost py-1.5">
               + Wardrobe
             </button>
-            <button onClick={() => addFurnitureSym('kitchen_base')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
-              + Kitchen Base
+            <button onClick={() => addFurnitureSym('kitchen_base')} className="btn-ghost py-1.5">
+              + Kitchen
             </button>
-            <button onClick={() => addFurnitureSym('tv_unit')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
+            <button onClick={() => addFurnitureSym('tv_unit')} className="btn-ghost py-1.5">
               + TV Unit
             </button>
-            <button onClick={() => addFurnitureSym('table')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
+            <button onClick={() => addFurnitureSym('table')} className="btn-ghost py-1.5">
               + Table
             </button>
-            <button onClick={() => addFurnitureSym('counter')} className="bg-slate-950/60 border border-slate-850 hover:border-slate-700 py-1.5 rounded-lg transition">
+            <button onClick={() => addFurnitureSym('counter')} className="btn-ghost py-1.5">
               + Counter
             </button>
           </div>
@@ -1184,19 +1184,19 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
           <button
             onClick={triggerAiDetect}
             disabled={isDetectingLayout}
-            className="w-full py-2.5 bg-[#C9A84C]/10 hover:bg-[#C9A84C]/20 border border-[#C9A84C]/45 text-[#C9A84C] text-xs font-bold rounded-lg uppercase tracking-wider transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-gold w-full flex items-center justify-center gap-2"
           >
             {isDetectingLayout ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            AI Auto-Detect Layout
+            {isDetectingLayout ? "Analyzing..." : "AI Auto-Detect Layout"}
           </button>
           <button
             onClick={() => triggerCvDetect()}
             disabled={isDetectingLayout}
             title="Detect walls from an uploaded floorplan/room image (works with any image), or the attached underlay"
-            className="w-full py-2 bg-[#2DD4AA]/10 hover:bg-[#2DD4AA]/20 border border-[#2DD4AA]/45 text-[#2DD4AA] text-xs font-bold rounded-lg uppercase tracking-wider transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold rounded-lg uppercase tracking-wider transition flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(16,185,129,0.1)]"
           >
-            <Image className="w-3.5 h-3.5" />
-            Detect Walls From Image
+            {isDetectingLayout ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Image className="w-3.5 h-3.5" />}
+            {isDetectingLayout ? "Detecting..." : "Detect Walls From Image"}
           </button>
           <input ref={detectImageInputRef} type="file" accept="image/*" className="hidden" onChange={onDetectImagePicked} />
         </div>
@@ -1789,70 +1789,143 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         {/* AutoCAD IMAGEATTACH Underlay Layer Panel */}
         <div className="panel">
           <h3 className="panel-head">
-            <Compass className="ph-icon" /> Floorplan Underlay (IMAGEATTACH)
+            <Compass className="ph-icon" /> Floorplan AI & Underlay
           </h3>
           <p className="panel-sub">
-            Attach your client's handdrawn layout or PNG blueprint, adjust position and trace walls directly.
+            {sketchUrl 
+              ? "Floorplan loaded from Client Brief. Run AI Auto-Detect or adjust underlay to trace manually."
+              : "Attach a hand-drawn layout or PNG blueprint, adjust position and trace walls directly."}
           </p>
 
-          <label className="btn-gold w-full cursor-pointer">
-            Choose Floor Plan File
-            <input
-              type="file"
-              accept="image/*,.dxf,.dwg,.pdf"
-              onChange={async (e) => {
-              const file = e.target.files[0];
-              if (!file) return;
-              const isVector = /\.(dxf|dwg)$/i.test(file.name);
-              if (isVector) {
-                // Vector plan: auto-trace walls in TRUE mm — no manual tracing needed.
-                try {
-                  __toast?.info?.("Auto-tracing DXF/DWG plan…");
-                  const formData = new FormData();
-                  formData.append('floorplan', file);
-                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/auto-trace`, {
-                    method: 'POST',
-                    body: formData
-                  });
-                  const data = await res.json();
-                  if (data.success) {
-                    const w = (data.interpretation?.walls || []).map(seg => ({
-                      id: seg.id, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2,
-                      thickness: seg.thicknessMm || 230, wallId: ''
-                    }));
-                    if (w.length) { setWalls(w); saveToHistory(w, openings, furniture, rooms, measures); }
-                    __toast?.success(`Auto-traced ${data.walls} walls (${data.unit}). Rooms: ${(data.interpretation?.rooms || []).length}.`);
-                  } else {
-                    __toast?.error(data.message || "No walls found in DXF. Trace manually.");
+          {sketchUrl ? (
+            <div className="space-y-3">
+              <button onClick={triggerAiDetect} disabled={isDetectingLayout} className="btn-gold w-full flex items-center justify-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                {isDetectingLayout ? 'Running AI Engine...' : 'Run AI Auto-Detect'}
+              </button>
+              
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-slate-400">Need to replace the file?</span>
+                <label className="text-xs text-[var(--gold)] hover:text-amber-200 cursor-pointer underline">
+                  Upload New File
+                  <input
+                    type="file"
+                    accept="image/*,.dxf,.dwg,.pdf"
+                    onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      
+                      const isVector = /\.(dxf|dwg)$/i.test(file.name);
+                      if (isVector) {
+                        try {
+                          __toast?.info?.("Auto-tracing DXF/DWG plan…");
+                          const formData = new FormData();
+                          formData.append('floorplan', file);
+                          const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/auto-trace`, {
+                            method: 'POST',
+                            body: formData
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            const w = (data.interpretation?.walls || []).map(seg => ({
+                              id: seg.id, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2,
+                              thickness: seg.thicknessMm || 230, wallId: ''
+                            }));
+                            if (w.length) { setWalls(w); saveToHistory(w, openings, furniture, rooms, measures); }
+                            __toast?.success(`Auto-traced ${data.walls} walls (${data.unit}). Rooms: ${(data.interpretation?.rooms || []).length}.`);
+                          } else {
+                            __toast?.error(data.message || "No walls found in DXF. Trace manually.");
+                          }
+                        } catch (err) {
+                          console.error("DXF auto-trace failed:", err);
+                          __toast?.error("Auto-trace failed. Try manual tracing.");
+                        }
+                        return;
+                      }
+
+                      setSketchUrl(URL.createObjectURL(file));
+                      try {
+                        const formData = new FormData();
+                        formData.append('floorplan', file);
+                        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                          method: 'POST',
+                          body: formData
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+                          __toast?.success("Floorplan underlay updated.");
+                        }
+                      } catch (err) {
+                        console.error("Error uploading floorplan from CAD screen:", err);
+                        __toast?.error("Failed to save floorplan to server.");
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <label className="btn-gold w-full cursor-pointer text-center block py-2.5 mt-2">
+              Choose Floor Plan File
+              <input
+                type="file"
+                accept="image/*,.dxf,.dwg,.pdf"
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (!file) return;
+                  
+                  const isVector = /\.(dxf|dwg)$/i.test(file.name);
+                  if (isVector) {
+                    try {
+                      __toast?.info?.("Auto-tracing DXF/DWG plan…");
+                      const formData = new FormData();
+                      formData.append('floorplan', file);
+                      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/auto-trace`, {
+                        method: 'POST',
+                        body: formData
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        const w = (data.interpretation?.walls || []).map(seg => ({
+                          id: seg.id, x1: seg.x1, y1: seg.y1, x2: seg.x2, y2: seg.y2,
+                          thickness: seg.thicknessMm || 230, wallId: ''
+                        }));
+                        if (w.length) { setWalls(w); saveToHistory(w, openings, furniture, rooms, measures); }
+                        __toast?.success(`Auto-traced ${data.walls} walls (${data.unit}). Rooms: ${(data.interpretation?.rooms || []).length}.`);
+                      } else {
+                        __toast?.error(data.message || "No walls found in DXF. Trace manually.");
+                      }
+                    } catch (err) {
+                      console.error("DXF auto-trace failed:", err);
+                      __toast?.error("Auto-trace failed. Try manual tracing.");
+                    }
+                    return;
                   }
-                } catch (err) {
-                  console.error("DXF auto-trace failed:", err);
-                  __toast?.error("Auto-trace failed. Try manual tracing.");
-                }
-                return;
-              }
-              // Raster (image/PDF): attach as underlay for manual tracing.
-              setSketchUrl(URL.createObjectURL(file));
-              try {
-                const formData = new FormData();
-                formData.append('floorplan', file);
-                const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
-                  method: 'POST',
-                  body: formData
-                });
-                const data = await res.json();
-                if (data.success) {
-                  setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
-                  __toast?.success("Floorplan underlay attached — trace walls over it.");
-                }
-              } catch (err) {
-                console.error("Error uploading floorplan from CAD screen:", err);
-                __toast?.error("Failed to save floorplan to server.");
-              }
-              }}
-              className="hidden"
-            />
-          </label>
+
+                  setSketchUrl(URL.createObjectURL(file));
+                  try {
+                    const formData = new FormData();
+                    formData.append('floorplan', file);
+                    const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                      method: 'POST',
+                      body: formData
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+                      __toast?.success("Floorplan underlay attached — trace walls over it.");
+                    }
+                  } catch (err) {
+                    console.error("Error uploading floorplan from CAD screen:", err);
+                    __toast?.error("Failed to save floorplan to server.");
+                  }
+                }}
+                className="hidden"
+              />
+            </label>
+          )}
 
           {sketchUrl && (
             <div className="space-y-3 mt-4 pt-4 border-t border-white/5">
@@ -1965,11 +2038,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         </div>
 
         {/* Walkthrough video analyzer card */}
-        <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-            <Video className="w-4 h-4 text-brand-500" /> Walkthrough SLAM
+        <div className="panel space-y-3">
+          <h3 className="panel-head">
+            <Video className="ph-icon text-brand-500" /> Walkthrough SLAM
           </h3>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
+          <p className="panel-sub">
             Upload a site video; Gemini will overlay plumbing nodes, socket boards, and verify dimensions.
           </p>
 
@@ -1983,20 +2056,20 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
           {isUploadingVideo ? (
             <div className="space-y-2 py-2">
-              <div className="flex justify-between text-[10px] font-bold text-brand-500 uppercase">
+              <div className="flex justify-between text-[10px] font-bold text-[var(--gold-bright)] uppercase">
                 <span>Analyzing Walkthrough...</span>
                 <span>{uploadProgress}%</span>
               </div>
-              <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-brand-500 h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden shadow-inner">
+                <div className="bg-gradient-to-r from-[var(--gold)] to-[var(--gold-bright)] h-full transition-all duration-300 shadow-[0_0_10px_rgba(201,168,76,0.6)]" style={{ width: `${uploadProgress}%` }}></div>
               </div>
             </div>
           ) : (
             <button
               onClick={triggerVideoUpload}
-              className="w-full py-2.5 bg-brand-500/10 border border-brand-500/35 hover:bg-brand-500/20 text-brand-500 font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-2 transition"
+              className="w-full btn-ghost py-2.5 flex items-center justify-center gap-2"
             >
-              <Video className="w-4.5 h-4.5" />
+              <Video className="w-4 h-4" />
               Upload Walkthrough Video
             </button>
           )}
@@ -2036,14 +2109,14 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   __toast?.warn?.('Server unavailable — used offline DXF export');
                 }
               }}
-              className="py-2.5 bg-slate-800 hover:bg-slate-700 text-brand-500 border border-slate-750 font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition"
+              className="btn-ghost py-2.5 flex items-center justify-center gap-1.5"
             >
               <Download className="w-3.5 h-3.5" />
               Export DXF
             </button>
             <button
               onClick={() => exportToSCR({ walls, openings, furniture, rooms, measures, pixelsPerMeter })}
-              className="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-750 font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition"
+              className="btn-ghost py-2.5 flex items-center justify-center gap-1.5"
             >
               <Download className="w-3.5 h-3.5" />
               Export SCR
@@ -2084,19 +2157,19 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             }} className="w-full py-2 bg-[#C9A84C] text-slate-950 font-black uppercase text-[10px] rounded-lg">Generate Elevation</button>
           </div>
 
-          <div className="p-3 bg-slate-900/40 border border-slate-850 rounded-xl space-y-2">
-            <div className="text-[9px] font-black text-[#C9A84C] uppercase tracking-widest">Component Layers</div>
+          <div className="panel p-3 space-y-2">
+            <div className="eyebrow">Component Layers</div>
             <div className="flex flex-wrap gap-1.5">
               {['glass','cane','handle','frame'].map(k => (
                 <button key={k} onClick={() => setComponentLayers(s => ({ ...s, [k]: !s[k] }))} className={`px-2 py-1 rounded-md border text-[9px] font-bold uppercase transition ${componentLayers[k] ? 'bg-[var(--gold)]/20 border-[var(--gold)] text-[var(--gold)]' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'}`}>{k}</button>
               ))}
             </div>
-            <div className="text-[9px] text-slate-500">Toggle symbolic DXF layers for glass, cane, handles, and frame brackets.</div>
+            <div className="micro">Toggle symbolic DXF layers for glass, cane, handles, and frame brackets.</div>
           </div>
 
           <button
             onClick={saveCADToServer}
-            className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition"
+            className="w-full btn-gold py-3.5 uppercase tracking-wider flex items-center justify-center gap-2"
           >
             <Save className="w-4 h-4" />
             Approve Layout & Save
