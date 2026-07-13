@@ -34,6 +34,7 @@ import pdfBuilder from './services/pdf-builder.js';
 import { generateInteriorAsset, getProviderStatus } from './services/image-provider.js';
 import * as visualizerEngine from './services/visualizer-engine.js';
 import { exportSceneToBlender } from './services/scene-to-blender.js';
+import { buildLaminateSwapPrompt } from './services/visualizer-engine.js';
 import { analyzePhotoToElevation, learningSummary } from './services/photo-to-elevation.js';
 import colorService from './services/component-color-service.js';
 import planIntelligenceCore from './services/plan-intelligence-core.js';
@@ -141,6 +142,89 @@ app.get('/api/projects/:id/validate', (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PHASE 5: Production Package — derive cutlist + estimate + GST invoice +
+// payment plan from ONE estimate set (no retyping, single source of truth).
+app.post('/api/projects/:id/production-package', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+
+    // 1) Cutlist — geometry-derived board/carcass/edge/hardware parts
+    const cutlist = cutlistEngine.createOrRefreshCutlist(projectId);
+
+    // 2) Estimate set built FROM the cutlist modules (single source of truth)
+    let modules = [];
+    try {
+      modules = db.prepare("SELECT name, module_type, room, material, finish, width_mm, height_mm FROM cutlist_modules WHERE cutlist_project_id = ?").all(cutlist.id);
+    } catch { modules = []; }
+    if (!modules.length && Array.isArray(cutlist.modules)) modules = cutlist.modules;
+    const moduleItems = modules.map((m) => ({
+      name: m.name || m.module_type,
+      room: m.room,
+      material: m.material,
+      finish: m.finish,
+      qty: 1,
+      rate: Math.round(((Number(m.width_mm) || 0) * (Number(m.height_mm) || 0) / 1_000_000) * 4200) || 8000
+    }));
+    const items = moduleItems.length
+      ? moduleItems.map((m) => ({
+          description: `${m.name} (${m.room || 'room'}) — ${m.material || 'plywood'}, ${m.finish || ''}`.trim(),
+          qty: m.qty, rate: m.rate, amount: m.qty * m.rate, hsn: '9403'
+        }))
+      : [{ description: 'Modular interior package (derived from cutlist)', qty: 1, rate: 0, amount: 0, hsn: '9403' }];
+
+    const subtotal = items.reduce((s, i) => s + (i.amount || 0), 0);
+    const estTotals = { subtotal, taxTotal: subtotal * 0.18, grandTotal: subtotal * 1.18 };
+
+    const estId = 'est_' + nanoid(6);
+    const lastV = db.prepare("SELECT MAX(version_number) AS mv FROM estimate_sets WHERE project_id = ?").get(projectId);
+    const sceneRow = db.prepare("SELECT id FROM scene_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1").get(projectId);
+    db.prepare(`INSERT INTO estimate_sets (id, project_id, scene_version_id, estimate_type, version_number, status, totals_json, items_json)
+      VALUES (?, ?, ?, 'production', ?, 'shared', ?, ?)`)
+      .run(estId, projectId, sceneRow?.id || '', (lastV?.mv || 0) + 1, JSON.stringify(estTotals), JSON.stringify(items));
+    logTimelineEvent(projectId, 'estimate.created', 'Production estimate from cutlist', `₹${Math.round(estTotals.grandTotal).toLocaleString()}`);
+
+    // 3) GST invoice FROM the same estimate items
+    const supplierGstin = (project.gstin) || '';
+    const clientGstin = project.client_gstin || '';
+    const isInter = isInterStateSupply(supplierGstin, clientGstin);
+    const calc = computeInvoice({ items, discount: 0, isGstEnabled: true, gstRate: 18, isInterState: isInter, paidAmount: 0, supplierGstin, clientGstin });
+    const year = new Date().getFullYear();
+    const lastInv = db.prepare("SELECT invoice_number FROM invoices WHERE invoice_number LIKE ? ORDER BY invoice_number DESC LIMIT 1").get(`INV-${year}-%`);
+    let seq = 1; if (lastInv) { const mm = String(lastInv.invoice_number).match(/INV-\d{4}-(\d+)/); if (mm) seq = parseInt(mm[1], 10) + 1; }
+    const invoiceNumber = `INV-${year}-${String(seq).padStart(4, '0')}`;
+    const invId = 'inv_' + nanoid(6);
+    db.prepare(`INSERT INTO invoices (id, project_id, invoice_number, description, amount, status, items_json, client_name, client_gstin, issue_date, subtotal, discount, taxable, cgst, sgst, igst, gst_rate, is_inter_state, round_off, grand_total, paid_amount, cancelled)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(invId, projectId, invoiceNumber, 'Production package (GST)', calc.grandTotal, calc.status, JSON.stringify(calc.items), project.client_name || '', clientGstin, new Date().toISOString().slice(0, 10), calc.subTotal, calc.discount, calc.taxable, calc.cgst, calc.sgst, calc.igst, calc.gstRate, calc.isInterState ? 1 : 0, calc.roundOff, calc.grandTotal, 0, 0);
+    logTimelineEvent(projectId, 'invoice.created', `Production GST invoice ${invoiceNumber}`, `₹${Math.round(calc.grandTotal).toLocaleString()}`);
+
+    // 4) Payment plan FROM the same estimate grand total (3 milestones)
+    const ppId = 'pp_' + nanoid(6);
+    const g = Math.round(estTotals.grandTotal);
+    const milestones = [
+      { name: 'Advance (30%)', pct: 30, amount: Math.round(g * 0.3) },
+      { name: 'On delivery (50%)', pct: 50, amount: Math.round(g * 0.5) },
+      { name: 'On installation (20%)', pct: 20, amount: Math.round(g * 0.2) }
+    ];
+    db.prepare(`INSERT INTO payment_plans (id, project_id, estimate_set_id, name, total_contract_value, milestones_json, status) VALUES (?, ?, ?, ?, ?, ?, 'active')`)
+      .run(ppId, projectId, estId, 'Production Milestone Plan', g, JSON.stringify(milestones));
+    logTimelineEvent(projectId, 'payment_plan.created', 'Production payment plan', `₹${g.toLocaleString()}`);
+
+    res.json({
+      success: true,
+      derivedFrom: 'single-estimate-set',
+      cutlist: { id: cutlist.id, moduleCount: cutlist.moduleCount, partCount: cutlist.partCount },
+      estimateSet: { id: estId, totals: estTotals, itemCount: items.length },
+      invoice: { id: invId, invoiceNumber, grandTotal: calc.grandTotal, gst: calc.cgst + calc.sgst + calc.igst },
+      paymentPlan: { id: ppId, totalContractValue: g, milestones }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -3781,8 +3865,24 @@ app.post('/api/projects/:id/renders/laminate-swap',
         laminateBrand: req.body.laminateBrand || '',
         instruction: req.body.instruction || '',
         room: req.body.room || 'living',
-        laminateCatalogId: req.body.laminateCatalogId || null
+        laminateCatalogId: req.body.laminateCatalogId || null,
+        // Phase 4: structured 12-slot material system + component identity so a
+        // swap targets exactly one surface and preserves everything else.
+        materialSlot: req.body.materialSlot || null,
+        componentId: req.body.componentId || null,
+        keepOthersSame: req.body.keepOthersSame !== false
       };
+
+      // Validate the material slot against the 12 canonical slots if provided.
+      const VALID_SLOTS = ['carcass','shutter','countertop','backsplash','hardware','panel','mesh','glass','lighting','wall','floor','ceiling'];
+      if (params.materialSlot && !VALID_SLOTS.includes(params.materialSlot)) {
+        return res.status(400).json({ error: 'invalid_material_slot', valid: VALID_SLOTS });
+      }
+      // Default the free-text componentType from the slot for downstream prompts.
+      if (params.materialSlot && !req.body.componentType) {
+        const slotToComponent = { carcass:'Carcass Box', shutter:'Cabinet Shutters', countertop:'Countertop Stone', backsplash:'Backsplash Tile', panel:'TV Backdrop Panel', mesh:'Mesh Basket', glass:'Glass Shutter', lighting:'Lighting', wall:'Wall Paint', floor:'Flooring', ceiling:'Ceiling', hardware:'Hardware' };
+        params.componentType = slotToComponent[params.materialSlot] || params.componentType;
+      }
 
       // If catalog ID given, enrich with catalog metadata
       if (params.laminateCatalogId) {
@@ -3811,6 +3911,42 @@ app.post('/api/projects/:id/renders/laminate-swap',
       // Run the laminate swap engine
       const result = await visualizerEngine.performLaminateSwap(projectId, renderBase64, laminateBase64, params, db);
 
+      // Phase 4: record the swap in laminate_swap_history with before/after,
+      // slot, component identity, and an approval flag (default unapproved).
+      // 'before' material is captured from the project's current material
+      // selections when available so the audit shows the exact change.
+      let beforeMaterial = null;
+      try {
+        const sel = db.prepare("SELECT laminates_json FROM material_selections WHERE project_id = ?").get(projectId);
+        if (sel && sel.laminates_json) {
+          const arr = JSON.parse(sel.laminates_json || '[]');
+          const hit = arr.find((m) => m.slot === params.materialSlot || m.componentType === params.componentType);
+          beforeMaterial = hit ? (hit.material || hit.name || null) : null;
+        }
+      } catch {}
+      db.prepare(`
+        INSERT INTO laminate_swap_history
+        (id, project_id, render_id, component_type, component_id, material_slot, new_material, new_color, laminate_code, laminate_brand, before_material, result_file_path, source_type, prompt, keep_others_same, approved, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+      `).run(
+        'swap_' + nanoid(10),
+        projectId,
+        result.id,
+        params.componentType,
+        params.componentId,
+        params.materialSlot,
+        params.newMaterial || params.newColor || null,
+        params.newColor || null,
+        params.laminateCode || null,
+        params.laminateBrand || null,
+        beforeMaterial,
+        result.filePath,
+        result.sourceType,
+        buildLaminateSwapPrompt(params),
+        params.keepOthersSame ? 1 : 0,
+        new Date().toISOString()
+      );
+
       // Log timeline event
       logTimelineEvent(projectId, 'render.laminate_swap', `Laminate Swap: ${params.componentType}`,
         `Changed to ${params.newMaterial || params.newColor} (${params.laminateBrand} ${params.laminateCode})`);
@@ -3822,6 +3958,35 @@ app.post('/api/projects/:id/renders/laminate-swap',
     }
   }
 );
+
+// POST: Approve a laminate swap (Phase 4: every swap needs designer approval)
+app.post('/api/projects/:id/renders/laminate-swap/:swapId/approve', (req, res) => {
+  try {
+    const { swapId } = req.params;
+    const row = db.prepare("SELECT * FROM laminate_swap_history WHERE id = ? AND project_id = ?").get(swapId, req.params.id);
+    if (!row) return res.status(404).json({ error: 'swap not found' });
+    db.prepare("UPDATE laminate_swap_history SET approved = 1 WHERE id = ?").run(swapId);
+    logTimelineEvent(req.params.id, 'render.laminate_swap_approved', `Swap approved: ${row.component_type}`, `Slot: ${row.material_slot || 'n/a'}`);
+    res.json({ success: true, approved: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET: laminate swap history for a project (audit trail)
+app.get('/api/projects/:id/laminate-swaps', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM laminate_swap_history WHERE project_id = ? ORDER BY created_at DESC").all(req.params.id);
+    res.json(rows.map((r) => ({
+      id: r.id, componentType: r.component_type, componentId: r.component_id, materialSlot: r.material_slot,
+      newMaterial: r.new_material, newColor: r.new_color, beforeMaterial: r.before_material, laminateCode: r.laminate_code,
+      laminateBrand: r.laminate_brand, filePath: r.result_file_path, source: r.source_type, approved: !!r.approved,
+      keepOthersSame: !!r.keep_others_same, prompt: r.prompt, createdAt: r.created_at
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // POST: Quick recolor (color-swap without image upload — uses selected render from DB)
 app.post('/api/projects/:id/renders/change-color', async (req, res) => {

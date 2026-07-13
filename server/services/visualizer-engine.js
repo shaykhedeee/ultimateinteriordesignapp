@@ -1983,7 +1983,7 @@ Return a JSON array ONLY, no markdown, no extra text.`
  * Build the best-in-class laminate swap prompt.
  * Preserves everything in the image EXCEPT the specified component.
  */
-function buildLaminateSwapPrompt(params, laminateSwatchContext = '') {
+export function buildLaminateSwapPrompt(params, laminateSwatchContext = '') {
   const materialDescriptions = {
     'Cabinet Shutters': 'modular cabinet door panels with visible grain, sheen, and edge profile',
     'Carcass Box': 'the structural cabinet box/carcass shell material',

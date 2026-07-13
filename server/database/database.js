@@ -809,6 +809,13 @@ try { db.exec("ALTER TABLE design_renders ADD COLUMN geometry_hash TEXT;"); } ca
 try { db.exec("ALTER TABLE design_renders ADD COLUMN render_stage TEXT DEFAULT 'ai_polish';"); } catch (e) {}
 try { db.exec("ALTER TABLE design_renders ADD COLUMN source TEXT;"); } catch (e) {}
 
+// Phase 4: material swaps must record structured slot + component + approval so
+// every laminate change is auditable and geometry-preserving.
+try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN component_id TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN material_slot TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN keep_others_same INTEGER DEFAULT 1;"); } catch (e) {}
+try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN before_material TEXT;"); } catch (e) {}
+
 import dbClient from './db-client.js';
 export default dbClient;
 
