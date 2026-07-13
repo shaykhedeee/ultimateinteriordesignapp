@@ -434,26 +434,16 @@ export function buildSheetLayout(cutlistOrParts, moduleInput = []) {
   }
 
   if (unplaced.length) {
-    let sheetNo = sheets.length;
-    // Place largest pieces first so they claim the long sheet before it
-    // fragments into strips too short for 3m rails / 2m shutters.
-    const rescueOrder = [...unplaced].sort((a, b) => Math.max(b.lengthMm, b.widthMm) - Math.max(a.lengthMm, a.widthMm));
-    for (const piece of rescueOrder) {
-      // Try the smallest stock size that can hold this piece (grain-aware).
-      let placed = false;
-      for (const size of DEFAULT_SETTINGS.stockSizes) {
-        const usableL = size.lengthMm - DEFAULT_SETTINGS.trimMm * 2;
-        const usableW = size.widthMm - DEFAULT_SETTINGS.trimMm * 2;
-        if (!pieceFits(piece, usableL, usableW)) continue;
-        // find or create a sheet of this size
-        let sheet = sheets.find((s) => s.lengthMm === size.lengthMm && s.widthMm === size.widthMm && s.freeRects);
-        if (!sheet) { sheet = createSheet(++sheetNo, size); sheets.push(sheet); }
-        if (placePieceMaxRects(sheet, piece)) { placed = true; break; }
-      }
-      if (placed) continue;
-      // leave in unplaced (genuinely unplaceable even on the largest stock)
-    }
-    unplaced = unplaced.filter((u) => !sheets.some((s) => s.pieces.some((p) => p.partCode === u.partCode && p.id === u.id)));
+    // Dedicated long-sheet allocator: any piece that cannot fit an 8x4 board is
+    // routed to the longest available stock and shelf-packed (rows stacked
+    // top-to-bottom, pieces left-to-right within a row). Shelf packing handles
+    // overlong strips (3m rails/panels) AND tall vertical-grain shutters far
+    // better than greedy MaxRects, which would fragment one shared long sheet
+    // and strand the 2m shutters in `unplaced`.
+    const longSize = DEFAULT_SETTINGS.stockSizes[DEFAULT_SETTINGS.stockSizes.length - 1];
+    const longPieces = unplaced.filter((p) => !pieceFits(p, DEFAULT_SETTINGS.sheet.lengthMm - DEFAULT_SETTINGS.trimMm * 2, DEFAULT_SETTINGS.sheet.widthMm - DEFAULT_SETTINGS.trimMm * 2));
+    const placedIds = shelfPackLongSheets(longPieces, longSize, DEFAULT_SETTINGS, sheets);
+    unplaced = unplaced.filter((u) => !placedIds.has(u.id));
   }
 
   sheets.forEach((item) => finalizeSheet(item, sheetAreaSqM));
@@ -1296,6 +1286,64 @@ function fitPieceToSheet(piece, usableLength, usableWidth) {
 // Grain-aware fit check against an arbitrary stock size (used by multi-stock rescue).
 function pieceFits(piece, usableLength, usableWidth) {
   return !!fitPieceToSheet(piece, usableLength, usableWidth);
+}
+
+// Shelf-pack long-sheet-eligible pieces (those that don't fit an 8x4 board) onto
+// the longest stock. Each piece is oriented grain-correctly; rows are stacked
+// top-to-bottom, pieces laid left-to-right within a row. A new sheet is started
+// when a piece no longer fits the current row's width or the sheet's height.
+// Returns a Set of placed piece ids. Pushes created sheets into `sheets`.
+function shelfPackLongSheets(pieces, size, settings, sheets) {
+  const trim = settings.trimMm;
+  const kerf = settings.kerfMm;
+  const usableL = size.lengthMm - trim * 2;
+  const usableW = size.widthMm - trim * 2;
+  const placed = new Set();
+  if (!pieces.length) return placed;
+
+  // Orient each piece grain-correctly and compute its shelf footprint.
+  const items = pieces.map((p) => {
+    let w = p.lengthMm, h = p.widthMm;
+    if (p.grain === 'vertical') { if (w > h) { [w, h] = [h, w]; } } // tall along height
+    else if (p.grain === 'horizontal') { if (h > w) { [w, h] = [h, w]; } } // long along width
+    else { if (h > w) { [w, h] = [h, w]; } } // none: keep landscape (min row height)
+    return { piece: p, w, h };
+  });
+  // Sort by row-height (h) descending so tall shutters claim full-height rows first.
+  items.sort((a, b) => b.h - a.h);
+
+  let sheetNo = sheets.length;
+  let sheet = null;
+  let cursorY = trim, cursorX = trim, rowH = 0;
+  const newSheet = () => {
+    sheetNo += 1;
+    sheet = createSheet(sheetNo, size);
+    sheet.__long = true;
+    sheets.push(sheet);
+    cursorY = trim; cursorX = trim; rowH = 0;
+  };
+  newSheet();
+  for (const it of items) {
+    const packW = it.w + kerf, packH = it.h + kerf;
+    if (packW > usableL + 0.5 || packH > usableW + 0.5) continue; // genuinely too big
+    if (cursorX + packW > trim + usableL + 0.5) { // wrap to next row
+      cursorY += rowH; cursorX = trim; rowH = 0;
+      if (cursorY + packH > trim + usableW + 0.5) { newSheet(); } // new sheet
+    }
+    const px = cursorX, py = cursorY;
+    cursorX += packW; rowH = Math.max(rowH, it.h);
+    sheet.pieces.push({
+      ...it.piece,
+      x: px, y: py, w: it.w, h: it.h,
+      rotated: it.piece.grain !== 'vertical' && it.piece.grain !== 'horizontal' && it.h < it.piece.lengthMm,
+      grainLocked: it.piece.grain === 'vertical' || it.piece.grain === 'horizontal',
+      grainAngle: it.piece.grain === 'vertical' ? 90 : it.piece.grain === 'horizontal' ? 0 : null,
+      fromLongSheet: true
+    });
+    sheet.usedAreaSqM += (it.piece.lengthMm * it.piece.widthMm) / 1_000_000;
+    placed.add(it.piece.id);
+  }
+  return placed;
 }
 
 export function splitOversizePart(partItem, _depth = 0) {
