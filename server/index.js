@@ -37,8 +37,7 @@ import { analyzeSection } from './services/section-analyzer.js';
 import { analyzeRCP } from './services/rcp-analyzer.js';
 import { runCvWallDetect, sanitize } from './services/cv-wall-client.js';
 import { generateElevationDXF } from './services/dxf-generator.js';
-import { buildElevationDXF } from './services/dxf-writer.js';
-import { buildFloorPlanDXF } from './services/dxf-writer.js';
+import { buildElevationDXF, buildFloorPlanDXF, DXF } from './services/dxf-writer.js';
 import { renderElevationPDF, renderCombinedElevationsPDF } from './services/pdf-elevation.js';
 import { getAllDecodedModels, DECODED_UNITS } from './services/render-elevation-decode.js';
 import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
@@ -2461,6 +2460,64 @@ app.get('/api/projects/:id/cutlist', (req, res) => {
   res.json(cutlist || { cutlist_data_json: '[]', optimized_sheets_json: '{}' });
 });
 
+// ---- Cutlist EXPORT: CSV (workshop BOM) & DXF (CNC sheet layout) ----
+// Both derive from the same optimized sheet layout the preview uses, so what the
+// workshop sees matches the on-screen plan.
+function getSheetLayout(projectId) {
+  // The canonical cutlist (same one the /cutlist GET returns) is computed live by
+  // the cutlist engine from the project's modules/parts. Reuse it so exports match
+  // the on-screen plan exactly.
+  const cutlist = cutlistEngine.getCutlistByProject(projectId);
+  if (!cutlist) return null;
+  return cutlist.sheetLayout || cutlist.optimizedSheets || null;
+}
+app.get('/api/projects/:id/cutlist/export', (req, res) => {
+  try {
+    const fmt = (req.query.format || 'csv').toLowerCase();
+    const sl = getSheetLayout(req.params.id);
+    if (!sl) return res.status(404).json({ error: 'No cutlist computed for this project' });
+    if (fmt === 'csv') {
+      const rows = [['Sheet', 'SheetType', 'Piece', 'Material', 'Length_mm', 'Width_mm', 'X_mm', 'Y_mm', 'Grain', 'GrainAngle', 'Rotated']];
+      sl.sheets.forEach((s, si) => {
+        const type = (s.lengthMm > 2440) ? 'LONG' : 'STD';
+        (s.pieces || []).forEach(p => {
+          rows.push([
+            `S${si + 1}`, type, p.name || '', p.material || '',
+            Math.round(p.w), Math.round(p.h), Math.round(p.x), Math.round(p.y),
+            p.grain || 'none', p.grainAngle ?? '', p.rotated ? 'yes' : 'no'
+          ].join(','));
+        });
+      });
+      const CRLF = String.fromCharCode(13, 10);
+      const csv = '﻿' + rows.join(CRLF);
+      res.set('Content-Type', 'text/csv; charset=utf-8');
+      res.set('Content-Disposition', `attachment; filename="cutlist-${req.params.id}.csv"`);
+      return res.send(csv);
+    }
+    if (fmt === 'dxf') {
+      const dxf = new DXF();
+      const maxLen = Math.max(...sl.sheets.map(x => x.lengthMm));
+      sl.sheets.forEach((s, si) => {
+        const ox = si * (maxLen + 500);
+        dxf.rect(ox, 0, s.lengthMm, s.widthMm, 'SHEET_OUTLINE');
+        (s.pieces || []).forEach(p => {
+          dxf.rect(ox + p.x, p.y, p.w, p.h, p.grainLocked ? 'CABINETRY' : 'CUTPIECE');
+          if (p.grainLocked) {
+            const x0 = ox + p.x + p.w / 2, y0 = p.y + p.h / 2;
+            if ((p.grainAngle || 0) === 90) dxf.line(x0, p.y + 20, x0, p.y + p.h - 20, 'GRAIN');
+            else dxf.line(ox + p.x + 20, y0, ox + p.x + p.w - 20, y0, 'GRAIN');
+          }
+        });
+      });
+      const out = dxf.toString();
+      res.set('Content-Type', 'application/dxf');
+      res.set('Content-Disposition', `attachment; filename="cutlist-${req.params.id}.dxf"`);
+      return res.send(out);
+    }
+    return res.status(400).json({ error: 'Unsupported format. Use ?format=csv or ?format=dxf' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ==========================================
 // 7b. CNC ROUTER CUT-PLAN API
 // ==========================================
@@ -3459,19 +3516,23 @@ app.get('/api/projects/:id/budget-profiles', (req, res) => {
 });
 
 app.post('/api/projects/:id/budget-profiles', (req, res) => {
+  try {
   const projectId = req.params.id;
   const { budgetBand, targetBudget, maxBudget, scopeType, priorities, preferences } = req.body;
   const id = 'bp_' + nanoid(6);
-  
+  const target = Number(targetBudget) || 0;
+  const max = Number(maxBudget) || 0;
+
   db.prepare("UPDATE budget_profiles SET is_current = 0 WHERE project_id = ?").run(projectId);
-  
+
   db.prepare(`
     INSERT INTO budget_profiles (id, project_id, budget_band, target_budget, max_budget, scope_type, priorities_json, preferences_json)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, projectId, budgetBand, targetBudget, maxBudget, scopeType, JSON.stringify(priorities || {}), JSON.stringify(preferences || {}));
-  
-  logTimelineEvent(projectId, 'budget.profile.created', 'Budget Profile Saved', `${budgetBand} band, target ₹${targetBudget.toLocaleString()}`);
+  `).run(id, projectId, budgetBand, target, max, scopeType, JSON.stringify(priorities || {}), JSON.stringify(preferences || {}));
+
+  logTimelineEvent(projectId, 'budget.profile.created', 'Budget Profile Saved', `${budgetBand || 'unknown'} band, target ₹${target.toLocaleString('en-IN')}`);
   res.json({ success: true, id });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // ESTIMATES API
@@ -3733,20 +3794,24 @@ app.get('/api/projects/:id/variation-orders', (req, res) => {
 });
 
 app.post('/api/projects/:id/variation-orders', (req, res) => {
+  try {
   const projectId = req.params.id;
   const { reasonCategory, description, costDelta, timelineDeltaDays } = req.body;
   const id = 'vo_' + nanoid(6);
   const code = 'VO-' + Date.now().toString().slice(-6);
-  
+  const cost = Number(costDelta) || 0;
+  const days = Number(timelineDeltaDays) || 0;
+
   db.prepare(`
     INSERT INTO variation_orders (id, project_id, variation_code, status, reason_category, description, cost_delta, timeline_delta_days)
     VALUES (?, ?, ?, 'approved', ?, ?, ?, ?)
-  `).run(id, projectId, code, reasonCategory || 'other', description, costDelta, timelineDeltaDays || 0);
-  
+  `).run(id, projectId, code, reasonCategory || 'other', description || '', cost, days);
+
   db.prepare("UPDATE projects SET stale_pricing = 1 WHERE id = ?").run(projectId);
 
-  logTimelineEvent(projectId, 'variation.approved', `Variation Approved: ${code}`, `${description} (Cost change: ₹${costDelta.toLocaleString()})`);
+  logTimelineEvent(projectId, 'variation.approved', `Variation Approved: ${code}`, `${description || ''} (Cost change: ₹${cost.toLocaleString('en-IN')})`);
   res.json({ success: true, id });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // PURCHASE ORDERS API
