@@ -53,6 +53,7 @@ import { getAllDecodedModels, DECODED_UNITS } from './services/render-elevation-
 import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
 import { buildShoeRackDXF, buildShoeRackPDF, shoeRackModel } from './services/shoe-rack.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
+import { proposeDesignActions } from './services/aura-design-rules.js';
 import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu, analyzeVastuPlan, suggestVastuLayout, applyVastuFull, interpretVastuText } from './services/vastu-auto.js';
 import { applyKitchenTemplate } from './services/kitchen-templates.js';
@@ -4497,6 +4498,23 @@ app.post('/api/aura/chat', express.json(), async (req, res) => {
     if (!String(message).trim()) return res.status(400).json({ success:false, error: 'message is required' });
     const out = await auraOrchestrator.handleChatMessage(message, projectId);
     res.json(out);
+  } catch (err) {
+    res.status(500).json({ success:false, error: err.message });
+  }
+});
+
+// AURA structured-action proposer (orchestrator-first, no trained model).
+// Returns JSON design actions with confidence + reasoning grounded in RULES
+// (kitchen, wardrobe, vastu, lighting, sofa sizing, elevation) + RETRIEVAL
+// (material catalogs, prior corrections, approved designs, product specs).
+// Meets the AURA plan exit criteria:
+//   "resize sofa to 2600 mm for 3800 mm wall" / "move mesh basket below rolling shutter"
+app.post('/api/aura/propose', express.json(), async (req, res) => {
+  try {
+    const { projectId, scene, message = '' } = req.body || {};
+    if (!projectId) return res.status(400).json({ success:false, error: 'projectId required' });
+    const result = proposeDesignActions({ projectId, scene, message });
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success:false, error: err.message });
   }
