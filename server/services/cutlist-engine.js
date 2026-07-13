@@ -1028,16 +1028,17 @@ function classifyCabinetToModuleType(cab, h, d) {
 // the REAL measured elevations, so the standards service yields production-accurate parts.
 export function buildElevationModules(elevationModules, project, laminates) {
   return elevationModules.map((entry) => {
+    const ctx = entry.ctx || {};
     const moduleType = entry.moduleType;
     const depthMm = entry.depthMm || depthForType(moduleType);
     const selectedLaminate = laminateForModule(moduleType, laminates);
-    const sourceId = entry.ctx.photoId || entry.ctx.wallId || 'elevation';
+    const sourceId = ctx.photoId || ctx.wallId || 'elevation';
     return {
       id: `elev_${nanoid(10)}`,
       room: entry.room,
       roomLabel: roomLabels[entry.room] || entry.room,
       moduleType,
-      name: `${entry.name} (from ${entry.ctx.type} elevation)`,
+      name: `${entry.name} (from ${ctx.type} elevation)`,
       widthMm: entry.widthMm,
       heightMm: entry.heightMm,
       depthMm,
@@ -1047,21 +1048,21 @@ export function buildElevationModules(elevationModules, project, laminates) {
       finish: selectedLaminate ? `${selectedLaminate.brand} ${selectedLaminate.collection} - ${selectedLaminate.finish}` : finishFallback(project),
       hardware: hardwareForBudget(project.budgetTier),
       sourceMarkerId: sourceId,
-      placementNote: `Dimensions measured from 2D wall elevation (${entry.ctx.type}${entry.ctx.wallId ? ', wall ' + entry.ctx.wallId : ''}). Verify against site before cutting.`,
+      placementNote: `Dimensions measured from 2D wall elevation (${ctx.type}${ctx.wallId ? ', wall ' + ctx.wallId : ''}). Verify against site before cutting.`,
       furnitureRequirement: '',
       sizeNote: `${entry.widthMm}x${entry.heightMm}x${depthMm}`,
       createdFrom: 'elevation-v1',
       elevationDerived: true,
       elevationSource: {
-        type: entry.ctx.type,
-        wallId: entry.ctx.wallId || null,
-        photoId: entry.ctx.photoId || null,
+        type: ctx.type,
+        wallId: ctx.wallId || null,
+        photoId: ctx.photoId || null,
         cabinetId: entry.cab?.id || null,
         xOffsetMm: entry.cab?.xOffsetMm ?? null,
         zOffsetMm: entry.cab?.zOffsetMm ?? null,
-        wallLengthMm: entry.ctx.wallLengthMm ?? null,
-        wallHeightMm: entry.ctx.wallHeightMm ?? null,
-        confidence: entry.ctx.confidence ?? null,
+        wallLengthMm: ctx.wallLengthMm ?? null,
+        wallHeightMm: ctx.wallHeightMm ?? null,
+        confidence: ctx.confidence ?? null,
         widthMm: entry.widthMm,
         heightMm: entry.heightMm,
         depthMm

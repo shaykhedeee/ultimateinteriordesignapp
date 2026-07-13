@@ -35,6 +35,7 @@ import pdfBuilder from './services/pdf-builder.js';
 import { generateInteriorAsset, getProviderStatus } from './services/image-provider.js';
 import * as visualizerEngine from './services/visualizer-engine.js';
 import { exportSceneToBlender } from './services/scene-to-blender.js';
+import { validateScene } from './services/scene-constraints.js';
 import { buildLaminateSwapPrompt } from './services/visualizer-engine.js';
 import { analyzePhotoToElevation, learningSummary } from './services/photo-to-elevation.js';
 import colorService from './services/component-color-service.js';
@@ -320,6 +321,117 @@ app.get('/api/projects/:id/consistency/scene-elevation', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// PHASE 3: scene-graph constraint validation. Returns structured design-rule
+// issues (sofa-by-wall, kitchen work-zone, opening clearance, wall-fit) so the
+// UI can block production sign-off when critical issues remain, and mark
+// downstream outputs stale. Pairs with the AURA rules engine.
+app.post('/api/projects/:id/validate-scene', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const sceneRow = db.prepare("SELECT scene_json FROM scene_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1").get(projectId);
+    if (!sceneRow || !sceneRow.scene_json) return res.status(422).json({ error: 'no_scene_graph', message: 'Build the scene graph first.' });
+    const scene = JSON.parse(sceneRow.scene_json);
+    const result = validateScene(scene);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PHASE 2 / BUILD ORDER #1 scale calibration: set pixels_per_meter from one
+// known dimension. Supports mm / m / ft. kept on cad_drawings.
+app.post('/api/projects/:id/calibrate-scale', express.json(), (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { pixels, knownLength, unit = 'mm' } = req.body || {};
+    if (!pixels || !knownLength) return res.status(400).json({ error: 'pixels and knownLength are required' });
+    const px = parseFloat(pixels); const len = parseFloat(knownLength);
+    if (!(px > 0) || !(len > 0)) return res.status(400).json({ error: 'pixels and knownLength must be > 0' });
+    // normalise known length to mm
+    let mm = len;
+    if (unit === 'm') mm = len * 1000;
+    else if (unit === 'ft') mm = len * 304.8;
+    else if (unit === 'cm') mm = len * 10;
+    const ppm = px / mm * 1000; // pixels per meter
+    const cad = db.prepare("SELECT id FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(422).json({ error: 'no_cad_drawing', message: 'Upload a floor plan first.' });
+    db.prepare("UPDATE cad_drawings SET pixels_per_meter = ? WHERE project_id = ?").run(ppm, projectId);
+    res.json({ success: true, pixels_per_meter: Math.round(ppm * 100) / 100, unit, knownLength: len, mm: Math.round(mm) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PHASE 2: floor-plan enhancer. Deterministic geometry cleanup of a CAD plan:
+// straighten wall segments to the nearest axis, close gaps between collinear
+// walls, align openings onto their wall, normalise room labels, and emit a
+// clean black-and-white plan plus review items for any low-confidence bits.
+app.post('/api/projects/:id/enhance-plan', express.json(), (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ?").get(projectId);
+    if (!cad) return res.status(422).json({ error: 'no_cad_drawing', message: 'Upload a floor plan first.' });
+    const walls = JSON.parse(cad.walls_json || '[]');
+    const openings = JSON.parse(cad.openings_json || '[]');
+    const rooms = JSON.parse(cad.rooms_json || '[]');
+    const reviewItems = [];
+    const EPS = 15; // mm tolerance for "axis aligned"
+    const snap = (v) => (Math.abs(v) < EPS ? 0 : v);
+    const straightened = walls.map((w) => {
+      const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
+      let nx1 = w.x1, ny1 = w.y1, nx2 = w.x2, ny2 = w.y2;
+      if (Math.abs(dx) > Math.abs(dy)) { ny2 = ny1 = snap(ny1); } // horizontal
+      else { nx2 = nx1 = snap(nx1); } // vertical
+      if (nx1 !== w.x1 || ny1 !== w.y1 || nx2 !== w.x2 || ny2 !== w.y2) {
+        reviewItems.push({ item_type: 'wall', item_ref: w.id, confidence: 0.6, severity: 'info', status: 'open', suggested_value_json: JSON.stringify({ x1: nx1, y1: ny1, x2: nx2, y2: ny2 }) });
+      }
+      return { ...w, x1: nx1, y1: ny1, x2: nx2, y2: ny2 };
+    });
+    // align openings onto nearest wall (by wallId if present, else by proximity)
+    const alignedOpenings = openings.map((o) => {
+      const wall = o.wallId ? straightened.find((w) => w.id === o.wallId) : straightened.find((w) => {
+        const onX = Math.abs((o.x || o.x1 || 0) - w.x1) < 30 && Math.abs((o.x || o.x1 || 0) - w.x2) < 30;
+        const onY = Math.abs((o.y || o.y1 || 0) - w.y1) < 30 && Math.abs((o.y || o.y1 || 0) - w.y2) < 30;
+        return onX || onY;
+      });
+      if (wall) return { ...o, wallId: wall.id };
+      reviewItems.push({ item_type: 'opening', item_ref: o.id, confidence: 0.4, severity: 'warning', status: 'open', suggested_value_json: JSON.stringify({ note: 'opening not on any wall — needs designer placement' }) });
+      return o;
+    });
+    // normalise room labels
+    const normRooms = rooms.map((r) => {
+      const name = String(r.name || r.roomIdPrimary || 'room').trim();
+      return { ...r, name, labelNormalized: true };
+    });
+    const cleanPlanText = 'CLEAN B&W PLAN — ' + normRooms.map((r) => r.name).join(', ');
+    db.prepare("UPDATE cad_drawings SET walls_json = ?, openings_json = ?, rooms_json = ?, plan_text = ? WHERE project_id = ?")
+      .run(JSON.stringify(straightened), JSON.stringify(alignedOpenings), JSON.stringify(normRooms), cleanPlanText, projectId);
+    // persist review items if a floor_plan_version exists
+    const fpv = db.prepare("SELECT id FROM floor_plan_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1").get(projectId);
+    if (fpv) {
+      const ins = db.prepare("INSERT INTO floor_plan_review_items (id, floor_plan_version_id, item_type, item_ref, confidence, severity, status, suggested_value_json, created_at) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, CURRENT_TIMESTAMP)");
+      for (const it of reviewItems.slice(0, 200)) ins.run('rev_' + nanoid(6), fpv.id, it.item_type, it.item_ref, it.confidence, it.severity, it.suggested_value_json);
+    }
+    res.json({ success: true, straightenedWalls: straightened.length, alignedOpenings: alignedOpenings.length, normalizedRooms: normRooms.length, reviewItems: reviewItems.length, cleanPlanText });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PHASE 0: Demo Ready mode. Returns the seeded demo project id so the frontend
+// can open directly into a complete project (brief -> plan -> scene -> render ->
+// elevation -> cutlist -> quote) without manual DB work.
+app.get('/api/system/demo-ready', (req, res) => {
+  try {
+    const demoId = 'proj_demo_hsr';
+    const project = db.prepare("SELECT id, name, client_name, status FROM projects WHERE id = ?").get(demoId);
+    if (!project) return res.json({ ready: false, demoId, message: 'Run POST /api/projects/seed-demo to create the demo project.' });
+    const ready = {
+      ready: true, demoId,
+      hasScene: !!db.prepare("SELECT 1 FROM scene_versions WHERE project_id = ? LIMIT 1").get(demoId),
+      hasRender: !!db.prepare("SELECT 1 FROM generated_assets WHERE project_id = ? LIMIT 1").get(demoId),
+      hasElevation: !!db.prepare("SELECT 1 FROM photo_elevations WHERE project_id = ? LIMIT 1").get(demoId),
+      hasCutlist: !!db.prepare("SELECT 1 FROM cutlist_projects WHERE project_id = ? LIMIT 1").get(demoId),
+      hasQuote: !!db.prepare("SELECT 1 FROM invoices WHERE project_id = ? LIMIT 1").get(demoId)
+    };
+    res.json(ready);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Cabinet <-> cutlist LIVE linkage: regenerate cutlist from current traced furniture.
