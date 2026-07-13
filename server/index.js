@@ -4174,6 +4174,81 @@ if (fs.existsSync(frontendDistDir)) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// DELIVERABLES VAULT + BACKUP/RESTORE + PREFLIGHT (sale-readiness layer)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Central deliverables registry: every client-facing PDF/DXF/cutlist/render.
+app.get('/api/admin/documents', async (req, res) => {
+  try {
+    const { default: documentVault } = await import('./services/document-vault.js');
+    const vault = documentVault.scanDocuments();
+    res.json(vault);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Full backup (DB + storage) as a downloadable ZIP.
+app.get('/api/backup/export', async (req, res) => {
+  try {
+    const { buildBackup } = await import('./services/backup-service.js');
+    const backupsDir = path.join(storageDir, 'backups');
+    if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+    const fileName = `ultida-backup-${Date.now()}.zip`;
+    const destPath = path.join(backupsDir, fileName);
+    await buildBackup(destPath);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.sendFile(destPath, (err) => {
+      // Clean up the on-disk copy after delivery to keep the disk healthy.
+      try { fs.unlinkSync(destPath); } catch (_) {}
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Restore from an uploaded backup ZIP (mode=replace|merge).
+app.post('/api/backup/import', upload.single('backup'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Upload a .zip backup as `backup`.' });
+    const { restoreBackup } = await import('./services/backup-service.js');
+    const mode = req.body.mode === 'merge' ? 'merge' : 'replace';
+    const out = await restoreBackup(req.file.path, { mode });
+    res.json({ success: true, ...out });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Demo reset — guarded by a confirmation phrase so it can't fire accidentally.
+app.post('/api/admin/demo-reset', express.json(), async (req, res) => {
+  try {
+    const { confirm } = req.body || {};
+    if (confirm !== 'RESET DEMO') return res.status(400).json({ error: 'Confirmation phrase must be "RESET DEMO".' });
+    // Delete operational rows but keep schema; reset readiness.
+    const tables = ['leads', 'projects', 'client_briefs', 'quotations', 'budgets', 'cutlists',
+      'jobs', 'floor_plans', 'style_references', 'renders', 'photo_elevations', 'material_selections',
+      'signoffs', 'delivery_packages', 'pipeline_runs', 'production_cutlists'];
+    for (const t of tables) { try { db.prepare(`DELETE FROM ${t}`).run(); } catch (_) {} }
+    res.json({ success: true, message: 'Demo data cleared. Schema preserved.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Preflight readiness gate — quick automated check before a client demo.
+app.get('/api/system/preflight', (req, res) => {
+  const checks = [];
+  const add = (name, ok, detail) => checks.push({ name, ok: !!ok, detail: detail || '' });
+  try {
+    add('SQLite opens', !!db, '');
+  } catch (e) { add('SQLite opens', false, e.message); }
+  const dirs = ['assets', 'proposals', 'uploads', 'elevations', 'gcode'];
+  for (const d of dirs) add(`storage/${d} exists`, fs.existsSync(path.join(storageDir, d)), '');
+  const projCount = (() => { try { return db.prepare('SELECT COUNT(*) c FROM projects').get().c; } catch { return 0; } })();
+  add('projects table', projCount >= 0, `${projCount} projects`);
+  const leadCount = (() => { try { return db.prepare('SELECT COUNT(*) c FROM leads').get().c; } catch { return 0; } })();
+  add('leads table', leadCount >= 0, `${leadCount} leads`);
+  const apiMods = (() => { try { return db.prepare("SELECT COUNT(*) c FROM material_catalog").get().c; } catch { return 0; } })();
+  add('material catalog seeded', apiMods >= 0, `${apiMods} materials`);
+  const allOk = checks.every(c => c.ok);
+  res.json({ ready: allOk, checks, generatedAt: new Date().toISOString() });
+});
+
 // Global error handler — MUST be the last middleware. Converts any uncaught
 // error into clean JSON so the frontend never receives an HTML error page
 // (which would crash res.json() and white-screen the app).

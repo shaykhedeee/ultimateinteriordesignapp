@@ -4,7 +4,8 @@ import {
   BarChart3, CheckSquare, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, Zap,
   CheckCircle2, Clock, Layers, IndianRupee,
-  TrendingUp, ArrowRight, Bell, Award, Paintbrush, Wand2
+  TrendingUp, ArrowRight, Bell, Award, Paintbrush, Wand2,
+  Archive, Database, Download, Upload, RefreshCw, ShieldCheck
 } from 'lucide-react';
 
 // Import Screens
@@ -28,6 +29,8 @@ const DesignStudioScreen       = lazy(() => import('./screens/DesignStudioScreen
 const VastuStudioScreen        = lazy(() => import('./screens/VastuStudioScreen.jsx'));
 import PresentationStudio       from './screens/PresentationStudio.jsx';
 import PipelineStudio            from './screens/PipelineStudio.jsx';
+import DeliverablesVault         from './screens/DeliverablesVault.jsx';
+import MaintenanceScreen         from './screens/MaintenanceScreen.jsx';
 import CommandCenterScreen       from './screens/CommandCenterScreen.jsx';
 const WhiteLabelStudio          = lazy(() => import('./screens/WhiteLabelStudio.jsx'));
 const LandingPage               = lazy(() => import('./components/landing/LandingPage.jsx'));
@@ -104,7 +107,14 @@ const NAV_CONFIG = [
     items: [
       { id: 'presentation',  label: 'Presentation Pack',   icon: Award,        shortcut: null },
       { id: 'pipeline',      label: 'Pipeline Studio',     icon: Sparkles,     shortcut: null },
+      { id: 'vault',         label: 'Deliverables Vault',  icon: Archive,      shortcut: null },
       { id: 'brand',         label: 'Brand Studio',        icon: Paintbrush,   shortcut: null }
+    ]
+  },
+  {
+    title: 'Studio Ops',
+    items: [
+      { id: 'maintenance',   label: 'Backup & Restore',    icon: Database,     shortcut: null }
     ]
   }
 ];
@@ -172,7 +182,9 @@ const TAB_META = {
   timeline:      { title: 'Project Timeline',    sub: 'Activity log, milestone events & audit trail' },
   jobs:          { title: 'Background Jobs',     sub: 'Rendering pipeline monitor & async job queue' },
   presentation:  { title: 'Presentation Pack',   sub: 'Client-ready delivery package and narrative' },
-  pipeline:      { title: 'Pipeline Studio',     sub: 'End-to-end sequential generation per your required flow' }
+  pipeline:      { title: 'Pipeline Studio',     sub: 'End-to-end sequential generation per your required flow' },
+  vault:         { title: 'Deliverables Vault',  sub: 'Every brief, cutlist, DXF and render — reopen, audit, download' },
+  maintenance:   { title: 'Backup & Restore',    sub: 'Full studio backup, restore, preflight and demo reset' }
 };
 
 // ── Status color map ──
@@ -471,6 +483,8 @@ export function App() {
       case 'presentation':  return <PresentationStudio projectId={selectedProjectId} />;
       case 'pipeline':      return <PipelineStudio projectId={selectedProjectId} />;
       case 'brand':         return <WhiteLabelStudio onBack={() => setActiveTab('dashboard')} />;
+      case 'vault':         return <DeliverablesVault />;
+      case 'maintenance':   return <MaintenanceScreen />;
       default:              return <ClientBoard onProjectCreated={handleProjectClosed} />;
     }
   };

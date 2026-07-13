@@ -17,6 +17,7 @@ import {
   calculateLCornerBase 
 } from './cabinet-math.js';
 import { nestPanels } from './nest-optimizer.js';
+import { runOffcutPass } from './offcut-optimizer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -347,7 +348,7 @@ export function buildSheetLayout(cutlistOrParts, moduleInput = []) {
 
   pieces.sort((a, b) => (b.lengthMm * b.widthMm) - (a.lengthMm * a.widthMm));
   const sheets = [];
-  const unplaced = [];
+  let unplaced = [];
 
   for (const piece of pieces) {
     const fit = fitPieceToSheet(piece, usableLength, usableWidth);
@@ -373,13 +374,37 @@ export function buildSheetLayout(cutlistOrParts, moduleInput = []) {
   }
 
   if (!sheets.length) sheets.push(createSheet(1));
+
+  // Offcut / scrap-bin reuse pass: rescue unplaced pieces into leftover free
+  // rectangles across all sheets (grain-aware), exactly like MaxCut/CutList Plus.
+  // Runs BEFORE finalizeSheet deletes freeRects.
+  let offcut = { reused: [], scrapAreaSqM: 0 };
+  if (unplaced.length) {
+    offcut = runOffcutPass(sheets, unplaced, DEFAULT_SETTINGS);
+    unplaced = offcut.unplaced;
+  }
+
   sheets.forEach((item) => finalizeSheet(item, sheetAreaSqM));
+
+  // Global true-waste: total board area vs used area, crediting offcut reuse so
+  // reused pieces don't count as new-sheet waste.
+  const totalSheetAreaSqM = Number((sheets.length * sheetAreaSqM).toFixed(2));
+  const usedAreaSqM = Number(sheets.reduce((s, sh) => s + sh.usedAreaSqM, 0).toFixed(2));
+  const globalWastePercent = totalSheetAreaSqM > 0
+    ? Number(Math.max(0, 100 - (usedAreaSqM / totalSheetAreaSqM) * 100).toFixed(1))
+    : 0;
 
   return {
     settings: DEFAULT_SETTINGS,
     sheets,
     unplaced,
-    note: 'Sheet layout is a workshop planning preview. Final nesting, grain alignment, and CNC files require production verification.'
+    offcutReuse: {
+      reusedCount: offcut.reused.length,
+      reusedPieces: offcut.reused.map((p) => ({ partCode: p.partCode, name: p.name, sheetNo: p.sheetNo, fromOffcut: true })),
+      scrapAreaSqM: offcut.scrapAreaSqM
+    },
+    globalWastePercent,
+    note: 'Sheet layout is a workshop planning preview. Final nesting, grain alignment, and CNC files require production verification. Offcut/scrap-bin reuse is applied automatically.'
   };
 }
 
