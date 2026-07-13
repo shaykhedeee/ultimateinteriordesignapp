@@ -49,6 +49,12 @@ const roomLabels = (room) => {
 
 const DEFAULT_SETTINGS = {
   sheet: { lengthMm: 2440, widthMm: 1220, label: '8x4 ft sheet' },
+  // Multi-stock: shops also stock longer/wider boards for overlong panels
+  // (3m back panels, 2.1m vertical-grain shutters) that a single 8x4 can't hold.
+  stockSizes: [
+    { lengthMm: 2440, widthMm: 1220, label: '8x4 ft sheet' },
+    { lengthMm: 3050, widthMm: 2100, label: '10x7 ft long sheet' }
+  ],
   kerfMm: 3,
   trimMm: 10,
   boardThicknessMm: 18,
@@ -382,6 +388,70 @@ export function buildSheetLayout(cutlistOrParts, moduleInput = []) {
   if (unplaced.length) {
     offcut = runOffcutPass(sheets, unplaced, DEFAULT_SETTINGS);
     unplaced = offcut.unplaced;
+  }
+
+  // Strong-optimizer rescue: any pieces still unplaced after the primary pack +
+  // offcut pass are re-packed with the advanced MaxRects/guillotine engine
+  // (nest-optimizer.js) on fresh sheets. This dramatically cuts the unplaced
+  // count vs the simpler in-file MaxRects used for the primary preview.
+  if (unplaced.length) {
+    let sheetNo = sheets.length;
+    const nestInput = unplaced.map((p) => ({
+      partId: p.id,
+      rawWidth: p.lengthMm,
+      rawHeight: p.widthMm,
+      grain: p.grain === 'length' ? 'vertical' : p.grain === 'width' ? 'horizontal' : 'none',
+      material: p.material || 'default'
+    }));
+    const nestOptions = {
+      bladeKerf: DEFAULT_SETTINGS.kerfMm,
+      trimMargin: DEFAULT_SETTINGS.trimMm,
+      mode: 'cnc'
+    };
+    const nest = nestPanels(nestInput, nestOptions);
+    for (const ns of nest.nestedSheets || []) {
+      const sheet = createSheet(++sheetNo);
+      for (const placed of ns.placedParts || []) {
+        const orig = unplaced.find((u) => u.id === placed.partId) || {};
+        sheet.pieces.push({
+          ...orig,
+          x: placed.x,
+          y: placed.y,
+          w: placed.w,
+          h: placed.h,
+          rotated: placed.rotated,
+          fromNestOptimizer: true
+        });
+        sheet.usedAreaSqM += (orig.lengthMm * orig.widthMm) / 1_000_000;
+      }
+      finalizeSheet(sheet, sheetAreaSqM);
+      sheets.push(sheet);
+    }
+    const nestPlacedIds = new Set((nest.nestedSheets || []).flatMap((s) => (s.placedParts || []).map((p) => p.partId)));
+    unplaced = unplaced.filter((u) => !nestPlacedIds.has(u.id));
+  }
+
+  if (unplaced.length) {
+    let sheetNo = sheets.length;
+    // Place largest pieces first so they claim the long sheet before it
+    // fragments into strips too short for 3m rails / 2m shutters.
+    const rescueOrder = [...unplaced].sort((a, b) => Math.max(b.lengthMm, b.widthMm) - Math.max(a.lengthMm, a.widthMm));
+    for (const piece of rescueOrder) {
+      // Try the smallest stock size that can hold this piece (grain-aware).
+      let placed = false;
+      for (const size of DEFAULT_SETTINGS.stockSizes) {
+        const usableL = size.lengthMm - DEFAULT_SETTINGS.trimMm * 2;
+        const usableW = size.widthMm - DEFAULT_SETTINGS.trimMm * 2;
+        if (!pieceFits(piece, usableL, usableW)) continue;
+        // find or create a sheet of this size
+        let sheet = sheets.find((s) => s.lengthMm === size.lengthMm && s.widthMm === size.widthMm && s.freeRects);
+        if (!sheet) { sheet = createSheet(++sheetNo, size); sheets.push(sheet); }
+        if (placePieceMaxRects(sheet, piece)) { placed = true; break; }
+      }
+      if (placed) continue;
+      // leave in unplaced (genuinely unplaceable even on the largest stock)
+    }
+    unplaced = unplaced.filter((u) => !sheets.some((s) => s.pieces.some((p) => p.partCode === u.partCode && p.id === u.id)));
   }
 
   sheets.forEach((item) => finalizeSheet(item, sheetAreaSqM));
@@ -1110,27 +1180,28 @@ export function generatePartsForModule(module, moduleIndex) {
   return precisionPartsForModule(module, moduleIndex, DEFAULT_SETTINGS);
 }
 
-function createSheet(sheetNo) {
+function createSheet(sheetNo, size = DEFAULT_SETTINGS.sheet) {
   return {
     sheetNo,
-    label: `${DEFAULT_SETTINGS.sheet.label} - Sheet ${sheetNo}`,
-    lengthMm: DEFAULT_SETTINGS.sheet.lengthMm,
-    widthMm: DEFAULT_SETTINGS.sheet.widthMm,
+    label: `${size.label} - Sheet ${sheetNo}`,
+    lengthMm: size.lengthMm,
+    widthMm: size.widthMm,
     usedAreaSqM: 0,
     wastePercent: 100,
     pieces: [],
     freeRects: [{
       x: DEFAULT_SETTINGS.trimMm,
       y: DEFAULT_SETTINGS.trimMm,
-      w: DEFAULT_SETTINGS.sheet.lengthMm - DEFAULT_SETTINGS.trimMm * 2,
-      h: DEFAULT_SETTINGS.sheet.widthMm - DEFAULT_SETTINGS.trimMm * 2
+      w: size.lengthMm - DEFAULT_SETTINGS.trimMm * 2,
+      h: size.widthMm - DEFAULT_SETTINGS.trimMm * 2
     }]
   };
 }
 
 function finalizeSheet(sheet, sheetAreaSqM) {
   sheet.usedAreaSqM = Number(sheet.usedAreaSqM.toFixed(2));
-  sheet.wastePercent = Number(Math.max(0, 100 - (sheet.usedAreaSqM / sheetAreaSqM) * 100).toFixed(1));
+  const area = (sheet.lengthMm * sheet.widthMm) / 1_000_000;
+  sheet.wastePercent = Number(Math.max(0, 100 - (sheet.usedAreaSqM / area) * 100).toFixed(1));
   delete sheet.freeRects;
 }
 
@@ -1213,6 +1284,11 @@ function fitPieceToSheet(piece, usableLength, usableWidth) {
     }
   }
   return null;
+}
+
+// Grain-aware fit check against an arbitrary stock size (used by multi-stock rescue).
+function pieceFits(piece, usableLength, usableWidth) {
+  return !!fitPieceToSheet(piece, usableLength, usableWidth);
 }
 
 export function splitOversizePart(partItem, _depth = 0) {

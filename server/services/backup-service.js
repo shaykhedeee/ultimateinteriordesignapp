@@ -19,15 +19,13 @@ export function buildBackup(destPath) {
   const AdmZip = (require('adm-zip'));
   const zip = new AdmZip();
 
-  // DB files (db + -wal + -shm if present)
-  for (const suffix of ['', '-wal', '-shm']) {
-    const p = dbPath + suffix;
-    if (fs.existsSync(p)) zip.addLocalFile(p, 'database', 'ultimate_interior.db' + suffix);
-  }
+  // DB files (only the .db — WAL is transient and syncs on checkpoint)
+  if (fs.existsSync(dbPath)) zip.addLocalFile(dbPath, 'database', 'ultimate_interior.db');
 
-  // Storage tree (skip backups dir + pid/log metadata)
+  // Storage tree (skip backups dir + pid/log metadata + the live db files,
+  // which are already captured under /database)
   if (fs.existsSync(storageDir)) {
-    const skip = (name) => name === 'backups' || name.endsWith('.pid') || name.endsWith('.log');
+    const skip = (name) => name === 'backups' || name.endsWith('.pid') || name.endsWith('.log') || name === 'ultimate_interior.db' || name.endsWith('-wal') || name.endsWith('-shm');
     const walk = (dir, rel) => {
       for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
         if (skip(ent.name)) continue;
@@ -51,13 +49,14 @@ export function restoreBackup(zipPath, { mode = 'replace' } = {}) {
   const zip = new AdmZip(zipPath);
   const tmp = path.join(storageDir, '..', '_restore_tmp_' + Date.now());
   zip.extractAllTo(tmp, true);
-  // DB
+  // DB: write to a PENDING file (ultimate_interior.db.new). The live server
+  // holds the .db open (WAL lock) so we can't overwrite it directly on Windows.
+  // On next server restart, database.js promotes .new -> .db automatically.
   const srcDb = path.join(tmp, 'database', 'ultimate_interior.db');
+  let dbPending = false;
   if (fs.existsSync(srcDb)) {
-    for (const suffix of ['', '-wal', '-shm']) {
-      const s = srcDb + suffix;
-      if (fs.existsSync(s)) fs.copyFileSync(s, dbPath + suffix);
-    }
+    fs.copyFileSync(srcDb, dbPath + '.new');
+    dbPending = true;
   }
   // Storage
   const srcStorage = path.join(tmp, 'storage');
@@ -65,20 +64,21 @@ export function restoreBackup(zipPath, { mode = 'replace' } = {}) {
     for (const ent of fs.readdirSync(srcStorage, { withFileTypes: true })) {
       const from = path.join(srcStorage, ent.name);
       const to = path.join(storageDir, ent.name);
-      if (mode === 'replace') {
+      if (mode === 'replace' || ent.name === 'database' || ent.name === 'proposals' || ent.name === 'uploads') {
+        // Explicitly skip SQLite WAL journal files on Windows
+        if (ent.name.endsWith('-wal') || ent.name.endsWith('-shm')) { continue; }
         fs.cpSync(from, to, { recursive: true, force: true });
       } else {
-        if (ent.isDirectory()) {
+        // merge: only copy non-existing dirs, skip existing files
+        if (ent.isDirectory() && !fs.existsSync(to)) {
           fs.cpSync(from, to, { recursive: true, force: false });
-        } else if (!fs.existsSync(to)) {
-          fs.copyFileSync(from, to);
         }
       }
     }
   }
   fs.rmSync(tmp, { recursive: true, force: true });
   try { db.pragma('wal_checkpoint(TRUNCATE)'); } catch (_) {}
-  return { ok: true, mode };
+  return { ok: true, mode, dbPending, note: dbPending ? 'Storage restored. Database will be swapped on next server restart (ultimate_interior.db.new promoted automatically).' : 'Storage restored.' };
 }
 
 export default { buildBackup, restoreBackup };

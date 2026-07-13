@@ -12,6 +12,30 @@ if (!fs.existsSync(dbDir)) {
 }
 
 const dbPath = path.join(dbDir, 'ultimate_interior.db');
+
+// Swap-on-boot: a restore wrote a pending DB to ultimate_interior.db.new while
+// the server was live (Windows locks the open .db, so it can't be overwritten
+// directly). Promote it now, before any connection is established.
+const pendingDb = dbPath + '.new';
+if (fs.existsSync(pendingDb)) {
+  try {
+    // Remove any WAL siblings of the pending file, then drop the live db
+    // (Windows renameSync cannot overwrite an existing target -> rm first).
+    for (const s of ['-wal', '-shm']) {
+      try { fs.rmSync(pendingDb + s, { force: true }); } catch (_) {}
+    }
+    for (const s of ['', '-wal', '-shm']) {
+      try { fs.rmSync(dbPath + s, { force: true }); } catch (_) {}
+    }
+    // copyFile is more reliable than rename on Windows when replacing a file.
+    fs.copyFileSync(pendingDb, dbPath);
+    try { fs.rmSync(pendingDb, { force: true }); } catch (_) {}
+    console.log('[db] promoted pending restore database -> ultimate_interior.db');
+  } catch (e) {
+    console.error('[db] pending restore promotion failed:', e.message);
+  }
+}
+
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
