@@ -105,6 +105,16 @@ const dxfUpload = multer({
 
 const app = express();
 const port = Number(process.env.PORT) || 5055;
+const host = process.env.HOST || '127.0.0.1';
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    app: 'ultimate-interior-design-application',
+    frontendBuilt: fs.existsSync(frontendDistDir),
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Dimension Validation Pipeline (Horizon-2 competitor feature)
 import dimensionValidator from './services/dimension-validator.js';
@@ -4792,6 +4802,53 @@ function loadBrochures() {
 
 // Design reference library (indian-interiors images + floor plans) for the
 // in-app Inspiration / teaching view. Served from frontend/public/reference-library.
+// Map a filename/room token to a canonical room bucket for the Reference Library.
+function classifyRoomFromName(name = '') {
+  const n = name.toLowerCase();
+  const map = [
+    ['wardrobe', 'wardrobes'], ['almirah', 'wardrobes'],
+    ['kitchen', 'kitchens'], ['modular kitchen', 'kitchens'],
+    ['bedroom', 'bedrooms'], ['master', 'bedrooms'], ['kids', 'bedrooms'],
+    ['living', 'living-rooms'], ['hall', 'living-rooms'], ['lounge', 'living-rooms'],
+    ['tv', 'tv-units'], ['entertainment', 'tv-units'],
+    ['pooja', 'pooja-units'], ['temple', 'pooja-units'],
+    ['dining', 'dining-areas'],
+    ['study', 'study-home-office'], ['office', 'study-home-office'], ['home-office', 'study-home-office'],
+    ['balcony', 'balcony'], ['foyer', 'foyer'], ['entrance', 'foyer'],
+    ['bath', 'bathrooms'], ['vanity', 'bathrooms'],
+    ['shoe', 'foyer'], ['jali', 'kitchens']
+  ];
+  for (const [token, bucket] of map) if (n.includes(token)) return bucket;
+  return 'other';
+}
+
+// Infer the pipeline stage a generated asset belongs to, from its path/filename.
+function classifyStageFromName(name = '') {
+  const n = name.toLowerCase();
+  if (n.includes('elevation')) return 'Elevations';
+  if (n.includes('floorplan') || n.includes('floor-plan') || n.includes('plan')) return 'Floor Plans';
+  if (n.includes('cutlist') || n.includes('nest')) return 'Cutlist';
+  if (n.includes('swap') || n.includes('laminate') || n.includes('material')) return 'Material Swaps';
+  if (n.includes('sketchup') || n.includes('cad') || n.includes('dxf')) return 'CAD';
+  return '3D Renders';
+}
+
+// Recursively collect image files from a directory (covers both flat files and
+// nested subfolders so every generated render is surfaced, not just top-level).
+function collectImageFiles(dir, urlPrefix) {
+  const out = [];
+  if (!fs.existsSync(dir)) return out;
+  const walk = (current, rel) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(full, path.join(rel, entry.name));
+      else if (/\.(jpg|jpeg|png|webp|svg)$/i.test(entry.name)) out.push(path.join(urlPrefix, rel, entry.name).split(path.sep).join('/'));
+    }
+  };
+  walk(dir, '');
+  return out;
+}
+
 function loadDesignLibrary() {
   const base = path.join(__seedDir, '..', 'frontend', 'public', 'reference-library');
   const groups = {
@@ -4808,18 +4865,53 @@ function loadDesignLibrary() {
     out.push({ category: folder, label, count: files.length, images: files.map(f => `/reference-library/${folder}/${f}`) });
   }
 
-  // Include dynamically generated renders/assets from storage/assets
-  const assetsDir = path.join(__seedDir, '..', 'storage', 'assets');
-  if (fs.existsSync(assetsDir)) {
-    const assetFiles = fs.readdirSync(assetsDir).filter(f => /\.(jpg|jpeg|png|webp|svg)$/i.test(f));
-    if (assetFiles.length > 0) {
-      out.push({
-        category: 'app-generated',
-        label: 'App Generated Renders',
-        count: assetFiles.length,
-        images: assetFiles.map(f => `/storage/assets/${f}`)
-      });
+  // ── App-generated assets: pull EVERY render from storage/assets, storage/elevations
+  // and storage/uploads (both flat files and nested subfolders) so the library is a
+  // complete, flow-connected hub of everything the pipeline produced. ──
+  const appRoot = path.join(__seedDir, '..', 'storage');
+  const assetSources = [
+    { dir: path.join(appRoot, 'assets'), prefix: '/storage/assets' },
+    { dir: path.join(appRoot, 'elevations'), prefix: '/storage/elevations' },
+    { dir: path.join(appRoot, 'uploads'), prefix: '/storage/uploads' }
+  ];
+
+  // Group by room so 900+ renders are navigable instead of one giant bucket.
+  const byRoom = {};
+  let totalGenerated = 0;
+  for (const src of assetSources) {
+    const files = collectImageFiles(src.dir, src.prefix);
+    for (const url of files) {
+      totalGenerated += 1;
+      const fileName = url.split('/').pop();
+      const room = classifyRoomFromName(fileName);
+      const stage = classifyStageFromName(fileName);
+      if (!byRoom[room]) byRoom[room] = { count: 0, images: [], stages: new Set() };
+      byRoom[room].count += 1;
+      byRoom[room].images.push(url);
+      byRoom[room].stages.add(stage);
     }
+  }
+
+  const roomLabels = {
+    wardrobes: 'Generated · Wardrobes', kitchens: 'Generated · Kitchens', bedrooms: 'Generated · Bedrooms',
+    'living-rooms': 'Generated · Living Rooms', 'tv-units': 'Generated · TV Units', 'pooja-units': 'Generated · Pooja Units',
+    'dining-areas': 'Generated · Dining Areas', 'study-home-office': 'Generated · Study / Office',
+    balcony: 'Generated · Balcony', foyer: 'Generated · Foyer', bathrooms: 'Generated · Bathrooms', other: 'Generated · Other Spaces'
+  };
+  for (const [room, data] of Object.entries(byRoom)) {
+    out.push({
+      category: `gen-${room}`,
+      label: roomLabels[room] || `Generated · ${room}`,
+      count: data.count,
+      stages: [...data.stages],
+      images: data.images
+    });
+  }
+
+  // Convenience: a flat "All Generated Renders" bucket for quick browsing.
+  if (totalGenerated > 0) {
+    const allImages = out.filter(c => c.category.startsWith('gen-')).flatMap(c => c.images);
+    out.unshift({ category: 'app-generated', label: `All Generated Renders (${totalGenerated})`, count: totalGenerated, images: allImages });
   }
 
   return out;
@@ -4829,11 +4921,11 @@ app.get('/api/catalogue/brochures', (req, res) => res.json(loadBrochures()));
 app.get('/api/design-library', (req, res) => res.json(loadDesignLibrary()));
 
 // Seed DB and start Express
-app.listen(port, () => {
+app.listen(port, host, () => {
   seedMaterialCatalogIfEmpty();
-  console.log(`Ultimate Interior Design API running at http://127.0.0.1:${port}`);
+  console.log(`Ultimate Interior Design API running at http://${host}:${port}`);
   if (fs.existsSync(frontendDistDir)) {
-    console.log(`Ultimate Interior Design app running at http://127.0.0.1:${port}`);
+    console.log(`Ultimate Interior Design app running at http://${host}:${port}`);
   } else {
     console.log('Frontend build not found. Run npm run build or use npm run dev for Vite.');
   }

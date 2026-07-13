@@ -13,7 +13,7 @@ export default function DesignLibraryScreen({ onUseInspiration }) {
   const [lightbox, setLightbox] = useState(null);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:5055/api/design-library')
+    fetch('/api/design-library')
       .then(r => r.ok ? r.json() : [])
       .then(d => { setLibrary(d); setLoading(false); })
       .catch(() => setLoading(false));
@@ -93,6 +93,13 @@ export default function DesignLibraryScreen({ onUseInspiration }) {
               <LayoutGrid className="w-4 h-4 text-slate-400" />
               <h2 className="text-sm font-bold text-slate-100">{group.label}</h2>
               <span className="text-[10px] text-slate-500">{group.count} references</span>
+              {group.stages && group.stages.length > 0 && (
+                <span className="flex flex-wrap gap-1">
+                  {group.stages.map(s => (
+                    <span key={s} className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">{s}</span>
+                  ))}
+                </span>
+              )}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {group.images.map((img, i) => (
