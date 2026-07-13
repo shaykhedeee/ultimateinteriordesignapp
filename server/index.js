@@ -671,12 +671,26 @@ app.post('/api/projects/:id/plan/detect-furniture', express.json(), (req, res) =
 app.get('/api/projects/:id/cutlist', (req, res) => {
   try {
     const projectId = req.params.id;
-    // The canonical cutlist is the one produced by /cutlist/calculate ("Run
-    // Nesting Slices"), which persists to production_cutlists. Read from there
-    // so the GET reflects what the UI actually generated (previously this
-    // handler read a different table and 404'd after a nesting run).
+    // Live cutlists are produced by /cutlist/refresh and the demo seeder, both
+    // of which persist to cutlist_projects (id, payload JSON). Read from there
+    // first so the GET reflects what refresh/seeder actually generated.
+    const live = db.prepare('SELECT id, payload FROM cutlist_projects WHERE project_id = ? ORDER BY updated_at DESC LIMIT 1').get(projectId);
+    if (live) {
+      let p = {}; try { p = JSON.parse(live.payload || '{}'); } catch {}
+      return res.json({
+        id: live.id,
+        projectId,
+        moduleCount: p.moduleCount || 0,
+        partCount: p.partCount || 0,
+        totals: p.totals || {},
+        modules: p.modules || [],
+        parts: p.parts || [],
+        source: 'cutlist_projects'
+      });
+    }
+    // Fallback: legacy "Run Nesting Slices" path persisted to production_cutlists.
     const row = db.prepare('SELECT * FROM production_cutlists WHERE project_id = ?').get(projectId);
-    if (!row) return res.status(404).json({ error: 'No cutlist yet — run nesting or refresh from CAD.' });
+    if (!row) return res.status(404).json({ error: 'No cutlist yet — run cutlist/refresh or nesting from CAD.' });
     res.json({
       id: row.id,
       projectId: row.project_id,

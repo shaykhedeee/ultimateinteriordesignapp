@@ -6,7 +6,13 @@ export async function seedDemoProject() {
   const projectId = 'proj_demo_hsr';
   const leadId = 'lead_demo_hsr';
 
-  // 1. Clean existing demo project to allow re-seeding (respect foreign key constraints)
+  // The demo is re-seedable, but many child tables FK-reference projects/
+  // scene_versions. Wrap the clean+insert in a foreign_keys=OFF window so a
+  // re-seed never fails with "FOREIGN KEY constraint failed".
+  db.exec('PRAGMA foreign_keys = OFF');
+
+  try {
+  // 1. Clean existing demo project to allow re-seeding
   db.prepare('DELETE FROM cutlist_parts WHERE cutlist_project_id IN (SELECT id FROM cutlist_projects WHERE project_id = ?)').run(projectId);
   db.prepare('DELETE FROM cutlist_modules WHERE cutlist_project_id IN (SELECT id FROM cutlist_projects WHERE project_id = ?)').run(projectId);
   db.prepare('DELETE FROM cutlist_projects WHERE project_id = ?').run(projectId);
@@ -231,6 +237,11 @@ export async function seedDemoProject() {
     console.log(`[demo-seeder] Cutlist compiled successfully for demo project ${projectId}.`);
   } catch (err) {
     console.error("[demo-seeder] Failed to generate cutlist during seed:", err.message);
+  }
+
+  } finally {
+    // Restore FK enforcement (the app enables it at boot).
+    db.exec('PRAGMA foreign_keys = ON');
   }
 
   return { success: true, projectId };
