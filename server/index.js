@@ -431,6 +431,14 @@ app.get('/api/elevation/learning', (req, res) => {
 
 app.use(cors());
 app.use(express.json({ limit: '25mb' }));
+
+// Bound any promise (typically an AI-provider call) so a hung/unconfigured
+// provider fails fast instead of hanging the HTTP request forever.
+function withTimeout(promise, ms, label = 'operation') {
+  let timer;
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms); });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
 app.use('/storage', express.static(storageDir));
 
 
@@ -1975,13 +1983,22 @@ app.post('/api/projects/:id/renders/walkthrough', async (req, res) => {
         modelTier: 'standard',
         customInstruction: `cinematic interior walkthrough frame — ${a}, consistent materials and lighting`
       };
-      const r = await visualizerEngine.generateFastRenderVariants(projectId, params);
-      if (r.variants && r.variants[0]) {
-        const v = r.variants[0];
+      let v = null;
+      try {
+        const r = await withTimeout(visualizerEngine.generateFastRenderVariants(projectId, params), 12000, 'walkthrough-frame');
+        if (r.variants && r.variants[0]) v = r.variants[0];
+      } catch (e) {
+        console.warn('walkthrough frame skipped:', e.message);
+      }
+      if (v) {
         const id = v.id || ('walk_' + nanoid(10));
         db.prepare(`INSERT OR REPLACE INTO design_renders (id, project_id, image_url, room, prompt, review_status) VALUES (?,?,?,?,?,'unreviewed')`)
           .run(id, projectId, v.filePath || v.url || '', v.room || params.room, v.prompt || a);
         frames.push({ id, url: v.filePath || v.url, angle: a });
+      } else {
+        // No live provider configured (BYOK) — emit a labeled placeholder frame so
+        // the client still gets a coherent walkthrough structure instead of a hang.
+        frames.push({ id: 'walk_' + nanoid(10), url: null, angle: a, pending: true, note: 'AI render pending — configure a provider to generate this frame' });
       }
     }
     if (!frames.length) return res.status(502).json({ error: 'Walkthrough generation returned no frames' });
