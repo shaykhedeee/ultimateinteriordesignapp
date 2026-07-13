@@ -42,15 +42,61 @@ export function isInterStateSupply(supplierGstin, clientGstin) {
 }
 
 /**
+ * HSN → default GST slab for the Indian interior-goods trade.
+ * Used as a soft default when a line item carries no explicit rate, so a
+ * furniture+hardware+works invoice still splits correctly even if the
+ * operator only typed an HSN.
+ *   - 9403  Furniture / prefab woodwork (wardrobes, kitchens, units)
+ *   - 9401  Seating (sofas, chairs)
+ *   - 9402  Beds / mattresses
+ *   - 8302  Hardware (hinges, handles, channels, baskets)
+ *   - 4418  Builders' joinery / carpentry (plywood, MDF, laminate sheets)
+ *   - 3926  Plastic fittings (profiles, edge bands)
+ *   - 7009  Mirrors
+ *   - 6910  Ceramic / tile
+ *   - 7308  Fabricated structural steel (MS frames)
+ *   - 9954  Construction / works contract services
+ */
+export const HSN_GST_SLAB = {
+  '9403': 18, '9401': 18, '9402': 18,
+  '8302': 12, '4418': 18, '3926': 18, '7009': 18,
+  '6910': 18, '7308': 18, '9954': 18
+};
+
+/**
+ * Resolve the GST rate that applies to a single line item.
+ * Precedence: explicit line `gstRate` → HSN default → invoice-level `fallbackRate`.
+ */
+export function resolveLineGstRate(it, fallbackRate = DEFAULT_GST_RATE) {
+  if (it && Number(it.gstRate) > 0) return Number(it.gstRate);
+  const hsn = String((it && it.hsn) || '').trim();
+  if (hsn && HSN_GST_SLAB[hsn] != null) return HSN_GST_SLAB[hsn];
+  return Number(fallbackRate) || 0;
+}
+
+/**
  * Compute a full GST invoice from line items.
+ *
+ * Supports BOTH pricing models used by real Indian interior-firm tax
+ * invoices:
+ *   1. Mixed HSN slabs (default): each line may carry its own `gstRate`
+ *      (or derive one from its HSN code via HSN_GST_SLAB). Tax is
+ *      computed per slab and summed — so a 9403@18% furniture line and an
+ *      8302@12% hardware line are taxed correctly, not at one flat rate.
+ *   2. Legacy single-rate: if no line carries a `gstRate`/HSN slab, the
+ *      invoice-level `gstRate` is applied to the whole taxable base
+ *      (backward-compatible with every existing caller).
+ *
  * @param {object} o
- * @param {Array<{description:string,hsn?:string,qty?:number,rate?:number,amount?:number}>} o.items
- *        Either provide (qty*rate) per item OR a precomputed `amount`.
- * @param {number} [o.discount=0]      flat discount subtracted before tax
+ * @param {Array<{description?:string,hsn?:string,qty?:number,rate?:number,amount?:number,gstRate?:number}>} o.items
+ *        Provide (qty*rate) per item OR a precomputed `amount`.
+ * @param {number} [o.discount=0]          flat discount subtracted before tax
  * @param {boolean} [o.isGstEnabled=true]
- * @param {number} [o.gstRate=18]
- * @param {boolean} [o.isInterState=false]
- * @param {number} [o.paidAmount=0]    amount already received (for balance)
+ * @param {number} [o.gstRate=18]          fallback GST % for lines with no slab/HSN
+ * @param {boolean} [o.isInterState=false]  IGST mode (else CGST+SGST)
+ * @param {number} [o.paidAmount=0]        amount already received (for balance)
+ * @param {string} [o.supplierGstin]       used to auto-derive inter-state
+ * @param {string} [o.clientGstin]         used to auto-derive inter-state
  * @returns {object} full invoice breakdown (all values rounded to whole ₹)
  */
 export function computeInvoice({
@@ -59,33 +105,73 @@ export function computeInvoice({
   isGstEnabled = true,
   gstRate = DEFAULT_GST_RATE,
   isInterState = false,
-  paidAmount = 0
+  paidAmount = 0,
+  supplierGstin = '',
+  clientGstin = ''
 } = {}) {
-  const normalized = items.map(it => {
+  // Auto-derive inter-state from the GSTIN state codes when the caller
+  // hasn't forced a value *and* we have both GSTINs to compare.
+  if (isInterState === false && (clientGstin || supplierGstin)) {
+    const derived = isInterStateSupply(supplierGstin, clientGstin);
+    if (derived) isInterState = true;
+  }
+
+  const normalized = (items || []).map(it => {
     const qty = Number(it.qty) > 0 ? Number(it.qty) : 1;
     const rate = Number(it.rate) || 0;
     const amount = Number(it.amount);
     const lineTotal = Number.isFinite(amount) && amount !== 0
       ? Math.round(amount)
       : Math.round(qty * rate);
+    const lineGst = resolveLineGstRate(it, gstRate);
     return {
       description: it.description || 'Item',
       hsn: it.hsn || '9403',
       qty,
       rate: Math.round(rate),
-      amount: lineTotal
+      amount: lineTotal,
+      gstRate: lineGst
     };
   });
 
   const subTotal = normalized.reduce((s, it) => s + it.amount, 0);
-  const taxableBase = Math.max(0, subTotal - (Number(discount) || 0));
+  const discountVal = Math.max(0, Number(discount) || 0);
+  // Apportion discount across lines by value so GST is charged on the
+  // post-discount (actual taxable) amount — correct under GST.
+  const taxableBase = Math.max(0, subTotal - discountVal);
+  if (discountVal > 0 && subTotal > 0) {
+    let allocated = 0;
+    normalized.forEach((it, idx) => {
+      if (idx === normalized.length - 1) {
+        it.discountedAmount = Math.max(0, it.amount - (discountVal - allocated));
+      } else {
+        const share = Math.round((it.amount / subTotal) * discountVal);
+        allocated += share;
+        it.discountedAmount = Math.max(0, it.amount - share);
+      }
+    });
+  } else {
+    normalized.forEach(it => { it.discountedAmount = it.amount; });
+  }
 
   let cgst = 0, sgst = 0, igst = 0, gstValue = 0;
+  // Per-slab breakdowns for the printed summary (keyed by integer %).
+  const slabs = {};
   if (isGstEnabled) {
-    const { cgst: c, sgst: s, igst: i } = splitGst(gstRate, isInterState);
-    cgst = Math.round((taxableBase * c) / 100);
-    sgst = Math.round((taxableBase * s) / 100);
-    igst = Math.round((taxableBase * i) / 100);
+    for (const it of normalized) {
+      const r = it.gstRate || 0;
+      const base = it.discountedAmount;
+      const tax = Math.round((base * r) / 100);
+      gstValue += tax;
+      const { cgst: c, sgst: s, igst: i } = splitGst(r, isInterState);
+      cgst += Math.round((base * c) / 100);
+      sgst += Math.round((base * s) / 100);
+      igst += Math.round((base * i) / 100);
+      if (r > 0) slabs[r] = (slabs[r] || 0) + base;
+    }
+    cgst = Math.round(cgst);
+    sgst = Math.round(sgst);
+    igst = Math.round(igst);
     gstValue = cgst + sgst + igst;
   }
 
@@ -107,6 +193,9 @@ export function computeInvoice({
     isInterState,
     isGstEnabled,
     gstValue,
+    // Ordered list of {rate, taxable} slabs actually used, for PDF/UI summary.
+    slabs: Object.keys(slabs).map(Number).sort((a, b) => a - b)
+      .map(rate => ({ rate, taxable: Math.round(slabs[rate]) })),
     roundOff,
     grandTotal: roundedGrand,
     paidAmount: paid,

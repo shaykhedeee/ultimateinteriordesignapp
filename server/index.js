@@ -23,6 +23,7 @@ const wrapAsync = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)
 import voiceCallService from './services/voice-call-service.js';
 import leadScorer from './services/lead-scorer.js';
 import geminiMultimodalService from './services/gemini-multimodal-service.js';
+import { getGeminiStatus } from './services/gemini-service.js';
 import cutlistEngine from './services/cutlist-engine.js';
 import { generateCNCCutPlan } from './services/cnc-cut-generator.js';
 import { generateCNCGCode } from './services/cnc-gcode-generator.js';
@@ -1084,6 +1085,23 @@ app.post('/api/projects/:id/floorplan', upload.any(), (req, res) => {
     // Make older versions not current
     db.prepare("UPDATE floor_plan_versions SET is_current = 0 WHERE project_id = ? AND id != ?").run(projectId, floorPlanVersionId);
 
+    // ★ SINGLE SOURCE OF TRUTH: store the one floorplan for the whole project
+    //   process (underlay preview + every downstream tool reads this URL).
+    db.prepare("UPDATE projects SET floorplan_url = ? WHERE id = ?").run(floorplanUrl, projectId);
+
+    // ★ Seed cad_drawings with the image reference so the canonical vector store
+    //   every tool reads (DXF export, elevations, Vastu, enhancer, cutlist) is no
+    //   longer empty after a single upload. Tools then read/refine this same row
+    //   instead of each asking the user to re-upload the floor plan.
+    const existingCad = db.prepare('SELECT id FROM cad_drawings WHERE project_id = ?').get(projectId);
+    if (!existingCad) {
+      db.prepare(`INSERT INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, measures_json, pixels_per_meter, north_angle, plan_text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('cad_' + nanoid(8), projectId, JSON.stringify([]), JSON.stringify([]), JSON.stringify([]), JSON.stringify([]), JSON.stringify([]), 40.0, 0, floorplanUrl, new Date().toISOString());
+    } else {
+      db.prepare('UPDATE cad_drawings SET plan_text = ? WHERE project_id = ?').run(floorplanUrl, projectId);
+    }
+
     // 2. Dispatch Plan Analysis Job
     const jobId = 'job_' + nanoid(6);
     db.prepare(`
@@ -1191,9 +1209,100 @@ app.post('/api/projects/:id/floorplan/auto-trace', checkAccess(PRODUCTS.PLAN_INT
   }
 });
 
-// POST unified Floor-plan Analyzer + Enhancer.
-// Runs the REAL pipeline on already-traced walls: interpret → auto-layout →
-// enhance. Returns rooms (with Vastu zones), furniture placements, and a
+// Unified floor-plan ingestion for ANY source file (DXF/DWG/PDF/PNG/JPG).
+// This is the single entry point the UI calls after the user uploads a plan ONCE.
+//  • DXF/DWG → real true-mm auto-trace (works offline, no key).
+//  • PDF/PNG/JPG → Gemini vision vectorization when a key is configured;
+//    otherwise the image is stored for manual tracing and the response is honest.
+// Either way the result is persisted to the project's cad_drawings so every
+// downstream tool (DXF export, elevations, Vastu, enhancer, cutlist) reads the
+// SAME plan. No tool ever asks the user to re-upload the floor plan.
+app.post('/api/projects/:id/floorplan/auto-vectorize', upload.any(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const file = req.files && req.files[0];
+    if (!file) return res.status(400).json({ success: false, error: 'NO_FILE', message: 'No floor-plan file provided.' });
+    const floorplanUrl = `/storage/uploads/${file.filename}`;
+    db.prepare("UPDATE projects SET floorplan_url = ? WHERE id = ?").run(floorplanUrl, projectId);
+
+    const ext = (file.originalname || '').split('.').pop().toLowerCase();
+    let walls = [], openings = [], rooms = [], message = '', vectorized = false, source = 'none';
+
+    if (ext === 'dxf' || ext === 'dwg') {
+      const text = fs.readFileSync(file.path, 'utf8');
+      const knownRealMm = Number(req.body.knownRealMm || 0);
+      const knownDrawingUnits = Number(req.body.knownDrawingUnits || 0);
+      const traced = traceDxf({ text, knownRealMm: knownRealMm || undefined, knownDrawingUnits: knownDrawingUnits || undefined });
+      if (traced.success && traced.walls.length) {
+        walls = traced.walls; vectorized = true; source = `dxf:${traced.unit}`;
+        message = `Auto-traced ${traced.walls.length} walls (${traced.unit}).`;
+      } else {
+        message = 'No LINE/LWPOLYLINE walls found in the DXF. Trace manually in the CAD editor.';
+      }
+    } else {
+      // image / pdf path — needs a vision model to read rooms & dimensions.
+      const status = getGeminiStatus ? getGeminiStatus() : { configured: false, enabled: false };
+      if (status.configured && status.enabled) {
+        try {
+          const analysis = await geminiMultimodalService.analyzeFloorplanImage(projectId, file.path);
+          const dims = parseOverallDimensions(analysis?.overallDimensions || '');
+          const W = dims.w || 12000, H = dims.h || 9000; // mm fallback 12x9m
+          // Build a rectangular shell + interior rooms from the AI read.
+          const detect = (analysis?.detectedRooms || []).map((r, i) => ({
+            id: 'room_' + (i + 1), name: r.label || r.type || 'Room', type: r.type || 'other',
+            x: 0, y: 0, w: W, h: H, widthMm: W, heightMm: H, areaMm2: W * H,
+            points: [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }],
+            confidence: Number(r.confidence || 0.7)
+          }));
+          rooms = detect; vectorized = true; source = 'gemini-vision';
+          // Perimeter walls (true mm) so every tool has geometry.
+          const t = 230;
+          walls = [
+            { id: 'w1', x1: 0, y1: 0, x2: W, y2: 0, thicknessMm: t },
+            { id: 'w2', x1: W, y1: 0, x2: W, y2: H, thicknessMm: t },
+            { id: 'w3', x1: W, y1: H, x2: 0, y2: H, thicknessMm: t },
+            { id: 'w4', x1: 0, y1: H, x2: 0, y2: 0, thicknessMm: t }
+          ];
+          message = `AI detected ${rooms.length} rooms from the image. Review & refine in the editor.`;
+        } catch (mmErr) {
+          message = 'Vision analysis failed: ' + mmErr.message + '. The plan is stored for manual tracing.';
+        }
+      } else {
+        message = 'No AI key configured — image stored for manual tracing. Add a Gemini key (Settings → API Keys) for automatic room detection, or upload a DXF/DWG for true-mm auto-trace.';
+      }
+    }
+
+    // Persist / merge into the project's single cad_drawings row.
+    const ppm = 40.0;
+    const existing = db.prepare('SELECT id FROM cad_drawings WHERE project_id = ?').get(projectId);
+    if (existing) {
+      db.prepare(`UPDATE cad_drawings SET walls_json = ?, openings_json = ?, rooms_json = ?, furniture_json = ?, pixels_per_meter = ?, plan_text = ? WHERE project_id = ?`)
+        .run(JSON.stringify(walls), JSON.stringify(openings), JSON.stringify(rooms), JSON.stringify([]), ppm, floorplanUrl, projectId);
+    } else {
+      db.prepare(`INSERT INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, measures_json, pixels_per_meter, north_angle, plan_text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('cad_' + nanoid(8), projectId, JSON.stringify(walls), JSON.stringify(openings), JSON.stringify([]), JSON.stringify(rooms), JSON.stringify([]), ppm, 0, floorplanUrl, new Date().toISOString());
+    }
+
+    let interpretation = null;
+    if (walls.length || rooms.length) {
+      const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+      interpretation = interp.success ? interp.interpretation : null;
+    }
+    logTimelineEvent(projectId, 'floorplan.vectorized', message, `source: ${source}`);
+    res.json({ success: true, floorplanUrl, vectorized, source, walls: walls.length, rooms: rooms.length, interpretation, message });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Parse "12.0m x 9.0m" / "4.2m x 3.6m" → { w, h } in mm.
+function parseOverallDimensions(s) {
+  const m = String(s).match(/([\d.]+)\s*(?:m|meter|metre)?\s*[x×]\s*([\d.]+)\s*(?:m|meter|metre)?/i);
+  if (!m) return { w: 0, h: 0 };
+  const a = parseFloat(m[1]) * 1000, b = parseFloat(m[2]) * 1000;
+  return { w: a, h: b };
+}
 // prioritised list of enhancement suggestions with exact targets.
 app.post('/api/projects/:id/floorplan/analyze-enhance', async (req, res) => {
   try {
@@ -3846,7 +3955,8 @@ app.get('/api/projects/:id/invoices', (req, res) => {
     const paid = Number(r.paid_amount) || 0;
     const grand = Number(r.grand_total != null ? r.grand_total : r.amount) || 0;
     const balanceDue = Math.max(0, grand - paid);
-    const status = balanceDue <= 0 ? 'paid' : (paid > 0 ? 'partial' : 'unpaid');
+    const cancelled = !!r.cancelled;
+    const status = cancelled ? 'cancelled' : (balanceDue <= 0 ? 'paid' : (paid > 0 ? 'partial' : 'unpaid'));
     let items = [];
     try { items = r.items_json ? JSON.parse(r.items_json) : []; } catch { items = []; }
     return {
@@ -3872,6 +3982,7 @@ app.get('/api/projects/:id/invoices', (req, res) => {
       grandTotal: grand,
       paidAmount: paid,
       balanceDue,
+      cancelled,
       amount: grand,
       status
     };
@@ -3912,7 +4023,9 @@ app.post('/api/projects/:id/invoices', (req, res) => {
     isGstEnabled: b.isGstEnabled !== false,
     gstRate: b.gstRate || 18,
     isInterState,
-    paidAmount: 0
+    paidAmount: 0,
+    supplierGstin,
+    clientGstin
   });
 
   db.prepare(`
@@ -3920,17 +4033,37 @@ app.post('/api/projects/:id/invoices', (req, res) => {
       id, project_id, invoice_number, description, amount, status,
       items_json, client_name, client_address, client_gstin,
       issue_date, due_date, subtotal, discount, taxable,
-      cgst, sgst, igst, gst_rate, is_inter_state, round_off, grand_total, paid_amount
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      cgst, sgst, igst, gst_rate, is_inter_state, round_off, grand_total, paid_amount,
+      cancelled
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, projectId, invoiceNumber, b.description || items[0].description, calc.grandTotal, calc.status,
     JSON.stringify(calc.items), b.clientName || '', b.clientAddress || '', clientGstin,
     b.issueDate || new Date().toISOString().slice(0, 10), b.dueDate || '', calc.subTotal, calc.discount, calc.taxable,
-    calc.cgst, calc.sgst, calc.igst, calc.gstRate, calc.isInterState ? 1 : 0, calc.roundOff, calc.grandTotal, 0
+    calc.cgst, calc.sgst, calc.igst, calc.gstRate, calc.isInterState ? 1 : 0, calc.roundOff, calc.grandTotal, 0,
+    0
   );
 
   logTimelineEvent(projectId, 'invoice.created', `Invoice Created: ${invoiceNumber}`, `Amount: Rs.${calc.grandTotal.toLocaleString()}`);
   res.json({ success: true, id, invoiceNumber, ...calc });
+});
+
+// CANCEL / VOID a tax invoice (GST compliance: never hard-delete a
+// numbered invoice; mark it cancelled and stop it ageing the AR).
+app.post('/api/projects/:id/invoices/:invoiceId/cancel', (req, res) => {
+  const projectId = req.params.id;
+  const invId = req.params.invoiceId;
+  const inv = db.prepare('SELECT * FROM invoices WHERE id = ? AND project_id = ?').get(invId, projectId);
+  if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+  if (inv.cancelled) return res.status(409).json({ error: 'Invoice already cancelled' });
+  // Cannot cancel an invoice that has linked receipts.
+  const linked = db.prepare('SELECT COUNT(*) AS c FROM payments WHERE json_array_length(allocations_json) > 0 AND allocations_json LIKE ?').get(`%"invoiceId":"${invId}"%`);
+  if (linked && linked.c > 0) {
+    return res.status(409).json({ error: 'Cannot cancel: receipt payments are allocated to this invoice. Reverse the payments first.' });
+  }
+  db.prepare("UPDATE invoices SET cancelled = 1, status = 'cancelled', paid_amount = 0 WHERE id = ?").run(invId);
+  logTimelineEvent(projectId, 'invoice.cancelled', `Invoice Cancelled: ${inv.invoice_number}`, 'Tax invoice voided');
+  res.json({ success: true, id: invId, invoiceNumber: inv.invoice_number, status: 'cancelled' });
 });
 
 app.post('/api/payment-plans/:planId/invoices', (req, res) => {
@@ -3939,17 +4072,36 @@ app.post('/api/payment-plans/:planId/invoices', (req, res) => {
   
   const projectId = plan.project_id;
   const id = 'inv_' + nanoid(6);
-  const { invoiceType, lineItems } = req.body;
-  const amount = (lineItems || []).reduce((sum, item) => sum + (item.lineTotal || 0), 0);
-  const invoiceNumber = 'INV-' + Date.now().toString().slice(-6);
+  const { invoiceType, lineItems, isGstEnabled = true, gstRate = 18, isInterState = false } = req.body;
+  const items = Array.isArray(lineItems) && lineItems.length
+    ? lineItems.map(li => ({
+        description: li.description || `${invoiceType} milestone item`,
+        hsn: li.hsn || '9954',
+        qty: Number(li.qty) > 0 ? Number(li.qty) : 1,
+        rate: Number(li.rate) || 0,
+        amount: Number(li.amount) || Number(li.lineTotal) || 0,
+        gstRate: Number(li.gstRate) || undefined
+      }))
+    : [{ description: `Milestone: ${invoiceType}`, hsn: '9954', qty: 1, rate: 0, amount: Number(req.body.amount) || 0 }];
+  const calc = computeInvoice({ items, isGstEnabled, gstRate, isInterState, paidAmount: 0 });
+  const invoiceNumber = b.invoiceNumber || ('INV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-4));
 
   db.prepare(`
-    INSERT INTO invoices (id, project_id, invoice_number, description, amount, status)
-    VALUES (?, ?, ?, ?, ?, 'unpaid')
-  `).run(id, projectId, invoiceNumber, `Milestone Invoice: ${invoiceType}`, amount);
+    INSERT INTO invoices (
+      id, project_id, invoice_number, description, amount, status,
+      items_json, client_name, client_address, client_gstin,
+      issue_date, due_date, subtotal, discount, taxable,
+      cgst, sgst, igst, gst_rate, is_inter_state, round_off, grand_total, paid_amount, cancelled
+    ) VALUES (?, ?, ?, ?, ?, 'unpaid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `).run(
+    id, projectId, invoiceNumber, `Milestone Invoice: ${invoiceType}`, calc.grandTotal,
+    JSON.stringify(calc.items), '', '', '',
+    new Date().toISOString().slice(0, 10), '', calc.subTotal, calc.discount, calc.taxable,
+    calc.cgst, calc.sgst, calc.igst, calc.gstRate, calc.isInterState ? 1 : 0, calc.roundOff, calc.grandTotal, 0
+  );
   
-  logTimelineEvent(projectId, 'invoice.created', `Invoice Created: ${invoiceNumber}`, `Amount: ₹${amount.toLocaleString()}`);
-  res.json({ success: true, id });
+  logTimelineEvent(projectId, 'invoice.created', `Invoice Created: ${invoiceNumber}`, `Amount: ₹${calc.grandTotal.toLocaleString()}`);
+  res.json({ success: true, id, invoiceNumber, ...calc });
 });
 
 // PAYMENTS API
@@ -4655,6 +4807,21 @@ function loadDesignLibrary() {
     const files = fs.readdirSync(dir).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
     out.push({ category: folder, label, count: files.length, images: files.map(f => `/reference-library/${folder}/${f}`) });
   }
+
+  // Include dynamically generated renders/assets from storage/assets
+  const assetsDir = path.join(__seedDir, '..', 'storage', 'assets');
+  if (fs.existsSync(assetsDir)) {
+    const assetFiles = fs.readdirSync(assetsDir).filter(f => /\.(jpg|jpeg|png|webp|svg)$/i.test(f));
+    if (assetFiles.length > 0) {
+      out.push({
+        category: 'app-generated',
+        label: 'App Generated Renders',
+        count: assetFiles.length,
+        images: assetFiles.map(f => `/storage/assets/${f}`)
+      });
+    }
+  }
+
   return out;
 }
 

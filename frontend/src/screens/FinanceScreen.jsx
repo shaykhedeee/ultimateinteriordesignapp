@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { safeParse } from '../lib/safe.js';
 import { computeQuote, buildMilestones, MILESTONE_SCHEDULES } from '../lib/boq.js';
-import { computeInvoice, isInterStateSupply } from '../lib/invoice.js';
+import { computeInvoice, isInterStateSupply, splitGst } from '../lib/invoice.js';
 import { 
   Plus, Trash2, Save, X, PlusCircle, ChevronDown, Percent, 
   IndianRupee, FileText, CheckCircle2, ShoppingBag, TrendingUp, 
@@ -425,6 +425,23 @@ export default function FinanceScreen({ projectId }) {
       a.download = `ULTIDA-TaxInvoice-${invoiceId}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Cancel / void a tax invoice (GST compliance — never hard-delete a numbered invoice)
+  const handleCancelInvoice = async (invoiceId, invoiceNumber) => {
+    if (!window.confirm(`Cancel tax invoice ${invoiceNumber}? It will be marked CANCELLED (not deleted) and excluded from ageing.`)) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices/${invoiceId}/cancel`, { method: 'POST' });
+      if (res.ok) {
+        showStatusMessage(`Invoice ${invoiceNumber} cancelled`, 'success');
+        loadData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showStatusMessage(err.error || 'Could not cancel invoice', 'error');
+      }
     } catch (err) {
       console.error(err);
     }
@@ -921,10 +938,20 @@ export default function FinanceScreen({ projectId }) {
                       </div>
                       <div className="text-right flex flex-col items-end gap-1">
                         <div className="font-bold text-[#F0EEE8] font-mono">₹{inv.grandTotal?.toLocaleString()}</div>
-                        <button type="button" onClick={() => handleDownloadInvoicePDF(inv.id)}
-                          className="text-[9px] text-[#C9A84C] border border-[#C9A84C]/30 hover:bg-[#C9A84C]/10 rounded px-2 py-0.5 font-bold uppercase tracking-wider transition">
-                          PDF
-                        </button>
+                        {inv.cancelled ? (
+                          <span className="text-[9px] font-black uppercase tracking-wider text-rose-400">CANCELLED</span>
+                        ) : (
+                          <>
+                            <button type="button" onClick={() => handleDownloadInvoicePDF(inv.id)}
+                              className="text-[9px] text-[#C9A84C] border border-[#C9A84C]/30 hover:bg-[#C9A84C]/10 rounded px-2 py-0.5 font-bold uppercase tracking-wider transition">
+                              PDF
+                            </button>
+                            <button type="button" onClick={() => handleCancelInvoice(inv.id, inv.invoiceNumber)}
+                              className="text-[9px] text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 rounded px-2 py-0.5 font-bold uppercase tracking-wider transition">
+                              Cancel
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -963,15 +990,24 @@ export default function FinanceScreen({ projectId }) {
 
                 {/* Line items */}
                 <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr_44px_52px_70px_72px_20px] gap-1 text-[9px] text-[#8A8899] font-bold uppercase tracking-wider px-1">
-                    <span>Description</span><span className="text-center">Qty</span><span className="text-center">Rate</span><span className="text-right">Amt</span><span></span>
+                  <div className="grid grid-cols-[1fr_44px_52px_48px_70px_72px_20px] gap-1 text-[9px] text-[#8A8899] font-bold uppercase tracking-wider px-1">
+                    <span>Description</span><span className="text-center">Qty</span><span className="text-center">GST%</span><span className="text-center">Rate</span><span className="text-right">Amt</span><span></span>
                   </div>
                   {invoiceItems.map((it, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_44px_52px_70px_72px_20px] gap-1 items-center">
+                    <div key={i} className="grid grid-cols-[1fr_44px_52px_48px_70px_72px_20px] gap-1 items-center">
                       <input type="text" value={it.description} onChange={e => { const n=[...invoiceItems]; n[i].description=e.target.value; setInvoiceItems(n); }}
                         className="bg-[#0A0A0B] border border-stone-800 rounded p-1.5 text-[11px] text-[#F0EEE8] outline-none" />
                       <input type="number" value={it.qty} onChange={e => { const n=[...invoiceItems]; n[i].qty=Number(e.target.value); n[i].amount=Math.round((Number(e.target.value)||0)*(n[i].rate||0)); setInvoiceItems(n); }}
                         className="bg-[#0A0A0B] border border-stone-800 rounded p-1.5 text-[11px] text-right text-[#F0EEE8] outline-none font-mono" />
+                      <select value={it.gstRate != null ? it.gstRate : ''} onChange={e => { const n=[...invoiceItems]; const v=e.target.value===''?undefined:Number(e.target.value); n[i].gstRate=v; const lineAmt=Math.round((n[i].qty||1)*(n[i].rate||0)); n[i].amount=lineAmt; setInvoiceItems(n); }}
+                        className="bg-[#0A0A0B] border border-stone-800 rounded p-1.5 text-[11px] text-[#F0EEE8] outline-none font-mono cursor-pointer">
+                        <option value="">Auto</option>
+                        <option value={0}>0%</option>
+                        <option value={5}>5%</option>
+                        <option value={12}>12%</option>
+                        <option value={18}>18%</option>
+                        <option value={28}>28%</option>
+                      </select>
                       <input type="number" value={it.rate} onChange={e => { const n=[...invoiceItems]; n[i].rate=Number(e.target.value); n[i].amount=Math.round((n[i].qty||0)*(Number(e.target.value)||0)); setInvoiceItems(n); }}
                         className="bg-[#0A0A0B] border border-stone-800 rounded p-1.5 text-[11px] text-right text-[#F0EEE8] outline-none font-mono" />
                       <span className="text-[11px] text-right text-[#C9A84C] font-mono pr-1">{(it.amount||0).toLocaleString()}</span>
@@ -979,7 +1015,7 @@ export default function FinanceScreen({ projectId }) {
                         className="text-rose-400 hover:text-rose-300 text-xs">✕</button>
                     </div>
                   ))}
-                  <button type="button" onClick={() => setInvoiceItems([...invoiceItems, { description: '', hsn: '9403', qty: 1, rate: 0, amount: 0 }])}
+                  <button type="button" onClick={() => setInvoiceItems([...invoiceItems, { description: '', hsn: '9403', gstRate: undefined, qty: 1, rate: 0, amount: 0 }])}
                     className="text-[10px] text-[#C9A84C] border border-[#C9A84C]/30 hover:bg-[#C9A84C]/10 rounded px-2 py-1 font-bold uppercase tracking-wider transition w-full">
                     + Add Line
                   </button>
@@ -1020,6 +1056,11 @@ export default function FinanceScreen({ projectId }) {
                   <div className="flex justify-between"><span className="text-stone-400">Subtotal</span><span className="text-[#F0EEE8]">₹{invoiceCalc.subTotal.toLocaleString()}</span></div>
                   {invoiceCalc.discount > 0 && <div className="flex justify-between"><span className="text-stone-400">Discount</span><span className="text-rose-400">-₹{invoiceCalc.discount.toLocaleString()}</span></div>}
                   <div className="flex justify-between"><span className="text-stone-400">Taxable</span><span className="text-[#F0EEE8]">₹{invoiceCalc.taxable.toLocaleString()}</span></div>
+                  {(invoiceCalc.slabs || []).map(s => {
+                    const { cgst: c, sgst: s2, igst: i } = splitGst(s.rate, invoiceCalc.isInterState);
+                    if (invoiceCalc.isInterState) return <div key={s.rate} className="flex justify-between"><span className="text-stone-400">IGST @ {s.rate}%</span><span className="text-[#F0EEE8]">₹{Math.round((s.taxable * s.rate) / 100).toLocaleString()}</span></div>;
+                    return <div key={s.rate} className="flex justify-between"><span className="text-stone-400">CGST+SGST @ {s.rate}%</span><span className="text-[#F0EEE8]">₹{Math.round((s.taxable * s.rate) / 100).toLocaleString()}</span></div>;
+                  })}
                   {invoiceCalc.cgst > 0 && <div className="flex justify-between"><span className="text-stone-400">CGST @ {invoiceCalc.gstRate/2}%</span><span className="text-[#F0EEE8]">₹{invoiceCalc.cgst.toLocaleString()}</span></div>}
                   {invoiceCalc.sgst > 0 && <div className="flex justify-between"><span className="text-stone-400">SGST @ {invoiceCalc.gstRate/2}%</span><span className="text-[#F0EEE8]">₹{invoiceCalc.sgst.toLocaleString()}</span></div>}
                   {invoiceCalc.igst > 0 && <div className="flex justify-between"><span className="text-stone-400">IGST @ {invoiceCalc.gstRate}%</span><span className="text-[#F0EEE8]">₹{invoiceCalc.igst.toLocaleString()}</span></div>}

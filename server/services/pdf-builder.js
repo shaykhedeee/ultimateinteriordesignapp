@@ -743,7 +743,8 @@ class PDFBuilder {
     const grand = Number(inv.grand_total != null ? inv.grand_total : inv.amount) || 0;
     const paid = Number(inv.paid_amount) || 0;
     const balance = Math.max(0, grand - paid);
-    const { amountToWords } = await import('./invoice-math.js');
+    const cancelled = !!inv.cancelled;
+    const { amountToWords, splitGst } = await import('./invoice-math.js');
 
     return new Promise(async (resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 36, bufferPages: true });
@@ -762,6 +763,12 @@ class PDFBuilder {
       doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text(`No: ${inv.invoice_number}`, 400, 52);
       doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text(`Date: ${inv.issue_date || new Date().toISOString().slice(0, 10)}`, 400, 66);
       if (inv.due_date) doc.fillColor('#94A3B8').font('Helvetica').fontSize(9).text(`Due: ${inv.due_date}`, 400, 80);
+      // CANCELLED stamp (GST compliance: voided invoice is still printed, marked).
+      if (cancelled) {
+        doc.rotate(18, { origin: [300, 360] });
+        doc.font('Helvetica-Bold').fontSize(54).fillColor('#DC2626').text('CANCELLED', 120, 340, { align: 'center' });
+        doc.rotate(0);
+      }
 
       // Bill To
       let y = 116;
@@ -780,8 +787,9 @@ class PDFBuilder {
 
       // Items table header
       doc.fillColor('#475569').font('Helvetica-Bold').fontSize(8.5)
-        .text('#', M, y).text('Description', M + 24, y).text('HSN', M + 300, y)
-        .text('Qty', M + 350, y).text('Rate', M + 400, y).text('Amount', M + 460, y, { align: 'right', width: 67 });
+        .text('#', M, y).text('Description', M + 24, y).text('HSN', M + 285, y)
+        .text('GST%', M + 322, y)
+        .text('Qty', M + 365, y).text('Rate', M + 405, y).text('Amount', M + 455, y, { align: 'right', width: 60 });
       y += 6;
       doc.rect(M, y, 523, 1).fill('#CBD5E1');
       y += 12;
@@ -789,12 +797,14 @@ class PDFBuilder {
       doc.font('Helvetica').fontSize(8.5);
       items.forEach((it, i) => {
         const h = 16;
+        const lineGst = Number(it.gstRate) || Number(inv.gst_rate) || 0;
         doc.fillColor('#0F172A').font('Helvetica-Bold').text(String(i + 1), M, y);
-        doc.font('Helvetica').fillColor('#334155').text(it.description || 'Item', M + 24, y, { width: 272 });
-        doc.fillColor('#475569').text(it.hsn || '9403', M + 300, y);
-        doc.text(String(it.qty != null ? it.qty : 1), M + 350, y);
-        doc.text(`Rs. ${Number(it.rate || 0).toLocaleString()}`, M + 400, y);
-        doc.font('Helvetica-Bold').fillColor('#0F172A').text(`Rs. ${Number(it.amount || 0).toLocaleString()}`, M + 460, y, { align: 'right', width: 67 });
+        doc.font('Helvetica').fillColor('#334155').text(it.description || 'Item', M + 24, y, { width: 258 });
+        doc.fillColor('#475569').text(it.hsn || '9403', M + 285, y);
+        doc.fillColor('#64748B').text(`${lineGst}%`, M + 322, y);
+        doc.text(String(it.qty != null ? it.qty : 1), M + 365, y);
+        doc.text(`Rs. ${Number(it.rate || 0).toLocaleString()}`, M + 405, y);
+        doc.font('Helvetica-Bold').fillColor('#0F172A').text(`Rs. ${Number(it.amount || 0).toLocaleString()}`, M + 455, y, { align: 'right', width: 60 });
         y += h;
         if (y > 680) { doc.addPage(); y = 50; }
       });
@@ -802,6 +812,38 @@ class PDFBuilder {
       y += 8;
       doc.rect(M, y, 523, 1).fill('#E2E8F0');
       y += 14;
+
+      // ── Per-slab GST summary (mixed HSN rates) ──
+      const slabRows = [];
+      if (cgst > 0 || sgst > 0 || igst > 0) {
+        const rateToTax = {};
+        items.forEach(it => {
+          const r = Number(it.gstRate) || Number(inv.gst_rate) || 0;
+          if (!r) return;
+          rateToTax[r] = (rateToTax[r] || 0) + (Number(it.amount) || 0);
+        });
+        Object.keys(rateToTax).map(Number).sort((a, b) => a - b).forEach(r => {
+          const base = rateToTax[r];
+          const { cgst: c, sgst: s, igst: i } = splitGst(r, isInter);
+          if (isInter) {
+            slabRows.push({ label: `IGST @ ${r}%`, val: Math.round((base * r) / 100) });
+          } else {
+            slabRows.push({ label: `CGST @ ${r / 2}%`, val: Math.round((base * c) / 100) });
+            slabRows.push({ label: `SGST @ ${r / 2}%`, val: Math.round((base * s) / 100) });
+          }
+        });
+      }
+      if (slabRows.length) {
+        doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#64748B').text('GST computed per HSN slab:', M, y);
+        y += 11;
+        slabRows.forEach(sr => {
+          doc.font('Helvetica').fontSize(8).fillColor('#475569').text(sr.label, M + 8, y);
+          doc.font('Helvetica-Bold').fillColor('#0F172A').text(`Rs. ${sr.val.toLocaleString()}`, M + 360, y, { align: 'right', width: 139 });
+          y += 12;
+          if (y > 760) { doc.addPage(); y = 50; }
+        });
+        y += 2;
+      }
 
       // Totals
       const rx = 360, vx = 420;

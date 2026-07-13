@@ -470,13 +470,14 @@ try { db.exec("ALTER TABLE projects ADD COLUMN stale_drawings INTEGER DEFAULT 0;
 try { db.exec("ALTER TABLE projects ADD COLUMN stale_pricing INTEGER DEFAULT 0;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN active_floor_plan_version_id TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN active_spatial_model_version_id TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE projects ADD COLUMN floorplan_url TEXT;"); } catch (e) {}
 // Invoice generator enhancement (GST / itemized)
 const invoiceCols = [
   'items_json TEXT', 'client_name TEXT', 'client_address TEXT', 'client_gstin TEXT',
   'issue_date TEXT', 'due_date TEXT', 'subtotal REAL', 'discount REAL DEFAULT 0',
   'taxable REAL', 'cgst REAL DEFAULT 0', 'sgst REAL DEFAULT 0', 'igst REAL DEFAULT 0',
   'gst_rate REAL DEFAULT 18', 'is_inter_state INTEGER DEFAULT 0', 'round_off REAL DEFAULT 0',
-  'grand_total REAL', 'paid_amount REAL DEFAULT 0'
+  'grand_total REAL', 'paid_amount REAL DEFAULT 0', 'cancelled INTEGER DEFAULT 0'
 ];
 invoiceCols.forEach(c => { try { db.exec(`ALTER TABLE invoices ADD COLUMN ${c};`); } catch (e) {} });
 try { db.exec("ALTER TABLE cad_drawings ADD COLUMN plan_text TEXT;"); } catch (e) {}
