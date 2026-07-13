@@ -2165,14 +2165,17 @@ app.post('/api/projects/:id/pipeline/run', express.json(), async (req, res) => {
   try {
     const projectId = req.params.id;
     const body = req.body || {};
-    const rooms = Array.isArray(body.rooms) ? body.rooms : [
-      { name:'Living Dining', w:5600, h:4200, openings:[{offsetMm:500,widthMm:900,sillMm:900,headMm:2100,type:'door'}], cabinets:[{id:'c1',type:'base',widthMm:600,heightMm:720,xOffsetMm:0,zOffsetMm:0,name:'Base Drawer',material:{ callout:'PU Paint', glass:false, cane:false },handleType:'pull'}] },
-      { name:'Master Bedroom', w:4200, h:3600, openings:[], cabinets:[] },
+    // Normalize rooms: accept either [{name,...}] or ['Living','Bedroom'] (names only).
+    let rooms = Array.isArray(body.rooms) ? body.rooms : [
+      { name: 'Living Dining', w: 5600, h: 4200, openings: [{ offsetMm: 500, widthMm: 900, sillMm: 900, headMm: 2100, type: 'door' }], cabinets: [{ id: 'c1', type: 'base', widthMm: 600, heightMm: 720, xOffsetMm: 0, zOffsetMm: 0, name: 'Base Drawer', material: { callout: 'PU Paint', glass: false, cane: false }, handleType: 'pull' }] },
+      { name: 'Master Bedroom', w: 4200, h: 3600, openings: [], cabinets: [] }
     ];
+    rooms = rooms.map(r => (typeof r === 'string' ? { name: r } : r)).filter(r => r && r.name);
+    if (!rooms.length) return res.status(400).json({ success: false, error: 'rooms must be a non-empty list of room names/objects' });
     const { runPipeline } = await import('./services/pipeline-orchestrator.js');
-    const result = await runPipeline({ projectId, rooms, walls:body.walls, openings:body.openings, projectName:body.projectName||'ULTIDA Project' });
-    res.json({ success:true, ...result });
-  } catch (e) { res.status(500).json({ success:false, error:e.message }); }
+    const result = await runPipeline({ projectId, rooms, walls: body.walls, openings: body.openings, projectName: body.projectName || 'ULTIDA Project' });
+    res.json({ success: true, ...result });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.post('/api/projects/:id/delivery-package', express.json(), async (req, res) => {
