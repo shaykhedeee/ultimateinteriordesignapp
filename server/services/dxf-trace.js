@@ -24,13 +24,18 @@ const SEC_END = 'ENDSEC';
 const ENTITY = 'ENTITY';
 
 function readGroups(text) {
-  // DXF is pairs: group code (int) then value (next line)
-  const lines = text.split(/\r?\n/);
+  // DXF is pairs: group code (int) then value (next line). Be resilient to
+  // blank/garbage lines and value lines that are themselves group codes.
+  const lines = String(text).split(/\r?\n/);
   const groups = [];
-  for (let i = 0; i + 1 < lines.length; i += 2) {
-    const code = parseInt(lines[i].trim(), 10);
-    if (Number.isNaN(code)) { i -= 1; continue; }
-    groups.push({ code, value: lines[i + 1].trim() });
+  let i = 0;
+  while (i + 1 < lines.length) {
+    const codeRaw = lines[i].trim();
+    // A group code line must be a clean integer.
+    if (!/^[-+]?\d+$/.test(codeRaw)) { i += 1; continue; }
+    const code = parseInt(codeRaw, 10);
+    groups.push({ code, value: lines[i + 1] });
+    i += 2;
   }
   return groups;
 }
@@ -47,13 +52,12 @@ function headerVar(groups, varName) {
   return null;
 }
 
-// Walk entities section, collecting LINE / LWPOLYLINE / TEXT etc.
+// Walk entities section, collecting LINE / LWPOLYLINE / POLYLINE(+VERTEX) / TEXT etc.
 function parseEntities(groups) {
   const lines = [];     // wall candidates from LINE
-  const polylines = [];  // LWPOLYLINE vertex lists
+  const polylines = [];  // LWPOLYLINE + classic POLYLINE (with expanded vertices)
   const texts = [];       // MTEXT / TEXT strings
   let i = 0;
-  // locate ENTITIES section
   let inEntities = false;
   for (; i < groups.length; i++) {
     const g = groups[i];
@@ -65,10 +69,15 @@ function parseEntities(groups) {
       if (type === 'LINE') {
         const e = collectEntity(groups, i);
         if (e) lines.push(e);
-      } else if (type === 'LWPOLYLINE' || type === 'POLYLINE') {
-        const { entity, next } = collectPolyline(groups, i);
+      } else if (type === 'LWPOLYLINE') {
+        const { entity, next } = collectLwPolyline(groups, i);
         if (entity) polylines.push(entity);
-        i = next - 1;
+        i = next - 2;
+      } else if (type === 'POLYLINE') {
+        // classic Polyline: vertices are separate VERTEX entities until SEQEND
+        const { entity, next } = collectClassicPolyline(groups, i);
+        if (entity) polylines.push(entity);
+        i = next - 2;
       } else if (type === 'TEXT' || type === 'MTEXT' || type === 'ATTDEF') {
         const e = collectText(groups, i);
         if (e) texts.push(e);
@@ -101,17 +110,51 @@ function collectEntity(groups, i) {
   return ent;
 }
 
-function collectPolyline(groups, i) {
-  const ent = { type: groups[i].value.toUpperCase(), vertices: [] };
+// LWPOLYLINE: vertices are inline (10/20 pairs) until the next 0-code marker.
+function collectLwPolyline(groups, i) {
+  const ent = { type: 'LWPOLYLINE', vertices: [] };
   let j = i + 1;
+  let lastX = null;
   while (j < groups.length && !(groups[j].code === 0)) {
     const g = groups[j];
     if (g.code === 8) ent.layer = g.value;
     else if (g.code === 70) ent.flags = parseInt(g.value, 10);
     else if (g.code === 10) {
-      ent.vertices.push({ x: parseFloat(g.value), y: parseFloat((groups[j + 1]?.value) ?? 0) });
-      j += 1; // skip the 20 group we just read
+      const y = (groups[j + 1]?.code === 20) ? parseFloat(groups[j + 1].value) : 0;
+      ent.vertices.push({ x: parseFloat(g.value), y });
+      lastX = j; j += (groups[j + 1]?.code === 20) ? 1 : 0;
     } else if (g.code === 1) { ent.text = g.value; }
+    j++;
+  }
+  return { entity: ent, next: j + 1 };
+}
+
+// Classic POLYLINE entity: its vertices live in following VERTEX entities,
+// terminated by SEQEND. Each VERTEX carries 10/20 location groups.
+function collectClassicPolyline(groups, i) {
+  const ent = { type: 'POLYLINE', vertices: [], flags: 0 };
+  let j = i + 1;
+  while (j < groups.length) {
+    const g = groups[j];
+    if (g.code === 0) {
+      const t = g.value.toUpperCase();
+      if (t === 'VERTEX') {
+        let vx = 0, vy = 0;
+        let k = j + 1;
+        while (k < groups.length && groups[k].code !== 0) {
+          if (groups[k].code === 10) { vx = parseFloat(groups[k].value); vy = (groups[k + 1]?.code === 20) ? parseFloat(groups[k + 1].value) : 0; }
+          k++;
+        }
+        ent.vertices.push({ x: vx, y: vy });
+        j = k; // continue after this VERTEX
+        continue;
+      }
+      if (t === 'SEQEND') { j += 1; break; }
+      // a POLYLINE ends at the next non-VERTEX entity
+      break;
+    }
+    if (g.code === 70) ent.flags = parseInt(g.value, 10);
+    else if (g.code === 8) ent.layer = g.value;
     j++;
   }
   return { entity: ent, next: j + 1 };
