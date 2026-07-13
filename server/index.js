@@ -3488,8 +3488,28 @@ function logTimelineEvent(projectId, eventType, title, detail = "") {
 // Save a new version of the scene document (creates an immutable history snapshot and flags stale outputs)
 app.post('/api/projects/:id/scenes', (req, res) => {
   const projectId = req.params.id;
-  const { scene, reason = 'User edit', branch = 'main' } = req.body;
+  const { scene, reason = 'User edit', branch = 'main', force = false } = req.body;
   if (!scene) return res.status(400).json({ error: "Scene document is required" });
+
+  // PHASE 2 GATE: no generated scene is allowed until critical plan-intelligence
+  // review items are resolved. This enforces "designer must approve critical
+  // corrections before a scene is generated". force=true bypasses (e.g. demo
+  // seeding / explicit override) so normal flows stay safe.
+  if (!force) {
+    const fpv = db.prepare("SELECT id FROM floor_plan_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1").get(projectId);
+    if (fpv) {
+      const openCritical = db.prepare(
+        "SELECT COUNT(*) AS c FROM floor_plan_review_items WHERE floor_plan_version_id = ? AND severity = 'critical' AND status NOT IN ('accepted','corrected','ignored')"
+      ).get(fpv.id);
+      if (openCritical && openCritical.c > 0) {
+        return res.status(422).json({
+          error: 'critical_review_items_open',
+          message: `Resolve ${openCritical.c} critical plan-review item(s) before generating the scene.`,
+          count: openCritical.c
+        });
+      }
+    }
+  }
 
   const lastVersion = db.prepare("SELECT MAX(version_number) as max_v FROM scene_versions WHERE project_id = ?").get(projectId);
   const nextVersion = (lastVersion && lastVersion.max_v ? lastVersion.max_v : 0) + 1;
