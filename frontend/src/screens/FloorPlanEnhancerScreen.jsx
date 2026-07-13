@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Sparkles, Compass, Check, AlertTriangle, ArrowUp, RotateCw, Plus, RefreshCw, Wand2, Info, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Sparkles, Compass, Check, AlertTriangle, ArrowUp, RotateCw, Plus, RefreshCw, Wand2, Info, Upload, Image as ImageIcon, Loader2, ShieldCheck, ShieldAlert, ShieldOff } from 'lucide-react';
 
 /**
  * FloorPlanEnhancerScreen — the single home for a project's floor plan.
@@ -106,6 +106,7 @@ function PlanSVG({ interpretation, layout }) {
 const KIND_ICON = { add_room: Plus, add_furniture: Plus, rotate_furniture: RotateCw, rezone_furniture: ArrowUp, annotate: Info };
 
 export default function FloorPlanEnhancerScreen({ projectId }) {
+  const API = '';
   const [floorplanUrl, setFloorplanUrl] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -113,8 +114,35 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
   const [uploading, setUploading] = useState(false);
   const [applying, setApplying] = useState(null);
   const [uploadMsg, setUploadMsg] = useState(null);
+  const [reviewItems, setReviewItems] = useState([]);
+  const [reviewOpen, setReviewOpen] = useState(0);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
-  const API = 'http://127.0.0.1:5055';
+  const loadReviewItems = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`${API}/api/projects/${projectId}/review-items`);
+      if (res.ok) {
+        const j = await res.json();
+        setReviewItems(j.items || []);
+        setReviewOpen(j.openTotal || 0);
+      }
+    } catch {}
+  }, [projectId]);
+
+  useEffect(() => { loadReviewItems(); }, [loadReviewItems, data]);
+
+  const resolveReview = useCallback(async (itemId, status) => {
+    if (!projectId) return;
+    setReviewLoading(true);
+    try {
+      const res = await fetch(`${API}/api/projects/${projectId}/review-items/${itemId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) { await loadReviewItems(); }
+    } catch {} finally { setReviewLoading(false); }
+  }, [projectId, API, loadReviewItems]);
 
   // Load the project's single stored floorplan (uploaded once, reused forever).
   const loadFloorplan = useCallback(async () => {
@@ -283,6 +311,69 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Plan Review Queue — designer resolves critical/warning items (gates scene generation) */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#C9A84C]" /> Plan Review Queue
+              </span>
+              {reviewOpen > 0 ? (
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold border border-amber-500/30">{reviewOpen} open</span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-bold border border-emerald-500/30">Cleared</span>
+              )}
+            </div>
+
+            {reviewItems.length === 0 && (
+              <div className="text-xs text-slate-400 py-3">No plan-review items. Run the Plan Enhancer above to generate intelligence checks.</div>
+            )}
+
+            <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+              {reviewItems.map((it) => {
+                const open = !['accepted','corrected','ignored'].includes(it.status);
+                const sevColor = it.severity === 'critical' ? '#f59e0b' : it.severity === 'warning' ? '#eab308' : '#64748b';
+                const sevBg = it.severity === 'critical' ? 'rgba(245,158,11,0.12)' : it.severity === 'warning' ? 'rgba(234,179,8,0.10)' : 'rgba(100,116,139,0.10)';
+                const Ico = it.severity === 'critical' ? ShieldAlert : it.severity === 'warning' ? ShieldAlert : ShieldOff;
+                return (
+                  <div key={it.id} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3" style={{ borderLeft: `3px solid ${sevColor}` }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-xs font-bold text-slate-200 capitalize">{it.itemType} {it.itemRef ? `· ${it.itemRef}` : ''}</div>
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0 flex items-center gap-1" style={{ color: sevColor, background: sevBg }}>
+                        <Ico className="w-2.5 h-2.5" /> {it.severity}
+                      </span>
+                    </div>
+                    {it.suggestedValue && Object.keys(it.suggestedValue).length > 0 && (
+                      <div className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                        Suggested: {JSON.stringify(it.suggestedValue).slice(0, 120)}
+                      </div>
+                    )}
+                    {it.confidence != null && (
+                      <div className="text-[9px] text-slate-500 mt-1">Confidence: {Math.round((it.confidence || 0) * 100)}%</div>
+                    )}
+                    {open ? (
+                      <div className="flex gap-1.5 mt-2">
+                        <button onClick={() => resolveReview(it.id, 'accepted')} disabled={reviewLoading}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-bold border border-emerald-500/20 disabled:opacity-50">
+                          <Check className="w-3 h-3" /> Accept
+                        </button>
+                        <button onClick={() => resolveReview(it.id, 'corrected')} disabled={reviewLoading}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 text-[#C9A84C] text-[10px] font-bold border border-[#C9A84C]/20 disabled:opacity-50">
+                          Corrected
+                        </button>
+                        <button onClick={() => resolveReview(it.id, 'ignored')} disabled={reviewLoading}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md bg-slate-700/20 hover:bg-slate-700/30 text-slate-300 text-[10px] font-bold border border-slate-700/30 disabled:opacity-50">
+                          Ignore
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-emerald-400 flex items-center gap-1.5 mt-2"><Check className="w-3 h-3" /> Resolved · {it.status}</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

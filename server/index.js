@@ -1904,6 +1904,62 @@ app.get('/api/projects/:id/floor-plan-versions', (req, res) => {
   }
 });
 
+// GET open plan-intelligence review items for a project (designer review queue).
+// Returns items linked to the latest floor_plan_version, surfaced in the UI so a
+// designer can resolve them. Critical open items block scene generation (Phase 2 gate).
+app.get('/api/projects/:id/review-items', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const fpv = db.prepare("SELECT id FROM floor_plan_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1").get(projectId);
+    if (!fpv) return res.json({ success: true, items: [], openCritical: 0, openTotal: 0 });
+    const rows = db.prepare(
+      "SELECT * FROM floor_plan_review_items WHERE floor_plan_version_id = ? ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, created_at ASC"
+    ).all(fpv.id);
+    const items = rows.map(r => ({
+      id: r.id,
+      itemType: r.item_type,
+      itemRef: r.item_ref,
+      confidence: r.confidence,
+      severity: r.severity,
+      status: r.status,
+      suggestedValue: JSON.parse(r.suggested_value_json || '{}'),
+      resolvedValue: JSON.parse(r.resolved_value_json || '{}'),
+      createdAt: r.created_at
+    }));
+    const open = items.filter(i => !['accepted','corrected','ignored'].includes(i.status));
+    res.json({
+      success: true,
+      items,
+      openCritical: open.filter(i => i.severity === 'critical').length,
+      openTotal: open.length
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST resolve a single plan-intelligence review item. status must be one of
+// accepted | corrected | ignored — the exact values the Phase 2 gate checks.
+app.post('/api/projects/:id/review-items/:itemId', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const itemId = req.params.itemId;
+    const { status, resolvedValue } = req.body || {};
+    if (!['accepted','corrected','ignored'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'status must be accepted|corrected|ignored' });
+    }
+    const existing = db.prepare("SELECT * FROM floor_plan_review_items WHERE id = ?").get(itemId);
+    if (!existing) return res.status(404).json({ success: false, error: 'Review item not found' });
+    db.prepare(
+      "UPDATE floor_plan_review_items SET status = ?, resolved_value_json = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(status, JSON.stringify(resolvedValue || {}), itemId);
+    logTimelineEvent(projectId, 'review_item.resolved', `Plan review item resolved: ${status}`, `${existing.item_type} ${existing.item_ref || ''}`);
+    res.json({ success: true, status });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET details of a specific floor plan version, including review items
 app.get('/api/floor-plan-versions/:versionId', (req, res) => {
   try {
