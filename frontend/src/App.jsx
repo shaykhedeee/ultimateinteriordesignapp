@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Inbox, FileText, Compass, Palette, Sparkles, Scissors,
-  BarChart3, CheckSquare, LayoutDashboard,
+  BarChart3, LayoutDashboard,
   FolderOpen, ChevronDown, Activity, Zap,
   CheckCircle2, Clock, Layers, IndianRupee, BookOpen,
   TrendingUp, ArrowRight, Bell, Award, Paintbrush, Wand2,
-  Archive, Database, Download, Upload, RefreshCw, ShieldCheck
+  Archive, Database, Download, Upload, RefreshCw, ShieldCheck,
+  Ruler, Box, PencilRuler, Workflow
 } from 'lucide-react';
 
 // Import Screens
@@ -94,11 +95,11 @@ const NAV_CONFIG = [
     title: 'Spatial Design',
     items: [
       { id: 'brief',    label: 'Client Intake',        icon: FileText,    shortcut: null },
-      { id: 'cad',      label: 'Plan Intelligence',    icon: Compass,     shortcut: null },
-      { id: 'studio',   label: 'Editable 3D Scene',    icon: Layers,      shortcut: null },
+      { id: 'cad',      label: 'Plan Intelligence',    icon: Ruler,       shortcut: null },
+      { id: 'studio',   label: 'Editable 3D Scene',    icon: Box,         shortcut: null },
       { id: 'vastu',    label: 'Vastu Studio',         icon: Compass,     shortcut: null },
-      { id: 'enhancer', label: 'Floor Plan Enhancer',  icon: Wand2,      shortcut: null },
-      { id: 'drawings', label: 'Drawings & Elevations', icon: CheckSquare, shortcut: null, staleFlag: 'stale_drawings' }
+      { id: 'enhancer', label: 'Floor Plan Enhancer',  icon: Wand2,       shortcut: null },
+      { id: 'drawings', label: 'Drawings & Elevations', icon: PencilRuler, shortcut: null, staleFlag: 'stale_drawings' }
     ]
   },
   {
@@ -122,7 +123,7 @@ const NAV_CONFIG = [
     title: 'Client Delivery',
     items: [
       { id: 'presentation',  label: 'Presentation Pack',   icon: Award,        shortcut: null },
-      { id: 'pipeline',      label: 'Pipeline Studio',     icon: Sparkles,     shortcut: null },
+      { id: 'pipeline',      label: 'Pipeline Studio',     icon: Workflow,    shortcut: null },
       { id: 'vault',         label: 'Deliverables Vault',  icon: Archive,      shortcut: null },
       { id: 'brand',         label: 'Brand Studio',        icon: Paintbrush,   shortcut: null }
     ]
@@ -624,7 +625,7 @@ export function App() {
                         onClick={() => !disabled && setActiveTab(item.id)}
                         className={`nav-item${isActive ? ' active' : ''}`}
                       >
-                        <Icon className="nav-icon" style={{ width:13, height:13 }} />
+                        <span className="nav-icon-chip"><Icon className="nav-icon" style={{ width:14, height:14 }} /></span>
                         <span style={{ flex:1, textAlign:'left', fontSize:'11px', fontWeight: isActive ? 700 : 600 }}>
                           {item.label}
                         </span>

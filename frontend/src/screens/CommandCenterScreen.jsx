@@ -125,7 +125,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const pipelineValue = ((totalLeads * 3.5) + (activeProjectsCount * 12.5)).toFixed(1);
 
   return (
-    <div className="h-full w-full overflow-y-auto p-6 space-y-5 font-sans" style={{ background:'var(--base-100)', color:'var(--text-primary)' }}>
+    <div className="h-full w-full overflow-y-auto p-6 space-y-5 font-sans" style={{ background:'transparent', color:'var(--text-primary)' }}>
       
       {/* ── Workspace Mode / Role Switcher Header ── */}
       <div style={{ display:'flex', flexWrap:'wrap', alignItems:'center', justifyContent:'space-between', gap:'12px', background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', padding:'14px 18px', borderRadius:'18px', boxShadow:'var(--shadow-card)' }}>
