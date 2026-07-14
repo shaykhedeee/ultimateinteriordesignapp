@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   FileText, Ruler, Box, Compass, Wand2, PencilRuler, Sparkles,
-  Palette, Scissors, IndianRupee, Award, Archive, CheckCircle2, Circle
+  Palette, Scissors, IndianRupee, Award, Archive, CheckCircle2, Circle, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 // The canonical 12-stage design→delivery journey. Order matters: this is the
@@ -21,13 +21,40 @@ const PIPELINE_STAGES = [
   { id: 'vault',     label: 'Deliverables Vault',    icon: Archive }
 ];
 
-export default function PipelineRail({ activeTab, onNavigate, stepIndex }) {
+export default function PipelineRail({ activeTab, onNavigate, stepIndex, collapsed = false, onToggleCollapse }) {
   // stepIndex = how many stages are completed (from getStepIndex).
   const activePos = PIPELINE_STAGES.findIndex(s => s.id === activeTab);
 
+  if (collapsed) {
+    // Compact collapsed strip: a single clickable header that re-expands the rail.
+    const done = Math.min(stepIndex, PIPELINE_STAGES.length);
+    return (
+      <button
+        onClick={onToggleCollapse}
+        className="pipeline-rail pipeline-rail-collapsed"
+        title="Expand Design Journey"
+        style={{ width:'100%', textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', padding:'8px 10px', background:'transparent', border:'none', color:'var(--text-muted)' }}
+      >
+        <ChevronRight style={{ width:14, height:14, flexShrink:0 }} />
+        <span className="pipeline-rail-title" style={{ fontSize:'9px', letterSpacing:'0.12em', margin:0 }}>DESIGN JOURNEY</span>
+        <span style={{ marginLeft:'auto', fontSize:'9px', fontFamily:'monospace', color:'var(--gold)' }}>{done}/{PIPELINE_STAGES.length}</span>
+      </button>
+    );
+  }
+
   return (
     <div className="pipeline-rail">
-      <div className="pipeline-rail-title">DESIGN JOURNEY</div>
+      <div className="pipeline-rail-head">
+        <div className="pipeline-rail-title">DESIGN JOURNEY</div>
+        <button
+          onClick={onToggleCollapse}
+          className="pipeline-rail-collapse"
+          title="Collapse Design Journey"
+          style={{ background:'transparent', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex', alignItems:'center', padding:'2px' }}
+        >
+          <ChevronDown style={{ width:13, height:13 }} />
+        </button>
+      </div>
       <div className="pipeline-rail-list">
         {PIPELINE_STAGES.map((stage, i) => {
           const Icon = stage.icon;

@@ -222,6 +222,8 @@ export function App() {
   const [projectsList, setProjectsList]   = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [isAuraOpen, setIsAuraOpen]       = useState(false);
+  // Design Journey (PipelineRail) collapsable/hidable in the sidebar.
+  const [journeyCollapsed, setJourneyCollapsed] = useState(false);
   const [isAuraThinking, setIsAuraThinking] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [currentTime, setCurrentTime]     = useState(new Date());
@@ -747,9 +749,15 @@ export function App() {
           </div>
         )}
 
-        {/* ── Pipeline Rail: the whole design→delivery journey, always visible ── */}
+        {/* ── Pipeline Rail: the whole design→delivery journey (collapsable) ── */}
         {selectedProject && (
-          <PipelineRail activeTab={activeTab} stepIndex={stepIndex} onNavigate={(id) => setActiveTab(id)} />
+          <PipelineRail
+            activeTab={activeTab}
+            stepIndex={stepIndex}
+            onNavigate={(id) => setActiveTab(id)}
+            collapsed={journeyCollapsed}
+            onToggleCollapse={() => setJourneyCollapsed(v => !v)}
+          />
         )}
 
         {/* ── Footer ── */}

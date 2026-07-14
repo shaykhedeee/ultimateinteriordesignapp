@@ -1503,7 +1503,10 @@ select.form-input {
 
 /* ── Pipeline Rail (design→delivery journey, always visible in sidebar) ── */
 .pipeline-rail { padding: 10px 12px; border-top: 1px solid rgba(255,255,255,0.05); }
+.pipeline-rail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .pipeline-rail-title { font-size: 8px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+.pipeline-rail-head .pipeline-rail-title { margin-bottom: 0; }
+.pipeline-rail-collapsed { border-top: 1px solid rgba(255,255,255,0.05); }
 .pipeline-rail-list { display: flex; flex-direction: column; gap: 0; }
 .pipeline-step { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 4px; background: transparent; border: none; cursor: pointer; text-align: left; border-radius: 6px; transition: background .15s; }
 .pipeline-step:hover { background: rgba(255,255,255,0.04); }
