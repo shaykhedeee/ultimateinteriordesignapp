@@ -5361,6 +5361,20 @@ app.get('/api/system/preflight', (req, res) => {
   add('leads table', leadCount >= 0, `${leadCount} leads`);
   const apiMods = (() => { try { return db.prepare("SELECT COUNT(*) c FROM material_catalog").get().c; } catch { return 0; } })();
   add('material catalog seeded', apiMods >= 0, `${apiMods} materials`);
+  // Blender availability (deterministic base-render backbone). Non-fatal: the
+  // app still produces the geometry-faithful script and degrades gracefully.
+  const BLENDER_PATHS = [
+    'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe',
+    'C:\\Program Files\\Blender Foundation\\Blender 4.1\\blender.exe',
+    'C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe',
+    'C:\\Program Files\\Blender Foundation\\Blender 3.6\\blender.exe'
+  ];
+  let blenderFound = false;
+  for (const p of BLENDER_PATHS) { if (fs.existsSync(p)) { blenderFound = true; break; } }
+  if (!blenderFound) {
+    try { require('child_process').execSync('where blender', { stdio: 'ignore' }); blenderFound = true; } catch {}
+  }
+  add('Blender binary', blenderFound, blenderFound ? 'deterministic Cycles base render available' : 'not installed — /scene/blender-export still emits a runnable script');
   const allOk = checks.every(c => c.ok);
   res.json({ ready: allOk, checks, generatedAt: new Date().toISOString() });
 });
