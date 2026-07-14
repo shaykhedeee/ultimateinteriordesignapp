@@ -32,7 +32,7 @@ function liftField(items, field){
 }
 
 export default function PipelineStudio({ projectId: projectIdProp }){
-  const pid = projectIdProp || 'proj-nambia-25bhk';
+  const pid = projectIdProp || 'proj_demo_hsr'; // real selected project, else the seeded demo
   const [activeStep, setActiveStep] = useState(STEP_ORDER[0]);
   const [status, setStatus] = useState('idle');
   const [log, setLog] = useState([]);
@@ -58,9 +58,9 @@ export default function PipelineStudio({ projectId: projectIdProp }){
     try {
       setStatus('running');
       pushLog(`Starting ${step}...`);
-      const currentPid = pid || 'proj-nambia-25bhk';
+      const currentPid = pid || 'proj_demo_hsr';
       const url = `${API_BASE}/api/projects/${currentPid}/${step === 'generate' ? 'pipeline/run' : step === 'package' ? 'delivery-package' : 'plan/measure'}`;
-      const payload = { projectName:'Nambia', rooms: rooms.map(r => ({ ...r, openings:[], cabinets:[] })) };
+      const payload = { projectName: pid, rooms: rooms.map(r => ({ ...r, openings:[], cabinets:[] })) };
       const opts = { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) };
       const res = await fetch(url, opts);
       const text = await res.text();
@@ -82,9 +82,9 @@ export default function PipelineStudio({ projectId: projectIdProp }){
     try {
       setStatus('running');
       pushLog('Building package...');
-      const currentPid = pid || 'proj-nambia-25bhk';
+      const currentPid = pid || 'proj_demo_hsr';
       const url = `${API_BASE}/api/projects/${currentPid}/delivery-package`;
-      const opts = { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ projectName:'Nambia', rooms: rooms.map(r => ({ ...r, openings:[], cabinets:[] })) }) };
+      const opts = { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ projectName: pid, rooms: rooms.map(r => ({ ...r, openings:[], cabinets:[] })) }) };
       const res = await fetch(url, opts);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
@@ -125,7 +125,7 @@ export default function PipelineStudio({ projectId: projectIdProp }){
       const r = rooms.find(x => x.name === roomName) || { name: roomName, w: 4000, h: 3500 };
       setStatus('running');
       pushLog(`Regenerating ${roomName} via AURA pipeline...`);
-      const res = await fetch(`${API_BASE}/api/projects/${pid}/pipeline/regenerate-room`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ room: r, projectName:'Nambia' }) });
+      const res = await fetch(`${API_BASE}/api/projects/${pid}/pipeline/regenerate-room`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ room: r, projectName: pid }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'regen failed');
       setResult(prev => ({ ...prev, rooms: { ...(prev?.rooms||{}), [roomName]: true } }));

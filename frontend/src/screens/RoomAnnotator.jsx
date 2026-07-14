@@ -19,7 +19,7 @@ export default function RoomAnnotator({ image, onRoomsDefined, projectId }) {
   // Prefill marked zones from the project's CAD rooms (canonical flow step 10)
   useEffect(() => {
     if (typeof window === 'undefined' || !projectId) return;
-    fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`).then(r => r.json()).then(cad => {
+    fetch(`/api/projects/${projectId}/cad`).then(r => r.json()).then(cad => {
       const existing = JSON.parse(cad?.rooms_json || '[]');
       if (existing.length) {
         setRooms(existing.map(r => ({
@@ -65,7 +65,7 @@ export default function RoomAnnotator({ image, onRoomsDefined, projectId }) {
     onRoomsDefined && onRoomsDefined(payload);
     // Persist marked zones back to cad_drawings so the AI re-studies the altered plan
     if (projectId) {
-      fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
+      fetch(`/api/projects/${projectId}/cad`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rooms: payload })
       }).catch(() => {}).finally(() => { onComplete && onComplete(); });
@@ -78,7 +78,14 @@ export default function RoomAnnotator({ image, onRoomsDefined, projectId }) {
     <div className="space-y-4">
       <div className="rounded-xl border border-white/10 bg-black/30 p-3">
         <div className="flex items-center gap-3">
-          <img src={image} alt="floorplan" className="max-h-[60vh] rounded-lg object-contain border border-white/10" onLoad={() => setImageLoaded(true)} />
+          <img
+          src={image}
+          alt="floorplan"
+          className="max-h-[60vh] rounded-lg object-contain border border-white/10"
+          style={{ cursor: 'crosshair' }}
+          onLoad={() => setImageLoaded(true)}
+          onClick={handleCanvasClick}
+        />
           <div className="min-w-[260px] space-y-3">
             <div className="text-xs text-white/60">Draw boxes to mark spaces. Select a room to assign name/scale. <span className="text-white/40">Click empty area to place, click room to confirm.</span></div>
             <div>

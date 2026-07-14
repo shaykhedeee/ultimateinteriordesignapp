@@ -4,7 +4,7 @@ import {
   BarChart3, CheckCircle2, ChevronRight, Activity, Zap, Info, Plus,
   Settings, Layers, Sliders, ChevronDown, Check, RefreshCw, Trash2, Camera, Upload, AlertTriangle, FileText, IndianRupee, Pencil,
   LayoutDashboard, TrendingUp, FolderKanban, UserPlus, Circle, ArrowUpRight, ArrowRight, Cpu, Wifi, WifiOff, Clock, Briefcase, Gauge, Building2, Award,
-  Maximize2, Download, X, Image as ImageIcon
+  Maximize2, Download, X, Image as ImageIcon, ShieldCheck
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
 import ProjectSettingsModal from '../components/ProjectSettingsModal.jsx';
@@ -26,6 +26,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [readinessMap, setReadinessMap] = useState({});
   const [quotationMap, setQuotationMap] = useState({});
   const [pendingApprovals, setPendingApprovals] = useState(null);
+  const [recentJobs, setRecentJobs] = useState([]);
 
   const allWorkflowTabs = [
     { id: 'overview', label: 'Studio Overview', desc: 'Workspace health & KPIs', roles: ['designer', 'brand', 'realestate'] },
@@ -125,6 +126,22 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   useEffect(() => {
     loadAllData();
   }, [projectId, loadAllData]);
+
+  // Bottom-band: recent job status for the active project.
+  useEffect(() => {
+    const pid = selectedProjectId;
+    if (!pid) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${pid}/jobs?limit=5`);
+        if (res.ok) {
+          const j = await res.json();
+          const arr = Array.isArray(j) ? j : (j.jobs || []);
+          setRecentJobs(Array.isArray(arr) ? arr.slice(0, 5) : []);
+        }
+      } catch {}
+    })();
+  }, [selectedProjectId]);
 
   const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
 
@@ -553,6 +570,65 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
             </div>
           </div>
 
+        </div>
+
+        {/* ── Bottom Band: Approvals · Job Status · Specialist Tools ── */}
+        <div className="xl:col-span-3 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Approvals */}
+          <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'18px', boxShadow:'var(--shadow-card)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'7px' }}>
+                <ShieldCheck style={{ width:13, height:13, color:'var(--gold)' }} />
+                <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Pending Approvals</span>
+              </div>
+              {pendingApprovals && pendingApprovals.total > 0 && (
+                <span style={{ background:'rgba(201,168,76,0.15)', color:'var(--gold)', border:'1px solid var(--gold-border)', borderRadius:'7px', padding:'2px 8px', fontSize:'10px', fontWeight:800 }}>{pendingApprovals.total}</span>
+              )}
+            </div>
+            {pendingApprovals && pendingApprovals.total > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px]"><span className="text-slate-400">Plan review items</span><span className="text-slate-200 font-bold">{pendingApprovals.reviewItems}</span></div>
+                <div className="flex items-center justify-between text-[11px]"><span className="text-slate-400">Unapproved laminate swaps</span><span className="text-slate-200 font-bold">{pendingApprovals.laminateSwaps}</span></div>
+                <div className="flex items-center justify-between text-[11px]"><span className="text-slate-400">Unpaid invoices</span><span className="text-slate-200 font-bold">{pendingApprovals.invoices}</span></div>
+                <button onClick={() => onNavigateToTab('cad')} className="mt-2 w-full text-[10px] font-bold text-black bg-[var(--gold)] px-3 py-1.5 rounded-lg flex items-center justify-center gap-1">Review in Plan Studio <ArrowRight size={10} /></button>
+              </div>
+            ) : (
+              <div className="text-xs text-emerald-400 flex items-center gap-2 py-2"><CheckCircle2 className="w-4 h-4" /> All clear — nothing awaiting sign-off.</div>
+            )}
+          </div>
+
+          {/* Job Status */}
+          <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'18px', boxShadow:'var(--shadow-card)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'7px', marginBottom:'12px' }}>
+              <Activity style={{ width:13, height:13, color:'var(--gold)' }} />
+              <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Job Status</span>
+            </div>
+            {recentJobs.length === 0 ? (
+              <div className="text-xs text-slate-500 py-2">No active jobs for this project.</div>
+            ) : (
+              <div className="space-y-2">
+                {recentJobs.map(j => (
+                  <div key={j.id} className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-300 truncate max-w-[60%]">{j.type || j.name || j.job_type || 'Job'}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${ (j.status==='succeeded'||j.status==='done') ? 'bg-emerald-500/15 text-emerald-300' : (j.status==='failed'||j.status==='error') ? 'bg-rose-500/15 text-rose-300' : 'bg-amber-500/15 text-amber-300' }`}>{j.status || 'queued'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Specialist Tools quick-launch */}
+          <div style={{ background:'var(--surface-1)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'20px', padding:'18px', boxShadow:'var(--shadow-card)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'7px', marginBottom:'12px' }}>
+              <Zap style={{ width:13, height:13, color:'var(--gold)' }} />
+              <span style={{ fontSize:'10px', fontWeight:900, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--text-secondary)' }}>Specialist Tools</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {['cad','studio','renders','drawings','materials','cutlist','finance'].map(t => (
+                <button key={t} onClick={() => onNavigateToTab(t)} className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950/40 text-[10px] font-bold text-slate-300 hover:border-[var(--gold)]/40 hover:text-[var(--gold)] capitalize transition">{t}</button>
+              ))}
+            </div>
+          </div>
         </div>
 
       </div>
