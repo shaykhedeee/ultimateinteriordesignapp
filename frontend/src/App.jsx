@@ -234,6 +234,10 @@ export function App() {
     text:"Hello! I am AURA — your AI design co-pilot. I can help with elevations, renders, floorplan detection, cutlist, budget optimisation, and client handoff. Pick a project and choose an action to execute directly.",
     timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})
   }]);
+  // AURA structured design proposals (rules-engine, /api/aura/propose) — surfaced
+  // as cards so the user sees concrete, grounded actions (sofa sizing, mesh-basket
+  // ordering, Vastu, elevation standard, correction reverts) per the AURA plan.
+  const [auraProposals, setAuraProposals] = useState(null);
   const [toasts, setToasts] = useState([]);
 
   // ── Lightweight toast (replaces 100+ native alert/confirm calls) ─────────
@@ -330,6 +334,13 @@ export function App() {
     const fn = e => e.detail && setActiveTab(e.detail);
     window.addEventListener('navigate-to-tab', fn);
     return () => window.removeEventListener('navigate-to-tab', fn);
+  }, []);
+
+  // ── Global project selection event ──
+  useEffect(() => {
+    const fn = e => e.detail && setSelectedProjectId(e.detail);
+    window.addEventListener('select-project', fn);
+    return () => window.removeEventListener('select-project', fn);
   }, []);
 
   // ── Global whitelabel/branding event ──
@@ -439,6 +450,9 @@ export function App() {
       if (!res.ok || !data?.success) throw new Error(data?.error || 'AURA request failed');
       const reply = data.reply || { text: 'No response', toolCalls: [] };
       setChatMessages(p => [...p, { id: reply.id || `a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text: reply.text, toolCalls: reply.toolCalls || [], intent: reply.intent || null, llmPowered: Boolean(reply.llmPowered), model: reply.model || null }]);
+      // Keep the structured proposal panel in sync — re-run the rules engine for
+      // the active project after each turn (grounded, never invents dimensions).
+      handlePropose(text);
     } catch (err) {
       setChatMessages(p => [...p, { id:`a-${Date.now()}`, sender:'aura', timestamp: new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}), text:`AURA is temporarily unreachable: ${err.message}. Using offline mode.`, toolCalls:[], intent:null }]);
       window.__toast?.warn(err.message || 'AURA offline');
@@ -494,6 +508,44 @@ export function App() {
     }
     if (target) setActiveTab(target);
     window.dispatchEvent(new CustomEvent('aura-execute-action', { detail: { actionId, preview } }));
+  };
+
+  // AURA structured proposal engine — calls /api/aura/propose (rules + retrieval)
+  // and stores grounded design actions for the active project. Trigger explicitly
+  // via "propose / review / check my design", or after any chat turn so the panel
+  // stays current. Never invents dimensions — actions derive from the real scene.
+  const handlePropose = async (message = '') => {
+    if (!selectedProjectId) { setAuraProposals(null); return; }
+    try {
+      const res = await fetch('/api/aura/propose', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: selectedProjectId, message })
+      });
+      const data = await res.json();
+      if (res.ok && data?.success) {
+        setAuraProposals({
+          actions: Array.isArray(data.actions) ? data.actions : [],
+          rules: Array.isArray(data.rules) ? data.rules : [],
+          retrieved: data.retrieved || {},
+          generatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+      }
+    } catch { /* non-fatal — proposals are best-effort */ }
+  };
+
+  // Route a structured AURA proposal to the relevant screen (no geometry authoring —
+  // AURA only proposes; the user executes in the real editor).
+  const handleProposalAction = (proposal) => {
+    const map = {
+      regenerate_elevation: 'drawings',
+      revert_material:      'materials',
+      resize_furniture:     'cad',
+      reposition_component:  'cad',
+      move_room:            'cad',
+    };
+    const target = map[proposal.action];
+    window.__toast?.success(`AURA proposes: ${proposal.reasoning || proposal.action}`);
+    if (target) setActiveTab(target);
   };
 
   useEffect(() => {
@@ -894,8 +946,10 @@ export function App() {
 
           <AuraBrainChat
             messages={chatMessages}
+            proposals={auraProposals}
             onSendMessage={handleSendMessage}
             onExecuteAction={handleExecuteAction}
+            onProposalAction={handleProposalAction}
             project={selectedProject}
             isOpen={isAuraOpen}
             onClose={() => setIsAuraOpen(false)}

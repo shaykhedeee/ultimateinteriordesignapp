@@ -31,6 +31,7 @@ function buildInsights(project) {
     insights.push({ text: `Stage: ${status}. Generate elevations to advance`, prompt: `Generate 2D elevations for ${project.name}`, tone: 'info' });
   }
   insights.push({ text: `Generate photoreal renders for ${project.name}`, prompt: `Generate 3D photoreal renders for ${project.name}`, tone: 'info' });
+  insights.push({ text: `Review my design & propose improvements`, prompt: `Review my design and propose improvements (resize sofa to fit wall, check mesh-basket placement, Vastu zones, elevation standard, material swaps)`, tone: 'info' });
   insights.push({ text: `Run Vastu check on ${project.name}`, prompt: `Run a Vastu compliance check on ${project.name}`, tone: 'info' });
   if (status === 'production') {
     insights.push({ text: `Build delivery package (SKP + DXF + cutlist)`, prompt: `Build the full delivery package for ${project.name}`, tone: 'info' });
@@ -40,11 +41,13 @@ function buildInsights(project) {
 
 export default function AuraBrainChat({
   messages, onSendMessage, onExecuteAction,
-  project, isOpen, onClose, isThinking
+  project, isOpen, onClose, isThinking,
+  proposals, onProposalAction
 }) {
   const [inputText, setInputText]         = useState('');
   const [isListening, setIsListening]     = useState(false);
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [showProposals, setShowProposals] = useState(true);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -281,6 +284,38 @@ export default function AuraBrainChat({
           </div>
         );
       })()}
+
+      {/* ── AURA Design Proposals (rules-engine, grounded in real scene) ── */}
+      {proposals && Array.isArray(proposals.actions) && proposals.actions.length > 0 && showProposals && (
+        <div style={{ background:'rgba(99,102,241,0.06)', borderBottom:'1px solid rgba(99,102,241,0.18)', padding:'10px 14px', display:'flex', flexDirection:'column', gap:'7px', maxHeight:'38%', overflowY:'auto' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <span style={{ fontSize:'8.5px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'#a5b4fc' }}>AURA Design Proposals</span>
+            <button onClick={() => setShowProposals(false)} style={{ fontSize:'9px', color:'var(--text-muted)', background:'transparent', border:'none', cursor:'pointer' }}>hide</button>
+          </div>
+          {proposals.actions.map((a, i) => {
+            const conf = Math.round((a.confidence || 0) * 100);
+            return (
+              <div key={i} style={{ background:'rgba(0,0,0,0.4)', border:'1px solid rgba(99,102,241,0.22)', borderRadius:'9px', padding:'8px 9px' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
+                  <span style={{ fontSize:'10px', fontWeight:700, color:'#c7d2fe' }}>{a.action.replace(/_/g,' ')}</span>
+                  <span style={{ fontSize:'8.5px', fontFamily:'monospace', fontWeight:800, color: conf>=80 ? 'var(--emerald)' : conf>=60 ? '#F59E0B' : 'var(--text-muted)' }}>{conf}%</span>
+                </div>
+                <div style={{ height:'3px', borderRadius:'3px', background:'rgba(255,255,255,0.08)', marginBottom:'5px', overflow:'hidden' }}>
+                  <div style={{ width:`${conf}%`, height:'100%', background: conf>=80 ? 'var(--emerald)' : '#F59E0B' }} />
+                </div>
+                <p style={{ fontSize:'9.5px', lineHeight:1.45, color:'rgba(255,255,255,0.72)', margin:'0 0 6px 0' }}>{a.reasoning}</p>
+                <button
+                  onClick={() => onProposalAction?.(a)}
+                  style={{ fontSize:'9px', fontWeight:700, padding:'3px 10px', borderRadius:'6px', cursor:'pointer', background:'#6366f1', color:'#fff', border:'none', display:'inline-flex', alignItems:'center', gap:'4px' }}
+                >Open in editor <ArrowRight style={{ width:9, height:9 }} /></button>
+              </div>
+            );
+          })}
+          <div style={{ fontSize:'8px', color:'var(--text-muted)', fontFamily:'monospace' }}>
+            {proposals.retrieved?.materials ?? 0} materials · {proposals.retrieved?.corrections ?? 0} corrections · grounded in scene graph
+          </div>
+        </div>
+      )}
 
       {/* ── Messages ── */}
       <div style={S.msgArea}>
