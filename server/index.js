@@ -4889,6 +4889,56 @@ app.post('/api/aura/propose', express.json(), async (req, res) => {
   }
 });
 
+// Expose the 8 AURA specialist agents (defined in aura-agents.js) so the
+// frontend can show the multi-agent roster behind the co-pilot. Previously the
+// agent registry was dead code (only pasted into a system prompt). Now it is
+// a real, inspectable surface.
+import { AURA_AGENTS, getCompanyBrainContext } from './services/aura-agents.js';
+app.get('/api/aura/agents', (req, res) => {
+  try {
+    const agents = Object.values(AURA_AGENTS).map(a => ({
+      id: a.id, name: a.name, description: a.description,
+      tools: (a.tools || []).map(t => ({ name: t.name, description: t.description }))
+    }));
+    res.json({ success: true, agents, companyRules: getCompanyBrainContext() });
+  } catch (err) {
+    res.status(500).json({ success:false, error: err.message });
+  }
+});
+
+// Orchestrator "Run Design Review": executes the grounded, high-confidence
+// proposals from the rules engine against REAL backend routes — never invents
+// dimensions or geometry. Only auto-runs actions that map to a safe, existing
+// route and exceed the confidence threshold. Returns an execution report.
+const AURA_EXEC_MAP = {
+  regenerate_elevation: { method:'GET',  path: id => `/api/projects/${id}/analyze-elevation` },
+  cutlist_refresh:      { method:'POST', path: id => `/api/projects/${id}/cutlist/refresh` },
+  vastu_check:          { method:'GET',  path: id => `/api/projects/${id}/vastu/analyze` },
+};
+app.post('/api/aura/run-review', express.json(), async (req, res) => {
+  try {
+    const { projectId, message = '', minConfidence = 0.8 } = req.body || {};
+    if (!projectId) return res.status(400).json({ success:false, error: 'projectId required' });
+    const { actions } = proposeDesignActions({ projectId, message });
+    const report = [];
+    for (const a of (actions || [])) {
+      const conf = Number(a.confidence || 0);
+      const exec = AURA_EXEC_MAP[a.action];
+      if (!exec || conf < minConfidence) {
+        report.push({ action: a.action, status: 'skipped', reason: exec ? `confidence ${conf} < ${minConfidence}` : 'no safe auto-exec route', reasoning: a.reasoning });
+        continue;
+      }
+      const route = exec.path(projectId);
+      const r = await fetch(`http://127.0.0.1:${process.env.PORT||'5055'}${route}`, { method: exec.method, headers:{'Content-Type':'application/json'} }).catch(() => null);
+      const ok = r && r.ok;
+      report.push({ action: a.action, status: ok ? 'executed' : 'failed', route, confidence: conf, reasoning: a.reasoning });
+    }
+    res.json({ success: true, executed: report.filter(r => r.status === 'executed').length, report });
+  } catch (err) {
+    res.status(500).json({ success:false, error: err.message });
+  }
+});
+
 // Settings: API key management (BYOK)
 // Canonical schema lives in database.js (columns: id, provider, key_enc, label,
 // last_error, created_at, last_used_at). The routes below also reference

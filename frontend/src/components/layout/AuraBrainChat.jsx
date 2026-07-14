@@ -42,7 +42,7 @@ function buildInsights(project) {
 export default function AuraBrainChat({
   messages, onSendMessage, onExecuteAction,
   project, isOpen, onClose, isThinking,
-  proposals, onProposalAction
+  proposals, onProposalAction, onRunReview
 }) {
   const [inputText, setInputText]         = useState('');
   const [isListening, setIsListening]     = useState(false);
@@ -290,7 +290,15 @@ export default function AuraBrainChat({
         <div style={{ background:'rgba(99,102,241,0.06)', borderBottom:'1px solid rgba(99,102,241,0.18)', padding:'10px 14px', display:'flex', flexDirection:'column', gap:'7px', maxHeight:'38%', overflowY:'auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
             <span style={{ fontSize:'8.5px', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', color:'#a5b4fc' }}>AURA Design Proposals</span>
-            <button onClick={() => setShowProposals(false)} style={{ fontSize:'9px', color:'var(--text-muted)', background:'transparent', border:'none', cursor:'pointer' }}>hide</button>
+            <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+              {onRunReview && (
+                <button onClick={onRunReview} title="Execute grounded, high-confidence proposals"
+                  style={{ fontSize:'8.5px', fontWeight:800, padding:'2px 8px', borderRadius:'6px', cursor:'pointer', background:'#6366f1', color:'#fff', border:'none', display:'inline-flex', alignItems:'center', gap:'3px' }}>
+                  Run Review
+                </button>
+              )}
+              <button onClick={() => setShowProposals(false)} style={{ fontSize:'9px', color:'var(--text-muted)', background:'transparent', border:'none', cursor:'pointer' }}>hide</button>
+            </div>
           </div>
           {proposals.actions.map((a, i) => {
             const conf = Math.round((a.confidence || 0) * 100);

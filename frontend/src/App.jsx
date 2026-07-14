@@ -550,6 +550,25 @@ export function App() {
     if (target) setActiveTab(target);
   };
 
+  // Orchestrator "Run Design Review": asks the backend to execute the grounded,
+  // high-confidence proposals against real routes (never invents geometry).
+  const handleRunReview = async () => {
+    if (!selectedProjectId) { window.__toast?.warn('Select a project first'); return; }
+    try {
+      const res = await fetch('/api/aura/run-review', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: selectedProjectId, minConfidence: 0.8 })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'run-review failed');
+      const done = data.executed || 0;
+      const failed = (data.report || []).filter(r => r.status === 'failed').length;
+      window.__toast?.success(`AURA ran design review: ${done} action(s) executed${failed ? `, ${failed} failed` : ''}.`);
+    } catch (e) {
+      window.__toast?.error(`AURA run-review: ${e.message}`);
+    }
+  };
+
   useEffect(() => {
     const handler = (e) => {
       const { actionId } = e.detail || {};
@@ -958,6 +977,7 @@ export function App() {
             onSendMessage={handleSendMessage}
             onExecuteAction={handleExecuteAction}
             onProposalAction={handleProposalAction}
+            onRunReview={handleRunReview}
             project={selectedProject}
             isOpen={isAuraOpen}
             onClose={() => setIsAuraOpen(false)}
