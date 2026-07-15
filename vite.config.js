@@ -7,7 +7,21 @@ export default defineConfig({
   root: 'frontend',
   server: {
     port: 5175,
-    host: '127.0.0.1'
+    host: '127.0.0.1',
+    proxy: {
+      '/api': {
+        target: `http://127.0.0.1:${process.env.PORT || 5055}`,
+        changeOrigin: true
+      },
+      '/storage': {
+        target: `http://127.0.0.1:${process.env.PORT || 5055}`,
+        changeOrigin: true
+      },
+      '/uploads': {
+        target: `http://127.0.0.1:${process.env.PORT || 5055}`,
+        changeOrigin: true
+      }
+    }
   },
   build: {
     outDir: '../dist',
