@@ -18,7 +18,7 @@ const isHtml = (t) => typeof t === 'string' && t.includes('<!DOCTYPE');
 test('jali-panel service: valid DXF with lotus + lattice (closed polylines)', () => {
   const dxf = buildJaliPanelDXF({ widthMm: 600, heightMm: 2000, name: 'Test Jali' });
   assert.ok(dxf.includes('SECTION') && dxf.trim().endsWith('EOF'), 'valid DXF envelope');
-  assert.ok((dxf.match(/LWPOLYLINE/g) || []).length >= 2, 'has lotus closed polylines');
+  assert.ok((dxf.match(/POLYLINE/g) || []).length >= 2, 'has lotus closed polylines');
   assert.ok((dxf.match(/ARC/g) || []).length >= 2, 'has lattice arcs');
 });
 

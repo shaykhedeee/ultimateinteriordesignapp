@@ -46,10 +46,10 @@ const sample = {
   pixelsPerMeter: 40
 };
 
-test('buildFloorPlanDXF: valid R2010 DXF with real geometry (ezdxf)', { skip: !hasEzdxf() }, () => {
+test('buildFloorPlanDXF: valid R12 DXF with real geometry (ezdxf)', { skip: !hasEzdxf() }, () => {
   const dxf = buildFloorPlanDXF(sample);
   assert.ok(dxf.includes('SECTION') && dxf.includes('EOF'), 'DXF envelope present');
-  assert.ok(dxf.includes('AC1024'), 'R2010 header');
+  assert.ok(dxf.includes('AC1009'), 'R12 header');
   assert.ok(dxf.includes('WALL_OUTLINE'), 'wall layer present');
   const f = path.join(ELEV, 'floorplan-test.dxf');
   fs.writeFileSync(f, dxf);

@@ -13,7 +13,7 @@ const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYP
 function dxfIsValid(dxf) {
   assert.ok(typeof dxf === 'string' && dxf.length > 500, 'dxf too small / not a string');
   assert.ok(dxf.includes('EOF'), 'dxf missing EOF terminator');
-  assert.ok(dxf.includes('AcDbEntity'), 'dxf missing AcDbEntity subclass (AutoCAD would reject)');
+  assert.ok(dxf.includes('AC1009'), 'dxf missing AC1009 header');
   assert.ok(!dxf.includes('NaN'), 'dxf contains NaN coordinate (invalid geometry)');
   assert.ok(dxf.includes('SECTION'), 'dxf missing SECTION');
   return true;

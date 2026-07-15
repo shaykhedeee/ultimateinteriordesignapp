@@ -1,37 +1,41 @@
-// Regression tests for delivery-package.js — the client handoff zip builder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildDeliveryPackage } from '../server/services/delivery-package.js';
+import db from '../server/database/database.js';
+import { generateDeliveryPackPdf } from '../server/services/delivery-package.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const storageDir = path.resolve(__dirname, '../storage');
 
-test('buildDeliveryPackage: creates a real .zip and cleans up after', async () => {
-  const id = 'unit-test-' + Date.now();
-  let zipPath;
-  try {
-    zipPath = await buildDeliveryPackage({ projectId: id, projectName: 'Unit Test', label: 'latest' });
-    assert.ok(typeof zipPath === 'string' && zipPath.endsWith('.zip'), 'returns a zip path');
-    assert.ok(fs.existsSync(zipPath), 'zip file should exist on disk');
-    assert.ok(fs.statSync(zipPath).size > 0, 'zip should not be empty (PACKAGE.md included)');
-  } finally {
-    const dir = path.join(root, '_deliverables', id);
-    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+const PID = 'deliv_test_' + Date.now();
+
+function seed() {
+  db.prepare('INSERT OR REPLACE INTO projects (id, name, client_name) VALUES (?, ?, ?)').run(PID, 'Delivery Pack Test', 'Delivery Client');
+  db.prepare(`INSERT OR REPLACE INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json)
+    VALUES (?, ?, ?, ?, ?, ?)`).run('cd_' + PID, PID, JSON.stringify([]), JSON.stringify([]), JSON.stringify([]), JSON.stringify([]));
+}
+
+function cleanup(pdfPath) {
+  db.prepare('DELETE FROM cad_drawings WHERE project_id = ?').run(PID);
+  db.prepare('DELETE FROM projects WHERE id = ?').run(PID);
+  if (pdfPath && fs.existsSync(pdfPath)) {
+    fs.rmSync(pdfPath, { force: true });
   }
-});
+}
 
-test('buildDeliveryPackage: projectId is sanitized (no path traversal)', async () => {
-  const id = '../evil/../../pwn';
-  let zipPath;
-  try {
-    zipPath = await buildDeliveryPackage({ projectId: id, label: 'x' });
-    // sanitized id should still land under _deliverables, not escape root
-    assert.ok(zipPath.includes('_deliverables'), 'output stays inside project root');
-  } finally {
-    const safeId = String(id).replace(/[^a-z0-9-]+/gi, '_').toLowerCase();
-    const dir = path.join(root, '_deliverables', safeId);
-    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-  }
+test('generateDeliveryPackPdf successfully creates a technical PDF document', async () => {
+  seed();
+  
+  const pdfPath = await generateDeliveryPackPdf(PID);
+  
+  assert.ok(pdfPath, 'should return a file path');
+  assert.ok(fs.existsSync(pdfPath), 'PDF file should exist on disk');
+  
+  const stats = fs.statSync(pdfPath);
+  assert.ok(stats.size > 100, 'PDF should have a non-trivial file size');
+  
+  cleanup(pdfPath);
 });

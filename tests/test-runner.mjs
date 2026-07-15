@@ -29,7 +29,7 @@ async function main() {
   const child = spawn(process.execPath, [SERVER_PATH], {
     cwd: ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, PORT: '8787', NODE_ENV: 'test' },
+    env: { ...process.env, PORT: '8787', NODE_ENV: 'test', LIVE_IMAGE_GEN: 'false' },
   });
 
   const serverReady = waitForServer();
@@ -46,7 +46,7 @@ async function main() {
       .filter(f => f.endsWith('.test.js'))
       .map(f => path.join('tests', f));
 
-    execFileSync(process.execPath, ['--test', ...testFiles], {
+    execFileSync(process.execPath, ['--test', '--test-concurrency=1', ...testFiles], {
       cwd: ROOT,
       stdio: 'inherit',
       env: { ...process.env, APP_URL: BASE_URL },
