@@ -8,6 +8,7 @@ import {
 import { exportToDXF, exportToSCR } from '../utils/dxf-exporter';
 import CVProcessor from '../lib/cv/cv-processor';
 import { roomCentroid, shiftRoom } from '../lib/roomOverlay';
+import { API } from '../config';
 
 export default function InteractiveCADScreen({ projectId, onComplete }) {
   // --- Workspace Vector State ---
@@ -59,6 +60,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [isDetectingLayout, setIsDetectingLayout] = useState(false);
   const [cvStatus, setCvStatus] = useState(null); // { kind:'ok'|'warn'|'error', text:string }
   const [multimodalAnalysis, setMultimodalAnalysis] = useState(null);
+  const [planReport, setPlanReport] = useState(null); // REAL geometry-derived analysis report
 
   // --- Undo/Redo Stacks ---
   const [history, setHistory] = useState([]);
@@ -69,7 +71,18 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [vastuBusy, setVastuBusy] = useState(false);
   const [vastuApplied, setVastuApplied] = useState(false);
   const [ackText, setAckText] = useState(''); // spoken floor-plan acknowledgement
+  const [aiStatus, setAiStatus] = useState(null); // { gemini:'Configured'|'Missing', openai:... }
   const [showVastuOverlay, setShowVastuOverlay] = useState(false);
+
+  // Surface whether real AI keys are active (so the user knows if AI is used).
+  useEffect(() => {
+    fetch(`${API}/api/diagnostics/api-keys`).then(r => r.json()).then(d => {
+      setAiStatus({
+        gemini: d?.GEMINI_API_KEY?.status || 'Missing',
+        openai: d?.OPENAI_API_KEY?.status || 'Missing'
+      });
+    }).catch(() => setAiStatus({ gemini: 'Unknown', openai: 'Unknown' }));
+  }, []);
 
   // SVG viewport ref
   const svgRef = useRef(null);
@@ -134,16 +147,18 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const loadPhotoElevations = async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations`);
+      const res = await fetch(`${API}/api/projects/${projectId}/photo-elevations`);
       const rows = await res.json();
       if (Array.isArray(rows)) setPhotoElevations(rows.reverse().slice(0, 20));
     } catch (e) { /* silent */ }
   };
 
   const loadCADData = async () => {
+    if (!projectId) return;
     try {
       // 1. Fetch CAD vector drawing
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
+      const res = await fetch(`${API}/api/projects/${projectId}/cad`);
+      if (!res.ok || !res.headers.get('content-type')?.includes('json')) return;
       const data = await res.json();
       const safe = data && typeof data === 'object' ? data : {};
       const loadedWalls = JSON.parse(safe.walls_json || '[]');
@@ -159,8 +174,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       setRooms(loadedRooms);
       setMeasures(loadedMeasures);
       setPixelsPerMeter(ppm);
+      // Load the REAL persisted geometry report (if any) so the analysis
+      // panel reflects measured rooms/area instead of a stale placeholder.
+      if (safe.plan_text) {
+        try { const parsed = typeof safe.plan_text === 'string' ? JSON.parse(safe.plan_text) : safe.plan_text; if (parsed && (parsed.rooms || parsed.totalAreaM2 !== undefined)) setPlanReport(parsed); } catch {}
+      }
       // Canonical flow step 1: speak/print acknowledgement once the plan is loaded
-      if (loadedRooms.length || loadedFurniture.length) buildAcknowledgement();
+      if (loadedRooms.length || loadedFurniture.length || (safe.plan_text)) buildAcknowledgement();
 
       // Seed initial history
       const initialState = JSON.stringify({
@@ -176,12 +196,12 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
       // 2. Fetch Project Brief to extract floorplan underlay background image
       try {
-        const resProj = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+        const resProj = await fetch(`${API}/api/projects/${projectId}`);
         const projData = await resProj.json();
         if (projData.client_brief_json) {
           const briefData = JSON.parse(projData.client_brief_json);
           if (briefData.floorplanImageUrl) {
-            setSketchUrl(`http://127.0.0.1:5055${briefData.floorplanImageUrl}`);
+            setSketchUrl(`${API}${briefData.floorplanImageUrl}`);
           }
         }
       } catch (errProj) {
@@ -201,11 +221,12 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         const fd = new FormData();
         fd.append('image', file);
         window.__toast?.show('Running offline CV wall detection on your image…');
-        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/detect-walls-vision`, { method: 'POST', body: fd });
+        const res = await fetch(`${API}/api/projects/${projectId}/cad/detect-walls-vision`, { method: 'POST', body: fd });
         const data = await res.json();
         if (data.success) {
           window.__toast?.show(`Detected ${data.walls} wall segment(s) via ${data.source}. Refine in the editor, then run AI Auto-Detect Layout.`);
           if (data.multimodalAnalysis) setMultimodalAnalysis(data.multimodalAnalysis);
+          if (data.report) setPlanReport(data.report);
           loadCADData();
         } else {
           window.__toast?.show(data.message || 'Wall detection failed. Trace manually in the editor.');
@@ -293,12 +314,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const triggerAiDetect = async () => {
     setIsDetectingLayout(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/ai-detect`, {
+      const res = await fetch(`${API}/api/projects/${projectId}/cad/ai-detect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
       if (data.success) {
+        if (data.report) setPlanReport(data.report);
         if (data.fallback) {
           window.__toast?.show("AI generated a standards-based starter layout (no walls traced yet). Upload a floorplan or trace walls for a custom plan.");
         } else {
@@ -366,7 +388,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const runVastuCheck = async () => {
     setVastuBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/vastu/analyze`);
+      const res = await fetch(`${API}/api/projects/${projectId}/vastu/analyze`);
       const data = await res.json();
       if (res.ok) setVastuDiff(data);
     } catch (e) {
@@ -379,14 +401,14 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const applyVastuFix = async () => {
     setVastuBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/vastu/auto-apply-full`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const res = await fetch(`${API}/api/projects/${projectId}/vastu/auto-apply-full`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const data = await res.json();
       if (res.ok && data.applied?.length) {
         window.__toast?.show(`Vastu applied: ${data.applied.length} fix(es)`);
         setVastuApplied(true);
         setVastuDiff({ ...(vastuDiff || {}), needsApply: false });
         // reload furniture so the canvas reflects the change
-        const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json();
+        const cad = await (await fetch(`${API}/api/projects/${projectId}/cad`)).json();
         if (cad?.furniture) setFurniture(cad.furniture);
       }
     } catch (e) {
@@ -396,26 +418,48 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
     }
   };
 
-  // --- Spoken + banner acknowledgement of the analyzed floor plan ---
+  // --- Honest, data-driven floor-plan summary (no canned/mock text) ---
   const speak = (text) => {
     setAckText(text);
   };
   const buildAcknowledgement = () => {
-    const bedrooms = rooms.filter(r => /bed|sleep/i.test(r.name || r.type || '')).length
-      || furniture.filter(f => /bed/i.test(f.name || f.type || '')).length;
-    const type = bedrooms >= 4 ? '4BHK' : bedrooms === 3 ? '3BHK' : bedrooms === 2 ? '2BHK' : bedrooms === 1 ? '1BHK' : 'APARTMENT';
+    // Prefer the real geometry-derived report when present.
+    if (planReport && planReport.rooms && planReport.rooms.length) {
+      const r = planReport;
+      const parts = [];
+      if (r.layoutType) parts.push(r.layoutType);
+      if (r.totalAreaM2) parts.push(`${r.totalAreaM2} m²`);
+      const c = r.counts || {};
+      const zoneBits = [
+        c.bedrooms ? `${c.bedrooms} BR` : null,
+        c.kitchens ? `${c.kitchens} KT` : null,
+        c.bathrooms ? `${c.bathrooms} BA` : null,
+        c.living ? `${c.living} LIV` : null
+      ].filter(Boolean);
+      if (zoneBits.length) parts.push(zoneBits.join(' · '));
+      const summary = parts.length
+        ? `ANALYSED ${r.rooms?.length || planReport.rooms.length} ZONE(S): ${parts.join(' — ')}`
+        : `ANALYSED ${planReport.rooms.length} ZONE(S) FROM MEASURED GEOMETRY`;
+      speak(summary);
+      return;
+    }
+    // Fallback to geometry when report not yet built: count real rooms/furniture.
     const roomCount = rooms.length || furniture.length || 0;
-    speak(`OKAY I SEE IT IS A ${type} BEAUTIFUL APARTMENT WITH ${roomCount} ZONES — ANALYSING NOW`);
+    if (roomCount > 0) {
+      speak(`LOADED ${roomCount} ZONE(S) FROM MEASURED PLAN — RUN AI AUTO-DETECT TO ENRICH`);
+    } else {
+      speak(`NO MEASURED ZONES YET — RUN AI AUTO-DETECT OR TRACE WALLS TO ANALYSE`);
+    }
   };
 
   // --- Kitchen template picker (canonical step 7) ---
   const applyKitchenShape = async (shape) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/kitchen/template`, {
+      const res = await fetch(`${API}/api/projects/${projectId}/kitchen/template`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shape })
       });
       const data = await res.json();
-      if (res.ok) { window.__toast?.show(`Kitchen ${shape}-shape applied`); const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
+      if (res.ok) { window.__toast?.show(`Kitchen ${shape}-shape applied`); const cad = await (await fetch(`${API}/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
     } catch (e) { console.error(e); }
   };
 
@@ -423,21 +467,21 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const [tvUnits, setTvUnits] = useState([]);
   const [tvBusy, setTvBusy] = useState(false);
   const loadTvUnits = async () => {
-    try { const d = await (await fetch('http://127.0.0.1:5055/api/tv-units')).json(); setTvUnits(d); } catch (e) { console.error(e); }
+    try { const d = await (await fetch(`${API}/api/tv-units`)).json(); setTvUnits(d); } catch (e) { console.error(e); }
   };
   const applyTvUnitStyle = async (unitId) => {
     setTvBusy(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/tv-unit/apply`, {
+      const res = await fetch(`${API}/api/projects/${projectId}/tv-unit/apply`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unitId })
       });
       const data = await res.json();
-      if (res.ok) { window.__toast?.show('TV unit style applied'); const cad = await (await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
+      if (res.ok) { window.__toast?.show('TV unit style applied'); const cad = await (await fetch(`${API}/api/projects/${projectId}/cad`)).json(); if (cad?.furniture) setFurniture(cad.furniture); }
     } catch (e) { console.error(e); } finally { setTvBusy(false); }
   };
   const saveCADToServer = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
+      const res = await fetch(`${API}/api/projects/${projectId}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -480,7 +524,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
         setUploadProgress(prev => Math.min(prev + 12, 90));
       }, 300);
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/video`, {
+      const res = await fetch(`${API}/api/projects/${projectId}/cad/video`, {
         method: 'POST',
         body: formData
       });
@@ -1032,7 +1076,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
   const totalZonesCount = rooms.length || furniture.length || 0;
 
   return (
-    <div className="flex flex-col h-[85vh] text-slate-200 select-none bg-slate-950 p-4 gap-4 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-1rem)] text-slate-200 select-none bg-slate-950 p-4 gap-4 overflow-hidden">
       {/* Hidden offscreen canvas for CV wall detection from underlay image */}
       <canvas ref={hiddenCanvasRef} style={{ display: 'none' }} />
 
@@ -1071,10 +1115,10 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       )}
 
       {/* Main Drafting Workspace & Sidebars */}
-      <div className="flex-1 flex flex-col xl:flex-row min-h-0 gap-4">
+      <div className="flex-1 flex flex-col xl:flex-row min-h-0 gap-2">
 
       {/* 1. Left CAD Controls Palette */}
-      <div className="w-full xl:w-72 panel flex flex-col gap-4 shrink-0">
+      <div className="w-full xl:w-56 panel flex flex-col gap-4 shrink-0 min-w-0">
         <div>
           <h2 className="text-xs font-extrabold uppercase tracking-wider text-brand-500 mb-1 flex items-center gap-1.5">
             <Compass className="w-4 h-4" /> Drafting Workspace
@@ -1235,7 +1279,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                 </div>
                 <button
                   onClick={() => {
-                    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedObj.id}/dxf`);
+                    window.open(`${API}/api/projects/${projectId}/drawings/elevations/${selectedObj.id}/dxf`);
                   }}
                   className="w-full mt-2 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[#C9A84C] font-extrabold text-[10px] uppercase rounded-lg flex items-center justify-center gap-1.5 transition shadow-sm"
                 >
@@ -1350,7 +1394,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       </div>
 
       {/* 2. Interactive SVG Canvas Drafting Sheet */}
-      <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl relative overflow-hidden flex flex-col">
+      <div className="flex-[1.5] min-w-0 bg-slate-900 border border-slate-800 rounded-xl relative overflow-hidden flex flex-col">
         {/* Calibration Banner */}
         {activeTool === 'calibrate' && (
           <div className="bg-brand-500/10 border-b border-brand-500/30 px-6 py-2.5 text-xs text-brand-500 flex items-center gap-2 font-bold z-20 shrink-0">
@@ -1735,7 +1779,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
       </div>
 
       {/* 3. Right Process Sidebar (Walkthrough video, SLAM notifications) */}
-      <div className="w-full xl:w-80 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0 overflow-y-auto max-h-[80vh]">
+      <div className="w-full xl:w-64 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 shrink-0 overflow-y-auto max-h-[calc(100vh-8rem)] min-w-0">
         
         {/* AI Floor Plan Scan Analysis & OCR Panel */}
         {multimodalAnalysis && (
@@ -1797,6 +1841,20 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               : "Attach a hand-drawn layout or PNG blueprint, adjust position and trace walls directly."}
           </p>
 
+          {/* AI key status — transparent: shows whether real AI is being used */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">AI Engine</span>
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${aiStatus?.gemini === 'Configured' ? 'bg-emerald-900/50 text-emerald-300' : 'bg-rose-900/50 text-rose-300'}`}>
+              Gemini {aiStatus?.gemini || '…'}
+            </span>
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${aiStatus?.openai === 'Configured' ? 'bg-emerald-900/50 text-emerald-300' : 'bg-rose-900/50 text-rose-300'}`}>
+              OpenAI {aiStatus?.openai || '…'}
+            </span>
+          </div>
+          {aiStatus && aiStatus.gemini !== 'Configured' && (
+            <p className="text-[10px] text-rose-400/80 mb-2">Add GEMINI_API_KEY in Settings → API Keys to enable real AI room naming & enrichment.</p>
+          )}
+
           {sketchUrl ? (
             <div className="space-y-3">
               <button onClick={triggerAiDetect} disabled={isDetectingLayout} className="btn-gold w-full flex items-center justify-center gap-2">
@@ -1821,7 +1879,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                           __toast?.info?.("Auto-tracing DXF/DWG plan…");
                           const formData = new FormData();
                           formData.append('floorplan', file);
-                          const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/auto-trace`, {
+                          const res = await fetch(`${API}/api/projects/${projectId}/floorplan/auto-trace`, {
                             method: 'POST',
                             body: formData
                           });
@@ -1847,13 +1905,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                       try {
                         const formData = new FormData();
                         formData.append('floorplan', file);
-                        const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                        const res = await fetch(`${API}/api/projects/${projectId}/floorplan`, {
                           method: 'POST',
                           body: formData
                         });
                         const data = await res.json();
                         if (data.success) {
-                          setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+                          setSketchUrl(`${API}${data.floorplanUrl}`);
                           __toast?.success("Floorplan underlay updated.");
                         }
                       } catch (err) {
@@ -1882,7 +1940,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                       __toast?.info?.("Auto-tracing DXF/DWG plan…");
                       const formData = new FormData();
                       formData.append('floorplan', file);
-                      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan/auto-trace`, {
+                      const res = await fetch(`${API}/api/projects/${projectId}/floorplan/auto-trace`, {
                         method: 'POST',
                         body: formData
                       });
@@ -1908,13 +1966,13 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
                   try {
                     const formData = new FormData();
                     formData.append('floorplan', file);
-                    const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/floorplan`, {
+                    const res = await fetch(`${API}/api/projects/${projectId}/floorplan`, {
                       method: 'POST',
                       body: formData
                     });
                     const data = await res.json();
                     if (data.success) {
-                      setSketchUrl(`http://127.0.0.1:5055${data.floorplanUrl}`);
+                      setSketchUrl(`${API}${data.floorplanUrl}`);
                       __toast?.success("Floorplan underlay attached — trace walls over it.");
                     }
                   } catch (err) {
@@ -1971,6 +2029,67 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             </div>
           )}
         </div>
+
+        {/* REAL Floor Plan Analysis Report (server-derived, honest) */}
+        {planReport && (
+          <div className="bg-slate-950 border border-[#C9A84C]/40 rounded-xl p-3.5 space-y-3 shadow-lg">
+            <div className="flex items-center justify-between border-b border-slate-850 pb-2">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-[var(--gold)]" />
+                <h3 className="text-xs font-bold text-[#F0EEE8] uppercase tracking-wider">Floor Plan Analysis</h3>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#C9A84C]/15 text-[#E8C97A] font-semibold">
+                {Math.round((planReport.confidence || 0) * 100)}% confidence
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="bg-slate-900 rounded-lg p-2">
+                <span className="text-slate-400 block text-[10px] uppercase tracking-wide">Layout</span>
+                <span className="text-[var(--gold)] font-bold">{planReport.layoutType}</span>
+              </div>
+              <div className="bg-slate-900 rounded-lg p-2">
+                <span className="text-slate-400 block text-[10px] uppercase tracking-wide">Total Area</span>
+                <span className="text-[var(--gold)] font-bold">{planReport.totalAreaM2} m²</span>
+              </div>
+              <div className="bg-slate-900 rounded-lg p-2">
+                <span className="text-slate-400 block text-[10px] uppercase tracking-wide">Rooms</span>
+                <span className="text-[#F0EEE8] font-semibold">
+                  {planReport.counts?.bedrooms || 0} BR · {planReport.counts?.kitchens || 0} KT · {planReport.counts?.bathrooms || 0} BA · {planReport.counts?.living || 0} LIV
+                </span>
+              </div>
+              <div className="bg-slate-900 rounded-lg p-2">
+                <span className="text-slate-400 block text-[10px] uppercase tracking-wide">Openings</span>
+                <span className="text-[#F0EEE8] font-semibold">
+                  🚪 {planReport.openings?.doors || 0} · 🪟 {planReport.openings?.windows || 0}
+                </span>
+              </div>
+            </div>
+
+            {planReport.rooms?.length > 0 && (
+              <div>
+                <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wide mb-1">Detected Rooms</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {planReport.rooms.map((r, i) => (
+                    <div key={i} className="flex items-center justify-between bg-slate-900 rounded px-2 py-1.5">
+                      <span className="text-[#F0EEE8] text-[11px] font-medium truncate">{r.name}</span>
+                      <span className="text-[10px] text-slate-400 ml-2 whitespace-nowrap">{r.widthM}×{r.heightM}m</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {planReport.notes?.length > 0 && (
+              <div>
+                <span className="text-slate-400 font-bold block text-[10px] uppercase tracking-wide mb-1">Notes</span>
+                <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-slate-400">
+                  {planReport.notes.map((n, i) => <li key={i}>{n}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Room Reference Images */}
         <div className="panel">
@@ -2095,7 +2214,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             <button
               onClick={async () => {
                 try {
-                  const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/floorplan/dxf`);
+                  const r = await fetch(`${API}/api/projects/${projectId}/drawings/floorplan/dxf`);
                   if (!r.ok) throw new Error('server');
                   const blob = await r.blob();
                   const url = URL.createObjectURL(blob);
@@ -2128,7 +2247,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             <textarea id="render-dims-text" placeholder="Paste dimensions from render..." className="w-full bg-slate-950 border border-slate-850 rounded-lg px-2 py-1.5 text-[10px] text-slate-200 h-16"></textarea>
             <button onClick={async ()=> {
               const txt = document.getElementById('render-dims-text')?.value || '';
-              const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad/render-to-dxf`, {
+              const r = await fetch(`${API}/api/projects/${projectId}/cad/render-to-dxf`, {
                 method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dimsText: txt })
               });
               const d = await r.json();
@@ -2147,7 +2266,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
               const h = Number(document.getElementById('rtp-height')?.value);
               if (!file || !w || !h) { __toast?.warn('Upload photo + enter width/height'); return; }
               const fd = new FormData(); fd.append('image', file); fd.append('widthMm', String(w)); fd.append('heightMm', String(h)); fd.append('projectId', String(projectId));
-              const r = await fetch(`http://127.0.0.1:5055/api/elevation/from-photo`, { method:'POST', body: fd });
+              const r = await fetch(`${API}/api/elevation/from-photo`, { method:'POST', body: fd });
               const d = await r.json();
               if (d?.success) {
                 __toast?.success('Elevation generated');

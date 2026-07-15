@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Database, Download, Upload, RefreshCw, ShieldCheck, Trash2, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = '';
 
 export default function MaintenanceScreen() {
   const [preflight, setPreflight] = useState(null);

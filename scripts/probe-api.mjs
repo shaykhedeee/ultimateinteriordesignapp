@@ -1,6 +1,6 @@
 // Live functional probe of the ULTIDA API. Exercises headline endpoints against
 // the running server and reports real status codes + payloads. No mocks.
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:5055';
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:8787';
 
 async function j(method, path, body, isForm) {
   const opts = { method, headers: {} };

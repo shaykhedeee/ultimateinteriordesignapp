@@ -228,7 +228,11 @@ def _assemble(edge, H, W, col_sum, row_sum, cthr, rthr, min_wall, open_gap, asin
         if band < 3:
             continue
         cy = (y0 + y1) // 2
-        row_edge = [sum(edge[y][x] for x in range(max(0, y0), y1 + 1)) for y in range(W)]
+        # FIX: iterate columns (x in 0..W-1), inner sum over the band's ROWS
+        # (y0..y1). The previous code swapped axes (for y in range(W)) and indexed
+        # edge[y] with y up to W-1, which throws "index N out of bounds for axis 0"
+        # whenever the image is wider than it is tall (W > H).
+        row_edge = [sum(edge[y][x] for y in range(max(0, y0), y1 + 1)) for x in range(W)]
         xmask = [1 if row_edge[x] >= max(2, int(cthr * 0.25)) else 0 for x in range(W)]
         seg_runs = _runs(xmask)
         if len(seg_runs) > 1:

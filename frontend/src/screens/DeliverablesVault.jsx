@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Archive, RefreshCw, Download, FileText, Layers, Box, Image as ImageIcon, Search, ShieldCheck, Filter } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = '';
 
 const TYPE_ICON = {
   'PDF Brief': FileText,

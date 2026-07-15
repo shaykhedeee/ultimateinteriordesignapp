@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 
 const execFileP = promisify(execFile);
 
-const child = spawn('node', ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, PORT: '5055' }, stdio: 'ignore' });
+const child = spawn('node', ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, PORT: '8787' }, stdio: 'ignore' });
 await sleep(5000);
 try {
   const { stdout, stderr } = await execFileP('node', ['--test', 'tests/flow-spine.test.js'], { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024 });

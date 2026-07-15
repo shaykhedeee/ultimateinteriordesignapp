@@ -34,6 +34,8 @@ import PresentationStudio       from './screens/PresentationStudio.jsx';
 import PipelineStudio            from './screens/PipelineStudio.jsx';
 import DeliverablesVault         from './screens/DeliverablesVault.jsx';
 import MaintenanceScreen         from './screens/MaintenanceScreen.jsx';
+const PricingScreen             = lazy(() => import('./screens/PricingScreen.jsx'));
+const CommerceStageScreen       = lazy(() => import('./screens/CommerceStageScreen.jsx'));
 import CommandCenterScreen       from './screens/CommandCenterScreen.jsx';
 const WhiteLabelStudio          = lazy(() => import('./screens/WhiteLabelStudio.jsx'));
 const LandingPage               = lazy(() => import('./components/landing/LandingPage.jsx'));
@@ -115,6 +117,7 @@ const NAV_CONFIG = [
     title: 'Production & Commerce',
     items: [
       { id: 'materials',     label: 'Materials Catalog',   icon: Palette,      shortcut: null, staleFlag: 'stale_pricing' },
+      { id: 'commerce',      label: 'Stage & Quote',        icon: ShoppingCart, shortcut: null },
       { id: 'cutlist',       label: 'Cutlist & Nesting',   icon: Scissors,     shortcut: null },
       { id: 'finance',       label: 'Commerce & Quotes',   icon: IndianRupee,  shortcut: null },
       { id: 'timeline',      label: 'Project Timeline',    icon: Activity,     shortcut: null }
@@ -132,6 +135,7 @@ const NAV_CONFIG = [
   {
     title: 'Studio Ops',
     items: [
+      { id: 'pricing',       label: 'Plans & Pricing',     icon: IndianRupee,  shortcut: null },
       { id: 'maintenance',   label: 'Backup & Restore',    icon: Database,     shortcut: null }
     ]
   }
@@ -223,7 +227,7 @@ export function App() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [isAuraOpen, setIsAuraOpen]       = useState(false);
   // Design Journey (PipelineRail) collapsable/hidable in the sidebar.
-  const [journeyCollapsed, setJourneyCollapsed] = useState(false);
+  const [journeyCollapsed, setJourneyCollapsed] = useState(() => localStorage.getItem('ultida_journey_collapsed') === 'true');
   const [isAuraThinking, setIsAuraThinking] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [currentTime, setCurrentTime]     = useState(new Date());
@@ -267,7 +271,7 @@ export function App() {
   };
 
   // Tear down helper
-  const mixer = { info: showToast, error: (m)=>showToast(m,'error'), warn: (m)=>showToast(m,'warn'), success: (m)=>showToast(m,'success') };
+  const mixer = { show: (m)=>showToast(m,'info'), info: showToast, error: (m)=>showToast(m,'error'), warn: (m)=>showToast(m,'warn'), success: (m)=>showToast(m,'success') };
 
   // Inject global listeners so legacy code can still call native helpers but get non-blocking UI
   useEffect(() => {
@@ -382,6 +386,12 @@ export function App() {
 
   // ── Resolve selectedProject from list ──
   useEffect(() => {
+    if (projectsList.length > 0 && !selectedProjectId) {
+      // Auto-select the first active project so the workspace is never empty on boot.
+      const first = projectsList.find(p => p.status === 'active') || projectsList[0];
+      setSelectedProjectId(first.id);
+      return;
+    }
     if (selectedProjectId && projectsList.length > 0) {
       setSelectedProject(projectsList.find(p => p.id === selectedProjectId) || null);
     } else {
@@ -609,6 +619,7 @@ export function App() {
       case 'enhancer': return <FloorPlanEnhancerScreen projectId={selectedProjectId} onApplied={() => fetchData()} />;
       case 'drawings':  return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => advance('renders')} />;
       case 'materials': return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => advance('cutlist')} />;
+      case 'commerce':  return <CommerceStageScreen projectId={selectedProjectId} />;
       case 'renders':   return <Render3DStudio projectId={selectedProjectId} onComplete={() => advance('materials')} />;
       case 'designlib':  return <DesignLibraryScreen onUseInspiration={(cat) => { setActiveTab('renders'); }} />;
       case 'cutlist':   return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => advance('finance')} />;
@@ -620,6 +631,7 @@ export function App() {
       case 'brand':         return <WhiteLabelStudio onBack={() => setActiveTab('dashboard')} />;
       case 'vault':         return <DeliverablesVault />;
       case 'maintenance':   return <MaintenanceScreen />;
+      case 'pricing':       return <PricingScreen />;
       default:              return <ClientBoard onProjectCreated={handleProjectClosed} />;
     }
   };
@@ -649,7 +661,7 @@ export function App() {
       {/* ══════════════════════════════════════════
           SIDEBAR
       ══════════════════════════════════════════ */}
-      <aside className="sidebar-chrome">
+      <aside className={`sidebar-chrome${journeyCollapsed ? ' collapsed' : ''}`}>
 
         {/* ── Logo ── */}
         <div className="sidebar-logo">
@@ -775,7 +787,13 @@ export function App() {
             stepIndex={stepIndex}
             onNavigate={(id) => setActiveTab(id)}
             collapsed={journeyCollapsed}
-            onToggleCollapse={() => setJourneyCollapsed(v => !v)}
+            onToggleCollapse={() => {
+              setJourneyCollapsed(prev => {
+                const next = !prev;
+                localStorage.setItem('ultida_journey_collapsed', String(next));
+                return next;
+              });
+            }}
           />
         )}
 
@@ -860,6 +878,20 @@ export function App() {
               style={{ display:'flex', alignItems:'center', gap:'5px', padding:'6px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.10)', color:'var(--text-secondary)', fontSize:'11px', fontWeight:600, cursor:'pointer', background:'transparent' }}
             >
               <ArrowRight style={{ width:12, height:12 }} /> Public site
+            </button>
+
+            {/* Design Journey collapse toggle — enlarges the workspace */}
+            <button
+              onClick={() => setJourneyCollapsed(prev => {
+                const next = !prev;
+                localStorage.setItem('ultida_journey_collapsed', String(next));
+                return next;
+              })}
+              title={journeyCollapsed ? 'Show Design Journey' : 'Hide Design Journey (enlarge workspace)'}
+              style={{ display:'flex', alignItems:'center', gap:'5px', padding:'6px 10px', borderRadius:9, border:'1px solid rgba(255,255,255,0.10)', color:'var(--gold)', fontSize:'11px', fontWeight:700, cursor:'pointer', background:'color-mix(in srgb, var(--gold) 12%, transparent)' }}
+            >
+              <Layers style={{ width:13, height:13 }} />
+              {journeyCollapsed ? 'Show Journey' : 'Hide Journey'}
             </button>
 
             <div style={{ width:1, height:20, background:'rgba(255,255,255,0.07)' }} />

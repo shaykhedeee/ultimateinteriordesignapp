@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { Sparkles, Compass, Check, AlertTriangle, ArrowUp, RotateCw, Plus, RefreshCw, Wand2, Info, Upload, Image as ImageIcon, Loader2, ShieldCheck, ShieldAlert, ShieldOff } from 'lucide-react';
+import { Sparkles, Compass, Check, AlertTriangle, ArrowUp, RotateCw, Plus, RefreshCw, Wand2, Info, Upload, Image as ImageIcon, Loader2, ShieldCheck, ShieldAlert, ShieldOff, FileDown } from 'lucide-react';
 
 /**
  * FloorPlanEnhancerScreen — the single home for a project's floor plan.
@@ -230,6 +230,18 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700 text-slate-200 text-xs hover:bg-slate-800 disabled:opacity-50">
               <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Re-analyze
             </button>
+            {data && (
+              <>
+                <a href={`/api/projects/${projectId}/drawings/floorplan/dxf`} download
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700 text-slate-200 text-xs hover:bg-slate-800">
+                  <FileDown className="w-4 h-4" /> DXF
+                </a>
+                <a href={`/api/projects/${projectId}/drawings/floorplan/pro-dxf`} download
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-700/40 bg-emerald-900/20 text-emerald-300 text-xs hover:bg-emerald-900/30 font-bold">
+                  <FileDown className="w-4 h-4" /> Pro DXF
+                </a>
+              </>
+            )}
           </div>
         </div>
 

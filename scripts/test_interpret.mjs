@@ -1,0 +1,11 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const path = require('path');
+const db = require('better-sqlite3')(path.join(process.cwd(), 'storage/ultimate_interior.db'));
+global.__ULTIDA_DB__ = db;
+const core = await import('../server/services/plan-intelligence-core.js');
+const m = core.default || core;
+const r = m.interpretFloorPlan('proj_1', null);
+console.log('success:', r.success, '| error:', r.error);
+console.log('rooms:', (r.interpretation?.rooms || []).length, '| walls:', (r.interpretation?.walls || []).length, '| openings:', (r.interpretation?.openings || []).length);
+console.log('roomNames:', (r.interpretation?.rooms || []).map(x => x.name + '(' + Math.round(x.widthMm||0) + 'x' + Math.round(x.heightMm||0) + ')'));

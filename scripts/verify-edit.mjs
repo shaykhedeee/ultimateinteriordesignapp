@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const B = 'http://127.0.0.1:5055';
+const B = 'http://127.0.0.1:8787';
 function req(m, p, body, ms = 30000) {
   return new Promise((res) => {
     const t = setTimeout(() => res({ code: 0, body: 'TIMEOUT' }), ms);
@@ -14,7 +14,7 @@ function req(m, p, body, ms = 30000) {
   });
 }
 
-const child = spawn('node', ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, PORT: '5055' }, stdio: 'ignore' });
+const child = spawn('node', ['server/index.js'], { cwd: process.cwd(), env: { ...process.env, PORT: '8787' }, stdio: 'ignore' });
 await sleep(5000);
 
 try {

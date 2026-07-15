@@ -7,6 +7,7 @@ import {
 // Analyzer: SAME engine that drives the professional DXF export, so the
 // on-screen view is never out of sync with the CAD file. Pure + browser-safe.
 import { analyzeWallElevation } from '../../../server/services/elevation-analyzer.js';
+import WorkflowStatusBar from '../components/WorkflowStatusBar';
 
 export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [walls, setWalls] = useState([]);
@@ -73,7 +74,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     if (!aiPrompt.trim() || !selectedWallId) return;
     setIsProcessingAi(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedWallId}/ai-edit`, {
+      const res = await fetch(`/api/projects/${projectId}/drawings/elevations/${selectedWallId}/ai-edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt })
@@ -96,7 +97,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const fetchProjectDetails = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+      const res = await fetch(`/api/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setStaleDrawings(data.stale_drawings === 1);
@@ -110,7 +111,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     try {
       const yes = await window.__auraConfirm?.confirm('Regenerate Drawings', 'This will overwrite current elevations. Continue?');
       if (!yes) return;
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
+      await fetch(`/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'drawing_generation' })
@@ -126,7 +127,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const loadPhotoElevations = async () => {
     setPhotoLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations`);
+      const res = await fetch(`/api/projects/${projectId}/photo-elevations`);
       if (res.ok) {
         const data = await res.json();
         setPhotoElevations(Array.isArray(data) ? data : (data.elevations || []));
@@ -152,7 +153,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
         fr.onerror = reject;
         fr.readAsDataURL(photoUpload);
       });
-      const res = await fetch('http://127.0.0.1:5055/api/elevation/from-photo', {
+      const res = await fetch('/api/elevation/from-photo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, imageB64: b64, dimsText: photoDims, unitTypeHint: 'kitchen' })
@@ -182,7 +183,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const handleGenerateFromRenders = async (units) => {
     setGenLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/from-renders`, {
+      const res = await fetch(`/api/projects/${projectId}/elevations/from-renders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ units: units || ['kitchen-pantry', 'wardrobe', 'kitchen', 'pooja', 'tv-unit', 'entry', 'vanity', 'wardrobe-fluted', 'wardrobe-study', 'pooja-ganesha', 'vanity-arch', 'kitchen-wall-a', 'kitchen-wall-b', 'wardrobe-vanity', 'wardrobe-study-nook', 'wardrobe-stepped'] })
@@ -205,7 +206,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const handleGenerateJaliGCode = async () => {
     setJaliLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/jali-gcode`, {
+      const res = await fetch(`/api/projects/${projectId}/elevations/jali-gcode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ widthMm: Number(jaliW) || 600, heightMm: Number(jaliH) || 2000, name: 'Jali Panel', material: 'mdf' })
@@ -228,7 +229,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const handleGenerateJali = async () => {
     setJaliLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/jali-panel`, {
+      const res = await fetch(`/api/projects/${projectId}/elevations/jali-panel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ widthMm: Number(jaliW) || 600, heightMm: Number(jaliH) || 2000, name: 'Jali Panel' })
@@ -251,7 +252,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const handleGenerateShoeRack = async () => {
     setShoeLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/shoe-rack`, {
+      const res = await fetch(`/api/projects/${projectId}/elevations/shoe-rack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -293,7 +294,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const loadCADData = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
+      const res = await fetch(`/api/projects/${projectId}/cad`);
       const data = await res.json();
       const safe = data && typeof data === 'object' ? data : {};
       const loadedWalls = JSON.parse(safe.walls_json || '[]');
@@ -384,7 +385,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
     try {
       // The /cnc-gcode endpoint returns the cut plan + matching DXF + machine
       // G-code + cutlist + hinge-cup schedule in one shot.
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cnc-gcode`, {
+      const res = await fetch(`/api/projects/${projectId}/cnc-gcode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -420,7 +421,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
   const saveElevations = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`, {
+      const res = await fetch(`/api/projects/${projectId}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -457,7 +458,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
   const downloadPDF = () => {
     if (!selectedWallId) return;
-    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedWallId}/pdf`, '_blank');
+    window.open(`/api/projects/${projectId}/drawings/elevations/${selectedWallId}/pdf`, '_blank');
     showToast("PDF sheet generated!");
   };
 
@@ -493,21 +494,21 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {staleDrawings && (
-        <div className="bg-amber-950/20 border-b border-amber-900/40 px-6 py-3 text-xs text-amber-400 flex items-center justify-between font-bold shrink-0">
-          <span className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />
-            Drawings Out-of-Date: The underlying 2D/3D design layout has changed. Blueprints may not match the active design.
-          </span>
-          <button 
-            onClick={handleRegenerateDrawings}
-            className="bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
-          >
-            Regenerate Drawings
-          </button>
-        </div>
-      )}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
+      <WorkflowStatusBar
+        stageLabel="Elevations & Drawings"
+        nextAction={staleDrawings
+          ? 'Regenerate elevations from the approved scene graph to sync dimensions and cabinet tags.'
+          : (photoElevations?.length
+              ? 'Review the produced elevations; export DXF/PDF for production when satisfied.'
+              : 'Select a wall and generate measured elevations from the approved scene graph.')}
+        outputLabel="Measured wall elevation · DXF · production PDF"
+        stageComplete={!staleDrawings}
+        stale={staleDrawings ? 1 : 0}
+        approvedCount={photoElevations?.filter(e => e.review_status === 'approved').length || 0}
+        needsReview={photoElevations?.filter(e => !e.review_status || e.review_status !== 'approved').length || 0}
+        onRegenerate={handleRegenerateDrawings}
+      />
+
       
       {/* Toast Alert */}
       {toast && (
@@ -540,7 +541,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           <div className="eyebrow">Detection</div>
           <button onClick={async () => {
             try {
-              const r = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/plan/detect-furniture`, { method:'POST', headers:{'Content-Type':'application/json'} });
+              const r = await fetch(`/api/projects/${projectId}/plan/detect-furniture`, { method:'POST', headers:{'Content-Type':'application/json'} });
               const d = await r.json();
               setFurniture(d?.detected || []);
               showToast((d?.detected?.length ? `Detected ${d.detected.length} items` : 'No furniture detected'), d?.detected?.length ? 'success' : 'error');
@@ -656,7 +657,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               <FileText className="w-3.5 h-3.5" /> PDF
             </button>
             <button
-              onClick={() => { window.open(`http://127.0.0.1:5055/api/projects/${projectId}/elevations/combined-pdf`, '_blank'); showToast("Combined elevations PDF downloading…"); }}
+              onClick={() => { window.open(`/api/projects/${projectId}/elevations/combined-pdf`, '_blank'); showToast("Combined elevations PDF downloading…"); }}
               className="bg-[var(--gold)]/10 hover:bg-[var(--gold)]/20 border border-[var(--gold)]/30 px-2 py-1 text-[var(--gold)] transition flex items-center gap-1 text-[10px] font-bold"
             >
               <FileText className="w-3.5 h-3.5" /> COMBINE ALL
@@ -665,7 +666,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               onClick={async () => {
                 try {
                   setDrawingSetLoading(true);
-                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/drawings`);
+                  const res = await fetch(`/api/projects/${projectId}/drawings`);
                   if (!res.ok) { showToast('Drawing set failed', 'error'); setDrawingSetLoading(false); return; }
                   const set = await res.json();
                   setDrawingSet(set);
@@ -683,7 +684,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             <button
               onClick={async () => {
                 try {
-                  const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/delivery-package`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                  const res = await fetch(`/api/projects/${projectId}/delivery-package`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
                   if (!res.ok) { showToast('Delivery package failed', 'error'); return; }
                   const blob = await res.blob();
                   const url = URL.createObjectURL(blob);
@@ -729,7 +730,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             <button
               onClick={() => {
                 if (selectedWallId) {
-                  window.open(`http://127.0.0.1:5055/api/projects/${projectId}/drawings/elevations/${selectedWallId}/dxf`, '_blank');
+                  window.open(`/api/projects/${projectId}/drawings/elevations/${selectedWallId}/dxf`, '_blank');
                   showToast("DXF CAD Blueprint downloaded!");
                 }
               }}
@@ -787,6 +788,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
               {(() => {
                 const wallLength = getWallLengthMm(selectedWall);
+                const wallH = wallHeight;
                 const startX = marginX;
                 const startY = svgH - marginY - wallH;
                 const RED = '#ef4444';      // dimension/annotation color (benchmark)
@@ -1002,8 +1004,8 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                       <div className="text-[9px] text-slate-500 font-mono">{(e.model_json ? JSON.parse(e.model_json).lengthMm : 0) || '—'} mm · conf {e.confidence ?? '—'}</div>
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => window.open(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations/${e.id}/dxf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1"><Download className="w-3 h-3" /> DXF</button>
-                      <button onClick={() => window.open(`http://127.0.0.1:5055/api/projects/${projectId}/photo-elevations/${e.id}/pdf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>
+                      <button onClick={() => window.open(`/api/projects/${projectId}/photo-elevations/${e.id}/dxf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1"><Download className="w-3 h-3" /> DXF</button>
+                      <button onClick={() => window.open(`/api/projects/${projectId}/photo-elevations/${e.id}/pdf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>
                     </div>
                   </div>
                   );
@@ -1058,8 +1060,8 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                     <span className="text-[10px] text-slate-400">{cncResult.partCount} parts · {cncResult.sheetCount} sheet(s) · {cncResult.hingeCups} hinge cups</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <a href={`http://127.0.0.1:5055${cncResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                    <a href={`http://127.0.0.1:5055${cncResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE ({cncResult.lines || 0} lines)</a>
+                    <a href={`${cncResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                    <a href={`${cncResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE ({cncResult.lines || 0} lines)</a>
                   </div>
                   {cncResult.cutlist && cncResult.cutlist.length > 0 && (
                     <div className="max-h-48 overflow-auto border border-slate-800 rounded">
@@ -1301,8 +1303,8 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                 <div key={f.unit} className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5">
                   <span className="text-[11px] font-bold text-slate-200 uppercase">{f.unit}</span>
                   <div className="flex gap-1.5">
-                    <a href={`http://127.0.0.1:5055${f.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                    <a href={`http://127.0.0.1:5055${f.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
+                    <a href={`${f.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                    <a href={`${f.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
                   </div>
                 </div>
               ))}
@@ -1340,10 +1342,10 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 mt-1">
               <span className="text-[11px] font-bold text-slate-200">{jaliResult.widthMm}×{jaliResult.heightMm}mm</span>
               <div className="flex gap-1.5">
-                <a href={`http://127.0.0.1:5055${jaliResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                <a href={`http://127.0.0.1:5055${jaliResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
+                <a href={`${jaliResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                <a href={`${jaliResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
                 {jaliResult.gcode && (
-                  <a href={`http://127.0.0.1:5055${jaliResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE</a>
+                  <a href={`${jaliResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE</a>
                 )}
               </div>
             </div>
@@ -1402,15 +1404,14 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 mt-1">
               <span className="text-[11px] font-bold text-slate-200">{(shoeResult.opts.tallWidth||1200)+(shoeResult.opts.benchWidth||900)}×{shoeResult.opts.totalHeight||2000}mm</span>
               <div className="flex gap-1.5">
-                <a href={`http://127.0.0.1:5055${shoeResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                <a href={`http://127.0.0.1:5055${shoeResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
+                <a href={`${shoeResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
+                <a href={`${shoeResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
               </div>
             </div>
           )}
         </div>
       </div>
 
-    </div>
     </div>
   );
 }

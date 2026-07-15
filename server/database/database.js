@@ -816,6 +816,10 @@ try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN material_slot TEXT;"
 try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN keep_others_same INTEGER DEFAULT 1;"); } catch (e) {}
 try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN before_material TEXT;"); } catch (e) {}
 
+// Phase 5: render provenance/lineage for generated assets
+try { db.exec("ALTER TABLE generated_assets ADD COLUMN scene_version_id TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE generated_assets ADD COLUMN parent_asset_id TEXT;"); } catch (e) {}
+
 import dbClient from './db-client.js';
 export default dbClient;
 

@@ -22,6 +22,12 @@ import { answerFromKnowledge } from './aura-knowledge.js';
 
 const NO_ANSWER_TEXT = 'I can help with: elevations, renders, floorplan detection, cutlist, budget optimization, and client handoff. Choose an action to execute directly.';
 
+function resolveAppBaseUrl() {
+  const host = process.env.HOST || '127.0.0.1';
+  const port = process.env.PORT || '5055';
+  return (process.env.APP_URL || `http://${host}:${port}`).replace(/\/$/, '');
+}
+
 // ── Create memory table at startup (synchronous, safe to call multiple times) ──
 try {
   db.exec(`
@@ -85,7 +91,7 @@ export function resolveIntent(message) {
 export async function toolReply(tool, args, projectId, message = '') {
   const noAnswer = () => ({ text: NO_ANSWER_TEXT, actions: [] });
   if (!tool || !args?.projectId) return noAnswer();
-  const baseUrl = (process.env.APP_URL || 'http://127.0.0.1:5055').replace(/\/$/,'');
+  const baseUrl = resolveAppBaseUrl();
   const projectIdResolved = String(args.projectId);
 
   switch (tool.action) {

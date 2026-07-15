@@ -111,6 +111,31 @@ function ClientBoard({ onProjectCreated }) {
   const [sortBy, setSortBy] = useState('stage');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [activeTab, setActiveTab] = useState('crm');
+  const [reviewQueue, setReviewQueue] = useState([]);
+  const [isLoadingQueue, setIsLoadingQueue] = useState(false);
+
+  const fetchReviewQueue = async () => {
+    setIsLoadingQueue(true);
+    try {
+      const res = await fetch('/api/projects/review-queue');
+      const data = await res.json();
+      if (data.success) {
+        setReviewQueue(data.queue || []);
+      }
+    } catch (err) {
+      console.error('Failed to load review queue:', err);
+    } finally {
+      setIsLoadingQueue(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'review') {
+      fetchReviewQueue();
+    }
+  }, [activeTab]);
+
   // Modals / panels
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -142,7 +167,7 @@ function ClientBoard({ onProjectCreated }) {
   const fetchClients = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/leads');
+      const res = await fetch('/api/leads');
       const data = await res.json();
       const list = Array.isArray(data) ? data : (Array.isArray(data?.leads) ? data.leads : []);
       setClients(list);
@@ -156,7 +181,7 @@ function ClientBoard({ onProjectCreated }) {
 
   const patchClient = async (id, patch) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/leads/${id}`, {
+      const res = await fetch(`/api/leads/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch)
@@ -188,7 +213,7 @@ function ClientBoard({ onProjectCreated }) {
 
   const createProject = async (client) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/leads/${client.id}/close`, {
+      const res = await fetch(`/api/leads/${client.id}/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'human_closed' })
@@ -207,7 +232,7 @@ function ClientBoard({ onProjectCreated }) {
   const submitAdd = async () => {
     if (!form.name.trim()) { showToast('Client name is required', 'error'); return; }
     try {
-      await fetch('http://127.0.0.1:5055/api/leads/import', {
+      await fetch('/api/leads/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadList: [{
@@ -241,7 +266,7 @@ function ClientBoard({ onProjectCreated }) {
     const rows = importPreview.length ? importPreview : parseCSV(csvText);
     if (!rows.length) { showToast('No valid rows found', 'error'); return; }
     try {
-      await fetch('http://127.0.0.1:5055/api/leads/import', {
+      await fetch('/api/leads/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadList: rows })
@@ -276,7 +301,7 @@ function ClientBoard({ onProjectCreated }) {
   const handleSendDesigns = async (client) => {
     try {
       showToast('Building design pack…');
-      const res = await fetch(`http://127.0.0.1:5055/api/leads/${client.id}/send-designs`, { method: 'POST' });
+      const res = await fetch(`/api/leads/${client.id}/send-designs`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.error === 'NO_PROJECT') {
@@ -288,7 +313,7 @@ function ClientBoard({ onProjectCreated }) {
       }
       // Download the generated PDF (the attached designs).
       const a = document.createElement('a');
-      a.href = `http://127.0.0.1:5055${data.downloadUrl}`;
+      a.href = `${data.downloadUrl}`;
       a.download = `${client.name.replace(/\s+/g, '_')}_designs.pdf`;
       document.body.appendChild(a);
       a.click();
@@ -377,8 +402,24 @@ function ClientBoard({ onProjectCreated }) {
         </div>
       </div>
 
-      {/* Main grid */}
-      <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-5 p-5 overflow-hidden">
+      {/* Sub-header tab selector */}
+      <div className="flex-shrink-0 px-6 py-2 bg-slate-950/40 border-b border-slate-800/50 flex gap-4">
+        <button
+          onClick={() => setActiveTab('crm')}
+          className={`pb-1 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeTab === 'crm' ? 'text-[var(--gold)] border-[var(--gold)]' : 'text-slate-500 border-transparent hover:text-slate-300'}`}
+        >
+          CRM Lead Pipeline
+        </button>
+        <button
+          onClick={() => setActiveTab('review')}
+          className={`pb-1 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeTab === 'review' ? 'text-[var(--gold)] border-[var(--gold)]' : 'text-[#8A8899] border-transparent hover:text-slate-300'}`}
+        >
+          Plan Review Queue
+        </button>
+      </div>
+
+      {activeTab === 'crm' ? (
+        <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-5 p-5 overflow-hidden">
 
         {/* COLUMN 1: Client list */}
         <div className="bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
@@ -616,6 +657,84 @@ function ClientBoard({ onProjectCreated }) {
           </div>
         </div>
       </div>
+      ) : (
+        <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-slate-950/20 flex flex-col gap-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xs font-black text-slate-100 tracking-widest uppercase flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[var(--gold)]" />
+                Designer Plan Review Queue
+              </h2>
+              <p className="text-[10px] text-[#8A8899] mt-1 font-semibold">Verify and approve AI-generated layouts before production</p>
+            </div>
+            <button onClick={fetchReviewQueue} className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition">
+              <RefreshCw className={`w-4 h-4 ${isLoadingQueue ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          {isLoadingQueue ? (
+            <div className="text-center py-20 text-slate-400 text-xs">Loading queue items...</div>
+          ) : reviewQueue.length === 0 ? (
+            <div className="text-center py-20 bg-[#1E1E24]/30 border border-slate-800/80 rounded-2xl p-8">
+              <Inbox className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+              <p className="text-xs font-bold text-slate-300 font-sans">All plans clear</p>
+              <p className="text-[10px] text-slate-500 mt-1">No layout plans currently pending designer verification.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {reviewQueue.map(item => (
+                <div key={item.id} className="bg-[#1E1E24] border border-slate-800/85 rounded-2xl p-5 hover:border-[var(--gold)]/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6 font-sans">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="text-xs font-black text-slate-200">{item.client_name || item.name}</h3>
+                      <span className="text-[9px] bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20 px-2 py-0.5 rounded font-mono font-bold">₹{(item.budget/100000).toFixed(2)}L Budget</span>
+                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded font-mono ${getScoreClass(item.lead_score)}`}>Score: {item.lead_score}</span>
+                    </div>
+                    <p className="text-[10px] text-[#8A8899] mt-1 italic font-semibold">Requirements: {item.requirements || 'None specified'}</p>
+                    <div className="flex gap-4 mt-3 text-[10px] text-slate-400 font-bold">
+                      <span>Project: <strong className="text-slate-300 font-semibold">{item.name}</strong></span>
+                      <span>•</span>
+                      <span>Step: <strong className="text-slate-300 uppercase font-semibold">{item.current_step}</strong></span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('select-project', { detail: item.id }));
+                        window.dispatchEvent(new CustomEvent('navigate-to-tab', { detail: 'cad' }));
+                      }}
+                      className="px-3.5 py-2 rounded-xl border border-slate-800 hover:border-slate-700 hover:text-white text-slate-300 text-[11px] font-bold transition flex items-center gap-1.5"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Review CAD
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/projects/${item.id}/approve-layout`, { method: 'POST' });
+                          const d = await res.json();
+                          if (d.success) {
+                            showToast('Layout approved successfully! Project advanced to Production.');
+                            fetchReviewQueue();
+                            fetchClients();
+                          } else {
+                            showToast(d.error || 'Approval failed', 'error');
+                          }
+                        } catch (err) {
+                          showToast('Failed to approve layout', 'error');
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-[var(--gold)] to-[#AA8C2C] hover:from-[#e8c94a] text-slate-950 text-[11px] font-bold transition flex items-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Approve Layout
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Add Client Modal ── */}
       {showAdd && (

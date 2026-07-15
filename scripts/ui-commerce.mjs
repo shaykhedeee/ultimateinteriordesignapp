@@ -1,0 +1,25 @@
+import { chromium } from 'playwright';
+const BASE = process.env.APP_URL || 'http://127.0.0.1:8787';
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  const errs = [];
+  const failed = [];
+  page.on('pageerror', e => errs.push('PAGEERROR: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE: ' + m.text().slice(0,160)); });
+  page.on('response', r => { if (r.status() >= 400) failed.push(r.status() + ' ' + r.url()); });
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('nav button:has-text("Command Center")', { timeout: 15000 });
+  await page.waitForTimeout(2500);
+  const btn = page.locator('nav button:has-text("Commerce & Quotes")').first();
+  await btn.scrollIntoViewIfNeeded();
+  await btn.click({ timeout: 8000, force: true });
+  await page.waitForTimeout(3500);
+  const main = (await page.locator('main').innerText().catch(() => '')).slice(0, 400);
+  console.log('MAIN TEXT:', JSON.stringify(main));
+  console.log('\nFAILED RESPONSES (>=400):');
+  [...new Set(failed)].slice(0, 15).forEach(f => console.log(' -', f));
+  console.log('\nERRORS:', errs.length);
+  [...new Set(errs)].slice(0, 10).forEach(e => console.log(' -', e));
+  await browser.close();
+})();

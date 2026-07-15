@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Compass, Sparkles, CheckCircle2, AlertTriangle, Move, Wand2, Layers, ArrowRight, RefreshCw, BookOpen, Type } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = '';
 
 // Compass metadata per Vastu zone.
 const ZONE_META = {

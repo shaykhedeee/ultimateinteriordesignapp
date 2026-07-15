@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { buildSlotMaterial, LAMINATE_COLORS } from '../lib/threeMaterials';
 import { getSlotsForModuleType, defaultMaterialAssignments, resolveMaterial, SLOT_LABELS } from '../lib/materialSlots';
+import WorkflowStatusBar from '../components/WorkflowStatusBar';
 
 const roomOptions = [
   { id: 'living', label: 'Grand Living Area' },
@@ -67,7 +68,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
-        const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
+        const res = await fetch('/api/material-catalog');
         if (res.ok) {
           const data = await res.json();
           setCatalogLaminates(data.filter(item => item.category === 'laminate'));
@@ -141,7 +142,7 @@ function ThreeDWalkthrough({ projectId, cadDrawing, selectedLaminates, onLaminat
           category: 'laminate'
         }
       ];
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
+      const res = await fetch(`/api/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ laminates: updatedLaminates, hardware: [], notes: 'Walkthrough per-cabinet finish update' })
@@ -495,7 +496,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         { type: 'shutter_facade', name, code, color }
       ];
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`, {
+      const res = await fetch(`/api/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -538,6 +539,42 @@ export default function Render3DStudio({ projectId, onComplete }) {
   // Provider health status
   const [providerHealth, setProviderHealth] = useState(null);
   const sseRef = React.useRef(null);
+
+  // ── Unified Render Studio (Space / Studio / Cinematic + angles) ──
+  // Calls the deterministic-first /renders/studio route so a dead cloud-AI
+  // quota never blocks a render (beats Agent B's hard dependency on its engine).
+  const [renderMode, setRenderMode] = useState('space'); // 'space' | 'studio' | 'cinematic'
+  const [studioAngle, setStudioAngle] = useState('front'); // 'front' | 'perspective' | 'top' | 'corner'
+  const [studioResult, setStudioResult] = useState(null);
+  const [isStudioRendering, setIsStudioRendering] = useState(false);
+  const studioAngleOptions = [
+    { value: 'front', label: 'Front' },
+    { value: 'perspective', label: 'Perspective' },
+    { value: 'corner', label: 'Corner' },
+    { value: 'top', label: 'Top' }
+  ];
+  const RENDER_MODES = [
+    { value: 'space', label: 'Space', desc: 'Ambient interior' },
+    { value: 'studio', label: 'Studio', desc: 'Soft neutral light' },
+    { value: 'cinematic', label: 'Cinematic', desc: 'Dramatic warm' }
+  ];
+  const handleStudioRender = async () => {
+    setIsStudioRendering(true);
+    setStudioResult(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/renders/studio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: renderMode, angle: studioAngle, fallback: 'deterministic' })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) setStudioResult(data);
+    } catch (err) {
+      console.error('Studio render error:', err);
+    } finally {
+      setIsStudioRendering(false);
+    }
+  };
 
   // Recolor & Color Swap States
   const [selectedComponent, setSelectedComponent] = useState(null);
@@ -621,7 +658,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     setActiveColor(colorName);
     setIsGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/change-color`, {
+      const res = await fetch(`/api/projects/${projectId}/renders/change-color`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -639,6 +676,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         if (Array.isArray(data.suggestions)) {
           setColorSuggestions(data.suggestions);
         }
+        await handleLaminateSwap(componentType, null, colorName);
       }
     } catch (err) {
       console.error("Recolor failed:", err);
@@ -710,7 +748,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const fetchProviderStatus = async () => {
     try {
       // Use the enhanced diagnostics endpoint
-      const res = await fetch('http://127.0.0.1:5055/api/diagnostics/api-keys');
+      const res = await fetch('/api/diagnostics/api-keys');
       const data = await res.json();
       setProviderStatus(data);
       // Set the active provider to match server config
@@ -724,7 +762,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchProviderHealth = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/diagnostics/api-health');
+      const res = await fetch('/api/diagnostics/api-health');
       const data = await res.json();
       setProviderHealth(data);
     } catch (err) {
@@ -735,7 +773,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   // Start SSE progress stream for render pipeline
   const startRenderProgressSSE = (pid) => {
     if (sseRef.current) sseRef.current.close();
-    const es = new EventSource(`http://127.0.0.1:5055/api/projects/${pid}/renders/progress`);
+    const es = new EventSource(`/api/projects/${pid}/renders/progress`);
     es.onmessage = (e) => {
       try {
         const { percentage, message } = JSON.parse(e.data);
@@ -769,7 +807,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadProjectData = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}`);
+      const res = await fetch(`/api/projects/${projectId}`);
       const data = await res.json();
       setProject(data);
       if (data.client_brief_json) {
@@ -790,7 +828,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     try {
       const yes = await window.__auraConfirm?.confirm('Regenerate Renders', 'Regenerating all renders may consume API credits. Continue?');
       if (!yes) return;
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
+      await fetch(`/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -810,11 +848,11 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCADAndMaterials = async () => {
     try {
-      const resCAD = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cad`);
+      const resCAD = await fetch(`/api/projects/${projectId}/cad`);
       const drawing = await resCAD.json();
       setCadDrawing(drawing);
 
-      const resMat = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/materials`);
+      const resMat = await fetch(`/api/projects/${projectId}/materials`);
       const materials = await resMat.json();
       setSelectedLaminates(JSON.parse(materials.laminates_json || '[]'));
 
@@ -826,7 +864,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`);
+      const res = await fetch(`/api/projects/${projectId}/renders`);
       const data = await res.json();
       setRendersList(data);
       if (data.length > 0) {
@@ -839,7 +877,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const loadCorrections = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
+      const res = await fetch(`/api/projects/${projectId}/renders/mistakes?room=${targetRoom}`);
       const data = await res.json();
       setCorrectionsList(data.items || []);
     } catch (err) {
@@ -885,7 +923,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
         if (val?.file) formData.append(key, val.file);
       });
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/generate`, {
+      const res = await fetch(`/api/projects/${projectId}/renders/generate`, {
         method: 'POST',
         body: formData
       });
@@ -928,7 +966,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const downloadSelectedRender = async () => {
     if (!selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/download`);
+      const res = await fetch(`/api/projects/${projectId}/renders/${selectedRender.id}/download`);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
@@ -951,7 +989,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     if (!selectedRender || !revisionRequest.trim()) return;
     setIsGenerating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/edit`, {
+      const res = await fetch(`/api/projects/${projectId}/renders/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -977,7 +1015,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleReview = async (status) => {
     if (!selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
+      const res = await fetch(`/api/projects/${projectId}/renders/${selectedRender.id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, note: reviewNote })
@@ -996,7 +1034,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const handleLogCorrection = async () => {
     if (!mistakeDescription.trim() || !mistakeCorrection.trim() || !selectedRender) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/mistake`, {
+      const res = await fetch(`/api/projects/${projectId}/renders/mistake`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1020,7 +1058,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const fetchCatalogMaterials = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5055/api/material-catalog');
+      const res = await fetch('/api/material-catalog');
       if (res.ok) {
         const data = await res.json();
         setCatalogMaterials(data);
@@ -1036,7 +1074,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     try {
       // Fetch render image from server and convert to blob
       const imgUrl = selectedRender.image_url?.startsWith('/storage')
-        ? `http://127.0.0.1:5055${selectedRender.image_url}`
+        ? `${selectedRender.image_url}`
         : selectedRender.image_url;
 
       const imgRes = await fetch(imgUrl);
@@ -1046,7 +1084,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
       formData.append('renderImage', imgBlob, 'render.png');
       formData.append('room', selectedRender.room || targetRoom);
 
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/analyse-components`, {
+      const res = await fetch(`/api/projects/${projectId}/renders/analyse-components`, {
         method: 'POST',
         body: formData
       });
@@ -1074,7 +1112,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
     }
   };
 
-  const handleLaminateSwap = async () => {
+  const handleLaminateSwap = async (overrideComponent = null, overrideMaterial = null, overrideColorName = null) => {
     // Resolve a source render: reuse selected, else first in list, else auto-generate one.
     let srcRender = selectedRender;
     if (!srcRender && renderersList?.length) {
@@ -1092,7 +1130,9 @@ export default function Render3DStudio({ projectId, onComplete }) {
       srcRender = renderersList[0];
       setSelectedRender(srcRender);
     }
-    if (!selectedSwapComponent) {
+
+    const component = overrideComponent || selectedSwapComponent;
+    if (!component) {
       window.__toast?.error?.('Select a component/part to swap first.');
       return;
     }
@@ -1103,28 +1143,34 @@ export default function Render3DStudio({ projectId, onComplete }) {
       // 1. Fetch render image blob
       setSwapperStepMessage('Downloading active render image...');
       const renderImgUrl = srcRender.image_url.startsWith('/storage')
-        ? `http://127.0.0.1:5055${srcRender.image_url}`
+        ? `${srcRender.image_url}`
         : srcRender.image_url;
       const renderImgRes = await fetch(renderImgUrl);
       const renderImgBlob = await renderImgRes.blob();
 
       const formData = new FormData();
       formData.append('renderImage', renderImgBlob, 'render.png');
-      formData.append('componentType', selectedSwapComponent);
-      formData.append('room', selectedRender.room || targetRoom);
+      formData.append('componentType', component);
+      formData.append('room', srcRender.room || targetRoom);
 
       // 2. Add material metadata
-      if (selectedCatalogMaterial) {
-        formData.append('laminateCatalogId', selectedCatalogMaterial.id);
-        formData.append('newMaterial', selectedCatalogMaterial.name);
-        formData.append('newColor', selectedCatalogMaterial.color || '');
-        formData.append('laminateCode', selectedCatalogMaterial.code || '');
-        formData.append('laminateBrand', selectedCatalogMaterial.brand || '');
+      const material = overrideMaterial || selectedCatalogMaterial;
+      const colorName = overrideColorName;
+
+      if (material) {
+        formData.append('laminateCatalogId', material.id);
+        formData.append('newMaterial', material.name);
+        formData.append('newColor', material.color || '');
+        formData.append('laminateCode', material.code || '');
+        formData.append('laminateBrand', material.brand || '');
+      } else if (colorName) {
+        formData.append('newMaterial', colorName);
+        formData.append('newColor', colorName);
       } else if (customLaminateFile) {
         formData.append('newMaterial', 'Uploaded custom swatch');
         formData.append('laminateImage', customLaminateFile);
       } else {
-        window.__toast?.show('Please select a material from catalog or upload a custom swatch image.');
+        window.__toast?.show('Please select a material from catalog or a color palette.');
         setIsSwappingLaminate(false);
         return;
       }
@@ -1135,7 +1181,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       // 3. Post to laminate-swap API
       setSwapperStepMessage('Running visual editor pipeline. Recolor, lighting & shadow matching in progress...');
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders/laminate-swap`, {
+      const res = await fetch(`/api/projects/${projectId}/renders/laminate-swap`, {
         method: 'POST',
         body: formData
       });
@@ -1245,7 +1291,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
   const approveRenders = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/renders`, {
+      const res = await fetch(`/api/projects/${projectId}/renders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -1468,27 +1514,82 @@ export default function Render3DStudio({ projectId, onComplete }) {
         </div>
       )}
 
-      {project?.stale_renders === 1 && (
-        <div className="bg-amber-950/20 border-b border-amber-900/40 px-6 py-3 text-xs text-amber-400 flex items-center justify-between font-bold shrink-0">
-          <span className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />
-            Renders Out-of-Date: The underlying 2D/3D design layout or materials have changed. Visualizations may not match the active design.
-          </span>
-          <button 
-            onClick={handleRegenerateRenders}
-            className="bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
-          >
-            Regenerate Renders
-          </button>
-        </div>
-      )}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
+      <WorkflowStatusBar
+        stageLabel="Render Studio"
+        nextAction={reviewCounts.all === 0
+          ? 'Generate a base render from the approved scene graph, then review it.'
+          : (reviewCounts.unreviewed > 0
+              ? `Review ${reviewCounts.unreviewed} unreviewed render(s) or apply an AI refinement prompt.`
+              : reviewCounts['needs-revision'] > 0
+                ? `${reviewCounts['needs-revision']} render(s) need revision — re-run the refinement.`
+                : 'All renders reviewed. Proceed to elevations or cutlist.')}
+        outputLabel="Base render · AI polish prompt · mask · approval state"
+        stageComplete={project?.stale_renders !== 1}
+        stale={project?.stale_renders}
+        approvedCount={reviewCounts.approved}
+        needsReview={reviewCounts.unreviewed + reviewCounts['needs-revision'] + reviewCounts.rejected}
+        onRegenerate={handleRegenerateRenders}
+      />
+
       
       {/* 1. Renders Control Panel (Sidebar - 1/4 Column) */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col gap-5 h-[80vh] overflow-y-auto">
         <h2 className="text-xs font-extrabold uppercase tracking-widest text-[var(--gold)] flex items-center gap-1.5">
           <Sparkles className="w-4.5 h-4.5" /> visualizer console
         </h2>
+
+        {/* ── Unified Render Studio: Space / Studio / Cinematic (beats Agent B) ── */}
+        <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Render Studio</span>
+            <span className="text-[9px] text-emerald-400 font-semibold">geometry-true · never blocks</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {RENDER_MODES.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => setRenderMode(m.value)}
+                title={m.desc}
+                className={`py-2 rounded-lg border text-center transition ${renderMode === m.value
+                  ? 'bg-[var(--gold)]/20 border-[var(--gold)] text-[var(--gold)]'
+                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600'}`}
+              >
+                <div className="text-[11px] font-bold">{m.label}</div>
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {studioAngleOptions.map((a) => (
+              <button
+                key={a.value}
+                onClick={() => setStudioAngle(a.value)}
+                className={`py-1.5 rounded-md border text-[10px] font-semibold transition ${studioAngle === a.value
+                  ? 'bg-slate-700 border-slate-500 text-white'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'}`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleStudioRender}
+            disabled={isStudioRendering}
+            className="w-full py-2 rounded-lg bg-[var(--gold)] text-slate-950 text-xs font-bold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            {isStudioRendering ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Maximize className="w-3.5 h-3.5" />}
+            {isStudioRendering ? 'Rendering…' : `Render ${renderMode}`}
+          </button>
+          {studioResult && (
+            <div className="text-[10px] text-slate-400 space-y-0.5">
+              <div className="flex justify-between"><span>Mode</span><strong className="text-slate-200 capitalize">{studioResult.mode}</strong></div>
+              <div className="flex justify-between"><span>Angle</span><strong className="text-slate-200 capitalize">{studioResult.angle}</strong></div>
+              <div className="flex justify-between"><span>Engine</span><strong className={studioResult.fallbackUsed ? 'text-amber-400' : 'text-emerald-400'}>{studioResult.fallbackUsed ? 'Deterministic (quota-safe)' : 'Blender'}</strong></div>
+              {studioResult.scriptPath && (
+                <a href={`/storage${studioResult.scriptPath.replace(/^.*storage/, '')}`} target="_blank" rel="noreferrer" className="text-[var(--gold)] underline block truncate">View render script ↗</a>
+              )}
+            </div>
+          )}
+        </div>
 
         {project && (
           <div className="bg-slate-950/80 border border-slate-850 p-3.5 rounded-lg text-xs space-y-1">
@@ -1772,7 +1873,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-slate-800 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-slate-400">Before</span>
                           <img 
-                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
+                            src={previousRenderForCompare.image_url.startsWith('/storage') ? `${previousRenderForCompare.image_url}` : previousRenderForCompare.image_url} 
                             alt="Original Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1780,7 +1881,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                         <div className="relative border border-[var(--gold)]/50 rounded-lg overflow-hidden flex flex-col">
                           <span className="absolute top-2 left-2 z-10 bg-slate-950/80 px-2 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider text-[var(--gold)]">After (Swapped)</span>
                           <img 
-                            src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                            src={selectedRender.image_url.startsWith('/storage') ? `${selectedRender.image_url}` : selectedRender.image_url} 
                             alt="Swapped Design"
                             className="w-full h-full object-cover flex-1"
                           />
@@ -1788,7 +1889,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       </div>
                     ) : (
                       <img 
-                        src={selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url} 
+                        src={selectedRender.image_url.startsWith('/storage') ? `${selectedRender.image_url}` : selectedRender.image_url} 
                         alt="Design View"
                         className="w-full h-full object-cover"
                       />
@@ -1913,7 +2014,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                             >
                               <div className="w-full h-10 rounded border border-slate-800 bg-slate-900 overflow-hidden relative">
                                 {mat.swatch_url ? (
-                                  <img src={`http://127.0.0.1:5055${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
+                                  <img src={`${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
                                 ) : (
                                   <div className="w-full h-full" style={{ backgroundColor: mat.color || '#A0A0A0' }} />
                                 )}
@@ -1959,7 +2060,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 {selectedRender ? (
                   <>
                     <img 
-                      src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : (selectedRender.image_url || '')} 
+                      src={selectedRender.image_url && selectedRender.image_url.startsWith('/storage') ? `${selectedRender.image_url}` : (selectedRender.image_url || '')} 
                       alt="Bespoke Design Render"
                       className="w-full h-full object-contain"
                     />
@@ -1969,7 +2070,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                       </button>
                       <button onClick={() => {
                         const a = document.createElement('a');
-                        a.href = selectedRender.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${selectedRender.image_url}` : selectedRender.image_url;
+                        a.href = selectedRender.image_url.startsWith('/storage') ? `${selectedRender.image_url}` : selectedRender.image_url;
                         a.download = `ultida-render-${Date.now()}.png`;
                         a.target = '_blank';
                         a.click();
@@ -2093,9 +2194,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                                     key={mat.id}
                                     onClick={() => {
                                       setSelectedCatalogMaterial(mat);
-                                      setSelectedSwapComponent(selectedComponent);
-                                      // Directly trigger swap
-                                      setTimeout(() => handleLaminateSwap(), 100);
+                                      handleLaminateSwap(selectedComponent, mat);
                                     }}
                                     className={`p-1.5 rounded-lg border text-left transition flex flex-col gap-1.5 ${
                                       isSelected
@@ -2105,7 +2204,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                                   >
                                     <div className="w-full h-8 rounded border border-slate-800 bg-slate-900 overflow-hidden">
                                       {mat.swatch_url ? (
-                                        <img src={`http://127.0.0.1:5055${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
+                                        <img src={`${mat.swatch_url}`} alt={mat.name} className="w-full h-full object-cover" />
                                       ) : (
                                         <div className="w-full h-full" style={{ backgroundColor: mat.color || '#A0A0A0' }} />
                                       )}
@@ -2238,7 +2337,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 }`}
               >
                 <img 
-                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `http://127.0.0.1:5055${ren.image_url}` : (ren.image_url || '')} 
+                  src={ren.image_url && ren.image_url.startsWith('/storage') ? `${ren.image_url}` : (ren.image_url || '')} 
                   alt="Variant swatch"
                   className="w-full h-full object-cover"
                 />
@@ -2417,7 +2516,6 @@ export default function Render3DStudio({ projectId, onComplete }) {
         </div>
       )}
 
-    </div>
     </div>
   );
 }

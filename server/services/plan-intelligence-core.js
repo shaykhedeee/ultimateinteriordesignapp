@@ -622,14 +622,57 @@ function centroidOfOpening(o, rooms, cx, cy) {
  * 1) snap endpoints to a grid tolerance, 2) build half-edge graph,
  * 3) traverse faces (left-hand rule), 4) keep only leaf (non-contained) faces.
  */
+function segIntersect(p, p2, q, q2) {
+  const r = { x: p2.x - p.x, y: p2.y - p.y };
+  const s = { x: q2.x - q.x, y: q2.y - q.y };
+  const denom = r.x * s.y - r.y * s.x;
+  if (Math.abs(denom) < 1e-9) return null; // parallel
+  const t = ((q.x - p.x) * s.y - (q.y - p.y) * s.x) / denom;
+  const u = ((q.x - p.x) * r.y - (q.y - p.y) * r.x) / denom;
+  // Only reject when the crossing is outside A (the wall being split). B may
+  // touch A at an endpoint (a vertical landing exactly on a horizontal) — that
+  // is a real junction and the caller still splits A there.
+  if (t <= 1e-6 || t >= 1 - 1e-6) return null;
+  if (u < -1e-6 || u > 1 + 1e-6) return null;
+  return { x: p.x + t * r.x, y: p.y + t * r.y, t };
+}
+
 function detectRooms(segs, toMm) {
-  const TOL = 6; // px snap tolerance
-  const key = (x, y) => `${Math.round(x / TOL) * TOL},${Math.round(y / TOL) * TOL}`;
+  // Build working segments; split each at any crossing with another segment so
+  // shared corners become real nodes (fixes the "one big room" failure on
+  // plans whose walls cross but weren't broken at intersections). We do NOT
+  // round the geometry (that shifts partition x-positions and breaks junction
+  // detection); we only merge near-coincident NODES via a small epsilon.
+  const EPS = 12; // mm — merges endpoints that meet within 12mm
+  const key = (x, y) => `${Math.round(x / EPS) * EPS},${Math.round(y / EPS) * EPS}`;
+  const segs2 = [];
+  for (let i = 0; i < segs.length; i++) {
+    const a = { x: segs[i].x1, y: segs[i].y1 };
+    const b = { x: segs[i].x2, y: segs[i].y2 };
+    const cuts = [0, 1];
+    for (let j = 0; j < segs.length; j++) {
+      if (j === i) continue;
+      const c = { x: segs[j].x1, y: segs[j].y1 };
+      const d = { x: segs[j].x2, y: segs[j].y2 };
+      const p = segIntersect(a, b, c, d);
+      // Split A whenever the crossing is strictly interior to A. B may end
+      // exactly on A (a vertical landing on a horizontal) — that is a real
+      // junction and must still produce a node on A.
+      if (p && p.t > 1e-6 && p.t < 1 - 1e-6) cuts.push(p.t);
+    }
+    cuts.sort((x, y) => x - y);
+    let prev = a;
+    for (let k = 1; k < cuts.length; k++) {
+      const t = cuts[k];
+      const cur = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+      if (Math.hypot(cur.x - prev.x, cur.y - prev.y) > 1) segs2.push({ x1: prev.x, y1: prev.y, x2: cur.x, y2: cur.y });
+      prev = cur;
+    }
+  }
   const nodes = new Map();
   const nodeId = (x, y) => { const k = key(x, y); if (!nodes.has(k)) nodes.set(k, { x, y, id: 'n' + nodes.size, out: [] }); return nodes.get(k); };
-
   const half = [];
-  for (const s of segs) {
+  for (const s of segs2) {
     const a = nodeId(s.x1, s.y1), b = nodeId(s.x2, s.y2);
     const h1 = { from: a, to: b, used: false };
     const h2 = { from: b, to: a, used: false };
@@ -648,9 +691,12 @@ function detectRooms(segs, toMm) {
       cur.used = true;
       face.push(cur.from);
       const node = cur.to;
-      // next half-edge: the one immediately clockwise (left-hand traversal)
-      const idx = node.out.indexOf(cur.reverse || node.out.find(e => e.to === cur.from));
-      const nextIdx = (idx + 1) % node.out.length;
+      // next half-edge: the one immediately counter-clockwise from the
+      // arrival edge (left-hand / interior-face traversal). Edges are sorted
+      // CCW by angle, so the previous index is the interior turn.
+      let idx = node.out.findIndex(e => e.to === cur.from);
+      if (idx < 0) idx = 0;
+      const nextIdx = (idx + node.out.length - 1) % node.out.length;
       cur = node.out[nextIdx];
       if (++guard > 10000) break;
     } while (cur !== h && !cur.used);

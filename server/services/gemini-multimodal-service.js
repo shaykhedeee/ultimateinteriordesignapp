@@ -153,9 +153,7 @@ class GeminiMultimodalService {
 
     const model = process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
     const prompt = [
-      'You are a professional interior design and architectural assistant.',
-      'Analyze this floorplan image (which may be a blueprint or a handwritten drawing with measurements).',
-      'Detect all visible rooms, their types/labels, overall dimensions, handwritten notes/measurements, and count of openings (doors/windows).',
+      'Detect rooms, walls, openings, and scale from the uploaded plan. Mark uncertain areas for review instead of guessing.',
       'Return ONLY a valid JSON object matching this structure:',
       '{',
       '  "overallDimensions": "length x width in meters or feet",',

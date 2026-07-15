@@ -29,6 +29,12 @@ function geminiKeys() {
   ].filter(Boolean);
 }
 
+function resolveAppUrl() {
+  const host = process.env.HOST || '127.0.0.1';
+  const port = process.env.PORT || '5055';
+  return (process.env.APP_URL || `http://${host}:${port}`).replace(/\/$/, '');
+}
+
 export function getGeminiStatus() {
   return {
     configured: geminiKeys().length > 0,
@@ -47,7 +53,7 @@ async function tryRefineWithOpenRouter({ prompt, instruction }) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${key}`,
-        'HTTP-Referer': 'http://localhost:3000',
+        'HTTP-Referer': resolveAppUrl(),
         'X-Title': 'Spacious Venture Studio'
       },
       body: JSON.stringify({
@@ -208,7 +214,7 @@ async function callOpenRouterChat(messages) {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${key}`,
-          'HTTP-Referer': process.env.APP_URL || 'http://127.0.0.1:5055',
+          'HTTP-Referer': resolveAppUrl(),
           'X-Title': 'ULTIDA AURA'
         },
         body: JSON.stringify({ model, messages, temperature: 0.4 })

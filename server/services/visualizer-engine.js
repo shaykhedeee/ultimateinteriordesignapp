@@ -613,12 +613,13 @@ export async function generateStudioRender(projectId, params) {
           <text x="50%" y="50%" font-family="Outfit, Arial" font-size="28" fill="#d4af37" text-anchor="middle">3D Render visualizer for ${room}</text>
         </svg>`;
         const fallbackSvgPath = path.join(storageDir, 'assets', `visualizer-${room}-${id}.svg`);
+        fs.mkdirSync(path.dirname(fallbackSvgPath), { recursive: true });
         fs.writeFileSync(fallbackSvgPath, svg);
         
         db.prepare(`
           INSERT INTO generated_assets
-          (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, scene_version_id, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           id,
           projectId,
@@ -632,6 +633,7 @@ export async function generateStudioRender(projectId, params) {
           JSON.stringify(['3d-studio-render', 'visualizer-concept']),
           'svg-mock',
           70,
+          sceneVersionId,
           new Date().toISOString()
         );
 
@@ -689,8 +691,8 @@ export async function generateStudioRender(projectId, params) {
 
   db.prepare(`
     INSERT INTO generated_assets
-    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, scene_version_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     projectId,
@@ -704,6 +706,7 @@ export async function generateStudioRender(projectId, params) {
     JSON.stringify(tagsList),
     sourceType,
     reusableScore,
+    sceneVersionId,
     new Date().toISOString()
   );
 
@@ -729,6 +732,9 @@ export async function editStudioRender(projectId, assetId, params) {
   const db = getDb();
   const asset = db.prepare('SELECT * FROM generated_assets WHERE id = ? AND project_id = ?').get(assetId, projectId);
   if (!asset) throw new Error('Reference render asset not found');
+
+  const parentSceneVersionId = asset.scene_version_id || db.prepare("SELECT id FROM scene_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1").get(projectId)?.id || null;
+  const parentAssetId = assetId;
 
   const id = nanoid(12);
   const room = asset.room;
@@ -796,8 +802,8 @@ export async function editStudioRender(projectId, assetId, params) {
 
   db.prepare(`
     INSERT INTO generated_assets
-    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, scene_version_id, parent_asset_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     projectId,
@@ -811,6 +817,8 @@ export async function editStudioRender(projectId, assetId, params) {
     JSON.stringify(tagsList),
     sourceType,
     reusableScore,
+    parentSceneVersionId,
+    parentAssetId,
     new Date().toISOString()
   );
 
@@ -2004,56 +2012,22 @@ Return a JSON array ONLY, no markdown, no extra text.`
  * Build the best-in-class laminate swap prompt.
  * Preserves everything in the image EXCEPT the specified component.
  */
+import { buildMaterialSwapPrompt } from './render-prompt-library.js';
+
+// Re-exported for backwards compatibility with performLaminateSwap consumers.
+// The actual geometry-lock + negative-prompt rules now live in
+// render-prompt-library.js (single source of truth for all render prompts).
 export function buildLaminateSwapPrompt(params, laminateSwatchContext = '') {
-  const materialDescriptions = {
-    'Cabinet Shutters': 'modular cabinet door panels with visible grain, sheen, and edge profile',
-    'Carcass Box': 'the structural cabinet box/carcass shell material',
-    'Countertop Stone': 'the worktop slab surface with natural veining and polished finish',
-    'Backsplash Tile': 'the wall tile area behind the counter with grout lines visible',
-    'Sofa Fabric': 'the sofa upholstery showing texture, weave pattern, and color tone',
-    'TV Backdrop Panel': 'the feature wall behind the television including any backlit panels',
-    'TV Console Cabinet': 'the low-slung TV unit cabinetry',
-    'Wardrobe Shutters': 'the full-height wardrobe door panels',
-    'Bed Headboard': 'the bed headboard panel material and finish',
-    'Wall Paint': 'the wall color and surface texture/finish',
-    'Accent Rafters': 'the fluted vertical wooden rafter panels',
-    'Flooring': 'the floor tile or wood material with full surface detail',
-    'Floor Tiles': 'the floor tile pattern, color, and grout line detail',
-    'Mandir Jali': 'the decorative carved wooden jali screen panel',
-    'Marble Backdrop': 'the stone backing panel with natural veining detail',
-  };
-
-  const matDesc = materialDescriptions[params.componentType] || `the ${params.componentType}`;
-  const colorRef = params.newColor ? ` with exact color tone ${params.newColor}` : '';
-  const codeRef = params.laminateCode ? ` (product code: ${params.laminateCode})` : '';
-  const brandRef = params.laminateBrand ? ` by ${params.laminateBrand}` : '';
-
-  const parts = [
-    `PHOTOREALISTIC INTERIOR DESIGN IMAGE EDIT — MATERIAL SWAP.`,
-    ``,
-    `STRICT PRESERVATION RULES — DO NOT CHANGE:`,
-    `• Camera angle, perspective, focal length, and framing`,
-    `• Room geometry: walls, ceiling height, floor area, window positions`,
-    `• Natural and artificial lighting direction, color temperature, and shadow casting`,
-    `• All other furniture, fixtures, and decor NOT specified for change`,
-    `• The overall composition, depth of field, and spatial proportions`,
-    ``,
-    `SINGLE CHANGE TO MAKE:`,
-    `• Component: ${matDesc}`,
-    `• New Material: ${params.newMaterial || params.newColor || 'as specified'}${colorRef}${codeRef}${brandRef}`,
-    params.instruction ? `• Designer Instruction: ${params.instruction}` : '',
-    laminateSwatchContext,
-    ``,
-    `OUTPUT QUALITY REQUIREMENTS:`,
-    `• Photorealistic CGI at 8K detail level`,
-    `• Physically-based materials — correct roughness, reflection, and sheen`,
-    `• Accurate grain direction and texture depth for wood/laminate materials`,
-    `• Correct veining pattern and polish for stone materials`,
-    `• No watermarks, no text overlays, no CGI artifacts, no distortion`,
-    `• Indian modular interior design standards`,
-  ].filter(Boolean).join('\n');
-
-  return parts;
+  const p = buildMaterialSwapPrompt({
+    componentType: params.componentType,
+    newMaterial: params.newMaterial,
+    newColor: params.newColor,
+    laminateCode: params.laminateCode,
+    laminateBrand: params.laminateBrand,
+    instruction: params.instruction,
+    swatchContext: laminateSwatchContext,
+  });
+  return p.positive;
 }
 
 /**
@@ -2062,6 +2036,9 @@ export function buildLaminateSwapPrompt(params, laminateSwatchContext = '') {
  */
 export async function performLaminateSwap(projectId, renderBase64, laminateBase64, params, dbInstance) {
   const db = dbInstance || getDb();
+  const sceneVersionRow = db.prepare("SELECT id FROM scene_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1").get(projectId);
+  const sceneVersionId = sceneVersionRow ? sceneVersionRow.id : null;
+
   const id = nanoid(12);
   const safeComponent = String(params.componentType).replace(/[^a-zA-Z0-9_-]/g, '_');
   const fileName = `laminate-swap-${safeComponent}-${id}.png`;
@@ -2220,8 +2197,8 @@ export async function performLaminateSwap(projectId, renderBase64, laminateBase6
 
   db.prepare(`
     INSERT INTO generated_assets
-    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, scene_version_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     projectId,
@@ -2235,6 +2212,7 @@ export async function performLaminateSwap(projectId, renderBase64, laminateBase6
     JSON.stringify(tags),
     sourceType,
     97,
+    sceneVersionId,
     new Date().toISOString()
   );
 

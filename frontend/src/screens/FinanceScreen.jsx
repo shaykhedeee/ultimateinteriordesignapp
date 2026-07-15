@@ -8,8 +8,8 @@ import {
   Settings as SettingsIcon, Database, LayoutDashboard, CloudUpload,
   ArrowUpRight, AlertTriangle, ShieldCheck, RefreshCw, Printer, Edit3
 } from 'lucide-react';
+import WorkflowStatusBar from '../components/WorkflowStatusBar';
 
-// --- Default Constants ---
 const DEFAULT_BANK_DETAILS = {
   accountName: "SPACIOUS VENTURE INTERIOR DESIGN STUDIO",
   bankName: "HDFC Bank",
@@ -170,12 +170,12 @@ export default function FinanceScreen({ projectId }) {
     setIsLoading(true);
     try {
       const [resProj, resInvoices, resPayments, resVariations, resPOs, resQuotation] = await Promise.all([
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}`),
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices`),
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payments`),
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/variation-orders`),
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/purchase-orders`),
-        fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation`)
+        fetch(`/api/projects/${projectId}`),
+        fetch(`/api/projects/${projectId}/invoices`),
+        fetch(`/api/projects/${projectId}/payments`),
+        fetch(`/api/projects/${projectId}/variation-orders`),
+        fetch(`/api/projects/${projectId}/purchase-orders`),
+        fetch(`/api/projects/${projectId}/quotation`)
       ]);
 
       const proj = await resProj.json();
@@ -276,7 +276,7 @@ export default function FinanceScreen({ projectId }) {
   // Save Quotation to API
   const handleSaveQuotation = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation`, {
+      const res = await fetch(`/api/projects/${projectId}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -297,7 +297,7 @@ export default function FinanceScreen({ projectId }) {
       });
 
       // Synchronize back-end estimates sets
-      await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/estimate-sets`, {
+      await fetch(`/api/projects/${projectId}/estimate-sets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -327,7 +327,7 @@ export default function FinanceScreen({ projectId }) {
   // Export PDF
   const handleDownloadPDF = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/quotation/pdf`, {
+      const res = await fetch(`/api/projects/${projectId}/quotation/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -378,7 +378,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreateInvoice = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices`, {
+      const res = await fetch(`/api/projects/${projectId}/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -413,7 +413,7 @@ export default function FinanceScreen({ projectId }) {
   // Download a GST tax-invoice PDF for a given invoice id
   const handleDownloadInvoicePDF = async (invoiceId) => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices/${invoiceId}/pdf`, {
+      const res = await fetch(`/api/projects/${projectId}/invoices/${invoiceId}/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ supplier: { name: profile.name, address: profile.address, gstNo: profile.gstNo, bankDetails: profile.bankDetails } })
@@ -434,7 +434,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCancelInvoice = async (invoiceId, invoiceNumber) => {
     if (!window.confirm(`Cancel tax invoice ${invoiceNumber}? It will be marked CANCELLED (not deleted) and excluded from ageing.`)) return;
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/invoices/${invoiceId}/cancel`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${projectId}/invoices/${invoiceId}/cancel`, { method: 'POST' });
       if (res.ok) {
         showStatusMessage(`Invoice ${invoiceNumber} cancelled`, 'success');
         loadData();
@@ -451,7 +451,7 @@ export default function FinanceScreen({ projectId }) {
     e.preventDefault();
     try {
       const allocations = selectedInvoiceId ? [{ invoiceId: selectedInvoiceId, amount: parseFloat(paymentAmount) || 0 }] : [];
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/payments`, {
+      const res = await fetch(`/api/projects/${projectId}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -472,7 +472,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreateVariation = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/variation-orders`, {
+      const res = await fetch(`/api/projects/${projectId}/variation-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -492,7 +492,7 @@ export default function FinanceScreen({ projectId }) {
   const handleCreatePO = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/purchase-orders`, {
+      const res = await fetch(`/api/projects/${projectId}/purchase-orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -549,7 +549,19 @@ export default function FinanceScreen({ projectId }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-[#0A0A0B] text-[#F0EEE8]">
-      
+
+      <WorkflowStatusBar
+        stageLabel="Finance & Quotes"
+        nextAction={project?.stale_pricing === 1
+          ? 'Recompute the quote from the approved scene graph — pricing is out of date.'
+          : (invoices?.length ? 'Track payments against issued invoices; raise variation orders as needed.' : 'Build the estimate set and generate the first GST invoice.')}
+        outputLabel="Estimate set · GST invoice · payment schedule"
+        stageComplete={project?.stale_pricing !== 1}
+        stale={project?.stale_pricing}
+        approvedCount={invoices?.filter(i => i.status === 'paid').length || 0}
+        needsReview={(invoices?.filter(i => i.status === 'sent' || i.status === 'overdue').length) || 0}
+      />
+
       {/* ── Sub-navigation Header ── */}
       <header className="flex-shrink-0 flex items-center justify-between border-b border-stone-850 px-6 py-4 bg-[#111113]">
         <div className="flex items-center gap-2">

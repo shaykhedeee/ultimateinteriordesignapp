@@ -1,6 +1,6 @@
 import http from 'node:http';
 
-const BASE = 'http://127.0.0.1:5055';
+const BASE = 'http://127.0.0.1:8787';
 function req(method, path, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;

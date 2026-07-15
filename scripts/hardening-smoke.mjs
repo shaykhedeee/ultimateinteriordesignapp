@@ -1,5 +1,5 @@
 import http from 'node:http';
-const BASE='http://127.0.0.1:5055';
+const BASE='http://127.0.0.1:8787';
 function req(m,p,b){return new Promise((res,rej)=>{const d=b?JSON.stringify(b):null;const r=http.request(BASE+p,{method:m,headers:d?{'Content-Type':'application/json','Content-Length':Buffer.byteLength(d)}:{}},x=>{let c=[];x.on('data',y=>c.push(y));x.on('end',()=>{let j;try{j=JSON.parse(Buffer.concat(c).toString())}catch{j=null}res({s:x.statusCode,j,buf:Buffer.concat(c)})});});r.on('error',rej);if(d)r.write(d);r.end();});}
 let pass=0,fail=0;const fails=[];
 function check(name,ok,extra=''){if(ok)pass++;else{fail++;fails.push(name+' '+extra);}console.log((ok?'OK  ':'FAIL')+' '+name+'  '+extra);}

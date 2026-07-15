@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Palette, RotateCcw, Save, Check, Sparkles, Key, Trash2, Eye, EyeOff, CheckCircle, XCircle, Loader } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = '';
 
 const PROVIDERS = [
   { id: 'openai',       label: 'OpenAI',        hint: 'sk-... (gpt-image-1, gpt-4o-mini)',         color: '#10a37f' },

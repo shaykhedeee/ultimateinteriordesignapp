@@ -236,7 +236,7 @@ export async function seedDemoProject() {
     cutlistEngine.createOrRefreshCutlist(projectId);
     console.log(`[demo-seeder] Cutlist compiled successfully for demo project ${projectId}.`);
   } catch (err) {
-    console.error("[demo-seeder] Failed to generate cutlist during seed:", err.message);
+    console.error("[demo-seeder] Failed to generate cutlist during seed:", err.stack || err);
   }
 
   } finally {

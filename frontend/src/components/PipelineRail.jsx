@@ -26,8 +26,8 @@ export default function PipelineRail({ activeTab, onNavigate, stepIndex, collaps
   const activePos = PIPELINE_STAGES.findIndex(s => s.id === activeTab);
 
   if (collapsed) {
-    // Compact collapsed strip: a single clickable header that re-expands the rail.
-    const done = Math.min(stepIndex, PIPELINE_STAGES.length);
+    const activeStage = PIPELINE_STAGES.find(s => s.id === activeTab);
+    const activePos = PIPELINE_STAGES.findIndex(s => s.id === activeTab);
     return (
       <button
         onClick={onToggleCollapse}
@@ -36,8 +36,12 @@ export default function PipelineRail({ activeTab, onNavigate, stepIndex, collaps
         style={{ width:'100%', textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:'8px', padding:'8px 10px', background:'transparent', border:'none', color:'var(--text-muted)' }}
       >
         <ChevronRight style={{ width:14, height:14, flexShrink:0 }} />
-        <span className="pipeline-rail-title" style={{ fontSize:'9px', letterSpacing:'0.12em', margin:0 }}>DESIGN JOURNEY</span>
-        <span style={{ marginLeft:'auto', fontSize:'9px', fontFamily:'monospace', color:'var(--gold)' }}>{done}/{PIPELINE_STAGES.length}</span>
+        <span className="pipeline-rail-title" style={{ fontSize:'9px', letterSpacing:'0.12em', margin:0, textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap' }}>
+          STAGE: <span style={{ color: 'var(--gold)', fontWeight: 800 }}>{activeStage?.label?.toUpperCase() || 'DASHBOARD'}</span>
+        </span>
+        <span style={{ marginLeft:'auto', fontSize:'9.5px', fontFamily:'monospace', color:'var(--text-muted)' }}>
+          {activePos >= 0 ? activePos + 1 : 0}/{PIPELINE_STAGES.length}
+        </span>
       </button>
     );
   }

@@ -6,7 +6,7 @@ import {
   BookOpen, Award, Palette, Sparkles, Move
 } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055/api';
+const API = '/api';
 
 // ── Style colours (Vastu / status semantics) ──────────────────────────
 const PALETTE_TAGS = [
@@ -108,8 +108,8 @@ export default function PresentationStudio({ projectId }) {
       if (data.success) {
         setShare({
           token: data.token,
-          shareUrl: `http://127.0.0.1:5055${data.shareUrl}`,
-          downloadUrl: `http://127.0.0.1:5055${data.downloadUrl}`,
+          shareUrl: `${data.shareUrl}`,
+          downloadUrl: `${data.downloadUrl}`,
           fileName: data.fileName
         });
       } else {

@@ -148,6 +148,8 @@ body {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 /* Subtle inner glow on right edge */
@@ -251,8 +253,8 @@ body {
 
 /* ── Nav Sections ── */
 .sidebar-nav {
-  flex: 1;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  overflow: visible;
   padding: 16px 12px 12px;
   display: flex;
   flex-direction: column;
@@ -1517,3 +1519,42 @@ select.form-input {
 .pipeline-step.active .pipeline-step-label { color: var(--gold); font-weight: 700; }
 .pipeline-step.done .pipeline-step-label { color: var(--text-primary); }
 .pipeline-step-line { position: absolute; left: 12px; top: 22px; width: 1px; height: calc(100% - 14px); background: rgba(255,255,255,0.08); }
+
+/* Collapsed Sidebar overrides */
+.sidebar-chrome.collapsed {
+  width: 68px !important;
+}
+
+.sidebar-chrome.collapsed .sidebar-logo {
+  justify-content: center;
+  padding: 14px 8px;
+}
+
+.sidebar-chrome.collapsed .sidebar-logo-wordmark,
+.sidebar-chrome.collapsed .sidebar-stats,
+.sidebar-chrome.collapsed .sidebar-project-card,
+.sidebar-chrome.collapsed .sidebar-footer,
+.sidebar-chrome.collapsed .nav-section-title {
+  display: none !important;
+}
+
+.sidebar-chrome.collapsed .sidebar-nav {
+  padding: 10px 8px;
+  gap: 6px;
+}
+
+.sidebar-chrome.collapsed .nav-item {
+  justify-content: center;
+  padding: 11px 8px;
+  min-height: 42px;
+}
+
+.sidebar-chrome.collapsed .nav-item span,
+.sidebar-chrome.collapsed .nav-item .badge-stale {
+  display: none !important;
+}
+
+.sidebar-chrome.collapsed .nav-item .nav-icon {
+  width: 17px !important;
+  height: 17px !important;
+}

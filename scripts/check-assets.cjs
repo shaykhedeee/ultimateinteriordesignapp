@@ -6,7 +6,7 @@ const assets = [...new Set([...html.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map(m
   let bad = 0;
   for (const a of assets) {
     await new Promise(r => {
-      http.get('http://127.0.0.1:5055' + a, res => {
+      http.get('http://127.0.0.1:8787' + a, res => {
         if (res.statusCode >= 400) { bad++; console.log('MISSING', a, res.statusCode); }
         res.resume(); r();
       }).on('error', () => { bad++; console.log('ERR', a); r(); });

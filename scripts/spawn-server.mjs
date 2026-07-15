@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const env = { ...process.env, PORT: process.env.PORT || '5055' };
+const env = { ...process.env, PORT: process.env.PORT || '8787' };
 
 const child = spawn('node', ['server/index.js'], {
   cwd: root,

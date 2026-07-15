@@ -1441,18 +1441,19 @@ export async function recordGenerationCost({ projectId, assetId, sourceType, cou
   const costInfo = getProviderCost(sourceType);
   const totalCost = costInfo.perImage * count;
   const db = getDb();
-  // generation_costs.project_id is NOT NULL; a missing id (e.g. a standalone
-  // placeholder render) must not silently drop the cost row — fall back to a
-  // sentinel so the record persists and the warning spam stops.
-  const pid = projectId || 'unknown';
-  
+  // generation_costs.project_id has a NOT NULL FK to projects(id). Only record
+  // when a real project exists; otherwise skip silently (non-critical telemetry).
+  if (!projectId) return { totalCost, currency: costInfo.currency, skipped: true };
+  const exists = db.prepare('SELECT 1 FROM projects WHERE id = ?').get(projectId);
+  if (!exists) return { totalCost, currency: costInfo.currency, skipped: true };
+
   try {
     db.prepare(`
       INSERT INTO generation_costs (id, project_id, asset_id, source_type, count, unit_cost, total_cost, currency, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       nanoid(12),
-      pid,
+      projectId,
       assetId || null,
       sourceType,
       count,
@@ -1462,7 +1463,7 @@ export async function recordGenerationCost({ projectId, assetId, sourceType, cou
       new Date().toISOString()
     );
   } catch (err) {
-    console.warn('Cost recording failed (table may not exist):', err.message);
+    console.warn('Cost recording failed:', err.message);
   }
   
   return { totalCost, currency: costInfo.currency };

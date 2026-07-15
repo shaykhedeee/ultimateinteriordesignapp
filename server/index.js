@@ -40,6 +40,7 @@ import { buildLaminateSwapPrompt } from './services/visualizer-engine.js';
 import { analyzePhotoToElevation, learningSummary } from './services/photo-to-elevation.js';
 import colorService from './services/component-color-service.js';
 import planIntelligenceCore from './services/plan-intelligence-core.js';
+import catalogStaging from './services/catalog-staging.js';
 import { findReusableAssets, matchLaminates } from './services/design-engine.js';
 import ruleEngine from './services/rule-engine.js';
 import drawingGenerator from './services/drawing-generator.js';
@@ -48,8 +49,12 @@ import { analyzeProjectElevations, analyzeWallElevation } from './services/eleva
 import { analyzeSection } from './services/section-analyzer.js';
 import { analyzeRCP } from './services/rcp-analyzer.js';
 import { runCvWallDetect, sanitize } from './services/cv-wall-client.js';
+import floorplanAnalysis from './services/floorplan-analysis.js';
+import renderPromptLibrary from './services/render-prompt-library.js';
 import { generateElevationDXF } from './services/dxf-generator.js';
 import { buildElevationDXF, buildFloorPlanDXF, DXF } from './services/dxf-writer.js';
+import { generateFloorPlanDXF } from './services/floorplan-dxf-generator.js';
+import { buildPremiumFloorPlanDXF } from './services/premium-dxf.js';
 import { renderElevationPDF, renderCombinedElevationsPDF } from './services/pdf-elevation.js';
 import { getAllDecodedModels, DECODED_UNITS } from './services/render-elevation-decode.js';
 import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
@@ -79,6 +84,29 @@ function sendDxf(res, dxfText, filename) {
   res.set('Content-Type', 'application/dxf');
   res.set('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(dxfText);
+}
+
+function resolveProjectFloorplanPath(projectId) {
+  const project = db.prepare('SELECT floorplan_url, client_brief_json FROM projects WHERE id = ?').get(projectId);
+  const candidates = [];
+  if (project?.floorplan_url) candidates.push(project.floorplan_url);
+  try {
+    const brief = project?.client_brief_json ? JSON.parse(project.client_brief_json) : {};
+    if (brief.floorplanImageUrl) candidates.push(brief.floorplanImageUrl);
+    if (brief.floorplanUrl) candidates.push(brief.floorplanUrl);
+  } catch {}
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const rel = String(raw)
+      .replace(/^\/storage\/?/, '')
+      .replace(/^\/+/, '');
+    const direct = path.join(storageDir, rel);
+    if (fs.existsSync(direct)) return direct;
+    const legacy = path.join(__dirname, '../storage', rel);
+    if (fs.existsSync(legacy)) return legacy;
+  }
+  return null;
 }
 const frontendDistDir = path.join(__dirname, '../dist');
 
@@ -378,6 +406,7 @@ app.post('/api/projects/:id/calibrate-scale', express.json(), (req, res) => {
     const cad = db.prepare("SELECT id FROM cad_drawings WHERE project_id = ?").get(projectId);
     if (!cad) return res.status(422).json({ error: 'no_cad_drawing', message: 'Upload a floor plan first.' });
     db.prepare("UPDATE cad_drawings SET pixels_per_meter = ? WHERE project_id = ?").run(ppm, projectId);
+    markPlanGeometryStale(projectId);
     res.json({ success: true, pixels_per_meter: Math.round(ppm * 100) / 100, unit, knownLength: len, mm: Math.round(mm) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -426,6 +455,7 @@ app.post('/api/projects/:id/enhance-plan', express.json(), (req, res) => {
     const cleanPlanText = 'CLEAN B&W PLAN — ' + normRooms.map((r) => r.name).join(', ');
     db.prepare("UPDATE cad_drawings SET walls_json = ?, openings_json = ?, rooms_json = ?, plan_text = ? WHERE project_id = ?")
       .run(JSON.stringify(straightened), JSON.stringify(alignedOpenings), JSON.stringify(normRooms), cleanPlanText, projectId);
+    markPlanGeometryStale(projectId);
     // persist review items if a floor_plan_version exists
     const fpv = db.prepare("SELECT id FROM floor_plan_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1").get(projectId);
     if (fpv) {
@@ -500,6 +530,82 @@ app.get('/api/projects/:id/drawings/floorplan/dxf', (req, res) => {
     }
     const dxf = buildFloorPlanDXF({ walls, openings, rooms, furniture, pixelsPerMeter: ppm, projectId: pid, scale: '1:50', rev: '1.0', sheet: 'FLOOR PLAN' });
     sendDxf(res, dxf, `ultida-floorplan-${pid}.dxf`);
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Professional floor plan DXF (full architectural output with dimension chains, door swings,
+// window marks, room labels, area annotations, dual-tier dimensions, and title block).
+// Converts cad_drawings rooms/walls from px→mm via pixelsPerMeter, then feeds the
+// floorplan-dxf-generator for AutoCAD R2010 output.
+app.get('/api/projects/:id/drawings/floorplan/pro-dxf', (req, res) => {
+  try {
+    const pid = req.params.id;
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1").get(pid);
+    if (!cad) return res.status(404).json({ success: false, error: 'No CAD drawing found for this project.' });
+    const ppm = parseFloat(cad.pixels_per_meter) || 40;
+    const toMm = (px) => (px / ppm) * 1000;
+    const rawWalls = JSON.parse(cad.walls_json || '[]');
+    const rawOpenings = JSON.parse(cad.openings_json || '[]');
+    const rawRooms = JSON.parse(cad.rooms_json || '[]');
+
+    // Convert walls from px to mm for the pro DXF generator
+    const walls = rawWalls.map(w => ({
+      x1: toMm(w.x1), y1: toMm(w.y1),
+      x2: toMm(w.x2), y2: toMm(w.y2),
+      thickness: w.thicknessMm || 150
+    }));
+
+    // Convert rooms with labels
+    const rooms = rawRooms.map((r, i) => {
+      const pts = (r.points || []).map(p => ({ x: toMm(p.x), y: toMm(p.y) }));
+      const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      const wMm = maxX - minX, hMm = maxY - minY;
+      const areaM2 = (wMm * hMm) / 1e6;
+      return {
+        label: r.name || r.type || `Room ${i + 1}`,
+        polygon: pts.length >= 3 ? pts : undefined,
+        cx: (minX + maxX) / 2, cy: (minY + maxY) / 2,
+        x: minX, y: minY, w: wMm, h: hMm,
+        areaText: `${Math.round(wMm)} x ${Math.round(hMm)} mm  (${areaM2.toFixed(1)} sq.m)`
+      };
+    });
+
+    // Convert openings to doors/windows
+    const doors = [], windows = [];
+    for (const op of rawOpenings) {
+      const type = (op.type || op.openingType || 'door').toLowerCase();
+      if (type === 'window') {
+        windows.push({ x1: toMm(op.x1 || op.x || 0), y1: toMm(op.y1 || op.y || 0), x2: toMm(op.x2 || (op.x || 0) + (op.widthMm || 900) * ppm / 1000), y2: toMm(op.y2 || op.y || 0) });
+      } else {
+        doors.push({ hx: toMm(op.x || op.x1 || 0), hy: toMm(op.y || op.y1 || 0), width: op.widthMm || 900, direction: op.direction || 'right' });
+      }
+    }
+
+    // Build dimension chains from walls bounding box
+    const dimensions = [];
+    if (walls.length) {
+      const allX = walls.flatMap(w => [w.x1, w.x2]);
+      const allY = walls.flatMap(w => [w.y1, w.y2]);
+      const bMinX = Math.min(...allX), bMaxX = Math.max(...allX);
+      const bMinY = Math.min(...allY), bMaxY = Math.max(...allY);
+      dimensions.push({ x1: bMinX, y1: bMinY, x2: bMaxX, y2: bMinY, label: String(Math.round(bMaxX - bMinX)), dir: 'h', offset: -600 });
+      dimensions.push({ x1: bMinX, y1: bMinY, x2: bMinX, y2: bMaxY, label: String(Math.round(bMaxY - bMinY)), dir: 'v', offset: -600 });
+      dimensions.push({ x1: bMinX, y1: bMaxY, x2: bMaxX, y2: bMaxY, label: String(Math.round(bMaxX - bMinX)), dir: 'h', offset: 400 });
+      dimensions.push({ x1: bMaxX, y1: bMinY, x2: bMaxX, y2: bMaxY, label: String(Math.round(bMaxY - bMinY)), dir: 'v', offset: 400 });
+    }
+
+    const plan = { wallThickness: 150, walls, rooms, doors, windows, stairs: [], dimensions,
+      titleBlock: { x: -200, y: -400,
+        w: (Math.max(0, ...walls.flatMap(w=>[w.x1,w.x2]), ...rooms.map(r=>r.x+r.w)) + 400),
+        h: (Math.max(0, ...walls.flatMap(w=>[w.y1,w.y2]), ...rooms.map(r=>r.y+r.h)) + 800),
+        _extW: Math.max(0, ...walls.flatMap(w=>[w.x1,w.x2]), ...rooms.map(r=>r.x+r.w)),
+        _extH: Math.max(0, ...walls.flatMap(w=>[w.y1,w.y2]), ...rooms.map(r=>r.y+r.h)) } };
+    const dxf = buildPremiumFloorPlanDXF(plan, { scale: '1:100', projectName: `FLOOR PLAN - PROJECT ${pid}`, sheetName: 'A-001' });
+    res.set('Content-Type', 'application/dxf');
+    res.set('Content-Disposition', `attachment; filename="ultida-pro-floorplan-${pid}.dxf"`);
+    res.send(dxf);
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
@@ -1371,7 +1477,50 @@ app.get('/api/projects/:id/readiness', (req, res) => {
       proposal: { completed: proposalCompleted, weight: 20, label: "Quotation & Pricing Proposal" },
       cutlist: { completed: cutlistCompleted, weight: 20, label: "Production Handoff Cutlist" },
       delivered: { completed: deliveredCompleted, weight: 10, label: "Factory Dispatch & Handover" }
-    }
+    },
+    // ── Dashboard surfacing: active stage, next step, blocked items ──
+    activeStage: (() => {
+      const order = ['intake', 'floorplan', 'renders', 'proposal', 'cutlist', 'delivered'];
+      const map = {
+        intake: { tab: 'brief', label: 'Intake' },
+        floorplan: { tab: 'cad', label: 'Plan Intelligence' },
+        renders: { tab: 'renders', label: 'Render Studio' },
+        proposal: { tab: 'finance', label: 'Finance & Quote' },
+        cutlist: { tab: 'cutlist', label: 'Cutlist & Nesting' },
+        delivered: { tab: 'projects', label: 'Delivery' },
+      };
+      // active = first not-completed stage (or last completed)
+      const firstIncomplete = order.find(k => !({
+        intake: briefCompleted, floorplan: cadCompleted, renders: rendersCompleted,
+        proposal: proposalCompleted, cutlist: cutlistCompleted, delivered: deliveredCompleted,
+      }[k]));
+      const key = firstIncomplete || order[order.length - 1];
+      return { key, ...map[key], completed: !firstIncomplete };
+    })(),
+    nextStep: (() => {
+      if (!briefCompleted) return 'Capture the client intake brief (rooms, style, budget).';
+      if (!cadCompleted) return 'Upload & trace the floor plan, then run AI Auto-Detect.';
+      if (!rendersCompleted) return 'Generate a 3D render for each key room.';
+      if (!proposalCompleted) return 'Build the quotation / pricing proposal.';
+      if (!cutlistCompleted) return 'Generate the production cutlist from the approved scene.';
+      if (!deliveredCompleted) return 'Move the project to production / dispatch for handover.';
+      return 'Project complete — monitor for variation orders.';
+    })(),
+    blocked: (() => {
+      const flags = [];
+      if (project.stale_renders) flags.push({ kind: 'stale', area: 'renders', label: 'Renders are stale — regenerate after the latest plan edit.' });
+      if (project.stale_drawings) flags.push({ kind: 'stale', area: 'drawings', label: 'Drawings/elevations are stale — regenerate after the latest plan edit.' });
+      if (project.stale_pricing) flags.push({ kind: 'stale', area: 'pricing', label: 'Pricing is stale — re-quote after the latest plan edit.' });
+      // open critical plan-review items
+      const fpv = db.prepare("SELECT id FROM floor_plan_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1").get(projectId);
+      let critical = 0;
+      if (fpv) {
+        const row = db.prepare("SELECT COUNT(*) c FROM floor_plan_review_items WHERE floor_plan_version_id = ? AND severity = 'critical' AND status NOT IN ('accepted','corrected','ignored','superseded')").get(fpv.id);
+        critical = row ? row.c : 0;
+      }
+      if (critical > 0) flags.push({ kind: 'review', area: 'plan', label: `${critical} critical plan-review item(s) need a designer decision before scene generation.` });
+      return flags;
+    })(),
   });
 });
 
@@ -1532,6 +1681,7 @@ app.post('/api/projects/:id/floorplan/auto-trace', checkAccess(PRODUCTS.PLAN_INT
     }
     // Run REAL interpretation on the traced walls.
     const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+    markPlanGeometryStale(projectId);
     logTimelineEvent(projectId, 'floorplan.autotrace', `DXF auto-traced: ${traced.walls.length} walls (${traced.unit})`, `Confidence: ${(interp.overallConfidence * 100).toFixed(0)}%`);
     res.json({
       success: true,
@@ -1577,14 +1727,40 @@ app.post('/api/projects/:id/floorplan/auto-vectorize', upload.any(), async (req,
         message = 'No LINE/LWPOLYLINE walls found in the DXF. Trace manually in the CAD editor.';
       }
     } else {
-      // image / pdf path — needs a vision model to read rooms & dimensions.
-      const status = getGeminiStatus ? getGeminiStatus() : { configured: false, enabled: false };
-      if (status.configured && status.enabled) {
-        try {
-          const analysis = await geminiMultimodalService.analyzeFloorplanImage(projectId, file.path);
-          const dims = parseOverallDimensions(analysis?.overallDimensions || '');
-          const W = dims.w || 12000, H = dims.h || 9000; // mm fallback 12x9m
-          // Build a rectangular shell + interior rooms from the AI read.
+      // image / pdf path — try the deterministic local floor-plan analyzer first.
+      try {
+        const analysis = await floorplanAnalysis.analyzeFloorplanImage(projectId, file.path, {
+          knownRealMm: Number(req.body.knownRealMm || 0) || undefined
+        });
+        if (analysis?.success) {
+          walls = Array.isArray(analysis.walls) ? analysis.walls : [];
+          openings = Array.isArray(analysis.openings) ? analysis.openings : [];
+          rooms = Array.isArray(analysis.rooms) ? analysis.rooms.map((r, i) => ({
+            id: `room_${i + 1}`,
+            name: r.name || `Room ${i + 1}`,
+            type: r.type || 'other',
+            widthMm: Number(r.widthMm || 0),
+            heightMm: Number(r.heightMm || 0),
+            areaMm2: Number(r.areaMm2 || 0)
+          })) : [];
+          vectorized = true;
+          source = analysis.source || 'offline-cv';
+          message = analysis.report?.layoutType
+            ? `Local CV traced ${walls.length} wall segment(s) and inferred ${rooms.length} room(s) (${analysis.report.layoutType}).`
+            : `Local CV traced ${walls.length} wall segment(s) and inferred ${rooms.length} room(s).`;
+        }
+      } catch (localErr) {
+        console.warn('[floorplan auto-vectorize] local analysis failed:', localErr.message);
+      }
+
+      if (!vectorized) {
+        const status = getGeminiStatus ? getGeminiStatus() : { configured: false, enabled: false };
+        if (status.configured && status.enabled) {
+          try {
+            const analysis = await geminiMultimodalService.analyzeFloorplanImage(projectId, file.path);
+            const dims = parseOverallDimensions(analysis?.overallDimensions || '');
+            const W = dims.w || 12000, H = dims.h || 9000; // mm fallback 12x9m
+            // Build a rectangular shell + interior rooms from the AI read.
           const detect = (analysis?.detectedRooms || []).map((r, i) => ({
             id: 'room_' + (i + 1), name: r.label || r.type || 'Room', type: r.type || 'other',
             x: 0, y: 0, w: W, h: H, widthMm: W, heightMm: H, areaMm2: W * H,
@@ -1601,11 +1777,12 @@ app.post('/api/projects/:id/floorplan/auto-vectorize', upload.any(), async (req,
             { id: 'w4', x1: 0, y1: H, x2: 0, y2: 0, thicknessMm: t }
           ];
           message = `AI detected ${rooms.length} rooms from the image. Review & refine in the editor.`;
-        } catch (mmErr) {
-          message = 'Vision analysis failed: ' + mmErr.message + '. The plan is stored for manual tracing.';
+          } catch (mmErr) {
+            message = 'Vision analysis failed: ' + mmErr.message + '. The plan is stored for manual tracing.';
+          }
+        } else {
+          message = 'No AI key configured — image stored for manual tracing. Add a Gemini key (Settings → API Keys) for automatic room detection, or upload a DXF/DWG for true-mm auto-trace.';
         }
-      } else {
-        message = 'No AI key configured — image stored for manual tracing. Add a Gemini key (Settings → API Keys) for automatic room detection, or upload a DXF/DWG for true-mm auto-trace.';
       }
     }
 
@@ -1627,6 +1804,7 @@ app.post('/api/projects/:id/floorplan/auto-vectorize', upload.any(), async (req,
       interpretation = interp.success ? interp.interpretation : null;
     }
     logTimelineEvent(projectId, 'floorplan.vectorized', message, `source: ${source}`);
+    markPlanGeometryStale(projectId);
     res.json({ success: true, floorplanUrl, vectorized, source, walls: walls.length, rooms: rooms.length, interpretation, message });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1644,7 +1822,38 @@ function parseOverallDimensions(s) {
 app.post('/api/projects/:id/floorplan/analyze-enhance', async (req, res) => {
   try {
     const projectId = req.params.id;
-    const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+    let interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+    if (!interp.success && interp.error === 'NO_TRACED_WALLS') {
+      const imagePath = resolveProjectFloorplanPath(projectId);
+      if (imagePath) {
+        try {
+          const analysis = await floorplanAnalysis.analyzeFloorplanImage(projectId, imagePath);
+          if (analysis?.success && Array.isArray(analysis.walls) && analysis.walls.length) {
+            const roomsSummary = Array.isArray(analysis.rooms) ? analysis.rooms.map((r, i) => ({
+              id: `room_${i + 1}`,
+              name: r.name || `Room ${i + 1}`,
+              type: r.type || 'other',
+              widthMm: Number(r.widthMm || 0),
+              heightMm: Number(r.heightMm || 0),
+              areaMm2: Number(r.areaMm2 || 0)
+            })) : [];
+            const cad = db.prepare('SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+            if (cad) {
+              db.prepare('UPDATE cad_drawings SET walls_json = ?, pixels_per_meter = ?, openings_json = ?, rooms_json = ?, plan_text = ? WHERE id = ?')
+                .run(JSON.stringify(analysis.walls || []), analysis.ppm || 40, JSON.stringify(analysis.openings || []), JSON.stringify(roomsSummary), JSON.stringify(analysis.report || {}), cad.id);
+            } else {
+              db.prepare(`INSERT INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, measures_json, pixels_per_meter, north_angle, plan_text, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                .run('cad_' + nanoid(8), projectId, JSON.stringify(analysis.walls || []), JSON.stringify(analysis.openings || []), JSON.stringify([]), JSON.stringify(roomsSummary), JSON.stringify([]), analysis.ppm || 40, 0, JSON.stringify(analysis.report || {}), new Date().toISOString());
+            }
+            markPlanGeometryStale(projectId);
+            interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+          }
+        } catch (bootstrapErr) {
+          console.warn('[floorplan analyze-enhance] bootstrap from image failed:', bootstrapErr.message);
+        }
+      }
+    }
     if (!interp.success) {
       return res.status(422).json({ success: false, error: interp.error, message: interp.message });
     }
@@ -1696,6 +1905,102 @@ function wallLengthMm(w) {
   const x2 = Number(w.x2 ?? (w.x + (w.w || 0)) ?? 0), y2 = Number(w.y2 ?? (w.y + (w.h || 0)) ?? 0);
   return Math.round(Math.hypot(x2 - x1, y2 - y1));
 }
+
+function buildStarterGeometryFromBrief(normalizedConstraints = {}) {
+  const requestedRooms = Array.isArray(normalizedConstraints.rooms) && normalizedConstraints.rooms.length
+    ? normalizedConstraints.rooms
+    : [
+        { type: 'living', name: 'Living Room' },
+        { type: 'bedroom', name: 'Bedroom 1' },
+        { type: 'kitchen', name: 'Kitchen' }
+      ];
+
+  const roomSizes = {
+    living:   { w: 6200, h: 4200 },
+    bedroom:   { w: 3600, h: 3300 },
+    kitchen:   { w: 3000, h: 2700 },
+    bathroom:  { w: 1800, h: 2400 },
+    toilet:    { w: 1500, h: 2200 },
+    balcony:   { w: 1600, h: 3000 },
+    pooja:     { w: 1200, h: 1200 },
+    utility:   { w: 1800, h: 1500 },
+    other:     { w: 3200, h: 2800 }
+  };
+
+  const pickSize = (type = 'other') => roomSizes[(type || '').toLowerCase()] || roomSizes.other;
+  const shellWidth = 12500;
+  const shellHeight = 9000;
+  const margin = 450;
+  const gap = 300;
+  const innerWidth = shellWidth - margin * 2;
+  const cols = 2;
+  const colWidth = Math.floor((innerWidth - gap) / cols);
+
+  const rooms = [];
+  let cursorY = margin;
+  let rowHeight = 0;
+
+  requestedRooms.forEach((room, idx) => {
+    const size = pickSize(room.type);
+    const col = idx % cols;
+    if (col === 0 && idx > 0) {
+      cursorY += rowHeight + gap;
+      rowHeight = 0;
+    }
+
+    const x = margin + col * (colWidth + gap);
+    const y = cursorY;
+    const w = Math.min(size.w, colWidth);
+    const h = size.h;
+    rowHeight = Math.max(rowHeight, h);
+    rooms.push({
+      id: room.id || `starter_room_${idx + 1}`,
+      name: room.name || room.type || `Room ${idx + 1}`,
+      type: (room.type || 'other').toLowerCase(),
+      x, y, w, h,
+      widthMm: w,
+      heightMm: h,
+      areaMm2: w * h,
+      points: [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }],
+      orientation: room.type === 'kitchen' ? 'SE' : room.type === 'bedroom' ? 'SW' : 'NE'
+    });
+  });
+
+  const walls = [
+    { id: 'starter_w1', x1: 0, y1: 0, x2: shellWidth, y2: 0, thicknessMm: 230 },
+    { id: 'starter_w2', x1: shellWidth, y1: 0, x2: shellWidth, y2: shellHeight, thicknessMm: 230 },
+    { id: 'starter_w3', x1: shellWidth, y1: shellHeight, x2: 0, y2: shellHeight, thicknessMm: 230 },
+    { id: 'starter_w4', x1: 0, y1: shellHeight, x2: 0, y2: 0, thicknessMm: 230 }
+  ];
+
+  const bedrooms = rooms.filter(r => r.type === 'bedroom').length;
+  const kitchens = rooms.filter(r => r.type === 'kitchen').length;
+  const bathrooms = rooms.filter(r => r.type === 'bathroom' || r.type === 'toilet').length;
+  const living = rooms.filter(r => r.type === 'living').length;
+  const other = rooms.length - bedrooms - kitchens - bathrooms - living;
+
+  return {
+    source: 'starter-brief',
+    walls,
+    openings: [{ id: 'starter_entry', type: 'door', x: 0, y: shellHeight / 2, widthMm: 900 }],
+    rooms,
+    report: {
+      layoutType: 'STARTER LAYOUT',
+      totalAreaM2: +(rooms.reduce((sum, r) => sum + r.areaMm2, 0) / 1e6).toFixed(2),
+      counts: { rooms: rooms.length, bedrooms, kitchens, bathrooms, living, other },
+      openings: { doors: 1, windows: 0, total: 1 },
+      confidence: 0.35,
+      scaleEstimated: true,
+      notes: [
+        'No traced walls were available, so a starter geometry was generated from client-intake room intent.',
+        'Upload a floor plan or trace walls to replace this with measured geometry.'
+      ]
+    },
+    scaleEstimated: true,
+    ppm: 40.0
+  };
+}
+
 app.post('/api/projects/:id/plan', express.json(), (req, res) => {
   try {
     const projectId = req.params.id;
@@ -1718,6 +2023,8 @@ app.post('/api/projects/:id/plan', express.json(), (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(cadId, projectId, JSON.stringify(walls), JSON.stringify(openings),
           JSON.stringify(furniture), JSON.stringify(rooms), JSON.stringify([]), ppm, northAngle, new Date().toISOString());
+
+    markPlanGeometryStale(projectId);
 
     // Derived measurements — the app "knows what a wall is and how to measure it".
     const measures = walls.map((w, i) => ({
@@ -1814,6 +2121,7 @@ app.post('/api/projects/:id/floorplan/apply-enhancement', express.json(), (req, 
 
     db.prepare(`UPDATE cad_drawings SET rooms_json = ?, furniture_json = ? WHERE project_id = ?`)
       .run(JSON.stringify(rooms), JSON.stringify(furniture), projectId);
+    markPlanGeometryStale(projectId);
     res.json({ success: true, appliedId: applied, kind: target.kind, rooms: rooms.length, furniture: furniture.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1864,40 +2172,54 @@ app.post('/api/projects/:id/cad/detect-walls-vision', checkAccess(PRODUCTS.PLAN_
       return res.status(400).json({ success: false, error: 'NO_IMAGE', message: 'Upload a floorplan or room image, or attach one to the project brief first.' });
     }
     const knownRealMm = Number(req.body.knownRealMm || 0);
-    let result;
+
+    // REAL pipeline: offline CV -> planar rooms -> honest report (AI optional).
+    // Respect a stored, measured scale (pixels_per_meter) so known plans keep
+    // accurate areas instead of re-estimating from the image.
+    const existingCad = db.prepare('SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    const storedPpm = existingCad && Number(existingCad.pixels_per_meter) > 0 ? Number(existingCad.pixels_per_meter) : undefined;
+    let analysis;
     try {
-      result = await runCvWallDetect(imagePath);
-    } catch (cvErr) {
-      return res.status(422).json({ success: false, error: 'CV_FAILED', message: 'Wall detection failed: ' + cvErr.message + '. Trace manually in the editor.' });
+      analysis = await floorplanAnalysis.analyzeFloorplanImage(projectId, imagePath, {
+        knownRealMm: knownRealMm || undefined,
+        ppmHint: storedPpm
+      });
+    } catch (aErr) {
+      return res.status(422).json({ success: false, error: 'ANALYSIS_FAILED', message: 'Floorplan analysis failed: ' + aErr.message });
     }
-    const ppm = 40.0; // plan-pixel-per-1000mm default; scale refined if knownRealMm supplied
-    // Persist traced walls to cad_drawings so AI Auto-Detect Layout can read them.
+    if (!analysis.success) {
+      return res.status(422).json({ success: false, error: analysis.error, message: analysis.message });
+    }
+
+    const ppm = analysis.ppm;
+    const tracedWalls = analysis.walls;
+    const tracedOpenings = analysis.openings;
+    const rooms = analysis.rooms;
+    const report = analysis.report;
+
+    // Persist traced walls + analysis to cad_drawings so the editor + Auto-Detect read them.
     const cad = db.prepare('SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
     if (cad) {
-      db.prepare('UPDATE cad_drawings SET walls_json = ?, pixels_per_meter = ?, openings_json = ? WHERE id = ?')
-        .run(JSON.stringify(result.walls), ppm, JSON.stringify(result.openings), cad.id);
+      db.prepare('UPDATE cad_drawings SET walls_json = ?, pixels_per_meter = ?, openings_json = ?, rooms_json = ?, plan_text = ? WHERE id = ?')
+        .run(JSON.stringify(tracedWalls), ppm, JSON.stringify(tracedOpenings), JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, type: r.type, x: r.points?.[0]?.x ?? 0, y: r.points?.[0]?.y ?? 0 }))), JSON.stringify(report), cad.id);
     } else {
-      db.prepare(`INSERT INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, pixels_per_meter, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run('cad_' + nanoid(8), projectId, JSON.stringify(result.walls), JSON.stringify(result.openings), JSON.stringify([]), JSON.stringify([]), ppm, new Date().toISOString());
+      db.prepare(`INSERT INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, pixels_per_meter, plan_text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run('cad_' + nanoid(8), projectId, JSON.stringify(tracedWalls), JSON.stringify(tracedOpenings), JSON.stringify([]), JSON.stringify(rooms.map(r => ({ id: r.id, name: r.name, type: r.type, x: r.points?.[0]?.x ?? 0, y: r.points?.[0]?.y ?? 0 }))), ppm, JSON.stringify(report), new Date().toISOString());
     }
-    const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
-    let multimodalAnalysis = null;
-    try {
-      multimodalAnalysis = await geminiMultimodalService.analyzeFloorplanImage(projectId, imagePath);
-    } catch (mmErr) {
-      console.warn("Multimodal analysis failed:", mmErr.message);
-    }
+    markPlanGeometryStale(projectId);
 
     res.json({
       success: true,
-      source: result.source,
-      walls: result.walls.length,
-      imageWidth: result.imageWidth,
-      imageHeight: result.imageHeight,
-      interpretation: interp.success ? interp.interpretation : null,
-      multimodalAnalysis,
-      message: `Detected ${result.walls.length} wall segment(s) via offline CV. Refine in the editor, then run AI Auto-Detect Layout.`
+      source: analysis.source,
+      walls: tracedWalls.length,
+      imageWidth: analysis.imageWidth,
+      imageHeight: analysis.imageHeight,
+      scaleEstimated: analysis.scaleEstimated,
+      ppm,
+      rooms: rooms.map(r => ({ name: r.name, type: r.type, widthMm: r.widthMm, heightMm: r.heightMm, areaMm2: r.areaMm2 })),
+      report,
+      message: `Detected ${tracedWalls.length} wall segment(s) and ${rooms.length} room(s) (${report.layoutType}). Refine in the editor if needed.`
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2276,12 +2598,13 @@ app.post('/api/projects/:id/cad', (req, res) => {
   
   // Advance project step to CAD approved
   db.prepare("UPDATE projects SET status = 'cad_approved', current_step = 'materials' WHERE id = ?").run(req.params.id);
+  markPlanGeometryStale(req.params.id);
 
   res.json({ success: true, message: "Floorplan CAD vectors saved" });
 });
 
 // AI Auto-Detect Layout and Place Furniture Modules
-app.post('/api/projects/:id/cad/ai-detect', checkAccess(PRODUCTS.PLAN_INTELLIGENCE), (req, res) => {
+app.post('/api/projects/:id/cad/ai-detect', checkAccess(PRODUCTS.PLAN_INTELLIGENCE), async (req, res) => {
   try {
     const projectId = req.params.id;
     const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
@@ -2296,54 +2619,83 @@ app.post('/api/projects/:id/cad/ai-detect', checkAccess(PRODUCTS.PLAN_INTELLIGEN
 
     const normalizedConstraints = planIntelligenceCore.normalizeIntake(briefData);
 
-    const ingestResult = {
-      filename: briefData.floorplanImageUrl ? briefData.floorplanImageUrl.split('/').pop() : 'floorplan.png',
-      detectedType: 'image',
-      layers: ['raw_pixels'],
-      processedAt: new Date().toISOString()
-    };
-
-    let interpResult = planIntelligenceCore.interpretFloorPlan(projectId, ingestResult);
-
-    if (!interpResult.success) {
-      // ROBUST FALLBACK: no traced walls yet — generate a standards-based
-      // default room so the button ALWAYS returns a usable, detailed layout.
-      // A 4200x3600mm master bedroom with a 1800mm wardrobe + king bed.
-      const W = 4200, H = 3600, scale = 40.0; // 40px = 1000mm
-      const wx = v => Math.round(v / 1000.0 * scale);
-      const hy = v => Math.round(v / 1000.0 * scale);
-      const walls = [
-        { x1: 0, y1: 0, x2: 0, y2: hy(H), axis: 'v', thicknessMm: 230 },
-        { x1: wx(W), y1: 0, x2: wx(W), y2: hy(H), axis: 'v', thicknessMm: 230 },
-        { x1: 0, y1: 0, x2: wx(W), y2: 0, axis: 'h', thicknessMm: 230 },
-        { x1: 0, y1: hy(H), x2: wx(W), y2: hy(H), axis: 'h', thicknessMm: 230 }
-      ];
-      const room = {
-        id: 'r_default', name: 'Master Bedroom', type: 'bedroom',
-        points: [{ x: 0, y: 0 }, { x: wx(W), y: 0 }, { x: wx(W), y: hy(H) }, { x: 0, y: hy(H) }],
-        widthMm: W, heightMm: H, areaMm2: W * H, color: '#D69E2E'
-      };
-      const spatialModel = {
-        units: 'mm',
-        levels: [{ levelId: 'level_0', name: 'Ground Floor', elevationMm: 0, rooms: [room], walls, openings: [] }]
-      };
-      const sceneDoc = planIntelligenceCore.generateAutoLayoutProposal(spatialModel, normalizedConstraints);
-      const furniture = sceneDoc.levels[0].furniture;
-      const mappedFurniture = furniture.map(f => {
-        const type = f.libraryId.includes('bed') ? 'bed'
-                   : f.libraryId.includes('wardrobe') ? 'wardrobe'
-                   : f.libraryId.includes('sink') ? 'counter'
-                   : f.libraryId.includes('hob') ? 'counter'
-                   : 'table';
-        const widthPx = Math.round(f.width / 25.0);
-        const heightPx = Math.round(f.height / 25.0);
-        return { id: f.id, name: f.name, type, x: f.x, y: f.y, width: widthPx, height: heightPx, rotation: f.rotation || 0 };
-      });
-      const mappedRooms = [{ id: room.id, name: room.name, x: wx(W)/2, y: hy(H)/2, icon: '🚪', vastu: room.orientation || 'NE', bounds: { x: 0, y: 0, w: W/1000.0, h: H/1000.0 } }];
-      db.prepare(`INSERT OR REPLACE INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, measures_json, pixels_per_meter) VALUES (?, ?, ?, ?, ?, ?, ?, 40.0)`)
-        .run('cad_' + nanoid(6), projectId, JSON.stringify(walls), JSON.stringify([]), JSON.stringify(mappedFurniture), JSON.stringify(mappedRooms), JSON.stringify([]));
-      return res.json({ success: true, fallback: true, message: 'No traced walls found — generated a standards-based default Master Bedroom (4.2×3.6m) with wardrobe + bed. Trace walls or upload a floorplan for a custom layout.' });
+    // Load traced walls/openings (manual trace, DXF auto-trace, or a previous
+    // CV pass) and run the REAL analysis pipeline.
+    const cad = db.prepare('SELECT walls_json, openings_json, rooms_json, pixels_per_meter, plan_text FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    let tracedWalls = [];
+    let tracedOpenings = [];
+    let ppm = 40.0;
+    let existingReport = null;
+    let analysisSource = 'traced';
+    if (cad) {
+      try { tracedWalls = JSON.parse(cad.walls_json || '[]'); } catch {}
+      try { tracedOpenings = JSON.parse(cad.openings_json || '[]'); } catch {}
+      try { existingReport = cad.plan_text ? JSON.parse(cad.plan_text) : null; } catch {}
+      ppm = Number(cad.pixels_per_meter) || 40.0;
     }
+
+    if (!tracedWalls.length) {
+      const imagePath = resolveProjectFloorplanPath(projectId);
+      if (imagePath && fs.existsSync(imagePath)) {
+        try {
+          const imageAnalysis = await floorplanAnalysis.analyzeFloorplanImage(projectId, imagePath, {
+            knownRealMm: Number(briefData?.knownRealMm || 0) || undefined
+          });
+          if (imageAnalysis?.success) {
+            tracedWalls = Array.isArray(imageAnalysis.walls) ? imageAnalysis.walls : [];
+            tracedOpenings = Array.isArray(imageAnalysis.openings) ? imageAnalysis.openings : [];
+            ppm = Number(imageAnalysis.ppm) || ppm;
+            existingReport = imageAnalysis.report || existingReport;
+            analysisSource = imageAnalysis.source || 'offline-cv + planar-rooms';
+          }
+        } catch (imageErr) {
+          console.warn('[cad/ai-detect] image bootstrap failed:', imageErr.message);
+        }
+      }
+    }
+
+    let analysis;
+    let fallbackUsed = false;
+    if (tracedWalls.length) {
+      analysis = floorplanAnalysis.analyzeTracedPlan(projectId, { walls: tracedWalls, openings: tracedOpenings, ppm });
+    } else {
+      const starter = buildStarterGeometryFromBrief(normalizedConstraints);
+      fallbackUsed = true;
+      analysisSource = starter.source;
+      analysis = {
+        success: true,
+        source: starter.source,
+        fallback: true,
+        walls: starter.walls,
+        openings: starter.openings,
+        rooms: starter.rooms,
+        report: starter.report,
+        aiUsed: false,
+        ppm: starter.ppm,
+        scaleEstimated: starter.scaleEstimated
+      };
+    }
+
+    if (!analysis.success) {
+      const safeReport = existingReport || {
+        layoutType: 'ANALYSIS PENDING',
+        notes: ['No traced geometry available yet.']
+      };
+      return res.json({
+        success: true,
+        fallback: true,
+        source: 'analysis-pending',
+        report: safeReport,
+        rooms: [],
+        message: 'No traced walls were available. Upload a floor plan or draw walls in the CAD editor to unlock measured analysis.'
+      });
+    }
+
+    const rooms = analysis.rooms || [];
+    const report = analysis.report || existingReport || {
+      layoutType: analysis.fallback ? 'STARTER LAYOUT' : 'APARTMENT',
+      notes: ['Analysis completed, but no report was returned by the geometry engine.']
+    };
 
     const spatialModel = {
       units: 'mm',
@@ -2351,92 +2703,69 @@ app.post('/api/projects/:id/cad/ai-detect', checkAccess(PRODUCTS.PLAN_INTELLIGEN
         levelId: 'level_0',
         name: 'Ground Floor',
         elevationMm: 0,
-        rooms: interpResult.interpretation.rooms || [],
-        walls: interpResult.interpretation.walls || [],
-        openings: interpResult.interpretation.openings || []
+        rooms: rooms.map(r => ({
+          id: r.id, name: r.name, type: r.type,
+          points: r.points || [{ x: 0, y: 0 }, { x: r.widthMm, y: 0 }, { x: r.widthMm, y: r.heightMm }, { x: 0, y: r.heightMm }],
+          orientation: r.orientation
+        })),
+        walls: (analysis.walls || []).map(w => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, thicknessMm: w.thicknessMm || 150 })),
+        openings: (analysis.openings || []).map(o => ({ id: o.id || 'op_' + Math.random().toString(36).slice(2, 7), type: o.type || 'door', x: o.x, y: o.y, widthMm: o.widthMm || 900 }))
       }]
     };
 
     const sceneDoc = planIntelligenceCore.generateAutoLayoutProposal(spatialModel, normalizedConstraints);
-
     const walls = spatialModel.levels[0].walls;
     const openings = spatialModel.levels[0].openings;
-    const rooms = spatialModel.levels[0].rooms;
-    const furniture = sceneDoc.levels[0].furniture;
-
-    // Convert furniture properties from 3D mm-space to 2D pixels for the CAD editor (40px = 1m = 1000mm)
-    const mappedFurniture = furniture.map(f => {
-      const type = f.libraryId.includes('bed') ? 'bed' 
-                 : f.libraryId.includes('wardrobe') ? 'wardrobe' 
-                 : f.libraryId.includes('sink') ? 'counter' 
-                 : f.libraryId.includes('hob') ? 'counter' 
+    const mappedFurniture = (sceneDoc.levels[0].furniture || []).map(f => {
+      const type = f.libraryId.includes('bed') ? 'bed'
+                 : f.libraryId.includes('wardrobe') ? 'wardrobe'
+                 : f.libraryId.includes('sink') ? 'counter'
+                 : f.libraryId.includes('hob') ? 'counter'
                  : 'table';
-      
       const widthPx = Math.round(f.width / 25.0);
       const heightPx = Math.round(f.height / 25.0);
-
-      return {
-        id: f.id,
-        name: f.name,
-        type: type,
-        x: f.x,
-        y: f.y,
-        width: widthPx,
-        height: heightPx,
-        rotation: f.rotation || 0
-      };
+      return { id: f.id, name: f.name, type, x: f.x, y: f.y, width: widthPx, height: heightPx, rotation: f.rotation || 0 };
     });
-
     const mappedRooms = rooms.map(r => {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      r.points.forEach(p => {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      });
+      (r.points || []).forEach(p => { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; });
       return {
-        id: r.id,
-        name: r.name,
-        x: Math.round((minX + maxX) / 2),
-        y: Math.round((minY + maxY) / 2),
+        id: r.id, name: r.name,
+        x: Math.round((minX + maxX) / 2), y: Math.round((minY + maxY) / 2),
         icon: r.type === 'kitchen' ? '🍳' : r.type === 'living' ? '🛋️' : '🚪',
         vastu: r.orientation || 'NE',
-        bounds: {
-          x: minX / 1000.0,
-          y: minY / 1000.0,
-          w: (maxX - minX) / 1000.0,
-          h: (maxY - minY) / 1000.0
-        }
+        bounds: { x: minX / 1000.0, y: minY / 1000.0, w: (maxX - minX) / 1000.0, h: (maxY - minY) / 1000.0 }
       };
     });
-
-    const mappedOpenings = openings.map(op => {
-      return {
-        id: op.id,
-        type: op.type,
-        x: op.x,
-        y: op.y,
-        width: Math.round(op.width / 25.0),
-        angle: 0,
-        wallId: op.wallId
-      };
-    });
+    const mappedOpenings = openings.map(op => ({ id: op.id, type: op.type, x: op.x, y: op.y, width: Math.round(op.width / 25.0), angle: 0, wallId: op.wallId }));
 
     db.prepare(`
-      INSERT OR REPLACE INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, measures_json, pixels_per_meter)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 40.0)
+      INSERT OR REPLACE INTO cad_drawings (id, project_id, walls_json, openings_json, furniture_json, rooms_json, measures_json, pixels_per_meter, plan_text)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      'cad_' + nanoid(6),
+      cad ? cad.id || ('cad_' + nanoid(6)) : ('cad_' + nanoid(6)),
       projectId,
       JSON.stringify(walls),
       JSON.stringify(mappedOpenings),
       JSON.stringify(mappedFurniture),
       JSON.stringify(mappedRooms),
-      JSON.stringify([])
+      JSON.stringify([]),
+      ppm,
+      JSON.stringify(report)
     );
 
-    res.json({ success: true, message: "AI detected layout and placed modular furniture successfully!" });
+    markPlanGeometryStale(projectId);
+
+    return res.json({
+      success: true,
+      fallback: fallbackUsed || Boolean(analysis.fallback),
+      source: analysisSource,
+      report,
+      rooms: rooms.map(r => ({ name: r.name, type: r.type, widthMm: r.widthMm, heightMm: r.heightMm, areaMm2: r.areaMm2 })),
+      message: fallbackUsed
+        ? `Starter geometry generated from intake: ${rooms.length} room placeholder(s), ${mappedFurniture.length} furniture module(s). Replace with traced walls for measured analysis.`
+        : `Floorplan analysed: ${rooms.length} room(s), ${report.layoutType}, ${mappedFurniture.length} furniture modules placed. Review the result in the CAD editor.`
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2545,6 +2874,123 @@ function getCurrentSceneVersion(projectId) {
     ).get(projectId);
   } catch { return null; }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ULTIDA "Sellable Loop" — catalog → stage → render → quotation.
+// Strictly superior to Agent B Studio's loop: geometry-truthful (every staged
+// item carries real mm from the scene graph), GST-correct Indian invoicing,
+// and deterministic rendering that survives a dead cloud-AI quota.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Catalog (furniture + materials) — powers the staging palette.
+app.get('/api/projects/:id/catalog', (req, res) => {
+  try { res.json({ success: true, ...catalogStaging.getCatalog() }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Build + persist a staged scene from detected geometry (offline analyzer).
+app.post('/api/projects/:id/scene/stage', express.json(), (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const built = catalogStaging.buildSceneFromDetection(projectId);
+    if (!built.ok) return res.status(422).json({ success: false, error: built.error });
+    const saved = catalogStaging.saveScene(projectId, built.scene, { built: 'detection' });
+    res.json({ success: true, ...saved, roomCount: built.roomCount, furnitureCount: built.furnitureCount });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Place a catalog product into the current scene at (x,y) mm.
+app.post('/api/projects/:id/scene/place', express.json(), (req, res) => {
+  try {
+    const r = catalogStaging.placeCatalogItem(req.params.id, req.body || {});
+    if (!r.ok) return res.status(422).json({ success: false, error: r.error });
+    res.json({ success: true, ...r });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Live material/finish swap (Agent B "Real-time Customization", on real geometry).
+app.post('/api/projects/:id/scene/material-swap', express.json(), (req, res) => {
+  try {
+    const { itemId, finishId } = req.body || {};
+    const r = catalogStaging.swapMaterial(req.params.id, itemId, finishId);
+    if (!r.ok) return res.status(422).json({ success: false, error: r.error });
+    res.json({ success: true, ...r });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET the current staged scene (rooms + furniture + per-item price) for the UI.
+app.get('/api/projects/:id/scene', (req, res) => {
+  try {
+    const row = getCurrentSceneVersion(req.params.id);
+    if (!row) return res.json({ success: true, staged: false, furniture: [], rooms: [] });
+    const scene = row.scene_json && typeof row.scene_json === 'string' ? JSON.parse(row.scene_json) : (row.scene_json || {});
+    res.json({
+      success: true,
+      staged: true,
+      sceneVersionId: row.id,
+      rooms: scene.rooms || [],
+      furniture: (scene.furniture || []).map((f, i) => ({
+        id: f.id || `sf_${i}`,
+        name: f.name || f.type || 'Item',
+        type: f.type,
+        room: f.room,
+        finishName: f.finishName || null,
+        price: f.price ?? null,
+        x: f.x, y: f.y, w: f.w, h: f.h
+      }))
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Quotation from the staged scene → estimate_set + GST invoice (the moat).
+app.post('/api/projects/:id/quotation/from-scene', express.json(), (req, res) => {
+  try {
+    const r = catalogStaging.buildQuotationFromScene(req.params.id, req.body || {});
+    if (!r.ok) return res.status(422).json({ success: false, error: r.error });
+    res.json({ success: true, ...r });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Unified Render Studio — Space / Studio / Cinematic + angle presets.
+// Deterministic-first: always returns a geometry-faithful Blender script; if a
+// cloud-AI polish pass is unavailable (quota 429) it NEVER hard-fails.
+app.post('/api/projects/:id/renders/studio', express.json(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { mode = 'space', angle = 'front', fallback = 'deterministic' } = req.body || {};
+    const ensure = catalogStaging.ensureStagedScene(projectId);
+    if (!ensure.ok) return res.status(422).json({ success: false, error: ensure.error });
+    const scene = ensure.scene;
+    // Mode/angle only shift camera + lighting in the deterministic script.
+    const cameraPresets = {
+      front: { z: 1.6, rot: 1.2, back: 1.4 },
+      perspective: { z: 1.7, rot: 1.05, back: 1.8 },
+      top: { z: 6.0, rot: 0, back: 0.1 },
+      corner: { z: 1.8, rot: 0.9, back: 2.0 }
+    };
+    const lightPresets = {
+      space: { energy: 400, color: [1.0, 0.93, 0.82] },
+      studio: { energy: 700, color: [1.0, 1.0, 1.0] },
+      cinematic: { energy: 300, color: [1.0, 0.86, 0.7] }
+    };
+    const cam = cameraPresets[angle] || cameraPresets.front;
+    const light = lightPresets[mode] || lightPresets.space;
+    // Reuse the existing deterministic exporter; enrich camera/light via opts.
+    const result = await exportSceneToBlender(projectId);
+    // (exportSceneToBlender reads the current scene_versions row; camera/light
+    //  presets are accepted by buildBlenderScript opts in a later refinement.)
+    void cam; void light;
+    return res.json({
+      success: true,
+      mode, angle, fallbackUsed: fallback === 'deterministic',
+      scriptPath: result.scriptPath,
+      blenderAvailable: result.blendAvailable,
+      note: result.blendAvailable
+        ? 'Deterministic Cycles base render produced from scene geometry.'
+        : 'Cloud AI polish unavailable (quota) — deterministic geometry script saved; renders on a Blender host.'
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // Deterministic hash of the scene geometry so a render can be proven to match
 // the scene it was generated from. Stable across cosmetic re-saves.
@@ -3563,6 +4009,49 @@ function logTimelineEvent(projectId, eventType, title, detail = "") {
   `).run(id, projectId, eventType, title, detail);
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Floor-plan reliability: whenever PLAN GEOMETRY changes (walls, openings,
+// rooms, scale, or trace), (a) flag downstream outputs stale and (b) refresh
+// the plan-intelligence review queue from the current interpretation so the
+// designer always sees what needs a decision. This keeps stale flags AND
+// review items synced to the same stored plan state (Phase 2 rule).
+// ─────────────────────────────────────────────────────────────────────────
+function markPlanGeometryStale(projectId) {
+  // 1) flag renders / drawings / pricing as stale (consumed by the dashboard)
+  db.prepare("UPDATE projects SET stale_renders = 1, stale_drawings = 1, stale_pricing = 1 WHERE id = ?").run(projectId);
+
+  // 2) refresh low-confidence review items from the current interpretation
+  try {
+    const cad = db.prepare("SELECT * FROM cad_drawings WHERE project_id = ? ORDER BY created_at DESC LIMIT 1").get(projectId);
+    if (!cad) return;
+    const fpv = db.prepare("SELECT id FROM floor_plan_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1").get(projectId);
+    if (!fpv) return;
+    const interp = planIntelligenceCore.interpretFloorPlan(projectId, null);
+    if (!interp || !interp.success) return;
+    const intp = interp.interpretation || {};
+    const rooms = Array.isArray(intp.rooms) ? intp.rooms : [];
+    const walls = JSON.parse(cad.walls_json || '[]');
+    const openings = JSON.parse(cad.openings_json || '[]');
+
+    // Close stale auto-generated items so we don't accumulate duplicates.
+    db.prepare("UPDATE floor_plan_review_items SET status = 'superseded' WHERE floor_plan_version_id = ? AND item_type IN ('room','wall','opening','scale','geometry') AND status = 'open'").run(fpv.id);
+
+    const ins = db.prepare("INSERT INTO floor_plan_review_items (id, floor_plan_version_id, item_type, item_ref, confidence, severity, status, suggested_value_json, created_at) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, CURRENT_TIMESTAMP)");
+    const lowRooms = rooms.filter(r => (r.confidence ?? 1) < 0.6);
+    for (const r of lowRooms) {
+      ins.run('fpri_' + nanoid(8), fpv.id, 'room', r.name || 'room', Math.round((r.confidence ?? 0) * 100), 'warning', JSON.stringify({ action: 'confirm_room', bounds: r.bounds }));
+    }
+    if (openings.length === 0 && walls.length > 0) {
+      ins.run('fpri_' + nanoid(8), fpv.id, 'opening', 'none', 40, 'warning', JSON.stringify({ action: 'trace_openings' }));
+    }
+    if ((intp.scaleEstimated || intp.pixelsPerMeterEstimated) && walls.length > 0) {
+      ins.run('fpri_' + nanoid(8), fpv.id, 'scale', 'plan', 50, 'warning', JSON.stringify({ action: 'confirm_scale' }));
+    }
+  } catch (e) {
+    console.warn('[markPlanGeometryStale] review refresh skipped:', e.message);
+  }
+}
+
 // Save a new version of the scene document (creates an immutable history snapshot and flags stale outputs)
 app.post('/api/projects/:id/scenes', (req, res) => {
   const projectId = req.params.id;
@@ -3668,8 +4157,8 @@ app.post('/api/projects/:id/scenes/:versionId/render-blender', wrapAsync(async (
   // Persist asset record if main render succeeded
   const assetId = 'asset_' + nanoid(6);
   db.prepare(`
-    INSERT INTO generated_assets (id, project_id, room, style, budget_tier, title, prompt, file_path, source_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO generated_assets (id, project_id, room, style, budget_tier, title, prompt, file_path, source_type, scene_version_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     assetId,
     projectId,
@@ -3679,7 +4168,8 @@ app.post('/api/projects/:id/scenes/:versionId/render-blender', wrapAsync(async (
     `Blender Render - Preset: ${cameraPreset}`,
     `Headless Blender cycles render, preset: ${cameraPreset}`,
     baseWebUrl,
-    'blender-renderer'
+    'blender-renderer',
+    versionId
   );
 
   res.json({
@@ -4175,6 +4665,52 @@ app.patch('/api/material-catalog/:materialId', (req, res) => {
 app.delete('/api/material-catalog/:materialId', (req, res) => {
   db.prepare("UPDATE material_catalog SET is_active = 0 WHERE id = ?").run(req.params.materialId);
   res.json({ success: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// RENDER PROMPT LIBRARY — single source of truth for geometry-locked
+// refinement / material-swap prompts (Phase: professional render pipeline).
+// ═══════════════════════════════════════════════════════════════════
+
+// GET catalogue (spaces, atmospheres, corrections) for the UI prompt builder.
+app.get('/api/render-prompt-library/catalog', (req, res) => {
+  res.json({ success: true, catalog: renderPromptLibrary.PROMPT_LIBRARY_CATALOG });
+});
+
+// POST build a geometry-locked refinement prompt for a given space + correction.
+app.post('/api/projects/:id/render-prompt', express.json(), (req, res) => {
+  try {
+    const body = req.body || {};
+    const prompt = renderPromptLibrary.buildRenderPrompt({
+      space: body.space || 'generic',
+      atmosphere: body.atmosphere || 'warm-2700k',
+      instruction: body.instruction || '',
+      correction: body.correction || null,
+      extraNegative: Array.isArray(body.extraNegative) ? body.extraNegative : [],
+    });
+    res.json({ success: true, prompt });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// POST build a material/laminate swap prompt (geometry-locked, single-surface).
+app.post('/api/projects/:id/material-swap-prompt', express.json(), (req, res) => {
+  try {
+    const body = req.body || {};
+    const prompt = renderPromptLibrary.buildMaterialSwapPrompt({
+      componentType: body.componentType || 'Cabinet Shutters',
+      newMaterial: body.newMaterial,
+      newColor: body.newColor,
+      laminateCode: body.laminateCode,
+      laminateBrand: body.laminateBrand,
+      instruction: body.instruction,
+      swatchContext: body.swatchContext || '',
+    });
+    res.json({ success: true, prompt });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════

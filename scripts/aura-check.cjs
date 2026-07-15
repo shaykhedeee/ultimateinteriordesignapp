@@ -1,6 +1,6 @@
 const http = require('http');
 const d = JSON.stringify({ message: 'Analyse my living room for vastu', projectId: null });
-const r = http.request('http://127.0.0.1:5055/api/aura/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(d) } }, x => {
+const r = http.request('http://127.0.0.1:8787/api/aura/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(d) } }, x => {
   let c = []; x.on('data', y => c.push(y)); x.on('end', () => {
     const j = JSON.parse(Buffer.concat(c).toString());
     const reply = (j.reply || j.message || JSON.stringify(j)).toString();

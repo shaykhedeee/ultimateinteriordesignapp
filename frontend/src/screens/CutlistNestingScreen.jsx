@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Scissors, Database, FileText, Download, CheckCircle, 
-  ArrowRight, Layers, Table, RefreshCw, BarChart3, HelpCircle 
-} from 'lucide-react';
+import { Layers, Save, ZoomIn, ZoomOut, Maximize, RefreshCw, AlertTriangle, CheckCircle2, ArrowRight, Scissors, Database, FileText, Download, CheckCircle, Table, BarChart3, HelpCircle } from 'lucide-react';
+import WorkflowStatusBar from '../components/WorkflowStatusBar';
 
 export default function CutlistNestingScreen({ projectId, onComplete }) {
   const [cabinets, setCabinets] = useState([
@@ -21,16 +19,21 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
   const [parts, setParts] = useState([]);
   const [nestingSheets, setNestingSheets] = useState({});
   const [isCalculating, setIsCalculating] = useState(false);
+  const [project, setProject] = useState(null);
 
   useEffect(() => {
     if (projectId) {
       loadSavedCutlist();
+      fetch(`/api/projects/${projectId}`)
+        .then(r => r.json())
+        .then(d => setProject(d && d.id ? d : null))
+        .catch(() => {});
     }
   }, [projectId]);
 
   const loadSavedCutlist = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist`);
+      const res = await fetch(`/api/projects/${projectId}/cutlist`);
       const data = await res.json();
       const safe = data && typeof data === 'object' ? data : {};
       const loadedParts = JSON.parse(safe.cutlist_data_json || '[]');
@@ -65,7 +68,7 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
   const runNestingOptimization = async () => {
     setIsCalculating(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/cutlist/calculate`, {
+      const res = await fetch(`/api/projects/${projectId}/cutlist/calculate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -86,7 +89,7 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
 
   const downloadExcelWorkbook = () => {
     // Simulated Download or call backend
-    window.open(`http://127.0.0.1:5055/api/projects/${projectId}/signoff/pdf`, '_blank');
+    window.open(`/api/projects/${projectId}/signoff/pdf`, '_blank');
   };
 
   // Render optimized panel maps nested inside 8x4 sheet boundaries
@@ -159,8 +162,22 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
-      
+    <div className="flex flex-col h-full overflow-hidden">
+      <WorkflowStatusBar
+        stageLabel="Cutlist & Nesting"
+        nextAction={parts.length === 0
+          ? 'Add cabinet modules, then run CNC nesting to produce the cutlist and sheet layout.'
+          : (project?.stale_drawings === 1
+              ? 'Drawings changed — re-run nesting to keep the cutlist synced with the scene graph.'
+              : 'Export the cutlist and optimized sheets for the CNC shop.')}
+        outputLabel="Part cutlist · optimized sheet nesting · DXF"
+        stageComplete={project?.stale_drawings !== 1}
+        stale={project?.stale_drawings}
+        approvedCount={parts.length > 0 ? 1 : 0}
+        needsReview={0}
+      />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
+
       {/* 1. Cabinet Parameters Intake Board */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col h-[75vh]">
         <div className="flex items-center justify-between mb-4 shrink-0">
@@ -386,7 +403,7 @@ export default function CutlistNestingScreen({ projectId, onComplete }) {
           </button>
         </div>
       </div>
-
+      </div>
     </div>
   );
 }

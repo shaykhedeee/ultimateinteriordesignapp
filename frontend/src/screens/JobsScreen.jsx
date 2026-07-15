@@ -24,7 +24,7 @@ export default function JobsScreen({ projectId }) {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`);
+      const res = await fetch(`/api/projects/${projectId}/jobs`);
       const data = await res.json();
       const jobs = Array.isArray(data) ? data : Array.isArray(data?.jobs) ? data.jobs : [];
       setJobs(jobs);
@@ -36,7 +36,7 @@ export default function JobsScreen({ projectId }) {
   const handleLaunchJob = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:5055/api/projects/${projectId}/jobs`, {
+      const res = await fetch(`/api/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

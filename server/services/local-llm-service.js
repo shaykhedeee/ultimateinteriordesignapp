@@ -6,6 +6,9 @@ let generator = null;
  * Lazy loads the text-generation pipeline with 4-bit quantized Qwen2.5-0.5B-Instruct model (~350MB).
  */
 async function getGenerator() {
+  if (process.env.NODE_ENV === 'test') {
+    throw new Error('Local LLM bypassed in test environment');
+  }
   if (!generator) {
     console.log('[local-llm-service] Loading Qwen2.5-0.5B-Instruct (q4)...');
     generator = await pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {

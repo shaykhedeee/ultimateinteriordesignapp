@@ -6,7 +6,7 @@ import {
   Building2, FileText, Layers, Scissors, Award
 } from 'lucide-react';
 
-const API = 'http://127.0.0.1:5055';
+const API = '';
 
 /* Stage funnel order (matches backend readiness weights) */
 const FUNNEL = [
@@ -195,8 +195,8 @@ export default function DashboardScreen({ projectId, onNavigateToTab }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate('brief')} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--gold)] text-slate-950 font-bold text-xs hover:bg-[var(--gold-bright)] transition">
-            <Plus className="w-3.5 h-3.5" /> New Project
+          <button onClick={() => navigate('brief')} className="btn-gold px-4 py-2 flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New Project
           </button>
         </div>
       </div>
@@ -211,12 +211,60 @@ export default function DashboardScreen({ projectId, onNavigateToTab }) {
         <KpiCard icon={Gauge} label="Avg Readiness" value={loading ? '…' : (kpis.avgReadiness == null ? '—' : kpis.avgReadiness + '%')} accent="var(--gold)" sub="Across open projects" />
       </div>
 
+      {/* Active project status: stage / next step / blocked — surfaces the workflow state */}
+      {projectId && readinessMap[projectId] && (() => {
+        const r = readinessMap[projectId];
+        const active = r.activeStage || { label: '—', tab: 'cad' };
+        const blocked = r.blocked || [];
+        return (
+          <div className="panel mb-6">
+            <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-3">
+              <h2 className="panel-head flex items-center gap-2"><Activity className="ph-icon" /> Active Project Status</h2>
+              <span className="text-[10px] font-mono text-slate-500">{projectId}</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-xl bg-slate-950/40 border border-slate-800 p-4">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Active Stage</div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: active.completed ? '#10B981' : 'var(--gold)' }} />
+                  <span className="text-lg font-extrabold text-slate-100">{active.label}</span>
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">Readiness {r.score}%</div>
+                <button onClick={() => navigate(active.tab)} className="mt-3 text-[11px] font-bold text-[var(--gold)] hover:text-[var(--gold-bright)] flex items-center gap-1">
+                  Open {active.label} <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="rounded-xl bg-slate-950/40 border border-slate-800 p-4 md:col-span-2">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">Next Step</div>
+                <div className="text-sm text-slate-200 flex items-start gap-2">
+                  <ArrowUpRight className="w-4 h-4 text-[var(--gold)] mt-0.5 shrink-0" />
+                  <span>{r.nextStep || 'All steps complete.'}</span>
+                </div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mt-4 mb-1">Blocked / Needs Attention</div>
+                {blocked.length === 0 ? (
+                  <div className="text-[12px] text-emerald-400 flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Nothing blocking — downstream outputs are in sync.</div>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {blocked.map((b, i) => (
+                      <li key={i} className="text-[12px] flex items-start gap-2">
+                        <AlertTriangle className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${b.kind === 'review' ? 'text-orange-400' : 'text-amber-400'}`} />
+                        <span className="text-slate-300">{b.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Middle grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
         {/* Pipeline funnel (aggregate) */}
-        <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold flex items-center gap-2"><Activity className="w-4 h-4 text-[var(--gold)]" /> Delivery Pipeline Funnel</h2>
+        <div className="lg:col-span-2 panel">
+          <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
+            <h2 className="panel-head flex items-center gap-2"><Activity className="ph-icon" /> Delivery Pipeline Funnel</h2>
             <span className="text-[10px] text-slate-500 font-mono">weighted % complete</span>
           </div>
           {/* aggregate funnel computed from readinessMap */}
@@ -236,8 +284,9 @@ export default function DashboardScreen({ projectId, onNavigateToTab }) {
         </div>
 
         {/* AI / provider status */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-          <h2 className="text-sm font-bold flex items-center gap-2 mb-4"><Cpu className="w-4 h-4 text-[var(--gold)]" /> Engine & Provider Health</h2>
+        <div className="panel flex flex-col justify-between">
+          <div>
+            <h2 className="panel-head flex items-center gap-2 mb-4 border-b border-white/5 pb-3"><Cpu className="ph-icon" /> Engine & Provider Health</h2>
           {health ? (
             <div className="space-y-2">
               <ProviderPill name="Freepik"    status={health.freepik?.status} />
@@ -251,17 +300,18 @@ export default function DashboardScreen({ projectId, onNavigateToTab }) {
           ) : (
             <div className="text-slate-500 text-sm py-6 text-center">Health service unreachable.</div>
           )}
-          <button onClick={() => navigate('brand')} className="mt-4 w-full py-2 rounded-xl border border-slate-800 text-slate-300 text-xs font-bold hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition">
+          <button onClick={() => navigate('brand')} className="mt-4 w-full btn-ghost py-2.5 flex justify-center items-center">
             Configure Providers
           </button>
+          </div>
         </div>
       </div>
 
       {/* Project health table */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold flex items-center gap-2"><Building2 className="w-4 h-4 text-[var(--gold)]" /> Project Health</h2>
-          <button onClick={() => navigate('projects')} className="text-[11px] text-slate-400 hover:text-[var(--gold)] flex items-center gap-1">View all <ArrowRight className="w-3 h-3" /></button>
+      <div className="panel mb-6">
+        <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-3">
+          <h2 className="panel-head flex items-center gap-2"><Building2 className="ph-icon" /> Project Health</h2>
+          <button onClick={() => navigate('projects')} className="text-[11px] text-[var(--gold)] hover:text-[var(--gold-bright)] flex items-center gap-1 font-bold">View all <ArrowRight className="w-3 h-3" /></button>
         </div>
         {sortedProjects.length === 0 ? (
           <div className="text-slate-500 text-sm py-8 text-center">No projects yet.</div>
