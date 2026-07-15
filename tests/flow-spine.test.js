@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'http';
+import db from '../server/database/database.js';
 
-const B = 'http://127.0.0.1:5055';
+const B = process.env.APP_URL || 'http://127.0.0.1:8787';
 function req(m, p, body, ms = 30000) {
   return new Promise((res) => {
     const t = setTimeout(() => res({ code: 0, body: 'TIMEOUT' }), ms);
@@ -66,8 +67,19 @@ test('GET /quotation/pdf works without a body (screen downloads via GET)', async
 test('POST /renders/generate is bounded (no infinite hang when no provider)', async () => {
   const projects = JSON.parse((await req('GET', '/api/projects')).body);
   const pid = (projects.find(p => p.lead_id) || projects[0]).id;
+  
+  // Seed dummy scene version to satisfy the geometry source-of-truth requirement
+  db.prepare(`
+    INSERT OR REPLACE INTO scene_versions (id, project_id, version_number, branch_name, is_current, scene_json, scene_hash)
+    VALUES (?, ?, 1, 'main', 1, ?, 'dummy_hash')
+  `).run('sv_dummy_flow_' + pid, pid, JSON.stringify({ placed_modules: [] }));
+
   // 25s cap — if the route were unguarded it would hang far longer.
   const r = await req('POST', `/api/projects/${pid}/renders/generate`, JSON.stringify({ room: 'Living', style: 'indian-contemporary' }), 25000);
+  
+  // Clean up the dummy scene version
+  db.prepare('DELETE FROM scene_versions WHERE id = ?').run('sv_dummy_flow_' + pid);
+
   assert.ok(r.code >= 200 && r.code < 400, `renders/generate should resolve (got ${r.code})`);
 });
 

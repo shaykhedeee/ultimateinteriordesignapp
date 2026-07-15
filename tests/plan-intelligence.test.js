@@ -22,15 +22,21 @@ const traced = {
   ]
 };
 
-test('interpretFloorPlan detects the enclosed outer room (real geometry)', () => {
+test('interpretFloorPlan detects rooms (real geometry, partition splits interior)', () => {
   const r = planIntelligenceCore.interpretFloorPlan('proj_x', {}, { traced });
   assert.equal(r.success, true);
-  // outer 800x400 px -> 20m x 10m room
-  assert.ok(r.interpretation.rooms.length >= 1);
-  const room = r.interpretation.rooms[0];
-  assert.ok(room.widthMm >= 19000 && room.widthMm <= 21000, 'width ~20000mm');
-  assert.ok(room.heightMm >= 9000 && room.heightMm <= 11000, 'height ~10000mm');
-  assert.equal(room.confidence, 1.0);
+  // Outer rectangle is 800x400 px; the vertical partition at x=500 splits it
+  // into TWO real rooms, each 400x400 px. Scale = 40px == 1000mm.
+  assert.ok(r.interpretation.rooms.length >= 2, 'partition produces 2 rooms');
+  const widths = r.interpretation.rooms.map(rm => rm.widthMm).sort((a, b) => a - b);
+  // Each split room is ~400px -> ~10000mm wide.
+  assert.ok(widths[0] >= 9000 && widths[0] <= 11000, 'split room width ~10000mm');
+  assert.ok(widths[widths.length - 1] >= 9000 && widths[widths.length - 1] <= 11000, 'split room width ~10000mm');
+  // Combined span still reflects the full 800px -> ~20000mm envelope.
+  const totalW = Math.max(...r.interpretation.rooms.map(rm => Math.max(...rm.points.map(p => p.x)))) -
+    Math.min(...r.interpretation.rooms.map(rm => Math.min(...rm.points.map(p => p.x))));
+  assert.ok(totalW * (1000 / 40) >= 19000 && totalW * (1000 / 40) <= 21000, 'envelope width ~20000mm');
+  assert.equal(r.interpretation.rooms[0].confidence, 1.0);
 });
 
 test('NO invented hardcoded rooms — output derives only from traced walls', () => {
