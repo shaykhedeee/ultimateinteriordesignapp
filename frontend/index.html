@@ -17,6 +17,39 @@
   </head>
   <body class="h-full overflow-hidden font-sans antialiased" style="background:#0A0A0D;color:#F0EEE8;">
     <div id="root" class="h-full"></div>
+    <div id="app-fallback" class="hidden fixed inset-0 z-[9999] bg-[#020617] text-slate-100 flex items-center justify-center p-6">
+      <div class="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3">
+        <h1 class="text-sm font-black uppercase tracking-widest text-red-400">App did not render</h1>
+        <p class="text-[11px] text-slate-300">The frontend shell did not mount. Check your browser console/network tab, then retry.</p>
+        <pre id="app-fallback-message" class="text-[10px] text-slate-400 bg-slate-950 border border-slate-800 rounded-xl p-3 overflow-auto whitespace-pre-wrap"></pre>
+        <button id="app-fallback-retry" class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 hover:border-[#D4AF37]">Reload app</button>
+      </div>
+    </div>
+    <script>
+      (function hideFallback() {
+        var fallback = document.getElementById('app-fallback');
+        var retry = document.getElementById('app-fallback-retry');
+        var message = document.getElementById('app-fallback-message');
+        window.__showFallback = function(msg) {
+          if (message) message.textContent = msg || 'Runtime error';
+          if (fallback) { fallback.classList.remove('hidden'); fallback.classList.add('flex'); }
+        };
+        if (retry) retry.addEventListener('click', function() { location.reload(); });
+        setTimeout(function() {
+          var root = document.getElementById('root');
+          if (root && (!root.children || !root.children.length)) {
+            window.__showFallback('React root did not mount within 5 seconds.');
+          }
+        }, 5000);
+        window.addEventListener('error', function(event) {
+          window.__showFallback(event && (event.message || 'Runtime error'));
+        });
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = (event && event.reason && (event.reason.message || String(event.reason))) || 'Unhandled promise rejection';
+          window.__showFallback(reason);
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

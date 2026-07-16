@@ -81,3 +81,12 @@ test-results/
 
 # debug artifacts
 ds*.json
+
+# ── Misc ──────────────────────────────────────────────────────
+.peridot/
+scratch/
+
+# ── SQLite runtime files ─────────────────
+ultimate_interior.db-wal
+ultimate_interior.db-shm
+.venv/

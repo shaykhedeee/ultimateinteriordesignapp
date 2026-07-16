@@ -1,52 +1,16 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect } from 'react';
-import {
-  Layers, Download, Save, RefreshCw, AlertTriangle,
-  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2, FileText, Package, LayoutGrid, Loader2
+import { 
+  Layers, Download, Save, RefreshCw, AlertTriangle, 
+  ChevronRight, ArrowRight, Layout, Info, Plus, Trash2, Edit2
 } from 'lucide-react';
-
-// Analyzer: SAME engine that drives the professional DXF export, so the
-// on-screen view is never out of sync with the CAD file. Pure + browser-safe.
-import { analyzeWallElevation } from '../lib/elevationAnalyzer.js';
-import WorkflowStatusBar from '../components/WorkflowStatusBar';
 
 export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [walls, setWalls] = useState([]);
   const [openings, setOpenings] = useState([]);
   const [furniture, setFurniture] = useState([]);
-  const [filters, setFilters] = useState({ walls:true, openings:true, furniture:true, rugs:true, cabinets:true });
   const [pixelsPerMeter, setPixelsPerMeter] = useState(40);
   const [selectedWallId, setSelectedWallId] = useState(null);
-  const [activeTab, setActiveTab] = useState('walls'); // 'walls' | 'photo' | 'cnc'
-  const [cncWidth, setCncWidth] = useState(900);
-  const [cncHeight, setCncHeight] = useState(2100);
-  const [cncDepth, setCncDepth] = useState(560);
-  const [cncShelves, setCncShelves] = useState(3);
-  const [cncShutter, setCncShutter] = useState('double');
-  const [cncResult, setCncResult] = useState(null);
-  const [cncLoading, setCncLoading] = useState(false);
-  const [photoElevations, setPhotoElevations] = useState([]);
-  const [photoLoading, setPhotoLoading] = useState(false);
-  const [photoUpload, setPhotoUpload] = useState(null);
-  const [photoDims, setPhotoDims] = useState('86" wide 90" tall 24" deep');
-  const [photoGenerating, setPhotoGenerating] = useState(false);
-  const [generatedElevations, setGeneratedElevations] = useState([]); // from-renders output
-  const [genLoading, setGenLoading] = useState(false);
-  const [jaliW, setJaliW] = useState(600);
-  const [jaliH, setJaliH] = useState(2000);
-  const [jaliLoading, setJaliLoading] = useState(false);
-  const [jaliResult, setJaliResult] = useState(null);
-  const [shoeTallW, setShoeTallW] = useState(1200);
-  const [shoeBenchW, setShoeBenchW] = useState(900);
-  const [shoeHeight, setShoeHeight] = useState(2000);
-  const [shoeBenchH, setShoeBenchH] = useState(450);
-  const [shoeDepth, setShoeDepth] = useState(400);
-  const [shoeShelves, setShoeShelves] = useState(3);
-  const [shoeHandle, setShoeHandle] = useState('bar');
-  const [shoeLed, setShoeLed] = useState(true);
-  const [shoeLoading, setShoeLoading] = useState(false);
-  const [shoeResult, setShoeResult] = useState(null);
-  const [drawingSet, setDrawingSet] = useState(null);
-  const [drawingSetLoading, setDrawingSetLoading] = useState(false);
   
   // Elevation-specific parameters
   const [wallHeight, setWallHeight] = useState(2700); // mm
@@ -68,16 +32,32 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const [staleDrawings, setStaleDrawings] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isProcessingAi, setIsProcessingAi] = useState(false);
-  const [auraConfirm, setAuraConfirm] = useState({ open:false, title:'', message:'', onConfirm:null });
+
+  // Quick Vastu state
+  const [vastuResult, setVastuResult] = useState(null);
+  const [vastuWallId, setVastuWallId] = useState('');
+
+  // Accurate measurements state for this elevation
+  const [wallMeasurements, setWallMeasurements] = useState({
+    wallLengthMm: 0,
+    ceilingHeightMm: 2700,
+    moduleWidthMm: 900,
+    moduleHeightMm: 720,
+    moduleDepthMm: 600,
+    wallUnitHeightMm: 1400,
+  });
+  const [measurementsSaved, setMeasurementsSaved] = useState(false);
 
   const handleAiEdit = async () => {
     if (!aiPrompt.trim() || !selectedWallId) return;
     setIsProcessingAi(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/drawings/elevations/${selectedWallId}/ai-edit`, {
+      const body = { prompt: aiPrompt };
+      if (measurementsSaved) body.userMeasurements = wallMeasurements;
+      const res = await fetch(`${API_BASE}/projects/${projectId}/drawings/elevations/${selectedWallId}/ai-edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: aiPrompt })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (data.success) {
@@ -95,9 +75,32 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     }
   };
 
+  const regenerateElevationFromRender = async () => {
+    if (!selectedWallId) return;
+    setIsProcessingAi(true);
+    try {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/render-3d`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallId: selectedWallId, measurements: measurementsSaved ? wallMeasurements : {} })
+      });
+      const data = await res.json();
+      if (data?.success || data?.imageUrl) {
+        showToast("Elevation regenerated from 3D render with updated measurements.");
+      } else {
+        showToast(data?.error || "Could not regenerate elevation from render", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error regenerating elevation", "error");
+    } finally {
+      setIsProcessingAi(false);
+    }
+  };
+
   const fetchProjectDetails = async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setStaleDrawings(data.stale_drawings === 1);
@@ -109,9 +112,7 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
 
   const handleRegenerateDrawings = async () => {
     try {
-      const yes = await window.__auraConfirm?.confirm('Regenerate Drawings', 'This will overwrite current elevations. Continue?');
-      if (!yes) return;
-      await fetch(`/api/projects/${projectId}/jobs`, {
+      await fetch(`${API_BASE}/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'drawing_generation' })
@@ -124,162 +125,6 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     }
   };
 
-  const loadPhotoElevations = async () => {
-    setPhotoLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/photo-elevations`);
-      if (res.ok) {
-        const data = await res.json();
-        setPhotoElevations(Array.isArray(data) ? data : (data.elevations || []));
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setPhotoLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'photo') loadPhotoElevations();
-  }, [activeTab, projectId]);
-
-  const handleGeneratePhotoElevation = async () => {
-    if (!photoUpload) { showToast('Upload a unit photo first', 'error'); return; }
-    setPhotoGenerating(true);
-    try {
-      const b64 = await new Promise((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result.split(',')[1]);
-        fr.onerror = reject;
-        fr.readAsDataURL(photoUpload);
-      });
-      const res = await fetch('/api/elevation/from-photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, imageB64: b64, dimsText: photoDims, unitTypeHint: 'kitchen' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        const src = data.elevation?.source || 'deterministic';
-        const conf = data.elevation?.confidence != null ? Math.round(data.elevation.confidence * 100) + '%' : '—';
-        const label = src === 'openai-vision' ? `AI vision (GPT-4o · ${conf})`
-          : src === 'gemini-vision' ? `AI vision (Gemini · ${conf})`
-          : src === 'local-vision' ? `Local detection (offline · ${conf})`
-          : 'Standard archetype (no vision — check API key)';
-        showToast(`Elevation generated · ${label}`, src === 'deterministic' ? 'info' : 'success');
-        await loadPhotoElevations();
-      } else {
-        showToast(data.error || 'Generation failed', 'error');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Generation failed', 'error');
-    } finally {
-      setPhotoGenerating(false);
-    }
-  };
-
-  // Generate DXF+PDF elevations from the decoded 3D-render unit library
-  const handleGenerateFromRenders = async (units) => {
-    setGenLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/elevations/from-renders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ units: units || ['kitchen-pantry', 'wardrobe', 'kitchen', 'pooja', 'tv-unit', 'entry', 'vanity', 'wardrobe-fluted', 'wardrobe-study', 'pooja-ganesha', 'vanity-arch', 'kitchen-wall-a', 'kitchen-wall-b', 'wardrobe-vanity', 'wardrobe-study-nook', 'wardrobe-stepped'] })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setGeneratedElevations(data.files);
-        showToast(`Generated ${data.count} elevation${data.count === 1 ? '' : 's'} (DXF + PDF)`, 'success');
-      } else {
-        showToast(data.error || 'Generation failed', 'error');
-      }
-    } catch (err) {
-      showToast('Generation failed: ' + err.message, 'error');
-    } finally {
-      setGenLoading(false);
-    }
-  };
-
-  // Generate the carved jali panel G-code (machine toolpath for the router)
-  const handleGenerateJaliGCode = async () => {
-    setJaliLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/elevations/jali-gcode`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ widthMm: Number(jaliW) || 600, heightMm: Number(jaliH) || 2000, name: 'Jali Panel', material: 'mdf' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setJaliResult(prev => ({ ...(prev || {}), gcode: data.gcode, gcodeLines: data.lines, gcodeToolpaths: data.toolpaths }));
-        showToast('Jali G-code generated', 'success');
-      } else {
-        showToast(data.error || 'G-code generation failed', 'error');
-      }
-    } catch (err) {
-      showToast('G-code failed: ' + err.message, 'error');
-    } finally {
-      setJaliLoading(false);
-    }
-  };
-
-  // Generate a standalone CNC jali panel DXF + PDF
-  const handleGenerateJali = async () => {
-    setJaliLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/elevations/jali-panel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ widthMm: Number(jaliW) || 600, heightMm: Number(jaliH) || 2000, name: 'Jali Panel' })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setJaliResult(data);
-        showToast('Jali panel DXF generated', 'success');
-      } else {
-        showToast(data.error || 'Generation failed', 'error');
-      }
-    } catch (err) {
-      showToast('Generation failed: ' + err.message, 'error');
-    } finally {
-      setJaliLoading(false);
-    }
-  };
-
-  // Generate the parametric shoe-rack / entry cabinet (photo-accurate, standard dims)
-  const handleGenerateShoeRack = async () => {
-    setShoeLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${projectId}/elevations/shoe-rack`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tallWidth: Number(shoeTallW) || 1200,
-          benchWidth: Number(shoeBenchW) || 900,
-          totalHeight: Number(shoeHeight) || 2000,
-          benchHeight: Number(shoeBenchH) || 450,
-          depth: Number(shoeDepth) || 400,
-          shoeShelves: Number(shoeShelves) || 3,
-          handleStyle: shoeHandle,
-          led: shoeLed,
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setShoeResult(data);
-        showToast('Shoe rack DXF + PDF generated', 'success');
-      } else {
-        showToast(data.error || 'Generation failed', 'error');
-      }
-    } catch (err) {
-      showToast('Generation failed: ' + err.message, 'error');
-    } finally {
-      setShoeLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (projectId) {
       loadCADData();
@@ -287,20 +132,60 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
     }
   }, [projectId]);
 
+const VASTU_RULES = [
+  { id: 'pooja_ne', label: 'Pooja room in NE/East', zone: 'NE', type: 'pooja', severity: 'high', tip: 'Place pooja unit on NE/East wall; keep it elevated with warm LED.' },
+  { id: 'kitchen_se', label: 'Kitchen hob facing East in SE', zone: 'SE', type: 'kitchen', severity: 'high', tip: 'SE preferred for cooking; face East when possible.' },
+  { id: 'master_sw', label: 'Master bedroom in SW', zone: 'SW', type: 'bedroom', severity: 'medium', tip: 'SW preferred for headboard South/East.' },
+  { id: 'avoid_ne_toilet', label: 'Avoid toilets in NE/East', zone: 'NE', type: 'toilet', severity: 'high', tip: 'NE is sacred; avoid water/waste there.' }
+];
+
+function scoreVastuWall(wall, openings = [], furniture = []) {
+  const hits = [];
+  const di = (wall.direction || 'N').toUpperCase();
+  const rt = (wall.roomType || wall.type || '').toLowerCase();
+  for (const rule of VASTU_RULES) {
+    if (rule.type === 'pooja') {
+      if (rule.zone === di || rt.includes('pooja')) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'warn', note: `POOJA unit not on ${rule.zone}. NE/East preferred.` });
+      continue;
+    }
+    if (rule.type === 'kitchen') {
+      if (rule.zone === di) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'warn', note: `KITCHEN on ${di}. SE preferred for hob/cooking.` });
+      continue;
+    }
+    if (rule.type === 'bedroom') {
+      if (rule.zone === di) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'info', note: `BEDROOM on ${di}. SW master preferred.` });
+      continue;
+    }
+    if (rule.type === 'toilet') {
+      const hasToilet = /toilet|wc|bath/i.test(rt) || openings.some(o => /toilet|wc|bath/i.test(o.label || o.type || ''));
+      if (hasToilet && ['NE','E','N'].includes(di)) hits.push({ ...rule, status: 'fail', note: `TOILET on ${di} is discouraged.` });
+      else if (hasToilet) hits.push({ ...rule, status: 'pass' });
+      else hits.push({ ...rule, status: 'info' });
+      continue;
+    }
+    hits.push({ ...rule, status: 'info' });
+  }
+  const score = hits.reduce((acc, item) => acc + (item.status === 'pass' ? 20 : item.status === 'warn' ? 10 : item.status === 'fail' ? -15 : 5), 0);
+  return { score: Math.max(0, Math.min(100, 50 + score)), hits };
+}
+
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
+    useAutoClear(toast?.msg || null, setToast, 3000);
   };
 
   const loadCADData = async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/cad`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/cad`);
       const data = await res.json();
-      const safe = data && typeof data === 'object' ? data : {};
-      const loadedWalls = JSON.parse(safe.walls_json || '[]');
-      const loadedOpenings = JSON.parse(safe.openings_json || '[]');
-      const loadedFurniture = JSON.parse(safe.furniture_json || '[]');
-      const ppm = safe.pixels_per_meter || 40.0;
+      
+      const loadedWalls = JSON.parse(data.walls_json || '[]');
+      const loadedOpenings = JSON.parse(data.openings_json || '[]');
+      const loadedFurniture = JSON.parse(data.furniture_json || '[]');
+      const ppm = data.pixels_per_meter || 40.0;
       
       setWalls(loadedWalls);
       setOpenings(loadedOpenings);
@@ -318,9 +203,22 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   // Find wall length in mm
   const getWallLengthMm = (wall) => {
     if (!wall) return 0;
+    if (measurementsSaved && wallMeasurements.wallLengthMm) {
+      return wallMeasurements.wallLengthMm;
+    }
     const pxLen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
     const meters = pxLen / pixelsPerMeter;
     return Math.round(meters * 1000);
+  };
+
+  const updateMeasurement = (key, value) => {
+    setWallMeasurements(prev => ({ ...prev, [key]: Number(value) || 0 }));
+    setMeasurementsSaved(false);
+  };
+
+  const saveMeasurements = () => {
+    setMeasurementsSaved(true);
+    showToast("Accurate measurements applied to this elevation.");
   };
 
   const selectedWall = walls.find(w => w.id === selectedWallId);
@@ -330,19 +228,8 @@ export default function DrawingsElevationsStudio({ projectId, onComplete }) {
   const wallOpenings = openings.filter(op => op.wallId === selectedWallId);
 
   // Filter cabinet items placed against this wall
-  const visibleFilters = filters || {};
-const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selectedWallId || f.cabinetId === selectedWallId; if (!onWall) return false; if (f.type === 'rug' && !visibleFilters.rugs) return false; if (f.type === 'furniture' && !visibleFilters.furniture) return false; if (!f.type && !visibleFilters.cabinets) return false; return true; });
-
-  // === REAL ElevationModel (single source of truth, shared with DXF export) ===
-  const model = selectedWall ? analyzeWallElevation({
-    wall: selectedWall,
-    openings,
-    furniture,
-    pixelsPerMeter,
-    wallHeightMm: wallHeight,
-    projectId,
-    sheetName: `ELEVATION ${selectedWallId}`
-  }) : null;
+  // Cabinets will have wallId and xOffset, or we can check proximity
+  const wallCabinets = furniture.filter(f => f.wallId === selectedWallId || f.cabinetId === selectedWallId);
 
   // Add cabinet to active wall
   const handleAddCabinet = () => {
@@ -380,37 +267,6 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
     showToast("Cabinet module placed on elevation!");
   };
 
-  const handleCalculateNesting = async () => {
-    setCncLoading(true);
-    try {
-      // The /cnc-gcode endpoint returns the cut plan + matching DXF + machine
-      // G-code + cutlist + hinge-cup schedule in one shot.
-      const res = await fetch(`/api/projects/${projectId}/cnc-gcode`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          widthMm: cncWidth,
-          heightMm: cncHeight,
-          depthMm: cncDepth,
-          numShelves: cncShelves,
-          shutterType: cncShutter,
-          material: 'plywood'
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCncResult(data);
-        showToast("CNC cut plan + G-code generated!", "success");
-      } else {
-        showToast(data.error || "Nesting calculation failed", "error");
-      }
-    } catch (e) {
-      showToast("Server error during nesting", "error");
-    } finally {
-      setCncLoading(false);
-    }
-  };
-
   // Remove cabinet
   const handleRemoveCabinet = (cabId) => {
     const updated = furniture.filter(f => f.id !== cabId);
@@ -421,7 +277,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
   const saveElevations = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/cad`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/cad`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -443,23 +299,6 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
     } finally {
       setIsSaving(false);
     }
-  };
-
-  // Download PDF (print-ready sheet, rendered server-side via pdfkit)
-  const presets = [
-    {id:'modern-luxury',title:'Modern Luxury',chip:'CALACATTA / BRASS',accent:'var(--gold)',palette:['#0B1220','var(--gold)','#FFFFFF']},
-    {id:'scandi-warm',title:'Scandi Warm',chip:'OAK / OFF-WHITE',accent:'#C7A16B',palette:['#F3EFE8','#E6DCC8','#1B1B1B']},
-    {id:'industrial',title:'Industrial Loft',chip:'CONCRETE / BLACK IRON',accent:'#9EA7B0',palette:['#181A1E','#2F3336','#E3E3E3']},
-    {id:'indian-contemporary',title:'Indo Contemporary',chip:'TEAK + MARBLE',accent:'#8C5B3C',palette:['#3B2417','#F5E6D3','#2A2A2A']}
-  ];
-  const [stylePreset, setStylePreset] = React.useState(presets[0].id);
-  const [materialTag, setMaterialTag] = React.useState('laminate');
-  const preset = presets.find(pr=>pr.id===stylePreset)||presets[0];
-
-  const downloadPDF = () => {
-    if (!selectedWallId) return;
-    window.open(`/api/projects/${projectId}/drawings/elevations/${selectedWallId}/pdf`, '_blank');
-    showToast("PDF sheet generated!");
   };
 
   // Download SVG
@@ -484,31 +323,27 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
   const marginX = 80;
   const marginY = 50;
 
-  // Scale-aware sizing: true mm->px ratio driven by the chosen drawing scale.
-  // At 1:25 the wall fits the canvas width; at 1:50 it is exactly half (true ratio).
-  const scaleNum = scale === '1:50' ? 50 : 25;
-  const fitPxPerMm = (svgW - 2 * marginX) / (wallLength || 3000); // 1:25 reference
-  const pxPerMm = fitPxPerMm * (25 / scaleNum);
-  const scaleX = pxPerMm;
-  const scaleY = pxPerMm;
+  // Scale calculations for SVG rendering
+  const scaleX = (svgW - 2 * marginX) / (wallLength || 3000);
+  const scaleY = (svgH - 2 * marginY) / wallHeight;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <WorkflowStatusBar
-        stageLabel="Elevations & Drawings"
-        nextAction={staleDrawings
-          ? 'Regenerate elevations from the approved scene graph to sync dimensions and cabinet tags.'
-          : (photoElevations?.length
-              ? 'Review the produced elevations; export DXF/PDF for production when satisfied.'
-              : 'Select a wall and generate measured elevations from the approved scene graph.')}
-        outputLabel="Measured wall elevation · DXF · production PDF"
-        stageComplete={!staleDrawings}
-        stale={staleDrawings ? 1 : 0}
-        approvedCount={photoElevations?.filter(e => e.review_status === 'approved').length || 0}
-        needsReview={photoElevations?.filter(e => !e.review_status || e.review_status !== 'approved').length || 0}
-        onRegenerate={handleRegenerateDrawings}
-      />
-
+      {staleDrawings && (
+        <div className="bg-amber-950/20 border-b border-amber-900/40 px-6 py-3 text-xs text-amber-400 flex items-center justify-between font-bold shrink-0">
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />
+            Drawings Out-of-Date: The underlying 2D/3D design layout has changed. Blueprints may not match the active design.
+          </span>
+          <button 
+            onClick={handleRegenerateDrawings}
+            className="bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
+          >
+            Regenerate Drawings
+          </button>
+        </div>
+      )}
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
       
       {/* Toast Alert */}
       {toast && (
@@ -520,54 +355,12 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
       )}
 
       {/* Column 1: Wall List & Properties */}
-      <div className="panel flex flex-col gap-5 h-[75vh]">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh]">
         <div>
-          <h2 className="panel-head">
-            <Layers className="ph-icon" /> Plan Intelligence Filters
+          <h2 className="text-sm font-extrabold uppercase tracking-wider text-[#D4AF37] mb-1 flex items-center gap-2">
+            <Layers className="w-4.5 h-4.5" /> Wall Layouts
           </h2>
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            {[ ['walls','Walls'], ['openings','Openings'], ['furniture','Furniture'], ['rugs','Rugs'], ['cabinets','Cabinets'] ].map(([k,label])=>(
-              <button key={k} onClick={()=>setFilters(f=>({...f,[k]:!f[k]}))} className={`chip ${filters[k]?'active':''}`}>{label}</button>
-            ))}
-          </div>
-          <h2 className="panel-head mt-4">
-            <Layers className="ph-icon" /> Wall Layouts
-          </h2>
-          <p className="micro">Select a partition wall to view its 2D elevation</p>
-        </div>
-
-        {/* Detection toolbox */}
-        <div className="space-y-2">
-          <div className="eyebrow">Detection</div>
-          <button onClick={async () => {
-            try {
-              const r = await fetch(`/api/projects/${projectId}/plan/detect-furniture`, { method:'POST', headers:{'Content-Type':'application/json'} });
-              const d = await r.json();
-              setFurniture(d?.detected || []);
-              showToast((d?.detected?.length ? `Detected ${d.detected.length} items` : 'No furniture detected'), d?.detected?.length ? 'success' : 'error');
-            } catch (err) { showToast('Detection failed', 'error'); }
-          }} className="btn-ghost w-full">Detect Furniture + Rug</button>
-          <p className="micro">Detects furniture footprints and rugs from the traced plan. Uses heuristics + CV when enabled.</p>
-        </div>
-
-        {/* Preset + material selector */}
-        <div className="space-y-2">
-          <div className="eyebrow">Preset</div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {presets.map(pr=>(
-              <button key={pr.id} onClick={()=>setStylePreset(pr.id)} className={`chip shrink-0 ${stylePreset===pr.id?'active':''}`}>{pr.title}</button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <select value={materialTag} onChange={e=>setMaterialTag(e.target.value)} className="input-lux">
-              <option value="laminate">Laminate Sheets</option>
-              <option value="glass">Glass</option>
-              <option value="cane">Cane</option>
-              <option value="marble">Marble</option>
-              <option value="metal">Metal</option>
-            </select>
-            <button onClick={async()=>{ showToast(`Applied ${preset.title} → ${materialTag} sheet`,'success'); }} className="btn-ghost shrink-0">Apply</button>
-          </div>
+          <p className="text-[10px] text-slate-400">Select a partition wall to view its 2D elevation</p>
         </div>
 
         {/* Walls Dropdown List */}
@@ -583,7 +376,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                 onClick={() => setSelectedWallId(w.id)}
                 className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between border transition ${
                   selectedWallId === w.id
-                    ? 'bg-[var(--gold)]/10 border-[var(--gold)]/40 text-[var(--gold)]'
+                    ? 'bg-[#D4AF37]/10 border-[#D4AF37]/40 text-[#D4AF37]'
                     : 'bg-slate-950/40 border-slate-850 hover:bg-slate-800/40 text-slate-400'
                 }`}
               >
@@ -596,7 +389,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
 
         {/* Global Elevation Settings */}
         <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-3 text-xs">
-          <h3 className="text-[10px] font-extrabold text-[var(--gold)] uppercase tracking-wider">Sheet Properties</h3>
+          <h3 className="text-[10px] font-extrabold text-[#D4AF37] uppercase tracking-wider">Sheet Properties</h3>
           <div className="space-y-2">
             <div>
               <label className="text-slate-400 block mb-0.5">Ceiling Height (mm)</label>
@@ -621,116 +414,100 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             </div>
           </div>
         </div>
+
+        {/* Accurate Measurements Panel */}
+        <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[10px] font-extrabold text-[#D4AF37] uppercase tracking-wider">Measurements</h3>
+            <span className="text-[9px] font-mono text-slate-400">{measurementsSaved ? 'Saved' : 'Unsaved'}</span>
+          </div>
+          <div className="space-y-1.5">
+            <div>
+              <label className="text-slate-400 block mb-0.5">Wall Length (mm)</label>
+              <input
+                type="number"
+                value={wallMeasurements.wallLengthMm || ''}
+                onChange={(e) => updateMeasurement('wallLengthMm', e.target.value)}
+                placeholder="Measured wall length"
+                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+              />
+            </div>
+            <div>
+              <label className="text-slate-400 block mb-0.5">Ceiling Height (mm)</label>
+              <input
+                type="number"
+                value={wallMeasurements.ceilingHeightMm || wallHeight}
+                onChange={(e) => updateMeasurement('ceilingHeightMm', e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-400 block mb-0.5">Module Width (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.moduleWidthMm || ''}
+                  onChange={(e) => updateMeasurement('moduleWidthMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Module Height (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.moduleHeightMm || ''}
+                  onChange={(e) => updateMeasurement('moduleHeightMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-400 block mb-0.5">Module Depth (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.moduleDepthMm || ''}
+                  onChange={(e) => updateMeasurement('moduleDepthMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-0.5">Wall Unit Height (mm)</label>
+                <input
+                  type="number"
+                  value={wallMeasurements.wallUnitHeightMm || ''}
+                  onChange={(e) => updateMeasurement('wallUnitHeightMm', e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-slate-200"
+                />
+              </div>
+            </div>
+            <button
+              onClick={saveMeasurements}
+              className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-1.5 rounded-lg text-[11px] transition"
+            >
+              Apply Measurements
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Columns 2-3: Elevation Sheet Viewport */}
       <div className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col h-[75vh]">
         <div className="flex items-center justify-between mb-4 shrink-0">
           <h2 className="text-sm font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-            2D Wall Elevation
+            2D Wall Elevation Canvas
           </h2>
-          <div className="flex gap-1 bg-slate-950/60 border border-slate-800 rounded-lg p-0.5">
-            <button
-              onClick={() => setActiveTab('walls')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'walls' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
-            >CAD Walls</button>
-            <button
-              onClick={() => setActiveTab('cnc')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'cnc' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
-            >CNC Nesting</button>
-            <button
-              onClick={() => setActiveTab('photo')}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition ${activeTab === 'photo' ? 'bg-[var(--gold)] text-slate-950' : 'text-slate-400 hover:text-slate-200'}`}
-            >Photo-Generated</button>
-          </div>
           <div className="flex gap-2">
             <button
               onClick={downloadSVG}
-              className="bg-slate-800 border border-slate-700 hover:border-[var(--gold)]/40 px-2 py-1 text-slate-300 transition flex items-center gap-1"
+              className="bg-slate-800 border border-slate-700 hover:border-[#D4AF37]/40 px-2 py-1 text-slate-300 transition flex items-center gap-1"
             >
               <Download className="w-3.5 h-3.5" /> SVG
             </button>
             <button
-              onClick={downloadPDF}
-              className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 transition flex items-center gap-1"
-            >
-              <FileText className="w-3.5 h-3.5" /> PDF
-            </button>
-            <button
-              onClick={() => { window.open(`/api/projects/${projectId}/elevations/combined-pdf`, '_blank'); showToast("Combined elevations PDF downloading…"); }}
-              className="bg-[var(--gold)]/10 hover:bg-[var(--gold)]/20 border border-[var(--gold)]/30 px-2 py-1 text-[var(--gold)] transition flex items-center gap-1 text-[10px] font-bold"
-            >
-              <FileText className="w-3.5 h-3.5" /> COMBINE ALL
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  setDrawingSetLoading(true);
-                  const res = await fetch(`/api/projects/${projectId}/drawings`);
-                  if (!res.ok) { showToast('Drawing set failed', 'error'); setDrawingSetLoading(false); return; }
-                  const set = await res.json();
-                  setDrawingSet(set);
-                  const walls = set.floorPlan?.walls?.length || 0;
-                  const elevs = set.elevations?.length || 0;
-                  const boms = set.schedule?.length || 0;
-                  showToast(`Drawing set ready — ${walls} walls, ${elevs} elevations, ${boms} BOM items`, 'success');
-                  setDrawingSetLoading(false);
-                } catch (e) { showToast('Drawing set failed', 'error'); setDrawingSetLoading(false); }
-              }}
-              className="bg-slate-800 border border-slate-700 hover:border-[var(--gold)]/40 px-2 py-1 text-slate-200 transition flex items-center gap-1 text-[10px] font-bold"
-            >
-              {drawingSetLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LayoutGrid className="w-3.5 h-3.5" />} FULL SET
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch(`/api/projects/${projectId}/delivery-package`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-                  if (!res.ok) { showToast('Delivery package failed', 'error'); return; }
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a'); a.href = url; a.download = `ULTIDA_${projectId}_package.zip`; a.click();
-                  URL.revokeObjectURL(url);
-                  showToast('Delivery package downloaded!');
-                } catch (e) { showToast('Delivery package failed', 'error'); }
-              }}
-              className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black px-2 py-1 transition flex items-center gap-1 text-[10px]"
-            >
-              <Package className="w-3.5 h-3.5" /> HANDOFF
-            </button>
-            {drawingSet && (
-              <div className="mt-3 mb-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-[11px]">
-                <div className="flex items-center gap-2 mb-2 text-[var(--gold)] font-bold">
-                  <LayoutGrid className="w-3.5 h-3.5" /> Full Drawing Set
-                  <span className="ml-auto text-slate-500 font-mono">{drawingSet.generatedAt ? new Date(drawingSet.generatedAt).toLocaleString('en-IN') : ''}</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
-                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">Floor Plan</div>
-                    <div className="text-slate-100 font-bold">{drawingSet.floorPlan?.walls?.length || 0} walls</div>
-                    <div className="text-slate-500 text-[9px]">{drawingSet.floorPlan?.openings?.length || 0} openings</div>
-                  </div>
-                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
-                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">Elevations</div>
-                    <div className="text-slate-100 font-bold">{drawingSet.elevations?.length || 0} walls</div>
-                    <div className="text-slate-500 text-[9px]">from analyzer</div>
-                  </div>
-                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
-                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">RCP</div>
-                    <div className="text-slate-100 font-bold">{drawingSet.rcp?.fixtureCount || 0} fixtures</div>
-                    <div className="text-slate-500 text-[9px]">ceiling plan</div>
-                  </div>
-                  <div className="rounded-lg bg-slate-900/60 border border-slate-800 p-2">
-                    <div className="text-slate-500 text-[9px] uppercase tracking-wider">BOM</div>
-                    <div className="text-slate-100 font-bold">{drawingSet.schedule?.length || 0} items</div>
-                    <div className="text-slate-500 text-[9px]">cabinet schedule</div>
-                  </div>
-                </div>
-              </div>
-            )}
-            <button
               onClick={() => {
                 if (selectedWallId) {
-                  window.open(`/api/projects/${projectId}/drawings/elevations/${selectedWallId}/dxf`, '_blank');
+                  window.open(`${API_BASE}/projects/${projectId}/drawings/elevations/${selectedWallId}/dxf`, '_blank');
                   showToast("DXF CAD Blueprint downloaded!");
                 }
               }}
@@ -739,9 +516,17 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               <Download className="w-3.5 h-3.5" /> DXF
             </button>
             <button
+              onClick={regenerateElevationFromRender}
+              disabled={isProcessingAi}
+              className="bg-indigo-700 hover:bg-indigo-600 border border-indigo-500 text-white px-2 py-1 transition flex items-center gap-1"
+            >
+              {isProcessingAi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              From Render
+            </button>
+            <button
               onClick={saveElevations}
               disabled={isSaving}
-              className="bg-[var(--gold)] hover:bg-[var(--gold)]/90 px-3 py-1.5 rounded-lg text-xs font-black text-slate-950 transition flex items-center gap-1.5"
+              className="bg-[#D4AF37] hover:bg-[#D4AF37]/90 px-3 py-1.5 rounded-lg text-xs font-black text-slate-950 transition flex items-center gap-1.5"
             >
               {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               Save & Sync
@@ -750,7 +535,6 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
         </div>
 
         {/* Blueprint view screen */}
-        {activeTab === 'walls' && (
         <div className="flex-1 border border-slate-800 bg-[#080c14] relative flex items-center justify-center p-4 rounded-xl overflow-hidden">
           {selectedWall ? (
             <svg 
@@ -783,166 +567,377 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
                 <text x="10" y="30" fill="#ffffff" fontSize="7" fontWeight="bold">DWG: WALL ELEVATION</text>
                 <text x="10" y="42" fill="#9ca3af" fontSize="6">PROJECT: {projectId}</text>
                 <text x="10" y="52" fill="#9ca3af" fontSize="6">SCALE: {scale}  |  HEIGHT: {wallHeight}mm</text>
-                <text x="10" y="62" fill="#e8c97a" fontSize="6" fontWeight="bold">REV: 1.0  |  AURABRAIN</text>
+                <text x="10" y="65" fill="#D4AF37" fontSize="6" fontWeight="bold">REV 1.0 (PRODUCTION SIGN-OFF)</text>
               </g>
 
+              {/* The Wall Elevation Projection */}
               {(() => {
-                const wallLength = getWallLengthMm(selectedWall);
-                const wallH = wallHeight;
+                const wallW = wallLength * scaleX;
+                const wallH = wallHeight * scaleY;
                 const startX = marginX;
                 const startY = svgH - marginY - wallH;
-                const RED = '#ef4444';      // dimension/annotation color (benchmark)
-                const YEL = '#eab308';      // reference lines
-                const BLK = '#e2e8f0';      // object lines
-
-                const toX = mm => startX + mm * scaleX;
-                const toY = mm => svgH - marginY - mm * scaleY;
-                // filled arrowhead polygon pointing along (x1,y1)->(x2,y2)
-                const Arrow = ({ x, y, ang, color = RED, size = 5 }) => {
-                  const a1 = ang + Math.PI - 0.5, a2 = ang + Math.PI + 0.5;
-                  const p1x = x + size * Math.cos(a1), p1y = y + size * Math.sin(a1);
-                  const p2x = x + size * Math.cos(a2), p2y = y + size * Math.sin(a2);
-                  return <polygon points={`${x},${y} ${p1x},${p1y} ${p2x},${p2y}`} fill={color} />;
-                };
 
                 return (
                   <g>
-                    {/* Bold Outer Wall Outline (object line) */}
-                    <rect
-                      x={startX}
-                      y={startY}
-                      width={wallW}
-                      height={wallH}
-                      fill="rgba(30, 41, 59, 0.05)"
-                      stroke={BLK}
-                      strokeWidth="2.5"
+                    {/* Bold Outer Wall Outline */}
+                    <rect 
+                      x={startX} 
+                      y={startY} 
+                      width={wallW} 
+                      height={wallH} 
+                      fill="rgba(30, 41, 59, 0.05)" 
+                      stroke="#9ca3af" 
+                      strokeWidth="2.5" 
                     />
-                    {/* Concrete BEAM hatch at top (benchmark: aggregate) */}
-                    <rect x={startX} y={startY - 18} width={wallW} height={18} fill="url(#backsplash-tile)" opacity="0.8" />
-                    <text x={toX(model.lengthMm) - 6} y={startY - 22} fill={BLK} fontSize="5.5" textAnchor="end" fontFamily="monospace">BEAM</text>
-                    {/* Floor / plinth datum */}
-                    <line x1={startX - 18} y1={svgH - marginY} x2={startX + wallW + 18} y2={svgH - marginY} stroke="#475569" strokeWidth="1.5" strokeDasharray="4,4" />
-                    <text x={startX - 22} y={svgH - marginY + 3} fill="#64748b" fontSize="6" textAnchor="end">PLINTH LVL (100)</text>
 
-                    {/* Reference level guidelines */}
+                    {/* Subtle Tile Backsplash Area (dado zone between 850mm counter and 1450mm wall unit) */}
+                    <rect 
+                      x={startX} 
+                      y={svgH - marginY - 1450 * scaleY} 
+                      width={wallW} 
+                      height={600 * scaleY} 
+                      fill="url(#backsplash-tile)" 
+                      opacity="0.4"
+                    />
+
+                    {/* Standard Horizontal Reference Guidelines */}
                     {[
+                      { h: 100, label: 'PLINTH SKIRTING (100)' },
                       { h: 850, label: 'BASE COUNTERTOP (850)' },
-                      { h: 1450, label: 'WALL CAB BOTTOM (1450)' },
-                      { h: 2100, label: 'LINTEL (2100)' }
-                    ].map((lvl, i) => (
-                      <g key={`rl-${i}`}>
-                        <line x1={startX - 15} y1={toY(lvl.h)} x2={startX + wallW + 15} y2={toY(lvl.h)} stroke="rgba(148,163,184,0.22)" strokeWidth="0.5" strokeDasharray="3,3" />
-                        <text x={startX - 20} y={toY(lvl.h) + 2.5} fill="#64748b" fontSize="5.5" textAnchor="end" fontFamily="monospace">{lvl.label}</text>
-                      </g>
-                    ))}
+                      { h: 1450, label: 'WALL CABINET BOTTOM / DADO (1450)' },
+                      { h: 2100, label: 'LINTEL LEVEL (2100)' }
+                    ].map((lvl, index) => {
+                      const lvlY = svgH - marginY - lvl.h * scaleY;
+                      return (
+                        <g key={`grid-line-${index}`}>
+                          <line 
+                            x1={startX - 15} 
+                            y1={lvlY} 
+                            x2={startX + wallW + 15} 
+                            y2={lvlY} 
+                            stroke="rgba(148, 163, 184, 0.25)" 
+                            strokeWidth="0.5" 
+                            strokeDasharray="3,3"
+                          />
+                          <text 
+                            x={startX - 20} 
+                            y={lvlY + 2.5} 
+                            fill="#64748b" 
+                            fontSize="5.5" 
+                            textAnchor="end"
+                            fontFamily="monospace"
+                          >
+                            {lvl.label}
+                          </text>
+                        </g>
+                      );
+                    })}
 
-                    {/* Doors & Windows — REAL geometry from analyzer */}
-                    {model.openings.map(op => {
-                      const ox = toX(op.offsetMm);
-                      const oy = toY(op.headMm);
-                      const ow = op.widthMm * scaleX;
-                      const oh = (op.headMm - op.sillMm) * scaleY;
-                      const label = op.type === 'door' ? 'DOOR' : 'WINDOW';
-                      const callout = op.type === 'door' ? 'DOOR' : 'BLACK PROFILE SHUTTER WITH GREY TINTED GLASS';
+                    {/* Plinth Floor Level line */}
+                    <line 
+                      x1={startX - 20} 
+                      y1={svgH - marginY} 
+                      x2={startX + wallW + 20} 
+                      y2={svgH - marginY} 
+                      stroke="#475569" 
+                      strokeWidth="1.5" 
+                      strokeDasharray="4,4"
+                    />
+
+                    {/* Plinth Height level label */}
+                    <text x={startX - 25} y={svgH - marginY + 3} fill="#64748b" fontSize="6.5" textAnchor="end">PLINTH LVL (100)</text>
+
+                    {/* Doors & Windows Openings */}
+                    {wallOpenings.map(op => {
+                      // Project position
+                      const opX = startX + ((Math.max(0, op.x - selectedWall.x1) / pixelsPerMeter) * 1000) * scaleX;
+                      const opW = (op.width || 50) * 10 * scaleX;
+                      const opH = op.type === 'door' ? 2100 * scaleY : 1200 * scaleY;
+                      const opY = op.type === 'door' ? (svgH - marginY - opH) : (svgH - marginY - 1000 * scaleY - opH); // window starts at 1000mm sill height
+
                       return (
                         <g key={op.id}>
-                          {/* TRUE CUT-OUT: void drawn as background, then jamb/sill/head lines */}
-                          <rect x={ox} y={oy} width={ow} height={oh} fill="#0d0f1b" />
-                          {/* jamb / sill / head (object lines) */}
-                          <line x1={ox} y1={oy} x2={ox} y2={oy + oh} stroke={BLK} strokeWidth="1.5" />
-                          <line x1={ox + ow} y1={oy} x2={ox + ow} y2={oy + oh} stroke={BLK} strokeWidth="1.5" />
-                          <line x1={ox} y1={oy} x2={ox + ow} y2={oy} stroke={BLK} strokeWidth="1.5" />
-                          <line x1={ox} y1={oy + oh} x2={ox + ow} y2={oy + oh} stroke={BLK} strokeWidth="1.5" />
-                          {/* break marks at corners */}
-                          <line x1={ox} y1={oy} x2={ox + 5} y2={oy - 5} stroke={BLK} strokeWidth="0.5" />
-                          <line x1={ox + ow} y1={oy} x2={ox + ow - 5} y2={oy - 5} stroke={BLK} strokeWidth="0.5" />
-                          <line x1={ox} y1={oy + oh} x2={ox + 5} y2={oy + oh + 5} stroke={BLK} strokeWidth="0.5" />
-                          <line x1={ox + ow} y1={oy + oh} x2={ox + ow - 5} y2={oy + oh + 5} stroke={BLK} strokeWidth="0.5" />
-                          {/* glazing diagonal lines for windows */}
-                          {op.type === 'window' && Array.from({ length: Math.floor(op.widthMm / 100) }).map((_, i) => (
-                            <line key={i} x1={ox + i * 100 * scaleX} y1={oy} x2={ox + i * 100 * scaleX + oh} y2={oy + oh} stroke={BLK} strokeWidth="0.4" opacity="0.5" />
-                          ))}
-                          <text x={ox + ow / 2} y={oy + oh / 2} fill={BLK} fontSize="8" textAnchor="middle" fontWeight="bold" opacity="0.85">{label}</text>
-                          {/* red leader + callout */}
-                          <line x1={ox + ow / 2} y1={oy + oh / 2} x2={ox + ow + 40} y2={oy - 6} stroke={RED} strokeWidth="0.5" />
-                          <text x={ox + ow + 44} y={oy - 6} fill={RED} fontSize="5" fontFamily="monospace">{callout}</text>
-                          {/* dimension with extension lines + arrows (red) */}
-                          <line x1={ox} y1={oy - 14} x2={ox} y2={oy - 26} stroke={RED} strokeWidth="0.5" />
-                          <line x1={ox + ow} y1={oy - 14} x2={ox + ow} y2={oy - 26} stroke={RED} strokeWidth="0.5" />
-                          <line x1={ox} y1={oy - 22} x2={ox + ow} y2={oy - 22} stroke={RED} strokeWidth="0.6" />
-                          <Arrow x={ox} y={oy - 22} ang={0} />
-                          <Arrow x={ox + ow} y={oy - 22} ang={Math.PI} />
-                          <text x={ox + ow / 2} y={oy - 28} fill={RED} fontSize="5.5" textAnchor="middle" fontFamily="monospace">{Math.round(op.widthMm)}</text>
-                        </g>
-                      );
-                    })}
-
-                    {/* Cabinets — REAL geometry from analyzer */}
-                    {model.cabinets.map(cab => {
-                      const cx = toX(cab.xOffsetMm);
-                      const cy = toY(cab.zOffsetMm + cab.heightMm);
-                      const cw = cab.widthMm * scaleX;
-                      const ch = cab.heightMm * scaleY;
-                      const isDrawer = cab.tag === 'DRAWER' || /drawer/i.test(cab.name);
-                      const isDouble = cab.widthMm > 500 && !isDrawer;
-                      const matCallout = cab.material?.callout;
-                      return (
-                        <g key={cab.id}>
-                          <rect x={cx} y={cy} width={cw} height={ch} fill="rgba(212,175,55,0.07)" stroke={BLK} strokeWidth="1.5" />
-                          {isDrawer ? (
-                            Array.from({ length: Math.max(2, Math.round(cab.heightMm / 250)) - 1 }).map((_, i) => (
-                              <line key={i} x1={cx} y1={cy + (ch * (i + 1)) / (Math.max(2, Math.round(cab.heightMm / 250)))} x2={cx + cw} y2={cy + (ch * (i + 1)) / (Math.max(2, Math.round(cab.heightMm / 250)))} stroke={BLK} strokeWidth="0.7" />
-                            ))
-                          ) : isDouble ? (
+                          {/* Main Opening frame */}
+                          <rect 
+                            x={opX} 
+                            y={opY} 
+                            width={opW} 
+                            height={opH} 
+                            fill="#0d0f1b" 
+                            stroke="#38bdf8" 
+                            strokeWidth="1.5" 
+                          />
+                          
+                          {/* Micro-detailing for door/window frame outlines */}
+                          {op.type === 'door' ? (
                             <>
-                              <line x1={cx + cw / 2} y1={cy} x2={cx + cw / 2} y2={cy + ch} stroke={BLK} strokeWidth="0.7" />
-                              <path d={`M ${cx} ${cy} A ${cw / 2} ${cw / 2} 0 0 1 ${cx + cw / 2} ${cy + ch / 2}`} fill="none" stroke={BLK} strokeWidth="0.4" strokeDasharray="2,2" opacity="0.6" />
+                              {/* Inner door frame outline */}
+                              <rect 
+                                x={opX + 5} 
+                                y={opY + 5} 
+                                width={opW - 10} 
+                                height={opH - 5} 
+                                fill="none" 
+                                stroke="#38bdf8" 
+                                strokeWidth="0.8" 
+                                opacity="0.6" 
+                              />
+                              {/* Door handle / lever */}
+                              <rect 
+                                x={opX + opW - 12} 
+                                y={opY + opH / 2 - 6} 
+                                width={4} 
+                                height={12} 
+                                rx={1} 
+                                fill="#ffffff" 
+                                stroke="#38bdf8" 
+                                strokeWidth="0.5" 
+                              />
                             </>
                           ) : (
-                            <path d={`M ${cx} ${cy} A ${cw} ${cw} 0 0 1 ${cx + cw} ${cy + ch / 2}`} fill="none" stroke={BLK} strokeWidth="0.4" strokeDasharray="2,2" opacity="0.6" />
-                          )}
-                          {/* glass hatch */}
-                          {cab.material?.glass && Array.from({ length: Math.floor(cab.widthMm / 80) }).map((_, i) => (
-                            <line key={i} x1={cx + i * 80 * scaleX} y1={cy} x2={cx + i * 80 * scaleX + ch} y2={cy + ch} stroke={BLK} strokeWidth="0.3" opacity="0.4" />
-                          ))}
-                          {/* component tag */}
-                          <text x={cx + cw / 2} y={cy + ch / 2} fill={BLK} fontSize="6.5" textAnchor="middle" fontWeight="bold">{cab.tag}</text>
-                          <text x={cx + cw / 2} y={cy + ch - 4} fill="#9ca3af" fontSize="4.5" textAnchor="middle" fontFamily="monospace">{Math.round(cab.widthMm)}x{Math.round(cab.heightMm)}</text>
-                          {/* material callout (red leader) */}
-                          {matCallout && (
                             <>
-                              <line x1={cx + cw / 2} y1={cy + 6} x2={cx + cw + 30} y2={cy - 4} stroke={RED} strokeWidth="0.5" />
-                              <text x={cx + cw + 34} y={cy - 4} fill={RED} fontSize="4.5" fontFamily="monospace">{matCallout}</text>
+                              {/* Inner window frame */}
+                              <rect 
+                                x={opX + 4} 
+                                y={opY + 4} 
+                                width={opW - 8} 
+                                height={opH - 8} 
+                                fill="none" 
+                                stroke="#38bdf8" 
+                                strokeWidth="0.8" 
+                                opacity="0.6" 
+                              />
+                              {/* Pane divisions */}
+                              <line 
+                                x1={opX + opW / 2} 
+                                y1={opY} 
+                                x2={opX + opW / 2} 
+                                y2={opY + opH} 
+                                stroke="#38bdf8" 
+                                strokeWidth="1" 
+                                opacity="0.7" 
+                              />
+                              <line 
+                                x1={opX} 
+                                y1={opY + opH / 2} 
+                                x2={opX + opW} 
+                                y2={opY + opH / 2} 
+                                stroke="#38bdf8" 
+                                strokeWidth="0.6" 
+                                opacity="0.5" 
+                              />
                             </>
                           )}
+
+                          <text 
+                            x={opX + opW/2} 
+                            y={opY + opH/2} 
+                            fill="#38bdf8" 
+                            fontSize="8" 
+                            textAnchor="middle"
+                            fontWeight="bold"
+                            opacity="0.85"
+                          >
+                            {op.type === 'door' ? 'DOOR' : 'WINDOW'}
+                          </text>
                         </g>
                       );
                     })}
 
-                    {/* Overall Dimension — red, extension lines + arrows */}
-                    <line x1={startX} y1={startY - 14} x2={startX} y2={startY - 34} stroke={RED} strokeWidth="0.5" />
-                    <line x1={startX + wallW} y1={startY - 14} x2={startX + wallW} y2={startY - 34} stroke={RED} strokeWidth="0.5" />
-                    <line x1={startX} y1={startY - 28} x2={startX + wallW} y2={startY - 28} stroke={RED} strokeWidth="0.8" />
-                    <Arrow x={startX} y={startY - 28} ang={0} />
-                    <Arrow x={startX + wallW} y={startY - 28} ang={Math.PI} />
-                    <text x={startX + wallW / 2} y={startY - 34} fill={RED} fontSize="7.5" textAnchor="middle" fontFamily="monospace" fontWeight="bold">{model.lengthMm} MM</text>
-                    <line x1={startX + wallW + 14} y1={startY} x2={startX + wallW + 34} y2={startY} stroke={RED} strokeWidth="0.5" />
-                    <line x1={startX + wallW + 14} y1={svgH - marginY} x2={startX + wallW + 34} y2={svgH - marginY} stroke={RED} strokeWidth="0.5" />
-                    <line x1={startX + wallW + 28} y1={startY} x2={startX + wallW + 28} y2={svgH - marginY} stroke={RED} strokeWidth="0.8" />
-                    <Arrow x={startX + wallW + 28} y={startY} ang={-Math.PI / 2} />
-                    <Arrow x={startX + wallW + 28} y={svgH - marginY} ang={Math.PI / 2} />
-                    <text x={startX + wallW + 40} y={startY + wallH / 2 + 2.5} fill={RED} fontSize="7.5" textAnchor="start" fontFamily="monospace" fontWeight="bold">{model.heightMm} MM</text>
+                    {/* Placed Parametric Cabinets */}
+                    {wallCabinets.map(cab => {
+                      const cabW = (cab.width || 600) * scaleX;
+                      const cabH = (cab.height || 720) * scaleY;
+                      const cabX = startX + (cab.xOffsetWall || 0) * scaleX;
+                      const cabZ = (cab.zOffset || 0) * scaleY;
+                      const cabY = svgH - marginY - cabZ - cabH;
 
-                    {/* Drawing border + title block */}
-                    <rect x={10} y={10} width={svgW - 20} height={svgH - 20} fill="none" stroke="#2563eb" strokeWidth="1" />
-                    <g transform={`translate(${svgW - 200}, ${svgH - 90})`}>
-                      <rect x={0} y={0} width={190} height={80} fill="rgba(15,23,42,0.9)" stroke="#2563eb" strokeWidth="0.8" />
-                      <line x1={0} y1={26} x2={190} y2={26} stroke="#2563eb" strokeWidth="0.4" />
-                      <line x1={0} y1={52} x2={190} y2={52} stroke="#2563eb" strokeWidth="0.4" />
-                      <text x={6} y={17} fill="var(--gold)" fontSize="7" fontWeight="bold" fontFamily="monospace">SHEET: {model.wallName}</text>
-                      <text x={6} y={43} fill="#e2e8f0" fontSize="6" fontFamily="monospace">SCALE: {scale}   REV: 1.0</text>
-                      <text x={6} y={69} fill="#94a3b8" fontSize="5.5" fontFamily="monospace">AURABRAIN  {new Date().toISOString().slice(0,10)}</text>
-                    </g>
+                      const colors = cab.type === 'base' ? '#AA8C2C' 
+                                   : cab.type === 'wall' ? '#3b82f6' 
+                                   : cab.type === 'loft' ? '#a855f7' 
+                                   : '#10b981';
+
+                      const isDrawer = cab.name.toLowerCase().includes('drawer') || cab.name.toLowerCase().includes('pullout');
+                      const isDoubleDoor = (cab.width || 600) > 500 && !isDrawer;
+
+                      return (
+                        <g key={cab.id} className="group">
+                          {/* Cabinet frame */}
+                          <rect 
+                            x={cabX} 
+                            y={cabY} 
+                            width={cabW} 
+                            height={cabH} 
+                            fill={`${colors}12`} 
+                            stroke={colors} 
+                            strokeWidth="1.5" 
+                          />
+                          
+                          {/* Cabinet door swing guidelines and handles */}
+                          {isDrawer ? (
+                            <>
+                              {/* Drawers: 3 horizontal drawer subdivisions */}
+                              <line 
+                                x1={cabX} 
+                                y1={cabY + cabH / 3} 
+                                x2={cabX + cabW} 
+                                y2={cabY + cabH / 3} 
+                                stroke={colors} 
+                                strokeWidth="0.8" 
+                              />
+                              <line 
+                                x1={cabX} 
+                                y1={cabY + (2 * cabH) / 3} 
+                                x2={cabX + cabW} 
+                                y2={cabY + (2 * cabH) / 3} 
+                                stroke={colors} 
+                                strokeWidth="0.8" 
+                              />
+                              {/* Drawers handles (3 horizontal pull handles) */}
+                              <rect 
+                                x={cabX + cabW / 2 - 15} 
+                                y={cabY + cabH / 6 - 1.5} 
+                                width={30} 
+                                height={3} 
+                                rx={1} 
+                                fill="#ffffff" 
+                                opacity="0.9" 
+                              />
+                              <rect 
+                                x={cabX + cabW / 2 - 15} 
+                                y={cabY + cabH / 2 - 1.5} 
+                                width={30} 
+                                height={3} 
+                                rx={1} 
+                                fill="#ffffff" 
+                                opacity="0.9" 
+                              />
+                              <rect 
+                                x={cabX + cabW / 2 - 15} 
+                                y={cabY + (5 * cabH) / 6 - 1.5} 
+                                width={30} 
+                                height={3} 
+                                rx={1} 
+                                fill="#ffffff" 
+                                opacity="0.9" 
+                              />
+                            </>
+                          ) : isDoubleDoor ? (
+                            <>
+                              {/* Double door vertical center partition line */}
+                              <line 
+                                x1={cabX + cabW / 2} 
+                                y1={cabY} 
+                                x2={cabX + cabW / 2} 
+                                y2={cabY + cabH} 
+                                stroke={colors} 
+                                strokeWidth="0.8" 
+                              />
+                              {/* Symmetrical Left/Right Hinge swing dashed lines meeting at center */}
+                              <polyline 
+                                points={`${cabX},${cabY} ${cabX + cabW / 2},${cabY + cabH / 2} ${cabX},${cabY + cabH}`} 
+                                fill="none" 
+                                stroke={colors} 
+                                strokeWidth="0.5" 
+                                strokeDasharray="2,2" 
+                                opacity="0.65" 
+                              />
+                              <polyline 
+                                points={`${cabX + cabW},${cabY} ${cabX + cabW / 2},${cabY + cabH / 2} ${cabX + cabW},${cabY + cabH}`} 
+                                fill="none" 
+                                stroke={colors} 
+                                strokeWidth="0.5" 
+                                strokeDasharray="2,2" 
+                                opacity="0.65" 
+                              />
+                              {/* Double door handles */}
+                              <rect 
+                                x={cabX + cabW / 2 - 7} 
+                                y={cabY + cabH / 2 - 10} 
+                                width={1.5} 
+                                height={20} 
+                                rx={0.5} 
+                                fill="#ffffff" 
+                                opacity="0.9" 
+                              />
+                              <rect 
+                                x={cabX + cabW / 2 + 5.5} 
+                                y={cabY + cabH / 2 - 10} 
+                                width={1.5} 
+                                height={20} 
+                                rx={0.5} 
+                                fill="#ffffff" 
+                                opacity="0.9" 
+                              />
+                            </>
+                          ) : (
+                            <>
+                              {/* Single Door: Left hinged swing dashed lines meeting at right edge */}
+                              <polyline 
+                                points={`${cabX},${cabY} ${cabX + cabW},${cabY + cabH / 2} ${cabX},${cabY + cabH}`} 
+                                fill="none" 
+                                stroke={colors} 
+                                strokeWidth="0.5" 
+                                strokeDasharray="2,2" 
+                                opacity="0.65" 
+                              />
+                              {/* Single door handle near right edge */}
+                              <rect 
+                                x={cabX + cabW - 7} 
+                                y={cabY + cabH / 2 - 10} 
+                                width={1.5} 
+                                height={20} 
+                                rx={0.5} 
+                                fill="#ffffff" 
+                                opacity="0.9" 
+                              />
+                            </>
+                          )}
+
+                          {/* Module Label */}
+                          <text 
+                            x={cabX + cabW/2} 
+                            y={cabY + cabH/2 + 2} 
+                            fill="#ffffff" 
+                            fontSize="7" 
+                            fontWeight="bold" 
+                            textAnchor="middle"
+                            fillOpacity="0.8"
+                          >
+                            {cab.name}
+                          </text>
+
+                          {/* Dimensions label below */}
+                          <text 
+                            x={cabX + cabW/2} 
+                            y={cabY + cabH - 5} 
+                            fill={colors} 
+                            fontSize="5.5" 
+                            textAnchor="middle"
+                            fontFamily="monospace"
+                          >
+                            {cab.width} x {cab.height}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Overall Dimension Annotations */}
+                    {/* Top Wall Width Dimension */}
+                    <line x1={startX} y1={startY - 15} x2={startX + wallW} y2={startY - 15} stroke="#d4c5b2" strokeWidth="0.8" />
+                    <line x1={startX} y1={startY - 20} x2={startX} y2={startY - 10} stroke="#d4c5b2" strokeWidth="0.8" />
+                    <line x1={startX + wallW} y1={startY - 20} x2={startX + wallW} y2={startY - 10} stroke="#d4c5b2" strokeWidth="0.8" />
+                    <text x={startX + wallW/2} y={startY - 20} fill="#d4c5b2" fontSize="7.5" textAnchor="middle" fontFamily="monospace" fontWeight="bold">
+                      {wallLength} mm
+                    </text>
+
+                    {/* Right Side Wall Height Dimension */}
+                    <line x1={startX + wallW + 15} y1={startY} x2={startX + wallW + 15} y2={svgH - marginY} stroke="#d4c5b2" strokeWidth="0.8" />
+                    <line x1={startX + wallW + 10} y1={startY} x2={startX + wallW + 20} y2={startY} stroke="#d4c5b2" strokeWidth="0.8" />
+                    <line x1={startX + wallW + 10} y1={svgH - marginY} x2={startX + wallW + 20} y2={svgH - marginY} stroke="#d4c5b2" strokeWidth="0.8" />
+                    <text x={startX + wallW + 25} y={startY + wallH/2 + 2.5} fill="#d4c5b2" fontSize="7.5" textAnchor="start" fontFamily="monospace" fontWeight="bold">
+                      {wallHeight} mm
+                    </text>
                   </g>
                 );
               })()}
@@ -953,161 +948,26 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
             </div>
           )}
         </div>
-        )}
+      </div>
 
-        {activeTab === 'photo' && (
-          <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
-            <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
-              <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Generate from Photo (3D → 2D)</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setPhotoUpload(e.target.files?.[0] || null)}
-                className="w-full text-[10px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-slate-800 file:text-slate-200"
-              />
-              <input
-                value={photoDims}
-                onChange={(e) => setPhotoDims(e.target.value)}
-                placeholder='dims e.g. 86" wide 90" tall 24" deep'
-                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-200"
-              />
-              <button
-                onClick={handleGeneratePhotoElevation}
-                disabled={photoGenerating}
-                className="w-full bg-[var(--gold)] hover:bg-[var(--gold)]/90 text-slate-950 font-black py-1.5 rounded-lg text-[10px] uppercase transition flex items-center justify-center gap-1.5"
-              >
-                {photoGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                Generate Measured Elevation
-              </button>
-              <div className="text-[9px] text-slate-500 leading-tight">Detects unit type + components from the photo, merges your handwritten dimensions as ground truth, exports DXF + PDF.</div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {photoLoading ? (
-                <div className="text-center py-10 text-xs text-slate-500">Loading…</div>
-              ) : photoElevations.length === 0 ? (
-                <div className="text-center py-10 text-xs text-slate-500">No photo elevations yet. Upload a unit photo above.</div>
-              ) : (
-                photoElevations.map((e) => {
-                  const src = e.source || (e.model_json ? (JSON.parse(e.model_json).source) : null) || 'deterministic';
-                  const srcBadge = src === 'openai-vision' ? { t: 'GPT-4o', c: 'text-emerald-400 border-emerald-500/40' }
-                    : src === 'gemini-vision' ? { t: 'Gemini', c: 'text-sky-400 border-sky-500/40' }
-                    : src === 'local-vision' ? { t: 'Local CV', c: 'text-violet-400 border-violet-500/40' }
-                    : { t: 'Archetype', c: 'text-amber-400 border-amber-500/40' };
-                  return (
-                  <div key={e.id} className="bg-slate-950/40 border border-slate-850 rounded-lg p-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-200 flex items-center gap-2">
-                        {e.wall_name || (e.unit_type || 'ELEVATION').toUpperCase()}
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded border ${srcBadge.c}`} title={`Detection source: ${src}`}>{srcBadge.t}</span>
-                      </div>
-                      <div className="text-[9px] text-slate-500 font-mono">{(e.model_json ? JSON.parse(e.model_json).lengthMm : 0) || '—'} mm · conf {e.confidence ?? '—'}</div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => window.open(`/api/projects/${projectId}/photo-elevations/${e.id}/dxf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1"><Download className="w-3 h-3" /> DXF</button>
-                      <button onClick={() => window.open(`/api/projects/${projectId}/photo-elevations/${e.id}/pdf`, '_blank')} className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>
-                    </div>
-                  </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh]">
+        {/* AI Assisted Elevation Editor */}
+        <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
+          <label className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest block">AI Elevation Copilot</label>
+          <textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="E.g., 'increase base widths to 900', 'remove lofts', 'convert bases to drawers'..."
+            className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 resize-none h-16 outline-none focus:border-[#D4AF37]/50"
+          />
+          <button
+            onClick={handleAiEdit}
+            disabled={isProcessingAi}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5"
+          >
+            {isProcessingAi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Modify with AI'}
+          </button>
         </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4 h-[75vh] overflow-y-auto">
-        {activeTab === 'cnc' ? (
-          <div className="space-y-4 text-xs">
-            <h3 className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest">CNC Carcass Configuration</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-slate-400 block mb-0.5">Carcass Width (mm)</label>
-                <input type="number" value={cncWidth} onChange={e=>setCncWidth(parseInt(e.target.value)||900)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-0.5">Carcass Height (mm)</label>
-                <input type="number" value={cncHeight} onChange={e=>setCncHeight(parseInt(e.target.value)||2100)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-0.5">Depth (mm)</label>
-                <input type="number" value={cncDepth} onChange={e=>setCncDepth(parseInt(e.target.value)||560)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-0.5">Number of Shelves</label>
-                <input type="number" value={cncShelves} onChange={e=>setCncShelves(parseInt(e.target.value)||0)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200" />
-              </div>
-              <div>
-                <label className="text-slate-400 block mb-0.5">Shutter Front Type</label>
-                <select value={cncShutter} onChange={e=>setCncShutter(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200">
-                  <option value="double">Double Hinged Shutter</option>
-                  <option value="single">Single Hinged Shutter</option>
-                  <option value="none">Open Module (No shutter)</option>
-                </select>
-              </div>
-              <button
-                onClick={handleCalculateNesting}
-                disabled={cncLoading}
-                className="w-full py-2.5 bg-[var(--gold)] hover:bg-[#b0923d] text-slate-950 font-black uppercase text-[11px] rounded-lg tracking-wider transition"
-              >
-                {cncLoading ? "Optimizing Nesting..." : "Re-Calculate Cut Plan"}
-              </button>
-              {cncResult && cncResult.success && (
-                <div className="mt-3 space-y-3 bg-slate-950/60 border border-slate-800 rounded-lg p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest">Cut Plan Summary</span>
-                    <span className="text-[10px] text-slate-400">{cncResult.partCount} parts · {cncResult.sheetCount} sheet(s) · {cncResult.hingeCups} hinge cups</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <a href={`${cncResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                    <a href={`${cncResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE ({cncResult.lines || 0} lines)</a>
-                  </div>
-                  {cncResult.cutlist && cncResult.cutlist.length > 0 && (
-                    <div className="max-h-48 overflow-auto border border-slate-800 rounded">
-                      <table className="w-full text-[10px] text-slate-300">
-                        <thead className="bg-slate-900 text-slate-500 sticky top-0">
-                          <tr><th className="text-left px-2 py-1">Part</th><th className="text-left px-2 py-1">Material</th><th className="text-right px-2 py-1">W</th><th className="text-right px-2 py-1">H</th><th className="text-right px-2 py-1">Qty</th></tr>
-                        </thead>
-                        <tbody>
-                          {cncResult.cutlist.map((c, i) => (
-                            <tr key={i} className="border-t border-slate-800/60">
-                              <td className="px-2 py-1 font-semibold text-slate-200">{c.name}</td>
-                              <td className="px-2 py-1">{c.material}</td>
-                              <td className="px-2 py-1 text-right">{c.w}</td>
-                              <td className="px-2 py-1 text-right">{c.h}</td>
-                              <td className="px-2 py-1 text-right text-[var(--gold)]">{c.qty}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* AI Assisted Elevation Editor */}
-            <div className="bg-slate-950/40 border border-slate-850 p-3 rounded-lg space-y-2 shrink-0">
-              <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">AI Elevation Copilot</label>
-              <textarea
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder="E.g., 'increase base widths to 900', 'remove lofts', 'convert bases to drawers'..."
-                className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs text-slate-200 resize-none h-16 outline-none focus:border-[var(--gold)]/50"
-              />
-              <button
-                onClick={handleAiEdit}
-                disabled={isProcessingAi}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-1.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5"
-              >
-                {isProcessingAi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Modify with AI'}
-              </button>
-            </div>
-          </>
-        )}
 
         <div className="flex justify-between items-center shrink-0 border-t border-slate-800 pt-3">
           <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
@@ -1115,7 +975,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           </h2>
           <button
             onClick={() => setShowAddCabinet(true)}
-            className="bg-[var(--gold)]/10 hover:bg-[var(--gold)]/20 border border-[var(--gold)]/25 text-[var(--gold)] text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
+            className="bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/25 text-[#D4AF37] text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition"
           >
             + Plinth Unit
           </button>
@@ -1204,7 +1064,7 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
               </button>
               <button 
                 onClick={handleAddCabinet}
-                className="flex-1 bg-[var(--gold)] hover:bg-[var(--gold)]/90 text-slate-950 font-bold py-1.5 rounded transition"
+                className="flex-1 bg-[#D4AF37] hover:bg-[#D4AF37]/90 text-slate-950 font-bold py-1.5 rounded transition"
               >
                 Place Unit
               </button>
@@ -1247,171 +1107,13 @@ const wallCabinets = furniture.filter(f => { const onWall = f.wallId === selecte
           onClick={() => {
             if (onComplete) onComplete();
           }}
-          className="w-full mt-auto py-3 bg-[var(--gold)] hover:bg-[var(--gold)]/95 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl transition shadow-lg shadow-[var(--gold)]/5 shrink-0"
+          className="w-full mt-auto py-3 bg-[#D4AF37] hover:bg-[#D4AF37]/95 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 rounded-xl transition shadow-lg shadow-[#D4AF37]/5 shrink-0"
         >
           Proceed to Materials <ArrowRight className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Column 5: Render → Elevation + Jali Panel Generator (wired DXF pipeline) */}
-      <div className="xl:col-span-4 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-4">
-        <h2 className="text-sm font-extrabold uppercase tracking-wider text-[var(--gold)] flex items-center gap-2">
-          <Package className="w-4.5 h-4.5" /> CNC Elevation Generator
-        </h2>
-        <p className="text-[10px] text-slate-400 leading-relaxed">
-          Generate professional DXF + PDF shop drawings from the decoded 3D-render unit library and a standalone CNC jali/lattice panel. Files open in AutoCAD / LibreCAD.
-        </p>
-
-        {/* Photo-traced styled units (from your July reference photos) */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Photo-Traced Styled Units</span>
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              ['wardrobe-fluted', '2-Tone Fluted Wardrobe'],
-              ['wardrobe-study', 'Wardrobe + Study Nook'],
-              ['pooja-ganesha', 'Pooja / Ganesha Niche'],
-              ['vanity-arch', 'Arched Mirror Vanity'],
-              ['kitchen-wall-a', 'Kitchen Wall A (Fridge)'],
-              ['kitchen-wall-b', 'Kitchen Wall B (Sink)'],
-              ['wardrobe-vanity', 'Wardrobe + Vanity'],
-              ['wardrobe-study-nook', 'Wardrobe + Study'],
-              ['wardrobe-stepped', 'Stepped Wardrobe'],
-            ].map(([u, label]) => (
-              <button
-                key={u}
-                onClick={() => handleGenerateFromRenders([u])}
-                disabled={genLoading}
-                className="py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-[10px] rounded-md transition disabled:opacity-50"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => handleGenerateFromRenders()}
-            disabled={genLoading}
-            className="w-full py-2.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
-          >
-            {genLoading ? 'Generating…' : 'Generate All Unit Elevations (DXF + PDF)'}
-          </button>
-          {generatedElevations.length > 0 && (
-            <div className="flex flex-col gap-1.5 mt-1">
-              {generatedElevations.map(f => (
-                <div key={f.unit} className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5">
-                  <span className="text-[11px] font-bold text-slate-200 uppercase">{f.unit}</span>
-                  <div className="flex gap-1.5">
-                    <a href={`${f.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                    <a href={`${f.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-slate-800 pt-3 flex flex-col gap-2">
-          <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Jali / Lattice Panel (cut-through CNC)</label>
-          <div className="flex gap-2">
-            <div className="flex flex-col gap-1 flex-1">
-              <span className="text-[9px] text-slate-500 uppercase">Width mm</span>
-              <input type="number" value={jaliW} onChange={e => setJaliW(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-            <div className="flex flex-col gap-1 flex-1">
-              <span className="text-[9px] text-slate-500 uppercase">Height mm</span>
-              <input type="number" value={jaliH} onChange={e => setJaliH(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-          </div>
-          <button
-            onClick={handleGenerateJali}
-            disabled={jaliLoading}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[var(--gold)] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
-          >
-            {jaliLoading ? 'Cutting…' : 'Generate Jali Panel (DXF + PDF)'}
-          </button>
-          <button
-            onClick={handleGenerateJaliGCode}
-            disabled={jaliLoading}
-            className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-emerald-400 font-bold text-[10px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
-          >
-            ⚙ Generate Jali G-code (Router Toolpath)
-          </button>
-          {jaliResult && (
-            <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 mt-1">
-              <span className="text-[11px] font-bold text-slate-200">{jaliResult.widthMm}×{jaliResult.heightMm}mm</span>
-              <div className="flex gap-1.5">
-                <a href={`${jaliResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                <a href={`${jaliResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
-                {jaliResult.gcode && (
-                  <a href={`${jaliResult.gcode}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> G-CODE</a>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-slate-800 pt-3 flex flex-col gap-2">
-          <label className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest block">Shoe Rack / Entry Cabinet (photo-accurate, standard dims)</label>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] text-slate-500 uppercase">Tall W mm</span>
-              <input type="number" value={shoeTallW} onChange={e => setShoeTallW(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] text-slate-500 uppercase">Bench W mm</span>
-              <input type="number" value={shoeBenchW} onChange={e => setShoeBenchW(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] text-slate-500 uppercase">Total H mm</span>
-              <input type="number" value={shoeHeight} onChange={e => setShoeHeight(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] text-slate-500 uppercase">Bench H mm</span>
-              <input type="number" value={shoeBenchH} onChange={e => setShoeBenchH(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] text-slate-500 uppercase">Depth mm</span>
-              <input type="number" value={shoeDepth} onChange={e => setShoeDepth(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[9px] text-slate-500 uppercase">Shelves</span>
-              <input type="number" value={shoeShelves} onChange={e => setShoeShelves(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]" />
-            </div>
-          </div>
-          <div className="flex gap-2 items-center">
-            <div className="flex flex-col gap-1 flex-1">
-              <span className="text-[9px] text-slate-500 uppercase">Handle</span>
-              <select value={shoeHandle} onChange={e => setShoeHandle(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-slate-200 text-[11px]">
-                <option value="bar">Bar</option>
-                <option value="knob">Knob</option>
-                <option value="none">None</option>
-              </select>
-            </div>
-            <label className="flex items-center gap-1.5 text-[10px] text-slate-300 mt-4">
-              <input type="checkbox" checked={shoeLed} onChange={e => setShoeLed(e.target.checked)} className="accent-[var(--gold)]" /> LED strip
-            </label>
-          </div>
-          <button
-            onClick={handleGenerateShoeRack}
-            disabled={shoeLoading}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[var(--gold)] font-black text-[11px] uppercase tracking-wider rounded-lg transition disabled:opacity-50"
-          >
-            {shoeLoading ? 'Generating…' : 'Generate Shoe Rack (DXF + PDF)'}
-          </button>
-          {shoeResult && (
-            <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 mt-1">
-              <span className="text-[11px] font-bold text-slate-200">{(shoeResult.opts.tallWidth||1200)+(shoeResult.opts.benchWidth||900)}×{shoeResult.opts.totalHeight||2000}mm</span>
-              <div className="flex gap-1.5">
-                <a href={`${shoeResult.dxf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-sky-500/40 px-2 py-1 text-sky-400 text-[10px] flex items-center gap-1 rounded"><Download className="w-3 h-3" /> DXF</a>
-                <a href={`${shoeResult.pdf}`} target="_blank" rel="noreferrer" className="bg-slate-800 border border-slate-700 hover:border-emerald-500/40 px-2 py-1 text-emerald-400 text-[10px] flex items-center gap-1 rounded"><FileText className="w-3 h-3" /> PDF</a>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
+    </div>
     </div>
   );
 }

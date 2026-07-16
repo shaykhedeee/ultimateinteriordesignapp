@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Ultimate Interior Design App — Structure, Flows &amp; Tools</title>
+<style>
+  :root{
+    --bg:#0B0E14; --panel:#11161F; --panel-2:#161C2A; --line:#1F2A3A; --text:#E6EAF2; --muted:#8A93A6; --gold:#D4AF37; --accent:#C9A84C; --emerald:#34D399; --rose:#FB7185; --violet:#A78BFA;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:32px 24px}
+  h1{font-size:28px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+  .grid{display:grid;gap:16px}
+  .cols-3{grid-template-columns:repeat(3,1fr)}
+  .cols-4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:960px){.cols-3,.cols-4{grid-template-columns:1fr 1fr}}
+  @media(max-width:640px){.cols-3,.cols-4{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:16px;padding:18px;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(212,175,55,.25),transparent)}
+  .card h3{margin:0 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  .card p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}
+  .kpi{display:flex;align-items:baseline;gap:8px;margin-top:10px}
+  .kpi b{font-size:22px;color:var(--text)}
+  .kpi span{font-size:11px;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.18);color:var(--accent);font-size:11px;font-weight:700}
+  .chip .dot{width:7px;height:7px;border-radius:999px;background:currentColor}
+  .map{display:flex;flex-wrap:wrap;gap:10px}
+  .node{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:140px;flex:1 1 180px}
+  .node strong{display:block;font-size:12px;color:var(--text);margin-bottom:4px}
+  .node small{font-size:10px;color:var(--muted)}
+  .arrow{display:flex;align-items:center;color:var(--muted);font-size:11px}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .stack .row{display:flex;gap:10px;align-items:center}
+  .stack .row .line{flex:1;height:1px;background:var(--line)}
+  table{width:100%;border-collapse:collapse;color:var(--text);font-size:12px}
+  th{text-align:left;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:10px;border-bottom:1px solid var(--line)}
+  td:first-child{color:var(--accent);font-weight:700}
+  .pill{font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(167,139,250,.12);color:var(--violet);border:1px solid rgba(167,139,250,.2)}
+  .section{margin-top:28px}
+  .section h2{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:10px}
+  .section h2 .badge{font-size:10px;padding:4px 8px;border-radius:999px;background:rgba(212,175,55,.12);color:var(--accent);border:1px solid rgba(212,175,55,.2)}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .bubble{border:1px solid var(--line);background:var(--panel-2);padding:8px 10px;border-radius:12px;font-size:11px;color:var(--text)}
+  .bubble.gold{border-color:rgba(212,175,55,.35);background:rgba(212,175,55,.08)}
+  code{background:rgba(255,255,255,.04);border:1px solid var(--line);padding:1px 6px;border-radius:6px;color:#ffd48a}
+  .list{display:flex;flex-direction:column;gap:8px}
+  .list .item{display:flex;gap:10px;align-items:flex-start;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .list .item .ic{width:26px;height:26px;border-radius:8px;background:rgba(212,175,55,.12);color:var(--accent);display:grid;place-items:center;font-weight:800;font-size:11px;flex-shrink:0}
+  .list .item div strong{display:block;font-size:12px;color:var(--text)}
+  .list .item div span{font-size:11px;color:var(--muted);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1>Ultimate Interior Design App <span style="color:var(--accent)">■</span></h1>
+      <div class="sub">Full app map: screens, user flows, tool ecosystem, backend services, data model, and targeted enhancements.</div>
+    </div>
+    <div class="map">
+      <div class="chip"><span class="dot"></span>18 screens</div>
+      <div class="chip"><span class="dot" style="color:var(--emerald)"></span>22 specialist tools</div>
+      <div class="chip"><span class="dot" style="color:var(--violet)"></span>36+ endpoints</div>
+      <div class="chip"><span class="dot" style="color:var(--rose)"></span>3 workspace modes</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Architecture <span class="badge">high level</span></h2>
+    <div class="grid cols-3">
+      <div class="card">
+        <h3>Frontend Shell</h3>
+        <p>Single-page React app with protected route switching, sidebar navigation, AURA chat shell, ErrorBoundary, and ARIA tab semantics. Route state sits in <code>App.jsx</code> and surfaces screens under <code>frontend/src/screens/*</code>.</p>
+        <div class="kpi"><b>React</b><span>SPA shell + stores</span></div>
+      </div>
+      <div class="card">
+        <h3>Specialist Workspaces</h3>
+        <p>Each major capability lives as its own screen: CAD, 3D studio, floor plan, materials, renders, cutlist, ceiling, TV unit, drawings, finance, timeline, jobs, vendors, Pinterest learning, and AURA.</p>
+        <div class="kpi"><b>18</b><span>independent screens</span></div>
+      </div>
+      <div class="card">
+        <h3>Command Center</h3>
+        <p>Operating-system-style hub with role-based workspace modes, workflow tabs, KPI ribbon, pro analytics, specialist tool tiles, and project pipeline. It is the primary OS surface, not a wireframe.</p>
+        <div class="kpi"><b>1</b><span>primary orchestration surface</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Screen &amp; Route Map <span class="badge">navigation core</span></h2>
+    <div class="card" style="padding:14px">
+      <table>
+        <thead><tr><th>Route key</th><th>Screen</th><th>Purpose</th><th>Owner / module</th></tr></thead>
+        <tbody>
+          <tr><td>command-center</td><td>CommandCenterScreen</td><td>Primary workspace hub + role switching + analytics</td><td>Command center</td></tr>
+          <tr><td>dashboard</td><td>CRMLeadDashboard</td><td>Lead intake and pipeline overview</td><td>CRM</td></tr>
+          <tr><td>projects</td><td>ProjectManagementScreen</td><td>Project list and staging</td><td>Projects</td></tr>
+          <tr><td>brief</td><td>ClientBriefStudio</td><td>Client brief + moodboard + style capture</td><td>Brief</td></tr>
+          <tr><td>cad</td><td>InteractiveCADScreen</td><td>2D CAD layout, walls, openings, modules</td><td>CAD</td></tr>
+          <tr><td>studio</td><td>DesignStudioScreen</td><td>3D scene assembly and realtime preview</td><td>3D</td></tr>
+          <tr><td>drawings</td><td>DrawingsElevationsStudio</td><td>2D plan, elevation, RCP generation</td><td>Drawings</td></tr>
+          <tr><td>materials</td><td>MaterialCatalogScreen</td><td>Finish selector, laminate/brand/finish search</td><td>Materials</td></tr>
+          <tr><td>renders</td><td>Render3DStudio</td><td>Photoreal render queue, comparison, upscale</td><td>Renders</td></tr>
+          <tr><td>rooms</td><td>Render3DStudio</td><td>Walkthrough room queue and playback</td><td>Walkthrough</td></tr>
+          <tr><td>3d</td><td>Render3DStudio</td><td>3D viewport and material overrides</td><td>3D studio</td></tr>
+          <tr><td>cutlist</td><td>CutlistNestingScreen</td><td>Board optimization and cutting workflow</td><td>Production</td></tr>
+          <tr><td>ceiling</td><td>CeilingStudio</td><td>False ceiling estimator and spec builder</td><td>Interiors</td></tr>
+          <tr><td>floorplan</td><td>FloorPlanAnalyzerScreen</td><td>Blueprint upload, enhancement, toolkit</td><td>Floor plan</td></tr>
+          <tr><td>finance</td><td>FinanceScreen</td><td>Estimates, invoices, billing ledger</td><td>Finance</td></tr>
+          <tr><td>timeline</td><td>TimelineScreen</td><td>Milestone timeline and job events</td><td>Operations</td></tr>
+          <tr><td>jobs</td><td>JobsScreen</td><td>Async job status and retry</td><td>Jobs</td></tr>
+          <tr><td>vendor</td><td>VendorIntelligence</td><td>Indian vendor intel: Hettich, EBCO, laminates</td><td>Vendors</td></tr>
+          <tr><td>pinterest</td><td>PinterestLearning</td><td>Style reference downloads and learning</td><td>Style</td></tr>
+          <tr><td>aura</td><td>AuraBrainChat</td><td>Global AI chat, telemetry, streaming</td><td>AI</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Primary User Flows <span class="badge">product journeys</span></h2>
+    <div class="grid cols-3">
+      <div class="card">
+        <h3>Lead to render</h3>
+        <p>User starts in <code>CRMLeadDashboard</code>, creates a project, briefs in <code>ClientBriefStudio</code>, receives floor plans, enhances them in <code>FloorPlanAnalyzerScreen</code>, builds layout in <code>InteractiveCADScreen</code>, selects materials in <code>MaterialCatalogScreen</code>, renders in <code>Render3DStudio</code>, and exports drawings/quote.</p>
+      </div>
+      <div class="card">
+        <h3>CAD to production</h3>
+        <p>User draws walls/openings/modules in CAD, assigns finishes, generates drawings/elevation/RCP in <code>DrawingsElevationsStudio</code>, optimizes sheets in <code>CutlistNestingScreen</code>, spec ceilings in <code>CeilingStudio</code>, builds TV unit spec in <code>TvUnitGenerator</code>, and tracks jobs/timeline.</p>
+      </div>
+      <div class="card">
+        <h3>AI-assisted design</h3>
+        <p>User opens <code>CommandCenterScreen</code>, selects workspace mode, uses AURA chat, photo edit, quick generate, and specialist tools. AI detects objects, assigns products, creates moodboards, and prepares render-ready states.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Command Center Workspace Modes <span class="badge">role switching</span></h2>
+    <div class="grid cols-3">
+      <div class="card">
+        <h3>Designer Mode</h3>
+        <p>Optimized for interior designers. Focus on CAD, floor plan, drawings, renders, cutlist, ceiling, TV unit, and smart project pipeline. Emphasizes planning, drawing, and execution.</p>
+        <div class="kpi"><b>Designer</b><span>execution heavy</span></div>
+      </div>
+      <div class="card">
+        <h3>Brand Mode</h3>
+        <p>Optimized for furniture and material brands. Focus on product config, materials, renders comparison, laminate swaps, photo edits, and invoice/BOM workflows.</p>
+        <div class="kpi"><b>Brand</b><span>product + SKU heavy</span></div>
+      </div>
+      <div class="card">
+        <h3>Real Estate Mode</h3>
+        <p>Optimized for real estate developers and brokers. Focus on quick generate, photo edit, renders, walkthroughs, timelines, and marketing-ready visual outputs.</p>
+        <div class="kpi"><b>Real Estate</b><span>marketing + speed</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Frontend Tool Ecosystem <span class="badge">per screen</span></h2>
+    <div class="card" style="padding:14px">
+      <table>
+        <thead><tr><th>Screen</th><th>Key tools / components</th><th>Primary output</th></tr></thead>
+        <tbody>
+          <tr><td>CommandCenterScreen</td><td>Workspace tabs, KPI ribbon, pro analytics, specialist tiles, AURA hub, project pipeline</td><td>Single orchestrator view</td></tr>
+          <tr><td>FloorPlanAnalyzerScreen</td><td>Upload, AI enhance, calibration, zonation editor, toolkit area/perimeter/bom/wallswap</td><td>Enhanced plan + measurements</td></tr>
+          <tr><td>InteractiveCADScreen</td><td>Wall/openings/modules, material assigner, dimensions, CAD export</td><td>Editable CAD drawing</td></tr>
+          <tr><td>Render3DStudio</td><td>3D viewport, render queue, comparison, walkthrough, material override, laminate swap</td><td>Renders + walkthrough</td></tr>
+          <tr><td>MaterialCatalogScreen</td><td>Category filter, laminate selector, finish chips, brand filter, pricing</td><td>Material schedule / CSV export</td></tr>
+          <tr><td>CutlistNestingScreen</td><td>Board input, grain direction, optimization, cutting diagram</td><td>Cut plan / nest sheet CSV</td></tr>
+          <tr><td>CeilingStudio</td><td>Room type, ceiling type, LED options, extras, estimate + export</td><td>Ceiling spec + quote</td></tr>
+          <tr><td>TvUnitGenerator</td><td>Style, finish, dimensions, shelves/drawers/led, quick BOM export</td><td>TV unit spec + quick BOM</td></tr>
+          <tr><td>DrawingsElevationsStudio</td><td>Plan, elevation, RCP generation, dimensioning</td><td>2D construction drawings</td></tr>
+          <tr><td>FinanceScreen</td><td>Estimate sets, invoices, milestone billing</td><td>Estimate PDF / CSV</td></tr>
+          <tr><td>TimelineScreen</td><td>Milestones, event types, job timeline</td><td>Timeline + status changes</td></tr>
+          <tr><td>JobsScreen</td><td>Job queue, status chips, retry actions</td><td>Job operations</td></tr>
+          <tr><td>VendorIntelligence</td><td>Hardware vendor cards, laminate brands, EBCO/Hettich mapping</td><td>Vendor selections</td></tr>
+          <tr><td>PinterestLearning</td><td>Reference download, style learning, moodboard inputs</td><td>Style references</td></tr>
+          <tr><td>AuraBrainChat</td><td>AI chat UI, provider/model telemetry, history</td><td>Chat + commands</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Backend Service Map <span class="badge">server ownership</span></h2>
+    <div class="card" style="padding:14px">
+      <table>
+        <thead><tr><th>Service</th><th>File</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>server/index.js</code></td><td>Express app bootstrap</td><td>Route definitions, auth, uploads, main API surface</td></tr>
+          <tr><td><code>server/database/database.js</code></td><td>SQLite schema</td><td>Tables, self-healing migrations, schema versions</td></tr>
+          <tr><td><code>server/services/gemini-service.js</code></td><td>GenAI provider</td><td>Image analysis, chat, embeddings fallback</td></tr>
+          <tr><td><code>server/services/image-provider.js</code></td><td>Render provider</td><td>Render generation, image retrieval, scene rasterization</td></tr>
+          <tr><td><code>server/services/aura-chat-service.js</code></td><td>AURA logic</td><td>Chat response routing, provider fallbacks, tool intent parsing</td></tr>
+          <tr><td><code>server/services/dxf-generator.js</code></td><td>CAD export</td><td>Scene JSON to DXF generation</td></tr>
+          <tr><td><code>server/services/pdf-builder.js</code></td><td>PDF export</td><td>Estimate PDF generation</td></tr>
+          <tr><td><code>server/services/board-optimizer.js</code></td><td>Cutlist logic</td><td>Nesting, grain optimization, cutting diagrams</td></tr>
+          <tr><td><code>server/services/laminate-swap-service.js</code></td><td>Render service</td><td>Material swap rendering endpoints</td></tr>
+          <tr><td><code>server/services/visualizer-engine.js</code></td><td>3D renderer</td><td>Scene management, rendering pipeline</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Database Model <span class="badge">source of truth</span></h2>
+    <div class="grid cols-4">
+      <div class="card"><h3>projects</h3><p>Lead, client, status, budget, stage, style brief.</p></div>
+      <div class="card"><h3>leads</h3><p>Intake, source, status, assigned user.</p></div>
+      <div class="card"><h3>scene_versions</h3><p>Scene JSON snapshots per project.</p></div>
+      <div class="card"><h3>material_assignments</h3><p>Finish mappings per module.</p></div>
+      <div class="card"><h3>design_renders</h3><p>Render queue, status, metadata.</p></div>
+      <div class="card"><h3>estimate_sets</h3><p>Totals, items, PDF exports.</p></div>
+      <div class="card"><h3>invoices</h3><p>Billing and milestone records.</p></div>
+      <div class="card"><h3>material_catalog</h3><p>Category, finish, price, rating, brand.</p></div>
+      <div class="card"><h3>timeline_events</h3><p>Project event log and milestones.</p></div>
+      <div class="card"><h3>jobs</h3><p>Async job status and outputs.</p></div>
+      <div class="card"><h3>aura_chat_history</h3><p>Chat persistence per project.</p></div>
+      <div class="card"><h3>patch_proposals / patch_changes</h3><p>Phase 2N approval telemetry.</p></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>User Flow Diagram <span class="badge">visual</span></h2>
+    <div class="card">
+      <pre style="color:var(--muted);font-size:11px;line-height:1.8">
+CRMLeadDashboard
+    → Project creation
+    → ClientBriefStudio
+        → FloorPlanAnalyzerScreen
+            → InteractiveCADScreen
+                → MaterialCatalogScreen
+                    → Render3DStudio
+                        → DrawingsElevationsStudio
+                            → CutlistNestingScreen
+                                → FinanceScreen + TimelineScreen
+                                    → JobsScreen
+
+CommandCenterScreen sits as OS hub across all stages:
+  Designer Mode: CAD + FloorPlan + Drawings + Cutlist + Ceiling + TV
+  Brand Mode: Product + Materials + Renders + Laminate Swap + Finance
+  Real Estate Mode: Quick Generate + Photo Edit + Renders + Walkthrough + Timeline
+
+AURA Brain Chat: global assistant across all screens and modes
+      </pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Enhancement Roadmap <span class="badge">prioritized</span></h2>
+    <div class="list">
+      <div class="item"><div class="ic">1</div><div><strong>Stabilize shell first</strong><span>Keep build green, eliminate blank-page regressions, ensure ErrorBoundary coverage, and complete ARIA semantics across all interactive surfaces.</span></div></div>
+      <div class="item"><div class="ic">2</div><div><strong>Command Center polish</strong><span>Specialist tool tiles with live status chips, Pro analytics with telemetry, scalable role-based panels, and no dead navigation.</span></div></div>
+      <div class="item"><div class="ic">3</div><div><strong>Backend completeness</strong><span>Add missing export endpoints, diagnostics, material CRUD, render retrieval, estimate PDF, DXF export, jobs queue.</span></div></div>
+      <div class="item"><div class="ic">4</div><div><strong>FloorPlan & CAD end-to-end</strong><span>Real toolkit wiring to backend, BOM/wallswap/laminate swap with live API results, no placeholder states.</span></div></div>
+      <div class="item"><div class="ic">5</div><div><strong>Render & walkthrough UX</strong><span>Playback controls, room queue sequencing, comparison viewer, export/upscale actions, material overrides.</span></div></div>
+      <div class="item"><div class="ic">6</div><div><strong>AI layer</strong><span>Streaming AURA replies, global route, provider/model telemetry, chat persistence, prompt-free internal tooling.</span></div></div>
+      <div class="item"><div class="ic">7</div><div><strong>Vendor + Indian market fit</strong><span>Real Hettich/EBCO integration paths, 4x8 ft sheet standards, laminate brand catalog, automation workflows.</span></div></div>
+      <div class="item"><div class="ic">8</div><div><strong>Competitive polish</strong><span>Fast perceived performance, keyboard shortcuts, accessibility first, better onboarding, export packs, AI suggestions.</span></div></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

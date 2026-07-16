@@ -23,6 +23,11 @@ export default defineConfig({
       }
     }
   },
+  resolve: {
+    alias: {
+      '@': '/src'
+    }
+  },
   build: {
     outDir: '../dist',
     emptyOutDir: true,
@@ -61,5 +66,6 @@ export default defineConfig({
     include: ['react', 'react-dom', 'react-router-dom', 'zustand', 'axios'],
     rolldownOptions: { output: { target: 'es2020' } }
   },
-  esbuild: { target: 'es2020' }
+  esbuild: { target: 'es2020' },
+  envDir: '..'
 });

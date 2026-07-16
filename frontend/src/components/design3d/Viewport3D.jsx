@@ -3,11 +3,91 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useEditorStore } from '../../stores/editorStore';
 import { selectRooms, selectWalls, selectOpenings, selectModules } from '../../lib/selectors/editorSelectors';
-import { resolveMaterial, getSlotsForModuleType } from '../../lib/materialSlots';
-import { buildSlotMaterial } from '../../lib/threeMaterials';
 import { HelpCircle, Sparkles } from 'lucide-react';
 
-export default function Viewport3D() {
+const LAMINATE_COLORS = {
+  lam_1: 0xf3f4f6, // Frosty White
+  lam_2: 0xc29a6b, // Warm Oak
+  lam_3: 0x1e293b, // Charcoal Matte
+  lam_4: 0xe5e5e0  // Light Beige
+};
+
+// Procedural texture generators to match actual catalog materials in Three.js
+const createWoodgrainTexture = (colorHex) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Fill base color
+  ctx.fillStyle = colorHex;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Wavy wood lines
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 20; i++) {
+    ctx.beginPath();
+    const x = Math.random() * 256;
+    ctx.moveTo(x, 0);
+    ctx.bezierCurveTo(x + 15, 80, x - 15, 170, x, 256);
+    ctx.stroke();
+  }
+
+  // Fine accent lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < 12; i++) {
+    ctx.beginPath();
+    const x = Math.random() * 256;
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + (Math.random() - 0.5) * 8, 256);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1.5, 1.5);
+  return texture;
+};
+
+const createMarbleTexture = (colorHex) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = colorHex;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // White soft veins
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.lineWidth = 2.5;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * 256, 0);
+    ctx.bezierCurveTo(Math.random() * 256, 90, Math.random() * 256, 160, Math.random() * 256, 256);
+    ctx.stroke();
+  }
+
+  // Dark veins
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, Math.random() * 256);
+    ctx.bezierCurveTo(80, Math.random() * 256, 170, Math.random() * 256, 256, Math.random() * 256);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+};
+
+export default function Viewport3D({ onReady }) {
   const mountRef = useRef(null);
   const rebuildRef = useRef(null);
   const rooms = useEditorStore(selectRooms);
@@ -50,6 +130,10 @@ export default function Viewport3D() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mountRef.current.appendChild(renderer.domElement);
+
+    if (typeof onReady === 'function') {
+      onReady({ scene, camera, renderer });
+    }
 
     // --- 2. Controls & Lights ---
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -196,15 +280,64 @@ export default function Viewport3D() {
         modGroup.rotation.y = -rotationDeg * Math.PI / 180;
         modGroup.userData = { moduleId: mod.moduleId };
 
-        // Resolve every material slot from the module's assignments (not just shutter).
-        const { materialsCatalog: currentCatalog, renderMode: currentMode } = stateRef.current;
-        const slots = getSlotsForModuleType(mod.moduleType);
-        const assignments = mod.materialAssignments || {};
-        const matFor = (slot) => buildSlotMaterial(assignments[slot] || 'lam_1', currentCatalog, currentMode);
-
-        // 1. Carcass Box (interior shell — uses the 'carcass' slot)
+        // 1. Carcass Box (represents cabinetry shell)
         const carcassGeo = new THREE.BoxGeometry(widthMm, heightMm, depthMm);
-        const carcassMesh = new THREE.Mesh(carcassGeo, matFor('carcass'));
+        const shutterMatId = mod.materialAssignments?.shutter || 'lam_1';
+        
+        // Resolve dynamic color from catalog if exists, otherwise fallback to static map
+        const { materialsCatalog: currentCatalog, renderMode: currentMode } = stateRef.current;
+        const catalogMat = currentCatalog.find(item => item.id === shutterMatId || item.code === shutterMatId);
+        let colorHex = LAMINATE_COLORS[shutterMatId] || 0xf3f4f6;
+        if (catalogMat && catalogMat.color) {
+          try {
+            colorHex = parseInt(catalogMat.color.replace('#', '0x'), 16);
+          } catch (e) {
+            console.error("Error parsing catalog color:", catalogMat.color, e);
+          }
+        }
+
+        let roughness = 0.5;
+        let metalness = 0.15;
+        let map = null;
+
+        if (currentMode === 'textures') {
+          if (catalogMat) {
+            const finishLower = (catalogMat.finish || '').toLowerCase();
+            const nameLower = (catalogMat.name || '').toLowerCase();
+            
+            if (finishLower.includes('gloss') || finishLower.includes('acrylic')) {
+              roughness = 0.1;
+              metalness = 0.25;
+            } else if (finishLower.includes('matte') || finishLower.includes('suede')) {
+              roughness = 0.85;
+              metalness = 0.05;
+            }
+
+            if (nameLower.includes('oak') || nameLower.includes('walnut') || nameLower.includes('wood') || nameLower.includes('ply') || nameLower.includes('wenge') || nameLower.includes('laminate')) {
+              map = createWoodgrainTexture(catalogMat.color || '#c29a6b');
+            } else if (nameLower.includes('marble') || nameLower.includes('stone') || nameLower.includes('granite') || nameLower.includes('quartz')) {
+              map = createMarbleTexture(catalogMat.color || '#e5e5e0');
+            }
+          } else {
+            // Static wood fallback for Warm Oak key
+            if (shutterMatId === 'lam_2') {
+              map = createWoodgrainTexture('#c29a6b');
+              roughness = 0.65;
+            } else if (shutterMatId === 'lam_3') {
+              // Charcoal matte
+              roughness = 0.9;
+              metalness = 0.05;
+            }
+          }
+        }
+
+        const carcassMat = new THREE.MeshStandardMaterial({
+          color: map ? 0xffffff : colorHex,
+          map: map,
+          roughness: roughness,
+          metalness: metalness
+        });
+        const carcassMesh = new THREE.Mesh(carcassGeo, carcassMat);
         carcassMesh.castShadow = true;
         carcassMesh.receiveShadow = true;
         modGroup.add(carcassMesh);
@@ -216,33 +349,22 @@ export default function Viewport3D() {
           modGroup.add(helper);
         }
 
-        // 3. Shutter Panel (front facade — uses the 'shutter' slot)
+        // 3. Shutter Panel Divisions Overlay (visual indicator of doors/slots)
+        // Add a thin offset panel on front face (Z offset)
         const frontPanelGeo = new THREE.BoxGeometry(widthMm - 8, heightMm - 8, 12);
-        const frontPanelMesh = new THREE.Mesh(frontPanelGeo, matFor('shutter'));
+        const frontPanelMat = new THREE.MeshStandardMaterial({
+          color: map ? 0xffffff : colorHex,
+          map: map,
+          roughness: roughness,
+          metalness: metalness
+        });
+        const frontPanelMesh = new THREE.Mesh(frontPanelGeo, frontPanelMat);
+        // Place on the front face of depth
         frontPanelMesh.position.set(0, 0, depthMm / 2 + 6);
         frontPanelMesh.castShadow = true;
         modGroup.add(frontPanelMesh);
 
-        // 4. Countertop slab (kitchen units) — uses the 'countertop' slot
-        if (slots.includes('countertop')) {
-          const topGeo = new THREE.BoxGeometry(widthMm + 20, 40, depthMm + 20);
-          const topMesh = new THREE.Mesh(topGeo, matFor('countertop'));
-          topMesh.position.set(0, heightMm / 2 + 20, 0);
-          topMesh.castShadow = true;
-          topMesh.receiveShadow = true;
-          modGroup.add(topMesh);
-        }
-
-        // 5. Back panel (TV units / mandir) — uses the 'backPanel' slot
-        if (slots.includes('backPanel')) {
-          const backGeo = new THREE.BoxGeometry(widthMm - 8, heightMm - 8, 8);
-          const backMesh = new THREE.Mesh(backGeo, matFor('backPanel'));
-          backMesh.position.set(0, 0, -depthMm / 2 - 4);
-          backMesh.receiveShadow = true;
-          modGroup.add(backMesh);
-        }
-
-        // 6. Handle fitting bar (always present)
+        // 4. Handle fitting bar
         const handleGeo = new THREE.BoxGeometry(widthMm * 0.35, 10, 15);
         const handleMat = new THREE.MeshStandardMaterial({ color: 0xcca43b, metalness: 0.9, roughness: 0.2 });
         const handleMesh = new THREE.Mesh(handleGeo, handleMat);

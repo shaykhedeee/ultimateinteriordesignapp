@@ -170,4 +170,26 @@ db.prepare(`
   'paid'
 );
 
+// 5. Seed Indian vendor catalog — Hettich, EBCO, and laminate families
+const insertMaterial = db.prepare(`
+  INSERT OR IGNORE INTO material_catalog (id, category, subcategory, code, name, brand, finish, color, price_per_sqft, rating)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+[
+  ['mat_hw_h01','hardware','runners','HET-5136','Soft-Close Ball Bearing Runner 450mm','Hettich','Drawer Slide','',950,4.9],
+  ['mat_hw_h02','hardware','runners','HET-5166','Tandem Runner 600mm Full Extension','Hettich','Drawer Slide','',1850,4.9],
+  ['mat_hw_h03','hardware','hinges','HET-9332','Click On Hinge 110°','Hettich','Hinge','',185,4.8],
+  ['mat_hw_h04','hardware','lift_systems','HET-AV','Aventos HK Top Cabinet Lift','Hettich','Lift System','',7200,4.9],
+  ['mat_hw_h05','hardware','shelves','HET-SVS','Sensys Adjustable Shelf Clip','Hettich','Clip','',65,4.7],
+  ['mat_hw_e01','hardware','baskets','EBC-450','Pullout Basket Wire 400mm','Ebco','Wire Basket','',2200,4.7],
+  ['mat_hw_e02','hardware','baskets','EBC-500','Pullout Basket Wire 500mm','Ebco','Wire Basket','',2500,4.8],
+  ['mat_hw_e03','hardware','handles','EBC-H01','Cupboard Handle Knob 128mm','Ebco','Handle','',180,4.6],
+  ['mat_hw_e04','hardware','wardrobe','EBC-WS01','Wardrobe Lifter Hanger','Ebco','Lifter','',1450,4.7],
+  ['mat_lam_1','laminate','carcass_interior','SF-9120','Frosty White Suede','CenturyPly','Suede Matte','#f3f4f6',45,4.8],
+  ['mat_lam_2','laminate','shutter_facade','MT-8012','Charcoal Matte','Royale Touche','Anti-Fingerprint Matte','#27272a',95,4.8],
+  ['mat_lam_3','laminate','shutter_facade','GL-D0456','Arctic Grey Gloss','Greenlam','High Gloss','#9ca3af',105,4.6],
+  ['mat_lam_4','laminate','shutter_facade','W-4211','Bourbon Walnut','Royale Touche','Horizontal Woodgrain','#5c4033',85,4.9]
+].forEach(row => insertMaterial.run(row));
+
 console.log("Database seeded successfully with demo leads, closed project and initial CAD drawings.");

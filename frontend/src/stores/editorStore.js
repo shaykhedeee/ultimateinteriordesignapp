@@ -1,14 +1,8 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import { create } from 'zustand';
 
 // Local nanoid simulation for client-side ID generation
 const clientId = (prefix) => prefix + '_' + Math.random().toString(36).substring(2, 8);
-
-const getAppToast = () => ({
-  success: (m) => { try { window.__toast?.success?.(String(m)); } catch {} },
-  error: (m) => { try { window.__toast?.error?.(String(m)); } catch {} },
-  warn: (m) => { try { window.__toast?.warn?.(String(m)); } catch {} },
-  info: (m) => { try { window.__toast?.info?.(String(m)); } catch {} }
-});
 
 // Default blank SceneDocument layout (used if API initialization fails)
 const initialSceneDoc = (projectId) => ({
@@ -67,13 +61,13 @@ export const useEditorStore = create((set, get) => ({
     set({ projectId, isSaving: true, branchName: branch });
     try {
       // Fetch materials catalog
-      const resMat = await fetch(`/api/material-catalog`);
+      const resMat = await fetch(apiUrl('/material-catalog'));
       if (resMat.ok) {
         const matData = await resMat.json();
         set({ materialsCatalog: matData });
       }
 
-      const res = await fetch(`/api/projects/${projectId}/scenes/current?branch=${branch}`);
+      const res = await fetch(apiUrl(`/projects/${projectId}/scenes/current?branch=${branch}`));
       if (res.ok) {
         const data = await res.json();
         const doc = data.scene || initialSceneDoc(projectId);
@@ -178,7 +172,7 @@ export const useEditorStore = create((set, get) => ({
   applyPatch: (op) => {
     const { scene, isLocked } = get();
     if (isLocked) {
-      getAppToast().error('This scene version is locked for approvals and cannot be modified. Create a new branch variant instead.');
+      alert("This scene version is locked for approvals and cannot be modified. Create a new branch variant instead.");
       return;
     }
     if (!scene) return;
@@ -332,7 +326,7 @@ export const useEditorStore = create((set, get) => ({
 
     set({ isSaving: true });
     try {
-      const res = await fetch(`/api/projects/${projectId}/scenes`, {
+      const res = await fetch(apiUrl(`/projects/${projectId}/scenes`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scene, reason, branch: branchName })
@@ -343,13 +337,13 @@ export const useEditorStore = create((set, get) => ({
           versionNumber: data.versionNumber,
           isSaving: false
         });
-        getAppToast().success(`Scene saved successfully! Created Immutable Version #${data.versionNumber} on branch '${branchName}'.`);
+        alert(`Scene saved successfully! Created Immutable Version #${data.versionNumber} on branch '${branchName}'.`);
       } else {
         throw new Error("API responded with error");
       }
     } catch(err) {
       console.error("Error saving scene version:", err);
-      getAppToast().error("Failed to save scene version to database.");
+      alert("Failed to save scene version to database.");
       set({ isSaving: false });
     }
   },
@@ -360,14 +354,14 @@ export const useEditorStore = create((set, get) => ({
     if (!sceneId || !projectId) return;
     
     try {
-      const res = await fetch(`/api/projects/${projectId}/scenes/${sceneId}/lock`, {
+      const res = await fetch(apiUrl(`/projects/${projectId}/scenes/${sceneId}/lock`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
       });
       if (res.ok) {
         set({ isLocked: true, lockReason: reason });
-        getAppToast().success(`Scene version locked successfully: "${reason}"`);
+        alert(`Scene version locked successfully: "${reason}"`);
       }
     } catch(err) {
       console.error("Error locking scene:", err);

@@ -1,6 +1,5 @@
+import { apiUrl, getApiBase } from '../utils/api.js';
 import React, { useState, useEffect, useMemo } from 'react';
-import { safeParse } from '../lib/safe.js';
-import { computeQuote, buildMilestones, MILESTONE_SCHEDULES, normalizeQuoteItem } from '../lib/boq.js';
 import { 
   Palette, BookOpen, Layers, Save, CheckCircle, 
   ArrowRight, Download, Plus, ShoppingBag, Eye, 
@@ -10,7 +9,7 @@ import {
 
 const BROCHURES = [
   { brand: 'CenturyPly', title: 'CenturyLaminates 2026 Collection', pages: 84, color: '#7c3aed' },
-  { brand: 'Royale Touche', title: 'Premium Luxury Finishes Vol. IV', pages: 120, color: 'var(--gold)' },
+  { brand: 'Royale Touche', title: 'Premium Luxury Finishes Vol. IV', pages: 120, color: '#D4AF37' },
   { brand: 'Blum', title: 'Kitchen Fittings & Motion Systems 2026', pages: 210, color: '#2563eb' },
   { brand: 'Hettich', title: 'InnoTech Atira Organizers Catalogue', pages: 95, color: '#059669' },
   { brand: 'Greenlam', title: 'Greenlam Stones & Decorative Surfaces', pages: 160, color: '#dc2626' },
@@ -20,11 +19,11 @@ const BROCHURES = [
 const TYPE_LABELS = {
   carcass_interior: { label: 'Carcass', color: 'text-slate-400', bg: 'bg-slate-800/50' },
   shutter_facade: { label: 'Shutter', color: 'text-blue-400', bg: 'bg-blue-950/30' },
-  premium_highlight: { label: 'Premium', color: 'text-[var(--gold)]', bg: 'bg-[var(--gold)]/10' },
+  premium_highlight: { label: 'Premium', color: 'text-[#D4AF37]', bg: 'bg-[#D4AF37]/10' },
 };
 
 export default function MaterialCatalogScreen({ projectId, onComplete }) {
-  const [brochures, setBrochures] = useState([]);
+  const [notes, setNotes] = useState('');
   const [selectedLaminates, setSelectedLaminates] = useState([]);
   const [selectedHardware, setSelectedHardware] = useState([]);
   
@@ -48,7 +47,6 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   
   const [showAddHwForm, setShowAddHwForm] = useState(false);
   const [newHw, setNewHw] = useState({ name: '', brand: 'Hettich', category: 'hinges', desc: 'Soft-close fitting', price: '450', unit: 'per piece', code: 'HW-NEW' });
-  const [notes, setNotes] = useState('');
 
   // Quotation Builder States
   const [showQuotationBuilder, setShowQuotationBuilder] = useState(true);
@@ -69,19 +67,11 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       fetchSelections();
     }
     fetchCatalog();
-    fetchBrochures();
   }, [projectId]);
-
-  const fetchBrochures = async () => {
-    try {
-      const res = await fetch('/api/catalogue/brochures');
-      if (res.ok) setBrochures(await res.json());
-    } catch (e) { console.error(e); }
-  };
 
   const fetchProjectDetails = async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}`);
       if (res.ok) {
         const data = await res.json();
         setStalePricing(data.stale_pricing === 1);
@@ -93,12 +83,11 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchCatalog = async () => {
     try {
-      const res = await fetch('/api/material-catalog');
+      const res = await fetch(apiUrl('/material-catalog'));
       if (res.ok) {
         const data = await res.json();
-        const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
-        setLaminateCatalog(items.filter(item => item.category === 'laminate'));
-        setHardwareCatalog(items.filter(item => item.category === 'hardware'));
+        setLaminateCatalog(data.filter(item => item.category === 'laminate'));
+        setHardwareCatalog(data.filter(item => item.category === 'hardware'));
       }
     } catch (err) {
       console.error(err);
@@ -107,10 +96,10 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchQuotation = async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/quotation`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/quotation`);
       const data = await res.json();
       if (data && data.quotation_json) {
-        const q = safeParse(data?.quotation_json, {});
+        const q = JSON.parse(data.quotation_json);
         setQuoteItems(q.items || []);
         setIsGstEnabled(q.isGstEnabled !== false);
         setDiscount(q.discount || 0);
@@ -122,7 +111,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const saveQuotation = async () => {
     try {
-      await fetch(`/api/projects/${projectId}/quotation`, {
+      await fetch(`${API_BASE}/projects/${projectId}/quotation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -140,7 +129,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       });
       
       // Auto log timeline event
-      await fetch(`/api/projects/${projectId}/estimate-sets`, {
+      await fetch(`${API_BASE}/projects/${projectId}/estimate-sets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,30 +139,36 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
         })
       });
 
-      window.__toast?.show("BOQ estimate and quotation saved successfully!");
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
       console.error("Error saving quotation:", err);
+      setSaveSuccess(false);
     }
   };
 
   const addQuoteItem = () => {
     if (!quoteItemName) return;
-    const norm = normalizeQuoteItem({
-      name: quoteItemName,
-      rate: quoteRate,
-      width: quoteWidth,
-      height: quoteHeight,
-      isLumpSum,
-      room: quoteRoom
-    });
+    let sqft = 1.0;
+    let dimensions = 'Lump Sum';
+    if (!isLumpSum) {
+      const w = parseFloat(quoteWidth);
+      const h = parseFloat(quoteHeight);
+      if (!isNaN(w) && !isNaN(h)) {
+        sqft = w * h;
+        dimensions = `${w} x ${h} ft`;
+      }
+    }
+    const rate = parseFloat(quoteRate);
+    const amount = Math.round(sqft * (isNaN(rate) ? 0 : rate));
     const newItem = {
       id: 'qi_' + Math.random().toString(36).substr(2, 5),
-      room: norm.room,
-      name: norm.name,
-      dimensions: norm.dimensions,
-      sqft: norm.sqft,
-      rate: norm.rate,
-      amount: norm.amount,
+      room: quoteRoom,
+      name: quoteItemName,
+      dimensions,
+      sqft,
+      rate,
+      amount,
       isLumpSum
     };
     setQuoteItems(prev => [...prev, newItem]);
@@ -186,17 +181,35 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
     setQuoteItems(prev => prev.filter(i => i.id !== id));
   };
 
-  const { subTotal, taxable, gstValue, grandTotal } = useMemo(
-    () => computeQuote({ items: quoteItems, discount, isGstEnabled, gstRate: 18 }),
-    [quoteItems, discount, isGstEnabled]
-  );
+  const subTotal = useMemo(() => {
+    return quoteItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+  }, [quoteItems]);
 
-  const getMilestones = (total) => buildMilestones(total, MILESTONE_SCHEDULES.standard);
+  const taxable = useMemo(() => {
+    return Math.max(0, subTotal - discount);
+  }, [subTotal, discount]);
+
+  const gstValue = useMemo(() => {
+    return isGstEnabled ? taxable * 0.18 : 0;
+  }, [taxable, isGstEnabled]);
+
+  const grandTotal = useMemo(() => {
+    return taxable + gstValue;
+  }, [taxable, gstValue]);
+
+  const getMilestones = (total) => {
+    return [
+      { stage: '10% Booking Fee', amount: Math.round(total * 0.10) },
+      { stage: '40% Site Execution & Structure Start', amount: Math.round(total * 0.40) },
+      { stage: '40% Material Sourcing & Delivery', amount: Math.round(total * 0.40) },
+      { stage: '10% Final Finishing & Handover', amount: Math.round(total * 0.10) }
+    ];
+  };
 
   const exportQuotationPDF = async () => {
     await saveQuotation();
     try {
-      const res = await fetch(`/api/projects/${projectId}/quotation/pdf`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/quotation/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -226,7 +239,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const fetchSelections = async () => {
     try {
-      const res = await fetch(`/api/projects/${projectId}/materials`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/materials`);
       const data = await res.json();
       setSelectedLaminates(JSON.parse(data.laminates_json || '[]'));
       setSelectedHardware(JSON.parse(data.hardware_json || '[]'));
@@ -253,35 +266,75 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const handleAddLaminateSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/material-catalog', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: 'laminate',
-          subcategory: newLaminate.subcategory,
-          code: newLaminate.code,
-          name: newLaminate.name,
-          brand: newLaminate.brand,
-          finish: newLaminate.finish,
-          color: newLaminate.color,
-          pricePerSqft: parseFloat(newLaminate.pricePerSqft),
-          rating: 4.8
-        })
-      });
-      if (res.ok) {
-        setShowAddLaminateForm(false);
-        setNewLaminate({ name: '', brand: 'CenturyPly', finish: 'Suede Matte', color: '#f3f4f6', pricePerSqft: '60', code: 'SF-NEW', subcategory: 'shutter_facade' });
-        fetchCatalog();
+      const basePayload = {
+        category: 'laminate',
+        subcategory: newLaminate.subcategory,
+        code: newLaminate.code,
+        name: newLaminate.name,
+        brand: newLaminate.brand,
+        finish: newLaminate.finish,
+        color: newLaminate.color,
+        pricePerSqft: Number(newLaminate.pricePerSqft || 0),
+        rating: 5
+      };
+      if (newLaminate.image) {
+        const fd = new FormData();
+        fd.append('laminateImage', newLaminate.image);
+        Object.entries(basePayload).forEach(([k, v]) => fd.append(k, String(v ?? '')));
+        const res = await fetch(`${API_BASE}/material-catalog/custom-laminate/upload`, { method: 'POST', body: fd });
+        if (!res.ok) throw new Error('Failed to upload laminate image');
+      } else {
+        const res = await fetch(`${API_BASE}/material-catalog/custom-laminate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(basePayload)
+        });
+        if (!res.ok) throw new Error('Failed to save laminate');
       }
+      setShowAddLaminateForm(false);
+      setNewLaminate({ name: '', brand: 'Custom', finish: 'Custom', color: '#888888', pricePerSqft: '', code: 'CUSTOM', subcategory: 'custom', image: null, pasteDataUrl: '' });
+      fetchCatalog();
     } catch(err) {
       console.error(err);
     }
   };
 
+  const handlePasteLaminate = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find(t => t.startsWith('image'));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const file = new File([blob], 'pasted-laminate.png', { type: blob.type || 'image/png' });
+          setNewLaminate(prev => ({ ...prev, image: file }));
+          const reader = new FileReader();
+          reader.onload = () => setNewLaminate(prev => ({ ...prev, pasteDataUrl: reader.result }));
+          reader.readAsDataURL(file);
+        }
+      }
+    } catch (e) {
+      console.error('Paste failed', e);
+    }
+  };
+
+  const handleDropLaminate = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setNewLaminate(prev => ({ ...prev, image: file }));
+      const reader = new FileReader();
+      reader.onload = () => setNewLaminate(prev => ({ ...prev, pasteDataUrl: reader.result }));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragOver = (e) => e.preventDefault();
+
   const handleAddHwSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/material-catalog', {
+      const res = await fetch(apiUrl('/material-catalog'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -308,10 +361,9 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const handleDeleteMaterial = async (e, id) => {
     e.stopPropagation();
-    const ok = await window.__auraConfirm?.confirm?.('Delete Material', 'Deactivate this material item?') || Promise.resolve(false);
-    if (ok) {
+    if (window.confirm("Are you sure you want to deactivate this material item?")) {
       try {
-        await fetch(`/api/material-catalog/${id}`, {
+        await fetch(`${API_BASE}/material-catalog/${id}`, {
           method: 'DELETE'
         });
         fetchCatalog();
@@ -323,22 +375,24 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
   const handleRegeneratePricing = async () => {
     try {
-      await fetch(`/api/projects/${projectId}/jobs`, {
+      await fetch(`${API_BASE}/projects/${projectId}/jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobType: 'pricing_generation' })
       });
       setStalePricing(false);
-      window.__toast?.show("Pricing regeneration job spawned successfully! Check Background Jobs tab.");
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
       console.error(err);
+      setSaveSuccess(false);
     }
   };
 
   const saveMaterials = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/materials`, {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/materials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ laminates: selectedLaminates, hardware: selectedHardware, notes })
@@ -346,10 +400,6 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
       const data = await res.json();
       if (data.success) {
         setSaveSuccess(true);
-        setTimeout(() => {
-          setSaveSuccess(false);
-          if (onComplete) onComplete();
-        }, 1200);
       }
     } catch (err) {
       console.error("Error saving materials:", err);
@@ -392,7 +442,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
   const renderStars = (rating) => (
     <div className="flex gap-0.5">
       {[1,2,3,4,5].map(s => (
-        <Star key={s} className={`w-2.5 h-2.5 ${s <= Math.round(rating) ? 'text-[var(--gold)] fill-[var(--gold)]' : 'text-slate-700'}`} />
+        <Star key={s} className={`w-2.5 h-2.5 ${s <= Math.round(rating) ? 'text-[#D4AF37] fill-[#D4AF37]' : 'text-slate-700'}`} />
       ))}
     </div>
   );
@@ -408,7 +458,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           </span>
           <button 
             onClick={handleRegeneratePricing}
-            className="bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
+            className="bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 px-3 py-1 rounded-lg font-black uppercase text-[10px] transition"
           >
             Regenerate Pricing
           </button>
@@ -422,13 +472,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           <div className="flex-shrink-0 p-4 border-b border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-                <Palette className="w-4 h-4 text-[var(--gold)]" />
+                <Palette className="w-4 h-4 text-[#D4AF37]" />
                 Laminates & Veneers
-                <span className="text-[9px] bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedLaminates.length} sel.</span>
+                <span className="text-[9px] bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedLaminates.length} sel.</span>
               </h2>
               <button 
                 onClick={() => setShowAddLaminateForm(!showAddLaminateForm)}
-                className="bg-slate-950 border border-slate-800 hover:border-[var(--gold)]/35 text-[var(--gold)] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
+                className="bg-slate-950 border border-slate-800 hover:border-[#D4AF37]/35 text-[#D4AF37] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
               >
                 {showAddLaminateForm ? 'View Catalog' : '+ Add Swatch'}
               </button>
@@ -472,7 +522,26 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                     <option value="premium_highlight">Premium Finish</option>
                   </select>
                 </div>
-                <button type="submit" className="w-full py-1.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
+                <div
+                  className="border border-dashed border-slate-700 rounded-lg p-2 text-center text-[9px] text-slate-500 bg-slate-950/40"
+                  onDrop={handleDropLaminate}
+                  onDragOver={handleDragOver}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handlePasteLaminate}
+                      className="px-2 py-1 bg-slate-900 border border-slate-800 rounded text-[9px] font-bold uppercase hover:border-[#D4AF37]/40 transition"
+                    >
+                      Paste Image
+                    </button>
+                    <span className="text-slate-600">or drag & drop image here</span>
+                  </div>
+                  {newLaminate.pasteDataUrl && (
+                    <img src={newLaminate.pasteDataUrl} alt="Preview" className="mt-2 max-h-20 mx-auto rounded border border-slate-700" />
+                  )}
+                </div>
+                <button type="submit" className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
                   Create Swatch
                 </button>
               </form>
@@ -483,13 +552,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                   <input
                     type="text" placeholder="Search finishes..."
                     value={laminateSearch} onChange={e => setLaminateSearch(e.target.value)}
-                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]/40 placeholder:text-slate-600"
+                    className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40 placeholder:text-slate-600"
                   />
                 </div>
                 <select
                   value={laminateTypeFilter}
                   onChange={e => setLaminateTypeFilter(e.target.value)}
-                  className="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-300 outline-none focus:border-[var(--gold)]/40 cursor-pointer shrink-0"
+                  className="bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-300 outline-none focus:border-[#D4AF37]/40 cursor-pointer shrink-0"
                 >
                   <option value="all">All Types</option>
                   <option value="carcass_interior">Carcass</option>
@@ -510,7 +579,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                   onClick={() => toggleLaminate(item)}
                   className={`material-swatch p-3 rounded-xl border cursor-pointer transition flex items-center gap-3 relative group ${
                     isSelected
-                      ? 'bg-slate-800/90 border-[var(--gold)]/50 shadow-md shadow-[var(--gold)]/5'
+                      ? 'bg-slate-800/90 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5'
                       : 'bg-slate-950/60 border-slate-800/70 hover:border-slate-700'
                   }`}
                 >
@@ -538,7 +607,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       </span>
                       <div className="flex items-center gap-1.5">
                         {renderStars(item.rating || 4.8)}
-                        <span className="text-[9px] text-[var(--gold)] font-bold font-mono">₹{item.pricePerSqft}/sqft</span>
+                        <span className="text-[9px] text-[#D4AF37] font-bold font-mono">₹{item.pricePerSqft}/sqft</span>
                       </div>
                     </div>
                   </div>
@@ -562,13 +631,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           <div className="flex-shrink-0 p-4 border-b border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-extrabold text-slate-200 tracking-wider uppercase flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[var(--gold)]" />
+                <Layers className="w-4 h-4 text-[#D4AF37]" />
                 Hardware & Fittings
-                <span className="text-[9px] bg-[var(--gold)]/10 text-[var(--gold)] border border-[var(--gold)]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedHardware.length} sel.</span>
+                <span className="text-[9px] bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 px-1.5 py-0.5 rounded-full font-bold">{selectedHardware.length} sel.</span>
               </h2>
               <button 
                 onClick={() => setShowAddHwForm(!showAddHwForm)}
-                className="bg-slate-950 border border-slate-800 hover:border-[var(--gold)]/35 text-[var(--gold)] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
+                className="bg-slate-950 border border-slate-800 hover:border-[#D4AF37]/35 text-[#D4AF37] px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition"
               >
                 {showAddHwForm ? 'View Catalog' : '+ Add Fitting'}
               </button>
@@ -614,7 +683,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                     className="bg-slate-900 border border-slate-800 rounded p-1.5 text-slate-200 outline-none col-span-2"
                   />
                 </div>
-                <button type="submit" className="w-full py-1.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
+                <button type="submit" className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 text-[9px] font-bold rounded uppercase transition">
                   Create Fitting
                 </button>
               </form>
@@ -624,7 +693,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                 <input
                   type="text" placeholder="Search hardware..."
                   value={hwSearch} onChange={e => setHwSearch(e.target.value)}
-                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]/40 placeholder:text-slate-600"
+                  className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40 placeholder:text-slate-600"
                 />
               </div>
             )}
@@ -639,20 +708,20 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                   onClick={() => toggleHardware(item)}
                   className={`p-3.5 rounded-xl border cursor-pointer transition flex flex-col gap-1.5 relative group ${
                     isSelected
-                      ? 'bg-slate-800/90 border-[var(--gold)]/50 shadow-md shadow-[var(--gold)]/5'
+                      ? 'bg-slate-800/90 border-[#D4AF37]/50 shadow-md shadow-[#D4AF37]/5'
                       : 'bg-slate-950/60 border-slate-800/70 hover:border-slate-700'
                   }`}
                 >
                   <div className="flex justify-between items-start gap-2 pr-4">
                     <div className="flex-grow min-w-0">
                       <div className="flex items-center gap-2">
-                        {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[var(--gold)] shrink-0" />}
+                        {isSelected && <CheckCircle className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />}
                         <strong className="text-xs text-slate-200 leading-tight truncate">{item.name}</strong>
                       </div>
                       <span className="text-[10px] text-slate-400 block mt-0.5">{item.brand} · {item.subcategory.replace('_', ' ').toUpperCase()}</span>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-[10px] font-bold text-[var(--gold)] font-mono block">₹{item.pricePerSqft || item.price || 0}</span>
+                      <span className="text-[10px] font-bold text-[#D4AF37] font-mono block">₹{item.pricePerSqft || item.price || 0}</span>
                       <span className="text-[9px] text-slate-500">per unit</span>
                     </div>
                   </div>
@@ -679,19 +748,19 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           {/* Selection Summary */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-4">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <ShoppingBag className="w-4 h-4 text-[var(--gold)]" />
+              <ShoppingBag className="w-4 h-4 text-[#D4AF37]" />
               Selection Summary
             </h3>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-center">
                 <span className="text-[9px] text-slate-500 block font-bold uppercase tracking-wider">Laminates</span>
-                <strong className="text-[var(--gold)] text-2xl block">{selectedLaminates.length}</strong>
+                <strong className="text-[#D4AF37] text-2xl block">{selectedLaminates.length}</strong>
                 <span className="text-slate-500 text-[9px]">of {laminateCatalog.length} active</span>
               </div>
               <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 text-center">
                 <span className="text-[9px] text-slate-500 block font-bold uppercase tracking-wider">Hardware</span>
-                <strong className="text-[var(--gold)] text-2xl block">{selectedHardware.length}</strong>
+                <strong className="text-[#D4AF37] text-2xl block">{selectedHardware.length}</strong>
                 <span className="text-slate-500 text-[9px]">of {hardwareCatalog.length} active</span>
               </div>
             </div>
@@ -706,7 +775,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       key={lam.id || lam.code}
                       onClick={() => toggleLaminate(lam)}
                       title={lam.name}
-                      className="w-7 h-7 rounded-lg border-2 border-[var(--gold)]/40 cursor-pointer hover:scale-110 transition-transform relative group"
+                      className="w-7 h-7 rounded-lg border-2 border-[#D4AF37]/40 cursor-pointer hover:scale-110 transition-transform relative group"
                       style={{ backgroundColor: lam.color }}
                     >
                       <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-[9px] text-slate-200 px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition z-10 pointer-events-none">
@@ -722,7 +791,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
             <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3.5 space-y-3">
               <div className="flex justify-between items-center cursor-pointer font-bold text-slate-350 text-[11px]" onClick={() => setShowCostEstimator(!showCostEstimator)}>
                 <span className="flex items-center gap-1.5">
-                  <Calculator className="w-3.5 h-3.5 text-[var(--gold)]" /> Material Cost Projector
+                  <Calculator className="w-3.5 h-3.5 text-[#D4AF37]" /> Material Cost Projector
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showCostEstimator ? 'rotate-180' : ''}`} />
               </div>
@@ -748,7 +817,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       <span>Est. Hardware Cost ({selectedHardware.length} items):</span>
                       <span>₹{Math.round(estimatedMaterialCost.hwCost).toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-[var(--gold)] border-t border-slate-850 pt-1.5 text-[11px]">
+                    <div className="flex justify-between font-bold text-[#D4AF37] border-t border-slate-850 pt-1.5 text-[11px]">
                       <span>Total Estimated Cost:</span>
                       <span>₹{Math.round(estimatedMaterialCost.total).toLocaleString()}</span>
                     </div>
@@ -760,7 +829,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
             {/* Quotation Builder Toggle */}
             <button
               onClick={() => setShowQuotationBuilder(!showQuotationBuilder)}
-              className="w-full flex items-center justify-between px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-xl text-[11px] font-bold text-slate-300 hover:text-[var(--gold)] hover:border-[var(--gold)]/30 transition"
+              className="w-full flex items-center justify-between px-3 py-2 bg-slate-950/40 border border-slate-800 rounded-xl text-[11px] font-bold text-slate-300 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 transition"
             >
               <span className="flex items-center gap-1.5"><Calculator className="w-3.5 h-3.5" /> Itemized Quotation Builder</span>
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQuotationBuilder ? 'rotate-180' : ''}`} />
@@ -770,7 +839,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
               <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 space-y-4 slide-up">
                 {/* Add Item Form */}
                 <div className="space-y-2.5 p-2.5 bg-slate-900/60 border border-slate-850 rounded-lg">
-                  <span className="text-[9px] text-[var(--gold)] font-bold uppercase tracking-wider block">Add Room Estimate</span>
+                  <span className="text-[9px] text-[#D4AF37] font-bold uppercase tracking-wider block">Add Room Estimate</span>
                   
                   <div className="grid grid-cols-2 gap-2 text-[10px]">
                     <select 
@@ -791,7 +860,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                         type="checkbox" 
                         checked={isLumpSum} 
                         onChange={e => setIsLumpSum(e.target.checked)} 
-                        className="accent-[var(--gold)]" 
+                        className="accent-[#D4AF37]" 
                       />
                       Lump Sum Rate
                     </label>
@@ -843,7 +912,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
 
                   <button
                     onClick={addQuoteItem}
-                    className="w-full py-1.5 bg-[var(--gold)] hover:bg-[#c49e2f] text-slate-950 text-[10px] font-bold rounded uppercase transition"
+                    className="w-full py-1.5 bg-[#D4AF37] hover:bg-[#c49e2f] text-slate-950 text-[10px] font-bold rounded uppercase transition"
                   >
                     + Add to Bill
                   </button>
@@ -895,13 +964,13 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                       type="checkbox"
                       checked={isGstEnabled}
                       onChange={e => setIsGstEnabled(e.target.checked)}
-                      className="accent-[var(--gold)] rounded cursor-pointer"
+                      className="accent-[#D4AF37] rounded cursor-pointer"
                     />
                   </div>
 
                   <div className="border-t border-slate-800/80 pt-2 flex justify-between font-bold">
                     <span className="text-slate-200">Grand Total</span>
-                    <span className="text-[var(--gold)] font-mono text-sm">₹{Math.round(grandTotal).toLocaleString()}</span>
+                    <span className="text-[#D4AF37] font-mono text-sm">₹{Math.round(grandTotal).toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -929,7 +998,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                     </button>
                     <button
                       onClick={exportQuotationPDF}
-                      className="flex-1 py-2 bg-slate-900 hover:bg-slate-850 border border-[var(--gold)]/35 text-[var(--gold)] text-[10px] font-bold rounded uppercase flex items-center justify-center gap-1 transition"
+                      className="flex-1 py-2 bg-slate-900 hover:bg-slate-850 border border-[#D4AF37]/35 text-[#D4AF37] text-[10px] font-bold rounded uppercase flex items-center justify-center gap-1 transition"
                     >
                       <Download className="w-3.5 h-3.5" /> PDF Proposal
                     </button>
@@ -947,7 +1016,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows="3"
-                className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-200 outline-none focus:border-[var(--gold)]/40 resize-none"
+                className="w-full bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-200 outline-none focus:border-[#D4AF37]/40 resize-none"
                 placeholder="Specify grain direction, edgeband thickness preferences, room assignments..."
               />
             </div>
@@ -959,7 +1028,7 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
               className={`w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition ${
                 saveSuccess
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-gradient-to-r from-[var(--gold)] to-[#AA8C2C] hover:from-[#e8c94a] hover:to-[#c4a030] text-slate-950'
+                  : 'bg-gradient-to-r from-[#D4AF37] to-[#AA8C2C] hover:from-[#e8c94a] hover:to-[#c4a030] text-slate-950'
               }`}
             >
               {saveSuccess
@@ -974,36 +1043,24 @@ export default function MaterialCatalogScreen({ projectId, onComplete }) {
           {/* Digital Brochure Library */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-[var(--gold)]" />
+              <BookOpen className="w-4 h-4 text-[#D4AF37]" />
               Digital Brochure Library
             </h3>
             <div className="space-y-2">
-              {brochures.length === 0 && (
-                <div className="text-[10px] text-slate-500">Loading catalogues…</div>
-              )}
-              {brochures.map((br, idx) => (
+              {BROCHURES.map((br, idx) => (
                 <div key={idx} className="bg-slate-950/60 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between hover:border-slate-700 transition group">
                   <div className="flex items-center gap-2.5">
-                    <img
-                      src={br.cover}
-                      alt={br.title}
-                      className="w-10 h-10 rounded-lg object-cover border border-slate-700"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs" style={{ background: br.color + '25', border: `1px solid ${br.color}35`, color: br.color }}>
+                      {br.brand[0]}
+                    </div>
                     <div>
                       <strong className="text-[11px] text-slate-300 block leading-tight">{br.title}</strong>
                       <span className="text-[9px] text-slate-500">{br.brand} · {br.pages}pg</span>
                     </div>
                   </div>
-                  <a
-                    href={`/storage/reference-library/laminates/${encodeURIComponent(br.pdf.split('/').pop())}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-[var(--gold)] transition opacity-0 group-hover:opacity-100"
-                    title="Open full PDF catalogue"
-                  >
+                  <button className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-[#D4AF37] transition opacity-0 group-hover:opacity-100">
                     <Download className="w-3.5 h-3.5" />
-                  </a>
+                  </button>
                 </div>
               ))}
             </div>
