@@ -10,15 +10,15 @@ export default defineConfig({
     host: '127.0.0.1',
     proxy: {
       '/api': {
-        target: `http://127.0.0.1:${process.env.PORT || 5055}`,
+        target: `http://127.0.0.1:${process.env.PORT || 8787}`,
         changeOrigin: true
       },
       '/storage': {
-        target: `http://127.0.0.1:${process.env.PORT || 5055}`,
+        target: `http://127.0.0.1:${process.env.PORT || 8787}`,
         changeOrigin: true
       },
       '/uploads': {
-        target: `http://127.0.0.1:${process.env.PORT || 5055}`,
+        target: `http://127.0.0.1:${process.env.PORT || 8787}`,
         changeOrigin: true
       }
     }
