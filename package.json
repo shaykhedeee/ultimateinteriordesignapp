@@ -6,12 +6,15 @@
   "description": "ULTIDA — Ultimate Interior Design OS (Node ESM backend + Vite React frontend)",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node scripts/dev-cli.mjs",
+    "server": "node --env-file=.env server/index.js",
+    "frontend": "vite",
+    "dev": "node --env-file=.env server/index.js",
     "build": "vite build",
     "test": "node --test tests/*.test.js",
     "test:screens": "node scripts/screen-render-smoke.mjs",
     "test:e2e": "playwright test tests/e2e --config tests/e2e/playwright.config.mjs",
-    "preflight": "node scripts/preflight.mjs"
+    "preflight": "node scripts/preflight.mjs",
+    "pipeline": "node scripts/dev-cli.mjs"
   },
   "engines": {
     "node": ">=18"

@@ -6,7 +6,7 @@ import {
 
 // Analyzer: SAME engine that drives the professional DXF export, so the
 // on-screen view is never out of sync with the CAD file. Pure + browser-safe.
-import { analyzeWallElevation } from '../../../server/services/elevation-analyzer.js';
+import { analyzeWallElevation } from '../lib/elevationAnalyzer.js';
 import WorkflowStatusBar from '../components/WorkflowStatusBar';
 
 export default function DrawingsElevationsStudio({ projectId, onComplete }) {
