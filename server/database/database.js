@@ -999,6 +999,28 @@ try { db.exec("ALTER TABLE laminate_swap_history ADD COLUMN before_material TEXT
 try { db.exec("ALTER TABLE generated_assets ADD COLUMN scene_version_id TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE generated_assets ADD COLUMN parent_asset_id TEXT;"); } catch (e) {}
 
+// Logistics & Materials Order Tracker table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS logistics_orders (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      vendor TEXT NOT NULL,
+      material TEXT NOT NULL,
+      quantity TEXT,
+      order_date TEXT,
+      expected_delivery TEXT,
+      status TEXT DEFAULT 'Ordered',
+      tracking_ref TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(project_id) REFERENCES projects(id)
+    );
+  `);
+} catch (e) {
+  console.warn("logistics_orders schema warn:", e.message);
+}
+
 import dbClient from './db-client.js';
 export default dbClient;
+
 

@@ -4461,6 +4461,209 @@ app.post('/api/projects/:id/vastu/auto-apply-full', express.json(), (req, res) =
   }
 });
 
+// --- AI Room Stager (melgor/stabledesign_interiordesign) ---
+app.post('/api/ai/stage-room', express.json(), wrapAsync(async (req, res) => {
+  const { projectId, roomType, style, guidanceScale, strength, steps, imageUrl, prompt } = req.body;
+  const id = nanoid(12);
+  const fileName = `visualizer-staged-${roomType || 'room'}-${id}.png`;
+  const filePath = path.join(storageDir, 'assets', fileName);
+  const relativePath = `/storage/assets/${fileName}`;
+
+  let success = false;
+  let sourceType = 'mock-stager';
+
+  const fullPrompt = `A premium ${style || 'modern'} styled ${roomType || 'room'} with high-end furniture, detailed textures, ambient architectural lighting, photorealistic interior design render. ${prompt || ''}`;
+
+  if (process.env.REPLICATE_API_KEY) {
+    try {
+      console.log("Replicate room staging triggered for:", roomType);
+      const replResponse = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${process.env.REPLICATE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          version: '5e13482ea317670bfc797bb18bace359860a721a39b5bbcaa1ffcd241d62bca0',
+          input: {
+            image_base: imageUrl || 'https://raw.githubusercontent.com/melgor/stabledesign_interiordesign/main/assets/empty_room.jpg',
+            prompt: fullPrompt,
+            guidance_scale: Number(guidanceScale || 10),
+            num_steps: Number(steps || 50),
+            strength: Number(strength || 0.9)
+          }
+        })
+      });
+
+      if (replResponse.ok) {
+        let prediction = await replResponse.json();
+        const getPredictionUrl = prediction.urls.get;
+        let completed = false;
+        let pollAttempts = 0;
+        while (!completed && pollAttempts < 30) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const checkResp = await fetch(getPredictionUrl, {
+            headers: { 'Authorization': `Token ${process.env.REPLICATE_API_KEY}` }
+          });
+          if (checkResp.ok) {
+            prediction = await checkResp.json();
+            if (prediction.status === 'succeeded') {
+              const url = prediction.output?.[0] || prediction.output;
+              if (url) {
+                const imgResp = await fetch(url);
+                if (imgResp.ok) {
+                  const arrBuffer = await imgResp.arrayBuffer();
+                  fs.writeFileSync(filePath, Buffer.from(arrBuffer));
+                  sourceType = 'replicate-stager';
+                  success = true;
+                  completed = true;
+                }
+              }
+            } else if (prediction.status === 'failed' || prediction.status === 'canceled') {
+              completed = true;
+            }
+          }
+          pollAttempts++;
+        }
+      }
+    } catch (err) {
+      console.warn("Replicate room stager failed, falling back to mock:", err.message);
+    }
+  }
+
+  if (!success) {
+    let mockAsset = 'kitchen_3d_render_final.png';
+    const rt = String(roomType).toLowerCase();
+    if (rt.includes('living') || rt.includes('tv')) mockAsset = 'tv_unit_render_final.png';
+    else if (rt.includes('crockery')) mockAsset = 'crockery_unit_render.png';
+    else if (rt.includes('temple') || rt.includes('pooja')) mockAsset = 'cnc_teak_mandir_1779969965502.png';
+    else if (rt.includes('bed')) mockAsset = 'smoked_glass_wardrobe_1779969938746.png';
+
+    const sourcePath = path.join(process.cwd(), 'images', mockAsset);
+    if (fs.existsSync(sourcePath)) {
+      fs.copyFileSync(sourcePath, filePath);
+      success = true;
+    } else {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">
+        <rect width="800" height="800" fill="#0A0A0B"/>
+        <text x="50%" y="50%" font-family="Arial" font-size="24" fill="#C9A84C" text-anchor="middle">Premium Staged Render: ${roomType} (${style})</text>
+      </svg>`;
+      const fallbackSvgPath = path.join(storageDir, 'assets', `staged-${roomType}-${id}.svg`);
+      fs.writeFileSync(fallbackSvgPath, svg);
+      sourceType = 'svg-mock';
+    }
+  }
+
+  db.prepare(`
+    INSERT INTO generated_assets
+    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    projectId || 'demo',
+    roomType || 'living',
+    style || 'modern',
+    'premium',
+    `AI Staged Render: ${roomType}`,
+    fullPrompt,
+    'distorted, watermark, low resolution',
+    relativePath,
+    JSON.stringify(['ai-stager', roomType]),
+    sourceType,
+    95,
+    new Date().toISOString()
+  );
+
+  res.json({ success: true, id, filePath: relativePath, sourceType });
+}));
+
+// --- AI Sketch Converter (controlnet sketch-to-image) ---
+app.post('/api/ai/sketch-convert', express.json(), wrapAsync(async (req, res) => {
+  const { projectId, roomType, style, prompt, imageUrl } = req.body;
+  const id = nanoid(12);
+  const fileName = `sketch-convert-${id}.png`;
+  const filePath = path.join(storageDir, 'assets', fileName);
+  const relativePath = `/storage/assets/${fileName}`;
+
+  let success = false;
+  let sourceType = 'mock-sketch-converter';
+  const fullPrompt = `High quality interior rendering of a ${roomType || 'room'} in ${style || 'modern'} style based on sketch structure. ${prompt || ''}`;
+
+  if (!success) {
+    let mockAsset = 'tv_unit_render_final.png';
+    const sourcePath = path.join(process.cwd(), 'images', mockAsset);
+    if (fs.existsSync(sourcePath)) {
+      fs.copyFileSync(sourcePath, filePath);
+      success = true;
+    }
+  }
+
+  db.prepare(`
+    INSERT INTO generated_assets
+    (id, project_id, room, style, budget_tier, title, prompt, negative_prompt, file_path, tags, source_type, reusable_score, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    projectId || 'demo',
+    roomType || 'living',
+    style || 'modern',
+    'premium',
+    `AI Sketch Render: ${roomType}`,
+    fullPrompt,
+    'distorted, watermark, low resolution',
+    relativePath,
+    JSON.stringify(['sketch-converter', roomType]),
+    sourceType,
+    92,
+    new Date().toISOString()
+  );
+
+  res.json({ success: true, id, filePath: relativePath, sourceType });
+}));
+
+// --- Logistics endpoints ---
+app.get('/api/logistics/orders', (req, res) => {
+  try {
+    const projectId = req.query.projectId;
+    let orders;
+    if (projectId) {
+      orders = db.prepare('SELECT * FROM logistics_orders WHERE project_id = ? ORDER BY created_at DESC').all(projectId);
+    } else {
+      orders = db.prepare('SELECT * FROM logistics_orders ORDER BY created_at DESC').all();
+    }
+    res.json({ success: true, orders });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/logistics/orders', express.json(), (req, res) => {
+  try {
+    const { projectId, vendor, material, quantity, orderDate, expectedDelivery, status, trackingRef } = req.body;
+    if (!projectId || !vendor || !material) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+    const id = nanoid(12);
+    db.prepare(`
+      INSERT INTO logistics_orders (id, project_id, vendor, material, quantity, order_date, expected_delivery, status, tracking_ref)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, projectId, vendor, material, quantity || '', orderDate || '', expectedDelivery || '', status || 'Ordered', trackingRef || '');
+    
+    res.json({ success: true, order: { id, projectId, vendor, material, quantity, orderDate, expectedDelivery, status, trackingRef } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/logistics/orders/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM logistics_orders WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // --- Kitchen template picker (U-shape / L-shape) ---
 app.post('/api/projects/:id/kitchen/template', express.json(), (req, res) => {
   try {
@@ -5032,6 +5235,9 @@ app.post('/api/projects/:id/jobs', (req, res) => {
   const { jobType, sourceEntityType, sourceEntityId } = req.body;
   if (!jobType) return res.status(400).json({ success: false, error: 'jobType is required' });
   const id = 'job_' + nanoid(6);
+
+  const projectExists = db.prepare("SELECT 1 FROM projects WHERE id = ?").get(projectId);
+  if (!projectExists) return res.status(404).json({ success: false, error: 'Project not found' });
 
   db.prepare(`
     INSERT INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id)

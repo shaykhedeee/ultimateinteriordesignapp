@@ -68,6 +68,11 @@ function updateTopViewValidation(id, result) {
 function recordJob({ projectId, assetId, kind, status, provider, model }) {
   try {
     const jobId = 'job_topview_' + nanoid(10);
+    const hasProject = db.prepare("SELECT 1 FROM projects WHERE id = ?").get(projectId);
+    if (!hasProject) {
+      console.warn(`[topview-worker] skip recording job: project ${projectId} does not exist.`);
+      return;
+    }
     db.prepare(`INSERT INTO jobs (id, project_id, job_type, status, progress, source_entity_type, source_entity_id)
       VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
       jobId,
