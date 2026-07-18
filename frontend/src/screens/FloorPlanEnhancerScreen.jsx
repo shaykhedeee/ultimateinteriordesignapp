@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Sparkles, Compass, Check, AlertTriangle, ArrowUp, RotateCw, Plus, RefreshCw, Wand2, Info, Upload, Image as ImageIcon, Loader2, ShieldCheck, ShieldAlert, ShieldOff, FileDown } from 'lucide-react';
+import { apiUrl } from '../utils/api.js';
 
 /**
  * FloorPlanEnhancerScreen — the single home for a project's floor plan.
@@ -106,7 +107,7 @@ function PlanSVG({ interpretation, layout }) {
 const KIND_ICON = { add_room: Plus, add_furniture: Plus, rotate_furniture: RotateCw, rezone_furniture: ArrowUp, annotate: Info };
 
 export default function FloorPlanEnhancerScreen({ projectId }) {
-  const API = '';
+  const API = apiUrl('');
   const [floorplanUrl, setFloorplanUrl] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -121,7 +122,7 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
   const loadReviewItems = useCallback(async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`${API}/api/projects/${projectId}/review-items`);
+      const res = await fetch(`${API}/projects/${projectId}/review-items`);
       if (res.ok) {
         const j = await res.json();
         setReviewItems(j.items || []);
@@ -136,7 +137,7 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
     if (!projectId) return;
     setReviewLoading(true);
     try {
-      const res = await fetch(`${API}/api/projects/${projectId}/review-items/${itemId}`, {
+      const res = await fetch(`${API}/projects/${projectId}/review-items/${itemId}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       });
@@ -148,7 +149,7 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
   const loadFloorplan = useCallback(async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`${API}/api/projects/${projectId}`);
+      const res = await fetch(`${API}/projects/${projectId}`);
       const p = await res.json();
       setFloorplanUrl(p.floorplan_url || null);
       if (p.floorplan_url) setUploadMsg('Floor plan already uploaded for this project — reused across all tools.');
@@ -159,7 +160,7 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
     if (!projectId) return;
     setBusy(true); setError(null);
     try {
-      const r = await fetch(`${API}/api/projects/${projectId}/floorplan/analyze-enhance`, { method: 'POST' });
+      const r = await fetch(`${API}/projects/${projectId}/floorplan/analyze-enhance`, { method: 'POST' });
       const d = await r.json();
       if (!d.success) { setError(d.message || d.error); setData(null); }
       else setData(d);
@@ -176,7 +177,7 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
     try {
       const fd = new FormData();
       fd.append('floorplan', file);
-      const res = await fetch(`${API}/api/projects/${projectId}/floorplan/auto-vectorize`, { method: 'POST', body: fd });
+      const res = await fetch(`${API}/projects/${projectId}/floorplan/auto-vectorize`, { method: 'POST', body: fd });
       const d = await res.json();
       if (!d.success) { setError(d.message || d.error); }
       else {
@@ -194,7 +195,7 @@ export default function FloorPlanEnhancerScreen({ projectId }) {
     if (!sug.target) return;
     setApplying(sug.id);
     try {
-      const r = await fetch(`${API}/api/projects/${projectId}/floorplan/apply-enhancement`, {
+      const r = await fetch(`${API}/projects/${projectId}/floorplan/apply-enhancement`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target: sug.target })
       });
       const d = await r.json();

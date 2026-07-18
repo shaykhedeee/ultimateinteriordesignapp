@@ -28,7 +28,7 @@ async function waitForServer() {
 async function main() {
   const child = spawn(process.execPath, [SERVER_PATH], {
     cwd: ROOT,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: 'ignore',
     env: { ...process.env, PORT: '8787', NODE_ENV: 'test', LIVE_IMAGE_GEN: 'false' },
   });
 

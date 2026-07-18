@@ -1,28 +1,30 @@
 // Zustand Selectors to minimize component re-renders by selecting narrow branches
+const EMPTY_ENTITIES = Object.freeze([]);
 
 export const selectActiveLevel = (state) => {
   if (!state.scene) return null;
-  return state.scene.levels.find(l => l.levelId === state.activeLevelId) || null;
+  const levels = Array.isArray(state.scene.levels) ? state.scene.levels : EMPTY_ENTITIES;
+  return levels.find(l => (l.levelId || l.id) === state.activeLevelId) || levels[0] || null;
 };
 
 export const selectRooms = (state) => {
   const level = selectActiveLevel(state);
-  return level ? level.rooms : [];
+  return level?.rooms || EMPTY_ENTITIES;
 };
 
 export const selectWalls = (state) => {
   const level = selectActiveLevel(state);
-  return level ? level.walls : [];
+  return level?.walls || EMPTY_ENTITIES;
 };
 
 export const selectOpenings = (state) => {
   const level = selectActiveLevel(state);
-  return level ? level.openings : [];
+  return level?.openings || EMPTY_ENTITIES;
 };
 
 export const selectModules = (state) => {
   const level = selectActiveLevel(state);
-  return level ? level.modules : [];
+  return level?.modules || EMPTY_ENTITIES;
 };
 
 export const selectSelectedEntity = (state) => {

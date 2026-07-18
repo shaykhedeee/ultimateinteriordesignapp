@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const target = path.join('X:/OFFLINEGANG/ULTIMATE INTERIOR DESIGN APP/ultimateinteriordesignapp/server/services/provider-router.js');
+const target = path.resolve(process.cwd(), 'server/services/provider-router.js');
 let content = fs.readFileSync(target, 'utf8');
 const old = `import {
   buildEnhancementPlan,

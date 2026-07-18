@@ -9,6 +9,7 @@ import db from '../server/database/database.js';
 import { previewVastu, applyVastu } from '../server/services/vastu-auto.js';
 
 function seedCad(projectId, { furniture = [], rooms = [] } = {}) {
+  db.prepare('DELETE FROM scene_versions WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM cad_drawings WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
   db.prepare("INSERT INTO projects (id, name, client_name, status) VALUES (?, 'Vastu Test', 'Test Client', 'active')").run(projectId);

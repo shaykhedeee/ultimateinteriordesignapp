@@ -1,4 +1,6 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+const API_BASE = apiUrl('');
+import { useAutoClear } from '../hooks/useAutoClear.js';
 import React, { useState, useEffect } from 'react';
 import { Grid, Layers, Box, IndianRupee, Download, Settings2, FileDown, Ruler, Boxes } from 'lucide-react';
 

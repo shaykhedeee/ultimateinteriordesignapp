@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 
-const cwd = path.resolve('X:/OFFLINEGANG/ULTIMATE INTERIOR DESIGN APP/ultimateinteriordesignapp');
+const cwd = process.cwd();
 
 function awaitSpawn(relativePath) {
   return new Promise((resolve) => {

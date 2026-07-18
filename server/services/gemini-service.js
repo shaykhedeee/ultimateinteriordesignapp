@@ -31,7 +31,7 @@ function geminiKeys() {
 
 function resolveAppUrl() {
   const host = process.env.HOST || '127.0.0.1';
-  const port = process.env.PORT || '5055';
+  const port = process.env.PORT || '8790';
   return (process.env.APP_URL || `http://${host}:${port}`).replace(/\/$/, '');
 }
 
@@ -174,12 +174,16 @@ export async function chatWithAura({ message, history = [], tools = [] }) {
     new Promise((_, rej) => setTimeout(() => rej(new Error('local-llm-timeout')), ms))
   ]);
 
-  // 1) Local Quantized LLM (Qwen2.5-0.5B) — optional, non-blocking
-  try {
-    const localRes = await withTimeout(callLocalLLM(messages), 8000);
-    if (localRes) return parseAuraReply(localRes, 'local:qwen2.5-0.5b');
-  } catch (err) {
-    // Expected on machines without the model weights / GPU — fall through.
+  // 1) Local Quantized LLM (Qwen2.5-0.5B) is explicitly opt-in. The bundled
+  // ONNX build is not compatible with every Windows runtime; trying it first
+  // made every chat request wait on a known optional failure.
+  if (process.env.AURA_LOCAL_LLM === 'true') {
+    try {
+      const localRes = await withTimeout(callLocalLLM(messages), 8000);
+      if (localRes) return parseAuraReply(localRes, 'local:qwen2.5-0.5b');
+    } catch (err) {
+      console.warn('[AURA] Local model unavailable; continuing with configured providers.');
+    }
   }
 
   // 2) Gemini (free Google AI Studio key) — primary reliable cloud path

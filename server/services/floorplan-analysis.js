@@ -140,7 +140,7 @@ function buildReport({ rooms, openings, dimensions, ppm, scaleEstimated, aiNotes
   if (aiUsed) notes.push('AI vision used to name rooms / read annotations where confident.');
 
   const confidence = rooms.length
-    ? Math.max(0.4, Math.min(1, 0.6 + 0.1 * Math.min(rooms.length, 4) - (scaleEstimated ? 0.1 : 0)))
+    ? Math.max(0.4, Math.min(scaleEstimated ? 0.75 : 1, 0.6 + 0.1 * Math.min(rooms.length, 4) - (scaleEstimated ? 0.1 : 0)))
     : 0;
 
   const roomSummary = rooms.map(r => ({
@@ -176,10 +176,14 @@ async function tryAiEnrichment(imagePath) {
   try {
     const model = process.env.GEMINI_VISION_MODEL || 'gemini-2.0-flash';
     const prompt = [
-      'Detect rooms, walls, openings, and scale from the uploaded plan. Mark uncertain areas for review instead of guessing.',
-      'Return ONLY valid JSON: { "overallDimensions": "...", "detectedRooms": [{"type":..., "label":..., "measurements":...}], "openingsCount": {"doors": n, "windows": n}, "handwrittenNotes": [...] }'
+      'You are reading a top-down architectural floor plan. Identify only what is visibly supported by the drawing.',
+      'Return ONLY valid JSON. Coordinates are normalized 0 to 1000 across the full image. Do not invent dimensions.',
+      '{"detectedRooms":[{"id":"room_1","type":"living|bedroom|kitchen|bathroom|balcony|utility|other","label":"visible label or Room 1","bounds":{"x":0,"y":0,"width":0,"height":0},"measurements":"visible text or null","confidence":0}],"walls":[{"x1":0,"y1":0,"x2":0,"y2":0,"confidence":0}],"openings":[{"type":"door|window","x":0,"y":0,"width":0,"confidence":0}],"handwrittenNotes":["only text clearly visible"],"overallDimensions":"visible overall dimension or null"}',
+      'Use room bounds only when the complete room boundary is visible. Keep uncertain items below 0.7 confidence.'
     ].join('\n');
-    const parts = [{ text: prompt }, { inline_data: { mime_type: 'image/png', data: fs.readFileSync(imagePath).toString('base64') } }];
+    const ext = String(imagePath).toLowerCase();
+    const mimeType = /\.jpe?g$/.test(ext) ? 'image/jpeg' : /\.webp$/.test(ext) ? 'image/webp' : 'image/png';
+    const parts = [{ text: prompt }, { inline_data: { mime_type: mimeType, data: fs.readFileSync(imagePath).toString('base64') } }];
     const keys = [process.env.GEMINI_API_KEY, process.env.GOOGLE_API_KEY, process.env.GOOGLE_AI_STUDIO_KEY_1, process.env.GOOGLE_AI_STUDIO_KEY_2].filter(Boolean);
     for (const key of keys) {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -198,6 +202,45 @@ async function tryAiEnrichment(imagePath) {
   return parsed;
 }
 
+function normalizedAiGeometry(ai) {
+  const candidates = Array.isArray(ai?.detectedRooms) ? ai.detectedRooms : [];
+  const rooms = candidates.map((room, index) => {
+    const bounds = room?.bounds || {};
+    const x = num(bounds.x, -1), y = num(bounds.y, -1);
+    const w = num(bounds.width, 0), h = num(bounds.height, 0);
+    if (x < 0 || y < 0 || w < 40 || h < 40) return null;
+    // 12 mm per normalized pixel is intentionally an estimate. The review
+    // gate requires calibration before the proposal can drive production.
+    const factor = 12;
+    const xMm = Math.round(x * factor), yMm = Math.round(y * factor);
+    const widthMm = Math.round(w * factor), heightMm = Math.round(h * factor);
+    return {
+      id: room.id || `ai_room_${index + 1}`,
+      name: room.label || `Room ${index + 1}`,
+      type: String(room.type || 'other').toLowerCase(),
+      x: xMm, y: yMm, widthMm, heightMm, areaMm2: widthMm * heightMm,
+      confidence: Math.min(0.65, Math.max(0.2, num(room.confidence, 0.45))),
+      points: [
+        { x: xMm, y: yMm }, { x: xMm + widthMm, y: yMm },
+        { x: xMm + widthMm, y: yMm + heightMm }, { x: xMm, y: yMm + heightMm }
+      ]
+    };
+  }).filter(Boolean);
+  if (!rooms.length) return null;
+
+  const walls = [];
+  for (const room of rooms) {
+    const [a, b, c, d] = room.points;
+    walls.push(
+      { x1: a.x, y1: a.y, x2: b.x, y2: b.y, thicknessMm: 150, source: 'ai-vision-proposal' },
+      { x1: b.x, y1: b.y, x2: c.x, y2: c.y, thicknessMm: 150, source: 'ai-vision-proposal' },
+      { x1: c.x, y1: c.y, x2: d.x, y2: d.y, thicknessMm: 150, source: 'ai-vision-proposal' },
+      { x1: d.x, y1: d.y, x2: a.x, y2: a.y, thicknessMm: 150, source: 'ai-vision-proposal' }
+    );
+  }
+  return { rooms, walls, openings: [] };
+}
+
 /**
  * analyzeFloorplanImage — the REAL entry point used by the UI.
  * @param {string} projectId
@@ -212,13 +255,56 @@ export async function analyzeFloorplanImage(projectId, imagePath, opts = {}) {
 
   // 1. Offline CV wall trace (no API).
   let cv;
+  let cvError = null;
   try {
     cv = await runCvWallDetect(imagePath);
   } catch (cvErr) {
-    return { success: false, error: 'CV_FAILED', message: 'Wall detection failed: ' + cvErr.message + '. Trace manually in the editor.' };
+    cvError = cvErr;
   }
-  if (!cv.walls || cv.walls.length === 0) {
-    return { success: false, error: 'NO_WALLS', message: 'No walls detected in the image. Try a higher-contrast plan or trace walls manually.' };
+
+  // Vision is a semantic and last-resort geometry proposal layer. It never
+  // becomes approved geometry: all output is marked estimated and requires
+  // calibration plus designer review.
+  // Keep private plan uploads local-first. Vision enrichment is opt-in and
+  // remains an editable proposal layer, never an approval or geometry source.
+  const ai = process.env.FLOORPLAN_VISION_ENRICHMENT === 'true'
+    ? await tryAiEnrichment(imagePath).catch(() => null)
+    : null;
+  const aiGeometry = normalizedAiGeometry(ai);
+  if (!cv?.walls?.length && aiGeometry) {
+    const report = buildReport({
+      rooms: aiGeometry.rooms,
+      openings: aiGeometry.openings,
+      dimensions: [],
+      ppm: DEFAULT_PPM,
+      scaleEstimated: true,
+      aiNotes: ['AI vision supplied an editable room-boundary proposal. Confirm every wall and dimension before scene generation.'],
+      aiUsed: true
+    });
+    return {
+      success: true,
+      source: 'ai-vision-proposal',
+      imageWidth: 0,
+      imageHeight: 0,
+      scaleEstimated: true,
+      ppm: DEFAULT_PPM,
+      walls: aiGeometry.walls,
+      openings: aiGeometry.openings,
+      rooms: aiGeometry.rooms,
+      report,
+      aiUsed: true,
+      cvError: cvError?.message || null
+    };
+  }
+  if (!cv?.walls?.length) {
+    return {
+      success: false,
+      error: cvError ? 'CV_AND_VISION_FAILED' : 'NO_WALLS',
+      message: cvError
+        ? `Wall detection is unavailable (${cvError.message}). AI could not establish complete room boundaries from this image.`
+        : 'No walls detected in the image. Try a higher-contrast plan or trace walls manually.',
+      aiUsed: Boolean(ai)
+    };
   }
 
   // 2. Scale.
@@ -244,13 +330,18 @@ export async function analyzeFloorplanImage(projectId, imagePath, opts = {}) {
   if (!interp.success) {
     return { success: false, error: interp.error, message: interp.message };
   }
-  const rawRooms = interp.interpretation.rooms || [];
+  const interpretedRooms = interp.interpretation.rooms || [];
+  // Text, dimensions and furniture symbols can form accidental tiny faces in
+  // a scanned drawing. A crowded graph is not a trustworthy room proposal.
+  // Keep the detected walls for designer correction, but never label a dense
+  // grid as dozens of real rooms.
+  const fragmentedGeometry = interpretedRooms.length > 20;
+  const rawRooms = fragmentedGeometry ? [] : interpretedRooms;
 
   // 4. AI enrichment (honest, optional). Never blocks the geometry report.
   let aiLabels = [];
   let aiNotes = [];
   let aiUsed = false;
-  const ai = await tryAiEnrichment(imagePath).catch(() => null);
   if (ai && Array.isArray(ai.detectedRooms)) {
     aiLabels = ai.detectedRooms;
     aiUsed = true;
@@ -259,6 +350,9 @@ export async function analyzeFloorplanImage(projectId, imagePath, opts = {}) {
 
   // 5. Classify + name + report.
   const rooms = classifyRooms(rawRooms, aiLabels);
+  if (fragmentedGeometry) {
+    aiNotes.unshift('Wall lines were detected, but the scan produced too many small enclosed regions. Review wall joins and room boundaries before approval.');
+  }
   const report = buildReport({
     rooms,
     openings: traced.openings,
@@ -277,7 +371,8 @@ export async function analyzeFloorplanImage(projectId, imagePath, opts = {}) {
     openings: traced.openings,
     rooms,
     report,
-    aiUsed
+    aiUsed,
+    fragmentedGeometry
   };
 }
 

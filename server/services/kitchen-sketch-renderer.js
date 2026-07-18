@@ -1,8 +1,8 @@
 const fs = require('fs');
-const { createCanvas } = ;
+const { createCanvas } = require('canvas');
 const path = require('path');
 
-const out = (process.env.OUT || 'X:/OFFLINEGANG/ULTIMATE INTERIOR DESIGN APP/ultimateinteriordesignapp');
+const out = (process.env.OUT || path.resolve(__dirname, '../../storage'));
 const imgPath = path.join(out, 'kitchen-elevation.png');
 const dxfPath = path.join(out, 'kitchen-elevation.dxf');
 

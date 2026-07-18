@@ -1,4 +1,6 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+const API_BASE = apiUrl('');
+import { useAutoClear } from '../hooks/useAutoClear.js';
 import React, { useState, useEffect } from 'react';
 import { 
   Layers, Trash2, Download, CheckCircle2, XCircle, Sparkles, IndianRupee, Ruler, Grid, Sun

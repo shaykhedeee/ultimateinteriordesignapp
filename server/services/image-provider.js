@@ -192,6 +192,9 @@ export async function generateInteriorAsset({ projectId, room, title, prompt, st
     filePath: `/storage/assets/${fileName}`,
     tags,
     sourceType: 'mock-generated',
+    isSynthetic: true,
+    provenance: 'synthetic-fallback',
+    sourceLabel: 'Synthetic fallback - not a real render',
     reusableScore: 86
   };
   await recordGenerationCost({ projectId, assetId: id, sourceType: 'mock-generated' });

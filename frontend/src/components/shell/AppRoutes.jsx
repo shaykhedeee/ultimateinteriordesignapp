@@ -1,34 +1,86 @@
 import React from 'react';
 import { useAppStore } from '../../stores/appStore';
 
-const CRMLeadDashboard = React.lazy(() => import('../../screens/CRMLeadDashboard.jsx'));
-const ClientBriefStudio = React.lazy(() => import('../../screens/ClientBriefStudio.jsx'));
-const InteractiveCADScreen = React.lazy(() => import('../../screens/InteractiveCADScreen.jsx'));
-const DrawingsElevationsStudio = React.lazy(() => import('../../screens/DrawingsElevationsStudio.jsx'));
-const MaterialCatalogScreen = React.lazy(() => import('../../screens/MaterialCatalogScreen.jsx'));
-const Render3DStudio = React.lazy(() => import('../../screens/Render3DStudio.jsx'));
-const RenderEditWorkspace = React.lazy(() => import('../../screens/RenderEditWorkspace.jsx'));
-const CutlistNestingScreen = React.lazy(() => import('../../screens/CutlistNestingScreen.jsx'));
-const ProjectManagementScreen = React.lazy(() => import('../../screens/ProjectManagementScreen.jsx'));
-const DesignStudioScreen = React.lazy(() => import('../../screens/DesignStudioScreen.jsx'));
-const FinanceScreen = React.lazy(() => import('../../screens/FinanceScreen.jsx'));
-const TimelineScreen = React.lazy(() => import('../../screens/TimelineScreen.jsx'));
-const JobsScreen = React.lazy(() => import('../../screens/JobsScreen.jsx'));
-const CommandCenterScreen = React.lazy(() => import('../../screens/CommandCenterScreen.jsx'));
-const PricingScreen = React.lazy(() => import('../../screens/PricingScreen.jsx'));
-const CommerceStageScreen = React.lazy(() => import('../../screens/CommerceStageScreen.jsx'));
-const CeilingStudio = React.lazy(() => import('../../screens/CeilingStudio'));
-const TvUnitGenerator = React.lazy(() => import('../../screens/TvUnitGenerator'));
-const OrchestratorStudio = React.lazy(() => import('../../screens/OrchestratorStudio.jsx'));
-const ConsumerOnboarding = React.lazy(() => import('../../screens/ConsumerOnboarding.jsx'));
-const SystemsAdminScreen = React.lazy(() => import('../../screens/SystemsAdminScreen'));
-const VendorIntelligence = React.lazy(() => import('../../screens/VendorIntelligence.jsx'));
-const PinterestLearning = React.lazy(() => import('../../screens/PinterestLearning.jsx'));
-const FloorPlanAnalyzerScreen = React.lazy(() => import('../../screens/FloorPlanAnalyzerScreen.jsx'));
-const SettingsPanel = React.lazy(() => import('../../screens/SettingsPanel.jsx'));
+const lazyWithRecovery = (loader, key) => React.lazy(async () => {
+  try {
+    return await loader();
+  } catch (error) {
+    const message = String(error?.message || error || '');
+    const isStaleChunk = /dynamically imported module|importing a module script failed|chunkloaderror/i.test(message);
+    const recoveryKey = `ultida:chunk-recovery:${key}`;
+    if (isStaleChunk && typeof window !== 'undefined' && !sessionStorage.getItem(recoveryKey)) {
+      sessionStorage.setItem(recoveryKey, '1');
+      window.location.reload();
+      return new Promise(() => {});
+    }
+    throw error;
+  }
+});
+
+const ClientBriefStudio = lazyWithRecovery(() => import('../../screens/ClientBriefStudio.jsx'), 'brief');
+const InteractiveCADScreen = lazyWithRecovery(() => import('../../screens/InteractiveCADScreen.jsx'), 'cad');
+const DrawingsElevationsStudio = lazyWithRecovery(() => import('../../screens/DrawingsElevationsStudio.jsx'), 'drawings');
+const MaterialCatalogScreen = lazyWithRecovery(() => import('../../screens/MaterialCatalogScreen.jsx'), 'materials');
+const Render3DStudio = lazyWithRecovery(() => import('../../screens/Render3DStudio.jsx'), 'renders');
+const RenderEditWorkspace = lazyWithRecovery(() => import('../../screens/RenderEditWorkspace.jsx'), 'render-edit');
+const CutlistNestingScreen = lazyWithRecovery(() => import('../../screens/CutlistNestingScreen.jsx'), 'cutlist');
+const ProjectManagementScreen = lazyWithRecovery(() => import('../../screens/ProjectManagementScreen.jsx'), 'projects');
+const DesignStudioScreen = lazyWithRecovery(() => import('../../screens/DesignStudioScreen.jsx'), 'studio');
+const FinanceScreen = lazyWithRecovery(() => import('../../screens/FinanceScreen.jsx'), 'finance');
+const TimelineScreen = lazyWithRecovery(() => import('../../screens/TimelineScreen.jsx'), 'timeline');
+const CommandCenterScreen = lazyWithRecovery(() => import('../../screens/CommandCenterScreen.jsx'), 'command-center');
+const PricingScreen = lazyWithRecovery(() => import('../../screens/PricingScreen.jsx'), 'pricing');
+const CommerceStageScreen = lazyWithRecovery(() => import('../../screens/CommerceStageScreen.jsx'), 'commerce');
+const CeilingStudio = lazyWithRecovery(() => import('../../screens/CeilingStudio'), 'ceiling');
+const TvUnitGenerator = lazyWithRecovery(() => import('../../screens/TvUnitGenerator'), 'tvunit');
+const OrchestratorStudio = lazyWithRecovery(() => import('../../screens/OrchestratorStudio.jsx'), 'orchestrator');
+const ConsumerOnboarding = lazyWithRecovery(() => import('../../screens/ConsumerOnboarding.jsx'), 'onboarding');
+const SystemsAdminScreen = lazyWithRecovery(() => import('../../screens/SystemsAdminScreen'), 'system-admin');
+const VendorIntelligence = lazyWithRecovery(() => import('../../screens/VendorIntelligence.jsx'), 'vendor');
+const DesignLibraryScreen = lazyWithRecovery(() => import('../../screens/DesignLibraryScreen.jsx'), 'reference-library');
+const FloorPlanAnalyzerScreen = lazyWithRecovery(() => import('../../screens/FloorPlanAnalyzerScreen.jsx'), 'floorplan');
+const SettingsPanel = lazyWithRecovery(() => import('../../screens/SettingsPanel.jsx'), 'settings');
 import AuraBrainChat from '../layout/AuraBrainChat';
 
-const PROJECT_LOCKED_ROUTES = new Set([]);
+const PROJECT_LOCKED_ROUTES = new Set([
+  'brief', 'cad', 'floorplan', 'studio', 'drawings', 'materials', 'renders',
+  'render-edit', 'cutlist', 'ceiling', 'tvunit', 'finance', 'pricing',
+  'commerce', 'timeline', 'vendor', 'orchestrator', 'rooms', '3d', 'floors'
+]);
+const LEGACY_ROUTE_REDIRECTS = {
+  crm: 'projects',
+  jobs: 'dashboard',
+  pinterest: 'reference-library'
+};
+
+class RouteErrorBoundary extends React.Component {
+  state = { error: null };
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('[ULTIDA] workspace failed to render', error, info);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="h-full flex items-center justify-center p-6 bg-[#f7f2ea]">
+        <div className="max-w-lg w-full rounded-lg border border-[#d9cec0] bg-[#fffdf9] p-5 space-y-3 shadow-sm">
+          <h2 className="text-xs font-black uppercase text-[#9f352b]">Workspace unavailable</h2>
+          <p className="text-sm text-[#5f554c]">This workspace failed to load. Your saved project data is unchanged.</p>
+          <pre className="max-h-32 overflow-auto rounded-md border border-[#e4dad0] bg-[#f8f3ec] p-3 text-xs text-[#756a60] whitespace-pre-wrap">{String(this.state.error?.message || this.state.error)}</pre>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => this.setState({ error: null })} className="rounded-md border border-[#cdbfb2] px-3 py-2 text-xs font-bold text-[#3f352e]">Retry workspace</button>
+            <button type="button" onClick={() => window.location.reload()} className="rounded-md bg-[#503629] px-3 py-2 text-xs font-bold text-white">Reload app</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
 
 export default function AppRoutes() {
   const activeTab = useAppStore((state) => state.activeTab);
@@ -38,19 +90,20 @@ export default function AppRoutes() {
   const projectMissing = requiresProject && !selectedProjectId;
 
   React.useEffect(() => {
-    if (projectMissing) {
-      useAppStore.getState().navigateTab('projects');
-    }
-  }, [projectMissing]);
+    const redirect = LEGACY_ROUTE_REDIRECTS[activeTab];
+    if (redirect) useAppStore.getState().navigateTab(redirect);
+    else if (projectMissing) useAppStore.getState().navigateTab('projects');
+  }, [activeTab, projectMissing]);
 
   const renderScreen = () => {
     const screen = (() => {
       if (projectMissing) {
         return (
           <div className="flex items-center justify-center h-full">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 max-w-md text-center space-y-3">
-              <h3 className="text-sm font-bold text-slate-100">No project selected</h3>
-              <p className="text-xs text-slate-400">Select or create a project to unlock this workspace. Project-gated tools stay disabled until a project is active.</p>
+            <div className="bg-[#fffdf9] border border-[#d9cec0] rounded-lg p-6 max-w-md text-center space-y-3 shadow-sm">
+              <h3 className="text-base font-bold text-[#2f2823]">Select a project first</h3>
+              <p className="text-sm text-[#6c6056]">Create or select a project to continue this design journey.</p>
+              <button type="button" onClick={() => useAppStore.getState().navigateTab('projects')} className="rounded-md bg-[#503629] px-4 py-2 text-sm font-bold text-white">Open project pipeline</button>
             </div>
           </div>
         );
@@ -59,26 +112,32 @@ export default function AppRoutes() {
       switch (activeTab) {
         case 'dashboard':
           return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => useAppStore.getState().navigateTab(tab)} />;
-        case 'crm':
-          return <CRMLeadDashboard onProjectClosed={(id) => useAppStore.getState().setSelectedProjectId(id)} />;
         case 'projects':
-          return <ProjectManagementScreen onNavigateToProject={(id) => { useAppStore.getState().setSelectedProjectId(id); useAppStore.getState().navigateTab('brief'); }} />;
+          return <ProjectManagementScreen onNavigateToProject={(id, project) => {
+            const store = useAppStore.getState();
+            if (project) store.setSelectedProject(project);
+            store.setSelectedProjectId(id);
+            store.fetchStatsAndProjects().catch(() => {});
+            store.navigateTab('brief');
+          }} />;
         case 'brief':
-          return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => useAppStore.getState().navigateTab('cad')} />;
+          return <ClientBriefStudio projectId={selectedProjectId} onBriefSaved={() => useAppStore.getState().navigateTab('floorplan')} />;
         case 'cad':
           return <InteractiveCADScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('studio')} />;
+        case 'reference-library':
+          return <DesignLibraryScreen onUseInspiration={() => useAppStore.getState().navigateTab('studio')} />;
         case 'studio':
-          return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('drawings')} />;
+          return <DesignStudioScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('materials')} />;
         case 'drawings':
-          return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('materials')} />;
+          return <DrawingsElevationsStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('cutlist')} />;
         case 'materials':
           return <MaterialCatalogScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('renders')} />;
         case 'renders':
-          return <Render3DStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('cutlist')} />;
+          return <Render3DStudio projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('drawings')} />;
         case 'render-edit':
           return <RenderEditWorkspace projectId={selectedProjectId} renderId={null} />;
         case 'cutlist':
-          return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('crm')} />;
+          return <CutlistNestingScreen projectId={selectedProjectId} onComplete={() => useAppStore.getState().navigateTab('finance')} />;
         case 'ceiling':
           return <CeilingStudio projectId={selectedProjectId} />;
         case 'floorplan':
@@ -91,12 +150,8 @@ export default function AppRoutes() {
           return <CommerceStageScreen projectId={selectedProjectId} />;
         case 'timeline':
           return <TimelineScreen projectId={selectedProjectId} />;
-        case 'jobs':
-          return <JobsScreen projectId={selectedProjectId} />;
         case 'vendor':
           return <VendorIntelligence projectId={selectedProjectId} />;
-        case 'pinterest':
-          return <PinterestLearning projectId={selectedProjectId} />;
         case 'command-center':
           return <CommandCenterScreen projectId={selectedProjectId} />;
         case 'aura':
@@ -136,14 +191,16 @@ export default function AppRoutes() {
         case 'orchestrator':
           return <OrchestratorStudio projectId={selectedProjectId} />;
         default:
-          return <CRMLeadDashboard onProjectClosed={(id) => useAppStore.getState().setSelectedProjectId(id)} />;
+          return <CommandCenterScreen projectId={selectedProjectId} onNavigateToTab={(tab) => useAppStore.getState().navigateTab(tab)} />;
       }
     })();
 
     return (
-      <React.Suspense fallback={<div className="flex items-center justify-center h-full text-[10px] font-black uppercase tracking-widest text-[#D4AF37]">Loading workspace...</div>}>
-        {screen}
-      </React.Suspense>
+      <RouteErrorBoundary key={activeTab}>
+        <React.Suspense fallback={<div className="flex items-center justify-center h-full text-[10px] font-black uppercase tracking-widest text-[#D4AF37]">Loading workspace...</div>}>
+          {screen}
+        </React.Suspense>
+      </RouteErrorBoundary>
     );
   };
 

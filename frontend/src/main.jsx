@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import './styles.css';
+import './styles/cozy-theme.css';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -18,7 +19,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen w-screen bg-[#020617] text-slate-100 flex items-center justify-center p-6">
+        <div className="ultida-cozy h-screen w-screen flex items-center justify-center p-6">
           <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3">
             <h1 className="text-sm font-black uppercase tracking-widest text-red-400">Runtime error</h1>
             <pre className="text-[11px] text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3 overflow-auto whitespace-pre-wrap">

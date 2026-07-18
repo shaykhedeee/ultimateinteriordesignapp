@@ -61,6 +61,8 @@ import { buildJaliPanelDXF, buildJaliPanelPDF } from './services/jali-panel.js';
 import { buildShoeRackDXF, buildShoeRackPDF, shoeRackModel } from './services/shoe-rack.js';
 import auraOrchestrator from './services/aura-orchestrator.js';
 import { proposeDesignActions } from './services/aura-design-rules.js';
+import { executeFloorplanDesignAgent, getAgentOutputs } from './services/aura-floorplan-agent.js';
+import { stageFurnitureForProject } from './services/aura-staging-tool.js';
 import skpReader from './services/skp-reader.js';
 import { previewVastu, applyVastu, analyzeVastuPlan, suggestVastuLayout, applyVastuFull, interpretVastuText } from './services/vastu-auto.js';
 import { applyKitchenTemplate } from './services/kitchen-templates.js';
@@ -3599,8 +3601,8 @@ app.post('/api/projects/:id/client-share', async (req, res) => {
       await pdfBuilder.generateSignoffPDF(projectId, destPath, packOpts);
     }
 
-    db.prepare('INSERT INTO shared_links (id, project_id, file_name, created_at) VALUES (?, ?, ?, ?)')
-      .run(token, projectId, fileName, new Date().toISOString());
+    db.prepare('INSERT INTO shared_links (id, project_id, token, file_name, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(token, projectId, token, fileName, new Date().toISOString());
     logTimelineEvent(projectId, 'client.share', `Client share link generated (${pack})`, fileName);
 
     res.json({ success: true, token, pack, shareUrl, fileName, downloadUrl: `/api/projects/${projectId}/client-share/${token}/download` });
@@ -4865,6 +4867,79 @@ app.post('/api/projects/:id/renders/laminate-swap',
   }
 );
 
+// POST: Swap a wall paint color on a render image (ChangeYourWalls Integration)
+app.post('/api/projects/:id/renders/paint-swap',
+  upload.fields([{ name: 'renderImage', maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const projectId = req.params.id;
+      const renderFile = req.files?.renderImage?.[0];
+      if (!renderFile) return res.status(400).json({ error: 'renderImage is required' });
+
+      const paintCatalogId = req.body.paintCatalogId;
+      if (!paintCatalogId) return res.status(400).json({ error: 'paintCatalogId is required' });
+
+      const catItem = db.prepare("SELECT * FROM material_catalog WHERE id = ?").get(paintCatalogId);
+      if (!catItem) return res.status(404).json({ error: 'Paint color not found in catalog' });
+
+      const params = {
+        componentType: 'Wall Paint',
+        newMaterial: catItem.name,
+        newColor: catItem.color,
+        laminateCode: catItem.code,
+        laminateBrand: catItem.brand,
+        instruction: req.body.instruction || `Repaint the walls in ${catItem.name} (${catItem.brand} ${catItem.code}, hex ${catItem.color}) with an eggshell/matte finish.`,
+        room: req.body.room || 'living',
+        materialSlot: 'wall',
+        keepOthersSame: true
+      };
+
+      const renderBuffer = fs.readFileSync(renderFile.path);
+      const renderBase64 = `data:image/${renderFile.mimetype === 'image/png' ? 'png' : 'jpeg'};base64,${renderBuffer.toString('base64')}`;
+
+      // Clean up render temp
+      try { fs.unlinkSync(renderFile.path); } catch(e) {}
+
+      // Run the laminate swap engine (it uses the same underlying image generation / inpainting pipeline)
+      const result = await visualizerEngine.performLaminateSwap(projectId, renderBase64, null, params, db);
+
+      // Record in swap history
+      db.prepare(`
+        INSERT INTO laminate_swap_history
+        (id, project_id, render_id, component_type, material_slot, new_material, new_color, laminate_code, laminate_brand, result_file_path, source_type, prompt, keep_others_same, approved, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+      `).run(
+        'swap_' + nanoid(10),
+        projectId,
+        result.id,
+        params.componentType,
+        params.materialSlot,
+        params.newMaterial,
+        params.newColor,
+        params.laminateCode,
+        params.laminateBrand,
+        result.filePath,
+        result.sourceType,
+        visualizerEngine.buildLaminateSwapPrompt(params),
+        1,
+        new Date().toISOString()
+      );
+
+      // Log timeline event
+      logTimelineEvent(projectId, 'render.paint_swap', `Paint Swap: Wall Paint`,
+        `Repainted walls to ${params.newMaterial} (${params.laminateBrand} ${params.laminateCode})`);
+
+      // Update stale renders
+      db.prepare("UPDATE projects SET stale_renders = 1 WHERE id = ?").run(projectId);
+
+      res.json({ success: true, render: result });
+    } catch (err) {
+      console.error('[paint-swap] Error:', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 // POST: Approve a laminate swap (Phase 4: every swap needs designer approval)
 app.post('/api/projects/:id/renders/laminate-swap/:swapId/approve', (req, res) => {
   try {
@@ -5408,7 +5483,54 @@ app.post('/api/aura/chat', express.json(), async (req, res) => {
   }
 });
 
-// AURA structured-action proposer (orchestrator-first, no trained model).
+// AURA co-pilot chat (project-scoped compatibility route)
+app.post('/api/projects/:id/ai/chat', express.json(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { message = '' } = req.body || {};
+    if (!String(message).trim()) return res.status(400).json({ success:false, error: 'message is required' });
+    const out = await auraOrchestrator.handleChatMessage(message, projectId);
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ success:false, error: err.message });
+  }
+});
+
+// Floorplan Design Agent Trigger Route
+app.post('/api/projects/:id/ai/floorplan-agent', express.json(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { stylePrompt = '' } = req.body || {};
+    if (!stylePrompt.trim()) return res.status(400).json({ success:false, error: 'stylePrompt is required' });
+    
+    const result = await executeFloorplanDesignAgent(projectId, stylePrompt);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success:false, error: err.message });
+  }
+});
+
+// Floorplan Design Agent Outputs Retrieval Route
+app.get('/api/projects/:id/ai/floorplan-agent/outputs', (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const outputs = getAgentOutputs(projectId);
+    res.json({ success:true, outputs });
+  } catch (err) {
+    res.status(500).json({ success:false, error: err.message });
+  }
+});
+
+// Furniture Staging Trigger Route (DesignGenie/3dio-js Integration)
+app.post('/api/projects/:id/layout/stage-furniture', express.json(), async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const furniture = stageFurnitureForProject(projectId);
+    res.json({ success: true, count: furniture.length, furniture });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // Returns JSON design actions with confidence + reasoning grounded in RULES
 // (kitchen, wardrobe, vastu, lighting, sofa sizing, elevation) + RETRIEVAL
 // (material catalogs, prior corrections, approved designs, product specs).

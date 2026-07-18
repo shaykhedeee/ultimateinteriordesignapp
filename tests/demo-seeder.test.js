@@ -36,7 +36,7 @@ test('seedDemoProject successfully seeds the complete high-fidelity project', as
   const render = db.prepare('SELECT * FROM generated_assets WHERE project_id = ?').get('proj_demo_hsr');
   assert.ok(render, 'generated asset row should be seeded');
   
-  // Verify Cutlist Project Row was generated
-  const cutlistProj = db.prepare('SELECT * FROM cutlist_projects WHERE project_id = ?').get('proj_demo_hsr');
+  // Verify Cutlist Project Row was generated (canonical production_cutlists store)
+  const cutlistProj = db.prepare('SELECT * FROM production_cutlists WHERE project_id = ?').get('proj_demo_hsr');
   assert.ok(cutlistProj, 'cutlist project row should be generated on seed');
 });

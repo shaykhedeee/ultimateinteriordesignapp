@@ -43,8 +43,14 @@ export async function renderSceneWithBlender(projectId, sceneJson, cameraPreset 
     fs.mkdirSync(projectDir, { recursive: true });
   }
 
-  // Save temporary scene data
-  const tempJsonPath = path.join(projectDir, 'scene_temp.json');
+  // Persist the immutable package while Blender reads a short-lived scene file.
+  const renderPackage = options.renderPackage || null;
+  const packageDir = path.join(projectDir, 'render-packages');
+  if (renderPackage) {
+    fs.mkdirSync(packageDir, { recursive: true });
+    fs.writeFileSync(path.join(packageDir, `${renderPackage.renderPackageHash}.json`), JSON.stringify(renderPackage, null, 2), 'utf8');
+  }
+  const tempJsonPath = path.join(projectDir, `scene_temp${renderPackage ? `-${renderPackage.renderPackageHash.slice(-12)}` : ''}.json`);
   fs.writeFileSync(tempJsonPath, JSON.stringify(sceneJson, null, 2), 'utf8');
 
   // Output render image path
@@ -52,7 +58,9 @@ export async function renderSceneWithBlender(projectId, sceneJson, cameraPreset 
   if (!fs.existsSync(renderDir)) {
     fs.mkdirSync(renderDir, { recursive: true });
   }
-  const outputImgPath = path.join(renderDir, `blender-${projectId}-${Date.now()}.png`);
+  const safeCamera = String(cameraPreset).replace(/[^a-z0-9_-]/gi, '_');
+  const fingerprint = renderPackage ? renderPackage.renderPackageHash.slice(-12) : Date.now();
+  const outputImgPath = path.join(renderDir, `blender-${projectId}-${fingerprint}-${safeCamera}${options.mode ? `-${options.mode}` : ''}.png`);
 
   const pythonScript = path.join(__dirname, '../scripts/render_scene.py');
   
@@ -66,6 +74,7 @@ export async function renderSceneWithBlender(projectId, sceneJson, cameraPreset 
     '--camera', cameraPreset,
     '--quality', options.quality || 'draft'
   ];
+  if (Number.isInteger(options.seed)) args.push('--seed', String(options.seed));
   if (options.mode) {
     args.push('--mode', options.mode);
   }
@@ -105,7 +114,10 @@ export async function renderSceneWithBlender(projectId, sceneJson, cameraPreset 
       if (code === 0) {
         console.log(`[blender-renderer] Completed rendering successfully. Image saved to ${outputImgPath}`);
         if (fs.existsSync(outputImgPath)) {
-          resolve(outputImgPath);
+          resolve(options.returnMetadata ? {
+            imagePath: outputImgPath,
+            renderPackagePath: renderPackage ? path.join(packageDir, `${renderPackage.renderPackageHash}.json`) : null
+          } : outputImgPath);
         } else {
           reject(new Error(`Blender exited with 0 but output file was not found at ${outputImgPath}`));
         }

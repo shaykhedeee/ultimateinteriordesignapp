@@ -189,7 +189,13 @@ const insertMaterial = db.prepare(`
   ['mat_lam_1','laminate','carcass_interior','SF-9120','Frosty White Suede','CenturyPly','Suede Matte','#f3f4f6',45,4.8],
   ['mat_lam_2','laminate','shutter_facade','MT-8012','Charcoal Matte','Royale Touche','Anti-Fingerprint Matte','#27272a',95,4.8],
   ['mat_lam_3','laminate','shutter_facade','GL-D0456','Arctic Grey Gloss','Greenlam','High Gloss','#9ca3af',105,4.6],
-  ['mat_lam_4','laminate','shutter_facade','W-4211','Bourbon Walnut','Royale Touche','Horizontal Woodgrain','#5c4033',85,4.9]
+  ['mat_lam_4','laminate','shutter_facade','W-4211','Bourbon Walnut','Royale Touche','Horizontal Woodgrain','#5c4033',85,4.9],
+  ['mat_paint_1','paint','wall','AP-7231','Classic Mint','Asian Paints','Eggshell Finish','#d5ecd4',12,4.8],
+  ['mat_paint_2','paint','wall','AP-0412','Soft Alabaster','Asian Paints','Satin Finish','#f3eee7',12,4.9],
+  ['mat_paint_3','paint','wall','SW-7005','Pure White','Sherwin Williams','Flat Matte','#f2f1ec',15,4.9],
+  ['mat_paint_4','paint','wall','SW-6244','Naval Blue','Sherwin Williams','Satin Finish','#2f3d4a',15,4.8],
+  ['mat_paint_5','paint','wall','AP-8120','Terracotta Clay','Asian Paints','Matte Finish','#b35c46',12,4.7],
+  ['mat_paint_6','paint','wall','SW-7048','Urbane Bronze','Sherwin Williams','Matte Finish','#54504a',15,4.8]
 ].forEach(row => insertMaterial.run(row));
 
 console.log("Database seeded successfully with demo leads, closed project and initial CAD drawings.");

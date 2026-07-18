@@ -44,13 +44,21 @@ export const useAppStore = create((set, get) => ({
   orchestratorMode: false,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
-  setSelectedProjectId: (id) => set({ selectedProjectId: id }),
+  setSelectedProjectId: (id) => {
+    if (id) localStorage.setItem('spacetrace_project_id', id);
+    else localStorage.removeItem('spacetrace_project_id');
+    const selectedProject = id
+      ? get().projectsList.find((project) => project.id === id) || get().selectedProject
+      : null;
+    set({ selectedProjectId: id, selectedProject });
+  },
   setProjectsList: (projectsList) => set({ projectsList }),
   setSelectedProject: (selectedProject) => set({ selectedProject }),
   setChatMessages: (chatMessages) => set({ chatMessages }),
   setStats: (stats) => set({ stats }),
   setShowProjectDropdown: (showProjectDropdown) => set({ showProjectDropdown }),
   setActiveJobs: (activeJobs) => set({ activeJobs }),
+  setPrevActiveJobsCount: (prevActiveJobsCount) => set({ prevActiveJobsCount }),
   setOrchestrationChips: (orchestrationChips) => set({ orchestrationChips }),
   setLastUserText: (lastUserText) => set({ lastUserText }),
   setIsAuraOpen: (isAuraOpen) => set({ isAuraOpen }),
@@ -69,8 +77,13 @@ export const useAppStore = create((set, get) => ({
       const qualified = leads.filter(l => l.voice_status === 'qualified' || l.voice_status === 'human_closed').length;
       const closed = leads.filter(l => l.voice_status === 'human_closed').length;
       const rate = leads.length > 0 ? ((closed / leads.length) * 100).toFixed(0) : 0;
+      const currentProjectId = get().selectedProjectId;
+      const selectedProject = projects.find((project) => project.id === currentProjectId) || null;
+      if (currentProjectId && !selectedProject) localStorage.removeItem('spacetrace_project_id');
       set({
         projectsList: projects,
+        selectedProjectId: selectedProject?.id || null,
+        selectedProject,
         stats: {
           totalLeads: leads.length,
           qualifiedLeads: qualified,
@@ -94,29 +107,6 @@ export const useAppStore = create((set, get) => ({
     } catch (e) {
       console.error('Failed to fetch running jobs:', e);
     }
-  },
-
-  ensureProject: async () => {
-    const { selectedProjectId, projectsList, setSelectedProjectId, setSelectedProject } = get();
-    if (selectedProjectId) return selectedProjectId;
-    if (projectsList.length > 0) {
-      const first = projectsList[0];
-      setSelectedProjectId(first.id);
-      setSelectedProject(first);
-      return first.id;
-    }
-    try {
-      const res = await fetch(`${API_BASE}/api/system/demo-project`);
-      if (res.ok) {
-        const project = await res.json();
-        setSelectedProjectId(project.id);
-        setSelectedProject(project);
-        return project.id;
-      }
-    } catch (e) {
-      console.warn('demo project fallback failed', e);
-    }
-    return null;
   },
 
   // Port of existing App.jsx AURA behavior into the store so the shell/routes can reuse it.
@@ -317,7 +307,7 @@ export const useAppStore = create((set, get) => ({
   },
 
   ensureProject: async () => {
-    const { selectedProjectId, projectsList, setSelectedProjectId } = get();
+    const { selectedProjectId, projectsList, setSelectedProjectId, setSelectedProject } = get();
     if (selectedProjectId) return selectedProjectId;
     if (!projectsList.length) {
       try {
@@ -327,7 +317,24 @@ export const useAppStore = create((set, get) => ({
     const first = get().projectsList[0];
     if (first?.id) {
       setSelectedProjectId(first.id);
+      setSelectedProject(first);
       return first.id;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'New Interior Project' })
+      });
+      const project = await res.json().catch(() => ({}));
+      if (res.ok && project.id) {
+        setSelectedProjectId(project.id);
+        setSelectedProject(project);
+        set({ projectsList: [project, ...get().projectsList] });
+        return project.id;
+      }
+    } catch (error) {
+      console.warn('Project creation fallback failed', error);
     }
     return null;
   },

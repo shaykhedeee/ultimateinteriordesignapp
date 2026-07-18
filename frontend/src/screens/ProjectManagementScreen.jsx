@@ -8,6 +8,8 @@ import {
   ShieldAlert, Star, DollarSign, Activity, Trash2
 } from 'lucide-react';
 
+const API_BASE = apiUrl('');
+
 const WORKFLOW_STAGES = [
   { id: 'brief', label: 'Brief', icon: <FileText className="w-3 h-3" />, color: '#0891b2' },
   { id: 'cad_approved', label: 'CAD', icon: <Compass className="w-3 h-3" />, color: '#D4AF37' },
@@ -37,6 +39,8 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [templateApplying, setTemplateApplying] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [pipelineMessage, setPipelineMessage] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -66,6 +70,27 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const createProject = async () => {
+    setCreatingProject(true);
+    setPipelineMessage('Creating a new project...');
+    try {
+      const res = await fetch(apiUrl('projects'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'New Interior Project', client_name: '' })
+      });
+      const project = await res.json().catch(() => ({}));
+      if (!res.ok || !project.id) throw new Error(project.error || 'Project could not be created.');
+      setProjects((current) => [project, ...current]);
+      setPipelineMessage('Project created. Opening client brief intake...');
+      onNavigateToProject?.(project.id, project);
+    } catch (error) {
+      setPipelineMessage(error.message || 'Project could not be created. Please retry.');
+    } finally {
+      setCreatingProject(false);
     }
   };
 
@@ -195,7 +220,17 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
         >
           <RefreshCw className="w-4 h-4" />
         </button>
+        <button
+          type="button"
+          onClick={createProject}
+          disabled={creatingProject}
+          className="bg-[#5b3a29] hover:bg-[#432a1e] disabled:opacity-60 px-4 py-3 rounded-xl text-[#fffaf2] text-[11px] font-black uppercase tracking-wide transition inline-flex items-center gap-2 whitespace-nowrap"
+        >
+          <Plus className="w-4 h-4" /> {creatingProject ? 'Creating...' : 'Add Project'}
+        </button>
       </div>
+
+      {pipelineMessage && <div className="mx-6 mt-3 rounded-lg border border-[#c8b7a6] bg-[#fffaf2] px-3 py-2 text-[11px] font-semibold text-[#4a3024]" aria-live="polite">{pipelineMessage}</div>}
 
       {/* ── Stage Pipeline Bar ── */}
       <div className="flex-shrink-0 px-6 py-3 border-b border-slate-800/50">
@@ -258,7 +293,8 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
               <div>
                 <FolderOpen className="w-16 h-16 mx-auto mb-4 text-slate-700" />
                 <h3 className="text-lg font-bold text-slate-400">No Projects Yet</h3>
-                <p className="text-sm text-slate-600 mt-2">Close a deal in CRM to create your first project workspace</p>
+                <p className="text-sm text-slate-600 mt-2">Start with a client brief, then upload the floor plan.</p>
+                <button type="button" onClick={createProject} disabled={creatingProject} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#5b3a29] px-4 py-2 text-xs font-bold text-white disabled:opacity-60"><Plus className="w-4 h-4" />Add Project</button>
               </div>
             </div>
           ) : !showKanban ? (
@@ -315,7 +351,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
 
                     <div className="flex flex-col justify-center gap-2">
                       <button
-                        onClick={(e) => { e.stopPropagation(); onNavigateToProject && onNavigateToProject(project.id); }}
+                        onClick={(e) => { e.stopPropagation(); onNavigateToProject && onNavigateToProject(project.id, project); }}
                         className="bg-[#D4AF37] hover:bg-[#AA8C2C] text-slate-950 text-[10px] font-black px-3 py-2 rounded-xl flex items-center gap-1 transition whitespace-nowrap"
                       >
                         Open Workspace <ArrowRight className="w-3 h-3" />
@@ -433,7 +469,7 @@ export default function ProjectManagementScreen({ onNavigateToProject }) {
             {/* Quick CTAs */}
             <div className="space-y-2">
               <button
-                onClick={() => onNavigateToProject && onNavigateToProject(selectedProject.id)}
+                onClick={() => onNavigateToProject && onNavigateToProject(selectedProject.id, selectedProject)}
                 className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#AA8C2C] text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 rounded-xl transition shadow-lg shadow-[#D4AF37]/5"
               >
                 Open Workspace <ArrowRight className="w-4 h-4" />

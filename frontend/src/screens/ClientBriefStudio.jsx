@@ -5,6 +5,8 @@ import {
   Sparkles, CheckCircle2, ChevronLeft, ChevronRight, Upload, X, HelpCircle
 } from 'lucide-react';
 
+const API_BASE = apiUrl('');
+
 const stylePresets = [
   { id: 'modern-luxury', title: 'Modern Luxury', desc: 'Bold marble, metal trims, dramatic lighting, and sleek custom paneling.', icon: '✨' },
   { id: 'bohemian-chic', title: 'Boho Chic', desc: 'Warm textures, natural wicker/rattan elements, rich plants, and earthy palettes.', icon: '🌿' },
@@ -17,6 +19,7 @@ const stylePresets = [
 export default function ClientBriefStudio({ projectId, onBriefSaved }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
+  const [actionState, setActionState] = useState({ kind: '', message: '' });
   
   // Structured Brief State
   const [brief, setBrief] = useState({
@@ -110,26 +113,36 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
   }, [brief.selectedSpaces]);
 
   const saveBrief = async () => {
+    if (!projectId) {
+      setActionState({ kind: 'error', message: 'Create or select a project before saving the brief.' });
+      return;
+    }
+    setActionState({ kind: 'loading', message: 'Compiling your brief...' });
     try {
       const res = await fetch(`${API_BASE}/projects/${projectId}/brief`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ briefData: brief, currentStep: 'cad' })
       });
-      const data = await res.json();
-      if (data.success) {
-        alert("Onboarding brief specifications compiled successfully!");
-        if (onBriefSaved) onBriefSaved();
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'The brief could not be saved.');
+      setActionState({ kind: 'success', message: 'Brief saved. Your floor plan can now be uploaded and analysed.' });
+      if (onBriefSaved) onBriefSaved();
     } catch (err) {
       console.error("Error saving brief:", err);
+      setActionState({ kind: 'error', message: err.message || 'The brief could not be saved. Please retry.' });
     }
   };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!projectId) {
+      setActionState({ kind: 'error', message: 'Create or select a project before uploading a floor plan.' });
+      return;
+    }
     setIsUploading(true);
+    setActionState({ kind: 'loading', message: `Uploading ${file.name}...` });
     const formData = new FormData();
     formData.append('floorplan', file);
 
@@ -138,12 +151,13 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
         method: 'POST',
         body: formData
       });
-      const data = await res.json();
-      if (data.success) {
-        setBrief(prev => ({ ...prev, floorplanImageUrl: data.floorplanUrl }));
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Floor plan upload failed.');
+      setBrief(prev => ({ ...prev, floorplanImageUrl: data.floorplanUrl }));
+      setActionState({ kind: 'success', message: 'Floor plan uploaded. Open Floor Plan Analyzer to calibrate and review it.' });
     } catch (err) {
       console.error("Error uploading floorplan:", err);
+      setActionState({ kind: 'error', message: err.message || 'Floor plan upload failed. Please retry.' });
     } finally {
       setIsUploading(false);
     }
@@ -152,6 +166,10 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
   const handleStyleRefsUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
+    if (!projectId) {
+      setActionState({ kind: 'error', message: 'Create or select a project before uploading references.' });
+      return;
+    }
     setIsUploading(true);
     const formData = new FormData();
     files.forEach(file => formData.append('styleReferences', file));
@@ -161,15 +179,18 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
         method: 'POST',
         body: formData
       });
-      const data = await res.json();
-      if (data.success && data.urls) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.error || 'Reference upload failed.');
+      if (data.urls) {
         setBrief(prev => ({
           ...prev,
           styleReferences: [...(prev.styleReferences || []), ...data.urls]
         }));
+        setActionState({ kind: 'success', message: `${data.urls.length} reference image(s) added to the project.` });
       }
     } catch (err) {
       console.error("Error uploading style references:", err);
+      setActionState({ kind: 'error', message: err.message || 'Reference upload failed. Please retry.' });
     } finally {
       setIsUploading(false);
     }
@@ -831,6 +852,11 @@ export default function ClientBriefStudio({ projectId, onBriefSaved }) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 overflow-y-auto h-full max-h-screen pb-24 select-none">
+      {actionState.message && (
+        <div className={`lg:col-span-3 rounded-lg border px-4 py-3 text-xs font-semibold ${actionState.kind === 'error' ? 'border-red-300 bg-red-50 text-red-800' : actionState.kind === 'success' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-amber-800'}`} aria-live="polite">
+          {actionState.message}
+        </div>
+      )}
       
       {/* 1. Client Onboarding Wizard steps (Left column) */}
       <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between min-h-[50vh]">

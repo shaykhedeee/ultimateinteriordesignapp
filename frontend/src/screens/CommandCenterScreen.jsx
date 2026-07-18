@@ -1,6 +1,5 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
 import { useJobPolling } from '../hooks/useJobPolling.js';
-import { useAutoClear } from '../hooks/useAutoClear.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Inbox, FolderOpen, Compass, Palette, Sparkles, Scissors,
@@ -9,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Ruler, Sun, Moon, Grid } from 'lucide-react';
 import FurniturePicker from '../components/catalog/FurniturePicker.jsx';
+import { useAppStore } from '../stores/appStore';
 
 export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const [projects, setProjects] = useState([]);
@@ -39,8 +39,8 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
     { title: 'View Cost', desc: 'Indicative quote', tab: 'finance', roles: ['consumer'] },
     { title: 'Talk to Designer', desc: 'Request expert review', tab: 'brief', roles: ['consumer'] },
     { title: 'Upload CAD', desc: 'Upload if available', tab: 'cad', roles: ['designer'] },
-    { title: 'Calibrate Scale', desc: 'Set real-world size', tab: 'cad', roles: ['designer'] },
-    { title: 'Zone Rooms', desc: 'Tag rooms & Vastu', tab: 'cad', roles: ['designer'] },
+    { title: 'Calibrate Scale', desc: 'Set real-world size', tab: 'floorplan', roles: ['designer'] },
+    { title: 'Zone Rooms', desc: 'Tag rooms & Vastu', tab: 'floorplan', roles: ['designer'] },
     { title: 'Laminate Catalog', desc: 'PBR finish codes', tab: 'materials', roles: ['designer'] },
     { title: 'Camera Planner', desc: 'Viewpoint composer', tab: 'renders', roles: ['designer'] },
     { title: 'BOM Calculator', desc: 'SQFT schedule', tab: 'finance', roles: ['designer'] }
@@ -70,23 +70,30 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const activeProject = projects.find(p => p.id === selectedProjectId) || projects[0] || null;
 
   const loadDemoClients = async () => {
-    setDemoStatus('Seeding...');
+    setDemoStatus('Preparing demo project...');
     try {
       const base = apiUrl('');
-      const res = await fetch(`${base}/demo/seed`, { method: 'POST' });
+      const res = await fetch(`${base}/projects/seed-demo`, { method: 'POST' });
       const data = await res.json();
-      setDemoStatus(`Loaded ${data.leads || 0} leads / ${data.projects || 0} projects`);
+      if (!res.ok || !data.success) throw new Error(data.error || 'Demo project could not be prepared.');
       const [projData, leadData] = await Promise.all([
         fetch(`${base}/projects`).then(r => r.json()),
-        fetch(`${base}/leads`).then(r => r.json()).catch(() => ({ leads: [] }))
+        fetch(`${base}/leads`).then(r => r.json()).catch(() => [])
       ]);
       setProjects(projData);
-      setLeads(leadData.leads || []);
-      if (projData.length > 0) setSelectedProjectId(projData[0].id);
+      setLeads(Array.isArray(leadData) ? leadData : (leadData.leads || []));
+      const demoProject = projData.find((project) => project.id === data.projectId) || projData[0];
+      if (demoProject) {
+        setSelectedProjectId(demoProject.id);
+        useAppStore.getState().setSelectedProject(demoProject);
+        useAppStore.getState().setSelectedProjectId(demoProject.id);
+      }
+      useAppStore.getState().fetchStatsAndProjects().catch(() => {});
+      setDemoStatus('Demo project ready');
     } catch (e) {
-      setDemoStatus('Seed failed');
+      setDemoStatus(e.message || 'Demo project failed');
     }
-    useAutoClear(demoStatus, setDemoStatus, 2200);
+    window.setTimeout(() => setDemoStatus(''), 2200);
   };
 
   // Pipeline calculations
@@ -96,8 +103,70 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
   const productionCount = projects.filter(p => p.status === 'production').length;
   const pipelineValue = ((totalLeads * 3.5) + (activeProjectsCount * 12.5)).toFixed(1);
 
+  const workflowStages = [
+    { number: '01', label: 'Brief', purpose: 'Capture the client brief, budget, lifestyle, and priorities.', tab: 'brief', icon: FileText },
+    { number: '02', label: 'Plan', purpose: 'Read rooms, walls, openings, and scale from the floor plan.', tab: 'floorplan', icon: Compass },
+    { number: '03', label: 'Scene', purpose: 'Place modular furniture and keep the room workable.', tab: 'studio', icon: Layers },
+    { number: '04', label: 'Specify', purpose: 'Choose finishes, hardware, and material alternatives.', tab: 'materials', icon: Palette },
+    { number: '05', label: 'Visualise', purpose: 'Create an AI render proposal for each designed space.', tab: 'renders', icon: Sparkles },
+    { number: '06', label: 'Draw', purpose: 'Turn the approved design into elevations and drawings.', tab: 'drawings', icon: Ruler },
+    { number: '07', label: 'Produce', purpose: 'Calculate cutlists, nesting, and production schedules.', tab: 'cutlist', icon: Scissors },
+    { number: '08', label: 'Quote', purpose: 'Build a project-linked estimate and client quotation.', tab: 'finance', icon: IndianRupee },
+  ];
+  const nextTabByState = {
+    brief: 'brief',
+    cad: 'floorplan',
+    plan_review: 'floorplan',
+    cad_approved: 'studio',
+    scene_draft: 'studio',
+    materials_selected: 'renders',
+    renders_approved: 'drawings',
+    drawings_approved: 'cutlist',
+    production: 'finance',
+    billing: 'finance'
+  };
+  const nextStage = activeProject
+    ? workflowStages.find((stage) => stage.tab === (nextTabByState[activeProject.current_step] || nextTabByState[activeProject.status] || 'brief')) || workflowStages[0]
+    : workflowStages[0];
+
   return (
-    <div className="h-full w-full overflow-y-auto p-6 space-y-6 bg-slate-950 text-slate-100 font-sans">
+    <div className="ultida-command-center h-full w-full overflow-y-auto p-5 lg:p-7 space-y-6 bg-slate-950 text-slate-100 font-sans">
+      <section className="cc-welcome flex flex-col xl:flex-row xl:items-end justify-between gap-5">
+        <div>
+          <p className="cc-eyebrow">ULTIDA / DESIGN OPERATING SYSTEM</p>
+          <h1 className="cc-title">Your studio, arranged around the work.</h1>
+          <p className="cc-subtitle">Move from a client brief to a finished, priced, and documented interior without losing the thread.</p>
+        </div>
+        <div className="cc-project-status">
+          <span className="cc-status-dot" />
+          <span>{activeProject ? `${activeProject.name} is the active project` : 'Start by creating a project'}</span>
+        </div>
+      </section>
+
+      <section className="cc-next-action">
+        <div className="cc-next-icon"><nextStage.icon className="w-5 h-5" /></div>
+        <div className="min-w-0 flex-1">
+          <p className="cc-eyebrow">NEXT BEST ACTION</p>
+          <h2>{activeProject ? `Open ${nextStage.label.toLowerCase()} review` : 'Create your first project'}</h2>
+          <p>{activeProject ? nextStage.purpose : 'Set up the project once, then every design tool can stay connected to it.'}</p>
+        </div>
+        <button className="cc-primary-action" onClick={() => onNavigateToTab && onNavigateToTab(activeProject ? nextStage.tab : 'projects')}>
+          {activeProject ? `Open ${nextStage.label}` : 'Create project'} <ChevronRight className="w-4 h-4" />
+        </button>
+      </section>
+
+      <section className="cc-lifecycle" aria-label="Interior design workflow">
+        <div className="cc-section-heading"><div><p className="cc-eyebrow">THE DESIGN JOURNEY</p><h2>Every tool has a place in the project.</h2></div><span>{activeProjectsCount} active projects</span></div>
+        <div className="cc-stage-grid">
+          {workflowStages.map((stage) => {
+            const Icon = stage.icon;
+            return <button key={stage.tab} className={`cc-stage ${stage.tab === nextStage.tab ? 'is-next' : ''}`} onClick={() => onNavigateToTab && onNavigateToTab(stage.tab)}>
+              <span className="cc-stage-number">{stage.number}</span><Icon className="cc-stage-icon w-4 h-4" />
+              <strong>{stage.label}</strong><span>{stage.purpose}</span><ChevronRight className="cc-stage-arrow w-4 h-4" />
+            </button>;
+          })}
+        </div>
+      </section>
       
       {/* ── Workspace Mode / Role Switcher Header ── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-[#1E1E24] border border-slate-800 p-4 rounded-2xl shadow-lg shrink-0">
@@ -153,6 +222,7 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
               <SmartProjectWorkspace 
                 project={activeProject} 
                 projects={projects}
+                selectedProjectId={selectedProjectId}
                 workspaceMode={workspaceMode}
                 onSelectProject={(id) => setSelectedProjectId(id)}
                 onNavigateToTab={onNavigateToTab}
@@ -329,7 +399,9 @@ export default function CommandCenterScreen({ projectId, onNavigateToTab }) {
 // ============================================================================
 // WORKSPACE: Smart Project
 // ============================================================================
-function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProject, onNavigateToTab }) {
+function SmartProjectWorkspace({ project, projects, selectedProjectId, workspaceMode, onSelectProject, onNavigateToTab }) {
+  const API_BASE = apiUrl('');
+  const ensureProject = useAppStore((state) => state.ensureProject);
   const consumerMode = Boolean(workspaceMode === 'consumer');
   const [consumerStep, setConsumerStep] = React.useState('welcome'); // welcome | room | style | result
   const [consumerRoom, setConsumerRoom] = React.useState('');
@@ -382,6 +454,7 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
   const [actionProgress, setActionProgress] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [currentVersionId, setCurrentVersionId] = useState('');
+  const [selectedAction, setSelectedAction] = useState(null);
 
   const canvasRef = useRef(null);
 
@@ -407,10 +480,10 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
     e.preventDefault();
     const file = e.target.files?.[0];
     if (!file) return;
-    const projectId = selectedProjectId || await get().ensureProject();
+    const projectId = selectedProjectId || await ensureProject();
     if (!projectId) {
       setStatusMessage('Create or select a project first');
-      useAutoClear(statusMessage, setStatusMessage, 2200);
+                    window.setTimeout(() => setStatusMessage(''), 2200);
       return;
     }
     setFloorplanFile(file);
@@ -429,7 +502,7 @@ function SmartProjectWorkspace({ project, projects, workspaceMode, onSelectProje
     } catch (err) {
       setStatusMessage('Upload failed');
     } finally {
-      useAutoClear(statusMessage, setStatusMessage, 2200);
+                    window.setTimeout(() => setStatusMessage(''), 2200);
     }
     e.target.value = '';
   };
@@ -705,7 +778,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                     } catch (err) {
                       setStatusMessage('AI enhancement failed');
                     } finally {
-                      useAutoClear(statusMessage, setStatusMessage, 2200);
+                    window.setTimeout(() => setStatusMessage(''), 2200);
                     }
                   }
                   setLoaderMessage('AI Top View Enhancement pipeline running...');
@@ -848,7 +921,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
               onClick={async () => {
                 if (!project?.id) {
                   setStatusMessage('Select a project to continue');
-                  useAutoClear(statusMessage, setStatusMessage, 2200);
+                    window.setTimeout(() => setStatusMessage(''), 2200);
                   return;
                 }
                 setLoaderMessage('Saving room zonation...');
@@ -870,7 +943,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                 } catch (err) {
                   setStatusMessage('Save failed');
                 } finally {
-                  useAutoClear(statusMessage, setStatusMessage, 2200);
+                    window.setTimeout(() => setStatusMessage(''), 2200);
                 }
               }}
               className="w-full py-2.5 bg-[#D4AF37] hover:bg-[#e6c045] text-slate-950 font-black uppercase tracking-wider text-[10px] rounded-xl transition shadow-lg shadow-[#D4AF37]/10"
@@ -942,7 +1015,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   setAssignMode(mode.id);
                   if (!project?.id) {
                     setStatusMessage('Select a project for assignment');
-                    useAutoClear(statusMessage, setStatusMessage, 2200);
+                    window.setTimeout(() => setStatusMessage(''), 2200);
                     return;
                   }
                   setStatusMessage(`Assigning via ${mode.label}...`);
@@ -956,7 +1029,7 @@ function ConsumerOnboarding({ rooms, styles, onSelectRoom, onSelectStyle, onStar
                   } catch (err) {
                     setStatusMessage('Assignment failed');
                   } finally {
-                    useAutoClear(statusMessage, setStatusMessage, 2200);
+                    window.setTimeout(() => setStatusMessage(''), 2200);
                   }
                 }}
                     className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${

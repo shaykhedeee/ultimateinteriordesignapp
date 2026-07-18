@@ -1,4 +1,5 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+const API_BASE = apiUrl('');
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Palette, BookOpen, Layers, Save, CheckCircle, 

@@ -60,6 +60,12 @@ function placeholderJpeg(label){
   return placeholderPng(label);
 }
 
+function isRasterBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 12) return false;
+  return buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    || buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
+}
+
 function normalizeOpenings(openings){
   if (!Array.isArray(openings)) return [];
   return openings.map(o => ({
@@ -156,13 +162,25 @@ async function aiRenderRoom(room){
     if (blob && blob.filePath) {
       // generateInteriorAsset returns a virtual /storage/assets/... path; resolve to disk.
       const onDisk = path.resolve(projectRoot, 'storage', blob.filePath.replace(/^\/?storage\//, ''));
-      if (fs.existsSync(onDisk)) return fs.readFileSync(onDisk);
+      if (fs.existsSync(onDisk)) {
+        const buffer = fs.readFileSync(onDisk);
+        if (isRasterBuffer(buffer)) return buffer;
+      }
     }
-    if (blob && blob.path && fs.existsSync(blob.path)) return fs.readFileSync(blob.path);
-    if (blob && blob.buffer) return Buffer.isBuffer(blob.buffer) ? blob.buffer : Buffer.from(blob.buffer);
+    if (blob && blob.path && fs.existsSync(blob.path)) {
+      const buffer = fs.readFileSync(blob.path);
+      if (isRasterBuffer(buffer)) return buffer;
+    }
+    if (blob && blob.buffer) {
+      const buffer = Buffer.isBuffer(blob.buffer) ? blob.buffer : Buffer.from(blob.buffer);
+      if (isRasterBuffer(buffer)) return buffer;
+    }
     if (blob && blob.url) {
       const res = await fetch(blob.url);
-      if (res.ok) return Buffer.from(await res.arrayBuffer());
+      if (res.ok) {
+        const buffer = Buffer.from(await res.arrayBuffer());
+        if (isRasterBuffer(buffer)) return buffer;
+      }
     }
   } catch (e) { console.warn('AI render fallback:', e.message); }
   return null;

@@ -7,6 +7,10 @@ import { LayoutDashboard } from 'lucide-react';
 
 export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [connectivity, setConnectivity] = useState('checking');
+  const [bootError, setBootError] = useState(null);
+  const [renderError, setRenderError] = useState(null);
 
   React.useEffect(() => {
     const seen = localStorage.getItem('tutorialSeen');
@@ -58,7 +62,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen bg-[#020617] text-slate-100 flex items-center justify-center">
+      <div className="ultida-cozy h-screen w-screen flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#AA8C2C] flex items-center justify-center shadow-lg shadow-[#D4AF37]/20 mx-auto animate-pulse">
             <LayoutDashboard className="w-4 h-4 text-slate-900" />
@@ -71,7 +75,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative">
+    <div className="ultida-cozy relative">
       {showTutorial && (
         <TutorialOverlay
           open={showTutorial}

@@ -1,10 +1,13 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+import { useAutoClear } from '../hooks/useAutoClear.js';
 import React, { useState, useEffect } from 'react';
 import { 
   Grid, Monitor, ChevronDown, Download, Sparkles, Box
 } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+
+const API_BASE = apiUrl('');
 
 const UNIT_STYLES = [
   { id: 'wall-mounted', label: 'Wall-mounted classic', defaultDepth: 14, defaultHeight: 22 },
@@ -34,6 +37,9 @@ export default function TvUnitGenerator({ projectId }) {
   const [wireManagement, setWireManagement] = useState(true);
   const [spec, setSpec] = useState(null);
   const [status, setStatus] = useState(null);
+  const [libraryUnits, setLibraryUnits] = useState([]);
+  const [selectedLibraryUnit, setSelectedLibraryUnit] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
   useAutoClear(status, () => setStatus(null), 2200);
 
   useEffect(() => {
@@ -43,6 +49,16 @@ export default function TvUnitGenerator({ projectId }) {
       .then(setProject)
       .catch(() => {});
   }, [projectId]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/tv-units`)
+      .then((res) => res.ok ? res.json() : [])
+      .then((units) => {
+        setLibraryUnits(Array.isArray(units) ? units : []);
+        if (Array.isArray(units) && units[0]) setSelectedLibraryUnit((current) => current || units[0].id);
+      })
+      .catch(() => setStatus('TV unit library is unavailable. You can still create a custom specification.'));
+  }, []);
 
   const styleObj = UNIT_STYLES.find(s => s.id === style) || UNIT_STYLES[0];
   const finishObj = FINISHES.find(f => f.id === finish) || FINISHES[0];
@@ -84,6 +100,29 @@ export default function TvUnitGenerator({ projectId }) {
     setStatus('Quick BOM exported.');
   };
 
+  const applyLibraryUnit = async () => {
+    if (!projectId) {
+      setStatus('Create or select a project before applying a TV unit.');
+      return;
+    }
+    if (!selectedLibraryUnit) return;
+    setIsApplying(true);
+    try {
+      const res = await fetch(`${API_BASE}/projects/${projectId}/tv-unit/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unitId: selectedLibraryUnit })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || data.reason || 'Could not apply this TV unit.');
+      setStatus(`${data.applied?.name || 'TV unit'} added to the active project's shared scene.`);
+    } catch (error) {
+      setStatus(error.message || 'Could not apply this TV unit.');
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
   return (
     <div className="h-full w-full overflow-y-auto p-6 space-y-6 bg-slate-950 text-slate-100 font-sans">
       <div className="flex items-center justify-between">
@@ -103,6 +142,18 @@ export default function TvUnitGenerator({ projectId }) {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="space-y-4 xl:col-span-1">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Modular library</p>
+              <p className="text-[10px] text-slate-500 mt-1">Use a proven TV unit, then replace it in the scene whenever the client approves a different option.</p>
+            </div>
+            <select value={selectedLibraryUnit} onChange={(e) => setSelectedLibraryUnit(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-[#D4AF37]">
+              {libraryUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name} · {unit.widthMm}mm</option>)}
+            </select>
+            <button type="button" onClick={applyLibraryUnit} disabled={isApplying || !selectedLibraryUnit} className="w-full py-2.5 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37] disabled:opacity-50 text-[10px] font-extrabold uppercase tracking-wider">
+              {isApplying ? 'Adding to project...' : 'Add selected unit to project'}
+            </button>
+          </div>
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Mood</label>

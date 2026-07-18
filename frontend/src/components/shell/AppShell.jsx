@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import AuraBrainChat from '../layout/AuraBrainChat';
 import { useAppStore } from '../../stores/appStore';
+import { apiUrl } from '../../utils/api.js';
 
 const TAB_TITLES = {
   dashboard: 'Command Center & Workspace Hub',
@@ -95,7 +96,7 @@ export default function AppShell({ activeTab, onNavigate, currentTime, children 
     let cancelled = false;
     const check = async () => {
       try {
-        const res = await fetch(`${apiBase}/api/health`, { method: 'GET', cache: 'no-store' });
+        const res = await fetch(`${apiBase}/health`, { method: 'GET', cache: 'no-store' });
         if (!cancelled) setConnectivity(res.ok ? 'online' : 'error');
       } catch {
         if (!cancelled) setConnectivity('offline');
@@ -208,6 +209,7 @@ export default function AppShell({ activeTab, onNavigate, currentTime, children 
                           onClick={() => !isDisabled && onNavigate(item.id)}
                           aria-current={isActive ? 'page' : undefined}
                           disabled={isDisabled}
+                          data-testid={`nav-${item.id}`}
                           className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-semibold flex items-center gap-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617] ${
                             isActive
                               ? 'bg-[#1E1E24] text-[#F0EEE8] border border-[#C9A84C]/30 shadow-md shadow-[#C9A84C]/5'

@@ -13,13 +13,11 @@ export async function seedDemoProject() {
 
   try {
   // 1. Clean existing demo project to allow re-seeding
-  db.prepare('DELETE FROM cutlist_parts WHERE cutlist_project_id IN (SELECT id FROM cutlist_projects WHERE project_id = ?)').run(projectId);
-  db.prepare('DELETE FROM cutlist_modules WHERE cutlist_project_id IN (SELECT id FROM cutlist_projects WHERE project_id = ?)').run(projectId);
-  db.prepare('DELETE FROM cutlist_projects WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM production_cutlists WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM invoices WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM photo_elevations WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM generated_assets WHERE project_id = ?').run(projectId);
+  db.prepare('DELETE FROM design_renders WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM scene_versions WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM cad_drawings WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
@@ -136,12 +134,12 @@ export async function seedDemoProject() {
   };
 
   db.prepare(`
-    INSERT INTO scene_versions (id, project_id, version_number, branch_name, is_current, scene_json, scene_hash)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO scene_versions (id, project_id, version_number, branch_name, is_current, is_locked, approval_state, approved_at, approved_by, scene_json, scene_hash)
+    VALUES (?, ?, ?, ?, ?, 1, 'approved', CURRENT_TIMESTAMP, 'demo-seeder', ?, ?)
   `).run(
     'scene_v_demo',
     projectId,
-    1,
+    2,
     'main',
     1, // active
     JSON.stringify(sceneJson),
@@ -160,10 +158,23 @@ export async function seedDemoProject() {
     'premium',
     'Sharma Premium Kitchen Render',
     'High-end modular kitchen render, beige marble, warm led lights.',
-    '/images/kitchen_3d_render_final.png', // valid existing visual
+    '/storage/assets/kitchen_3d_render_final.png',
     JSON.stringify(['kitchen', 'indian-contemporary', 'premium']),
     'blender-cycles-ai-polish',
     96
+  );
+
+  db.prepare(`
+    INSERT INTO design_renders (id, project_id, image_url, room, prompt, review_status, review_note)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'design_render_demo_hsr',
+    projectId,
+    '/storage/assets/kitchen_3d_render_final.png',
+    'kitchen',
+    'Premium modular kitchen visual proposal generated from the approved demo scene and material brief.',
+    'approved',
+    'Approved demo visual linked to scene_v_demo.'
   );
 
   // 7. Seed Elevation record
@@ -233,7 +244,17 @@ export async function seedDemoProject() {
   );
 
   try {
-    cutlistEngine.createOrRefreshCutlist(projectId);
+    const cutlist = cutlistEngine.createOrRefreshCutlist(projectId, 'scene_v_demo');
+    const cutlistPayload = cutlistEngine.getCutlistByProject(projectId, 'scene_v_demo') || cutlist;
+    db.prepare(`
+      INSERT OR REPLACE INTO production_cutlists
+        (id, project_id, scene_version_id, cutlist_data_json, optimized_sheets_json)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      `production_${projectId}`, projectId, 'scene_v_demo',
+      JSON.stringify(cutlistPayload?.parts || []),
+      JSON.stringify(cutlistPayload?.sheetLayout || cutlistPayload?.optimizedSheets || {})
+    );
     console.log(`[demo-seeder] Cutlist compiled successfully for demo project ${projectId}.`);
   } catch (err) {
     console.error("[demo-seeder] Failed to generate cutlist during seed:", err.stack || err);

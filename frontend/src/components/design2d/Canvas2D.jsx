@@ -378,6 +378,36 @@ export default function Canvas2D() {
                 transform={`translate(${x}, ${y}) rotate(${rotationDeg})`}
                 style={{ cursor: isLocked ? 'default' : 'move' }}
               >
+                {/* Clearance zone safety halo (inspired by underlay) */}
+                {isSelected && (
+                  <g>
+                    <rect
+                      x={-widthMm / 2 - 300}
+                      y={-depthMm / 2 - 300}
+                      width={widthMm + 600}
+                      height={depthMm + 600}
+                      fill="rgba(251, 191, 36, 0.02)"
+                      stroke="rgba(251, 191, 36, 0.25)"
+                      strokeWidth="1"
+                      strokeDasharray="3,3"
+                      rx="6"
+                      pointerEvents="none"
+                    />
+                    <text
+                      x="0"
+                      y={-depthMm / 2 - 10}
+                      fill="#fbbf24"
+                      fontSize="7px"
+                      fontWeight="bold"
+                      textAnchor="middle"
+                      pointerEvents="none"
+                      className="font-mono tracking-wider uppercase"
+                    >
+                      +300mm Clearance Buffer
+                    </text>
+                  </g>
+                )}
+
                 {/* Module outer box carcass bounding footprint */}
                 <rect
                   x={-widthMm / 2}

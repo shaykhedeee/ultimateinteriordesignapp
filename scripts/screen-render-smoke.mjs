@@ -7,6 +7,8 @@
 
 import { createServer } from 'vite';
 import React from 'react';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { renderToString } from 'react-dom/server';
 import fs from 'fs';
 import path from 'path';
@@ -61,7 +63,10 @@ globalThis.fetch = async () => okJson({ projects: [], items: [], success: true }
 globalThis.XMLHttpRequest = class { open() {} send() {} addEventListener() {} };
 
 const vite = await createServer({
+  configFile: false,
   root: path.join(repoRoot, 'frontend'),
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { '@': '/src' } },
   logLevel: 'error',
   server: { middlewareMode: true, hmr: false },
   optimizeDeps: { noDiscovery: true },

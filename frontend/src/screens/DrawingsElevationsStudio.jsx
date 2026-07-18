@@ -1,4 +1,5 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+const API_BASE = apiUrl('');
 import React, { useState, useEffect } from 'react';
 import { 
   Layers, Download, Save, RefreshCw, AlertTriangle, 

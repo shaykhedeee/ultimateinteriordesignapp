@@ -1,4 +1,5 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+const API_BASE = apiUrl('');
 import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, Download, Bookmark, Sparkles, ChevronRight, Trash2 } from 'lucide-react';
 

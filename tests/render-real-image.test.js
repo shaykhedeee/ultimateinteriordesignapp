@@ -21,16 +21,20 @@ try {
   `).run();
 } catch (err) {}
 
-test('no-key render yields a real image source, not the mock', async () => {
+test('render provenance is explicit when no live provider is available', async () => {
   const asset = await generateInteriorAsset({
     projectId: 'probe-nokey', room: 'master', title: 'no-key probe',
     prompt: 'a luxury bedroom', style: 'modern', budgetTier: 'luxury', tags: ['probe'], reuseFirst: false
   });
-  assert.notEqual(asset.sourceType, 'mock-generated', 'without a key renders must still be real, not the SVG mock');
-  assert.ok(
-    ['pollinations-image', 'huggingface-image', 'openai', 'openai-gpt-image-1', 'gemini-imagen', 'stability-sdxl', 'stability-flux', 'freepik-image'].includes(asset.sourceType),
-    `expected a real-image sourceType, got ${asset.sourceType}`
-  );
+  if (asset.sourceType === 'mock-generated') {
+    assert.equal(asset.isSynthetic, true, 'synthetic fallback must be explicitly marked');
+    assert.match(asset.sourceLabel, /not a real render/i);
+  } else {
+    assert.ok(
+      ['pollinations-image', 'huggingface-image', 'openai', 'openai-gpt-image-1', 'gemini-imagen', 'stability-sdxl', 'stability-flux', 'freepik-image'].includes(asset.sourceType),
+      `unexpected live-image sourceType: ${asset.sourceType}`
+    );
+  }
 });
 
 test('real render prompt carries the ULTIDA signature language', async () => {

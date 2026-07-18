@@ -1,5 +1,5 @@
 import { apiUrl, getApiBase, backendAssetSrc } from '../utils/api.js';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import { 
   Compass, Code, Clipboard, Download, CheckCircle2, 
@@ -411,6 +411,7 @@ export default function Render3DStudio({ projectId, onComplete }) {
   const [customLaminatePreview, setCustomLaminatePreview] = useState(null);
   const [catalogMaterials, setCatalogMaterials] = useState([]);
   const [selectedCatalogMaterial, setSelectedCatalogMaterial] = useState(null);
+  const [materialSelectTab, setMaterialSelectTab] = useState('laminate'); // 'laminate' or 'paint'
   const [laminateSwapInstruction, setLaminateSwapInstruction] = useState('');
   const [isSwappingLaminate, setIsSwappingLaminate] = useState(false);
   const [swapperStepMessage, setSwapperStepMessage] = useState('');
@@ -1042,7 +1043,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       if (selectedCatalogMaterial) {
         setSwapperStepMessage('Attaching catalog material metadata...');
-        formData.append('laminateCatalogId', selectedCatalogMaterial.id);
+        const isPaint = selectedCatalogMaterial.category === 'paint' || materialSelectTab === 'paint';
+        if (isPaint) {
+          formData.append('paintCatalogId', selectedCatalogMaterial.id);
+        } else {
+          formData.append('laminateCatalogId', selectedCatalogMaterial.id);
+        }
         formData.append('newMaterial', selectedCatalogMaterial.name);
         formData.append('newColor', selectedCatalogMaterial.color || '');
         formData.append('laminateCode', selectedCatalogMaterial.code || '');
@@ -1065,7 +1071,12 @@ export default function Render3DStudio({ projectId, onComplete }) {
 
       setSwapperStepMessage('Running visual editor pipeline...');
       setSwapperStepIndex(2);
-      const res = await fetch(`${API_BASE}/projects/${projectId}/renders/laminate-swap`, {
+      const isPaint = selectedCatalogMaterial?.category === 'paint' || materialSelectTab === 'paint';
+      const endpoint = isPaint
+        ? `${API_BASE}/projects/${projectId}/renders/paint-swap`
+        : `${API_BASE}/projects/${projectId}/renders/laminate-swap`;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         body: formData
       });
@@ -1987,68 +1998,132 @@ export default function Render3DStudio({ projectId, onComplete }) {
                 {/* 2. Choose Material */}
                 {selectedSwapComponent && (
                   <div className="space-y-3 border-t border-slate-850 pt-2.5">
-                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Choose Swatch / Finish</label>
-                    
-                    {/* Material catalog picker */}
-                    <div className="space-y-1.5">
-                      <span className="text-[9px] text-slate-500 font-bold block uppercase">From Catalog:</span>
-                      <select
-                        onChange={(e) => {
-                          const mat = catalogMaterials.find(m => m.id === e.target.value);
-                          setSelectedCatalogMaterial(mat || null);
-                          setCustomLaminateFile(null);
-                          setCustomLaminatePreview(null);
-                        }}
-                        value={selectedCatalogMaterial?.id || ''}
-                        className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-[10px] text-slate-200 outline-none focus:border-[#D4AF37]"
-                      >
-                        <option value="">-- Choose Laminate / Stone / Fabric --</option>
-                        {catalogMaterials.map(m => (
-                          <option key={m.id} value={m.id}>
-                            [{m.brand}] {m.name} ({m.code || 'No Code'})
-                          </option>
-                        ))}
-                      </select>
-                      {selectedCatalogMaterial && (
-                        <div className="bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded p-2 text-[9px] text-slate-300 space-y-0.5">
-                          <strong className="text-[#D4AF37] block font-bold uppercase">{selectedCatalogMaterial.name}</strong>
-                          <div>Brand: {selectedCatalogMaterial.brand} | Code: {selectedCatalogMaterial.code}</div>
-                          <div>Color: {selectedCatalogMaterial.color || 'N/A'} | Finish: {selectedCatalogMaterial.finish || 'N/A'}</div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Custom upload swatch option */}
-                    <div className="space-y-1.5 border-t border-slate-850/50 pt-2">
-                      <span className="text-[9px] text-slate-500 font-bold block uppercase">OR Upload Custom Swatch:</span>
-                      <div className="flex items-center gap-2">
-                        <label className="flex-1 bg-slate-950 border border-slate-800 rounded p-1.5 text-[9px] text-slate-400 text-center cursor-pointer hover:border-slate-700">
-                          {customLaminateFile ? customLaminateFile.name : 'Choose Swatch Image'}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setCustomLaminateFile(file);
-                                setSelectedCatalogMaterial(null);
-                                const reader = new FileReader();
-                                reader.onload = () => setCustomLaminatePreview(reader.result);
-                                reader.readAsDataURL(file);
-                              }
-                            }}
-                          />
-                        </label>
-                        {customLaminatePreview && (
-                          <img 
-                            src={customLaminatePreview} 
-                            alt="Preview" 
-                            className="w-8 h-8 rounded border border-slate-700 object-cover shrink-0" 
-                          />
-                        )}
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Choose Swatch / Finish</label>
+                      <div className="flex gap-1.5 bg-slate-950 p-0.5 rounded border border-slate-850">
+                        <button
+                          onClick={() => {
+                            setMaterialSelectTab('laminate');
+                            setSelectedCatalogMaterial(null);
+                          }}
+                          className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition ${
+                            materialSelectTab === 'laminate' ? 'bg-slate-800 text-slate-100' : 'text-slate-500'
+                          }`}
+                        >
+                          Laminates
+                        </button>
+                        <button
+                          onClick={() => {
+                            setMaterialSelectTab('paint');
+                            setSelectedCatalogMaterial(null);
+                          }}
+                          className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition ${
+                            materialSelectTab === 'paint' ? 'bg-slate-800 text-slate-100' : 'text-slate-500'
+                          }`}
+                        >
+                          Paint
+                        </button>
                       </div>
                     </div>
+                    
+                    {materialSelectTab === 'laminate' ? (
+                      <>
+                        {/* Material catalog picker */}
+                        <div className="space-y-1.5">
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">From Catalog:</span>
+                          <select
+                            onChange={(e) => {
+                              const mat = catalogMaterials.find(m => m.id === e.target.value);
+                              setSelectedCatalogMaterial(mat || null);
+                              setCustomLaminateFile(null);
+                              setCustomLaminatePreview(null);
+                            }}
+                            value={selectedCatalogMaterial?.id || ''}
+                            className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-[10px] text-slate-200 outline-none focus:border-[#D4AF37]"
+                          >
+                            <option value="">-- Choose Laminate / Stone / Fabric --</option>
+                            {catalogMaterials.filter(m => m.category !== 'paint').map(m => (
+                              <option key={m.id} value={m.id}>
+                                [{m.brand}] {m.name} ({m.code || 'No Code'})
+                              </option>
+                            ))}
+                          </select>
+                          {selectedCatalogMaterial && (
+                            <div className="bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded p-2 text-[9px] text-slate-300 space-y-0.5">
+                              <strong className="text-[#D4AF37] block font-bold uppercase">{selectedCatalogMaterial.name}</strong>
+                              <div>Brand: {selectedCatalogMaterial.brand} | Code: {selectedCatalogMaterial.code}</div>
+                              <div>Color: {selectedCatalogMaterial.color || 'N/A'} | Finish: {selectedCatalogMaterial.finish || 'N/A'}</div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Custom upload swatch option */}
+                        <div className="space-y-1.5 border-t border-slate-850/50 pt-2">
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">OR Upload Custom Swatch:</span>
+                          <div className="flex items-center gap-2">
+                            <label className="flex-1 bg-slate-950 border border-slate-800 rounded p-1.5 text-[9px] text-slate-400 text-center cursor-pointer hover:border-slate-700">
+                              {customLaminateFile ? customLaminateFile.name : 'Choose Swatch Image'}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    setCustomLaminateFile(file);
+                                    setSelectedCatalogMaterial(null);
+                                    const reader = new FileReader();
+                                    reader.onload = () => setCustomLaminatePreview(reader.result);
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                            {customLaminatePreview && (
+                              <img 
+                                src={customLaminatePreview} 
+                                alt="Preview" 
+                                className="w-8 h-8 rounded border border-slate-700 object-cover shrink-0" 
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      /* Paint grid swatches */
+                      <div className="space-y-2">
+                        <span className="text-[9px] text-slate-500 font-bold block uppercase">Choose Paint Shade:</span>
+                        <div className="grid grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1 bg-slate-950 rounded border border-slate-850">
+                          {catalogMaterials.filter(m => m.category === 'paint').map(m => (
+                            <button
+                              key={m.id}
+                              onClick={() => {
+                                setSelectedCatalogMaterial(m);
+                                setCustomLaminateFile(null);
+                                setCustomLaminatePreview(null);
+                              }}
+                              style={{ backgroundColor: m.color || '#fff' }}
+                              className={`w-9 h-9 rounded-full border-2 transition relative group ${
+                                selectedCatalogMaterial?.id === m.id ? 'border-[#D4AF37] scale-105 shadow-md shadow-[#D4AF37]/20' : 'border-slate-800 hover:border-slate-650'
+                              }`}
+                              title={`${m.brand} - ${m.name} (${m.code})`}
+                            >
+                              <span className="sr-only">{m.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {selectedCatalogMaterial && (
+                          <div className="bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded p-2.5 text-[9px] text-slate-350 space-y-0.5">
+                            <strong className="text-[#D4AF37] block font-bold uppercase">{selectedCatalogMaterial.name}</strong>
+                            <div>Brand: {selectedCatalogMaterial.brand} | Shade Code: {selectedCatalogMaterial.code}</div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span>Hex color: {selectedCatalogMaterial.color}</span>
+                              <div className="w-3 h-3 rounded-full border border-slate-800" style={{ backgroundColor: selectedCatalogMaterial.color }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

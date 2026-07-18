@@ -1,8 +1,10 @@
 import { apiUrl, getApiBase } from '../utils/api.js';
+const API_BASE = apiUrl('');
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import LeftNavigator from '../components/layout/LeftNavigator';
 import InspectorPanel from '../components/layout/InspectorPanel';
 import Canvas2D from '../components/design2d/Canvas2D';
+import Viewport3DComponent from '../components/design3d/Viewport3D.jsx';
 import { useEditorStore } from '../stores/editorStore';
 import {
   Undo2, Redo2, Save, Sparkles, Image, Compass,
@@ -76,6 +78,8 @@ const SAMPLE_PRODUCTS = [
 export default function DesignStudioScreen({ projectId, onComplete }) {
   const loadScene = useEditorStore(state => state.loadScene);
   const saveSceneVersion = useEditorStore(state => state.saveSceneVersion);
+  const applyPatch = useEditorStore(state => state.applyPatch);
+  const setActiveRoom = useEditorStore(state => state.setActiveRoom);
   const undo = useEditorStore(state => state.undo);
   const redo = useEditorStore(state => state.redo);
 
@@ -108,6 +112,16 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
   const [actionCounts, setActionCounts] = useState({ assigned: 0, pending: 1 });
   const [catalogCategory, setCatalogCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [workspaceView, setWorkspaceView] = useState('3d');
+  const [rendering, setRendering] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(true);
+
+  useEffect(() => {
+    if (!projectId) return;
+    loadScene(projectId, branchName);
+    fetchBranches();
+    setStatusChip('Loading the current scene from the approved floor plan...');
+  }, [projectId]);
 
   useEffect(() => {
     if (projectId && (rightTab === 'catalog' || rightTab === 'library')) {
@@ -122,6 +136,15 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
       const data = await res.json();
       if (Array.isArray(data)) {
         setCatalogItems(data);
+      } else if (data?.success && data.catalog && typeof data.catalog === 'object') {
+        const items = Object.values(data.catalog).flatMap((group) => Array.isArray(group) ? group : []).map((item) => ({
+          ...item,
+          key: item.key || item.id,
+          label: item.label || item.name || 'Modular unit',
+          category: item.category || item.type || 'furniture',
+          dimensions_json: item.dimensions_json || { widthMm: item.wMm, heightMm: item.hMm, depthMm: item.dMm }
+        }));
+        setCatalogItems(items);
       } else {
         setCatalogItems([]);
       }
@@ -235,8 +258,51 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
     setStatusChip('Action applied. Re-rendering affected zones.');
   };
 
+  const activeRoom = useMemo(() => {
+    const rooms = scene?.levels?.[0]?.rooms || [];
+    return rooms.find((room) => room.roomId === useEditorStore.getState().activeRoomId) || rooms[0] || null;
+  }, [scene]);
+
+  const handlePlaceCatalogItem = (item) => {
+    if (!scene || !activeRoom) {
+      setStatusChip('Approve room geometry in Floor Plan Analyzer before placing furniture.');
+      return;
+    }
+    let dimensions = {};
+    try { dimensions = typeof item.dimensions_json === 'string' ? JSON.parse(item.dimensions_json) : (item.dimensions_json || {}); } catch {}
+    const width = dimensions.widthMm || dimensions.minWidth || item.wMm || 900;
+    const height = dimensions.heightMm || dimensions.minHeight || item.hMm || 900;
+    const depth = dimensions.depthMm || item.dMm || (item.category === 'wardrobe' ? 600 : 500);
+    setActiveRoom(activeRoom.roomId);
+    applyPatch({
+      op: 'place_module',
+      payload: { templateKey: item.category || 'furniture', name: item.label || 'Catalog furniture', x: 350, y: 350, width, height, depth }
+    });
+    setStatusChip(`${item.label || 'Furniture'} placed in ${activeRoom.name || 'the selected room'} at catalog dimensions. Save to publish this scene version.`);
+  };
+
+  const handleGenerateRender = async () => {
+    if (!projectId || !scene) return setStatusChip('Create a project and load its scene before generating a render.');
+    setRendering(true);
+    setStatusChip('Saving the measured scene and preparing an AI visual proposal...');
+    try {
+      await saveSceneVersion(`Render handoff: ${activeRoom?.name || 'selected room'}`);
+      const res = await fetch(`${API_BASE}/projects/${projectId}/renders/generate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: activeRoom?.roomType || 'living', cameraPreset, customInstruction: promptValue, source: 'furnishing-studio' })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.message || data.error || 'Render generation failed.');
+      setStatusChip(data.render?.pending ? 'Render queued. No image is being presented as completed until a provider returns one.' : 'AI render proposal generated from this scene. Open Render Studio to review it.');
+    } catch (error) {
+      setStatusChip(error.message || 'Render generation failed. Save the scene and retry.');
+    } finally {
+      setRendering(false);
+    }
+  };
+
   return (
-    <div className="w-full h-full bg-slate-950 text-slate-100">
+    <div className="ultida-furnishing-studio w-full h-full bg-slate-950 text-slate-100">
       {/* Top workflow/context bar */}
       <div className="h-12 border-b border-slate-800 flex items-center justify-between px-4 gap-3">
         <div className="flex items-center gap-2">
@@ -247,8 +313,12 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleDetect} className="text-[10px] font-bold uppercase tracking-wider bg-slate-900 border border-slate-800 text-slate-200 px-3 py-1.5 rounded-lg hover:border-[#D4AF37]/40 transition">
+          <button onClick={handleDetect} disabled={!projectId || detecting} className="text-[10px] font-bold uppercase tracking-wider bg-slate-900 border border-slate-800 text-slate-200 px-3 py-1.5 rounded-lg hover:border-[#D4AF37]/40 transition disabled:opacity-50">
             {detecting ? 'Detecting...' : 'Detect Layout'}
+          </button>
+          <button onClick={handleGenerateRender} disabled={!scene || rendering} className="text-[10px] font-bold uppercase tracking-wider bg-[#5b3a29] text-[#fffaf2] px-3 py-1.5 rounded-lg hover:bg-[#432a1e] transition disabled:opacity-50 inline-flex items-center gap-1.5">
+            {rendering ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            {rendering ? 'Generating...' : 'Generate AI render'}
           </button>
           <button onClick={handleSave} className="text-[10px] font-bold uppercase tracking-wider bg-[#D4AF37] text-slate-950 px-3 py-1.5 rounded-lg hover:bg-[#e6c045] transition">
             Save Version
@@ -264,6 +334,10 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
 
         {/* MAIN WORKSPACE */}
         <main className="flex-1 relative bg-slate-950">
+          <div className="studio-context-bar absolute top-3 left-3 right-3 z-20 flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+            <div className="min-w-0"><div className="text-[9px] font-black uppercase tracking-widest">Active room</div><div className="text-xs font-bold truncate">{activeRoom?.name || 'No approved room selected'}</div></div>
+            <div className="flex items-center gap-1"><button type="button" onClick={() => setWorkspaceView('2d')} className={`studio-view-toggle ${workspaceView === '2d' ? 'is-active' : ''}`}>2D plan</button><button type="button" onClick={() => setWorkspaceView('3d')} className={`studio-view-toggle ${workspaceView === '3d' ? 'is-active' : ''}`}>3D view</button></div>
+          </div>
           {!scene ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-3">
               <RefreshCw className="w-8 h-8 animate-spin text-[#D4AF37]" />
@@ -271,7 +345,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
             </div>
           ) : (
             <div className="relative w-full h-full">
-              <Canvas2D />
+              {workspaceView === '2d' && <Canvas2D />}
               <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[10px] font-black uppercase tracking-wider text-slate-500">Loading 3D…</div>}><Viewport3DComponent /></Suspense>
 
               {/* Selection overlay */}
@@ -314,7 +388,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="w-80 shrink-0 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
+        {catalogOpen && <aside className="w-80 shrink-0 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 pt-3">
             <nav className="flex gap-1 text-[10px] font-black uppercase tracking-widest" aria-label="Catalog tabs">
               {CATALOG_TABS.map(tab => (
@@ -331,7 +405,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                 </button>
               ))}
             </nav>
-            <button className="text-slate-500 hover:text-slate-300" aria-label="Close panel">
+            <button onClick={() => setCatalogOpen(false)} className="text-slate-500 hover:text-slate-300" aria-label="Collapse catalog">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -395,6 +469,7 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
                       {item.thumbnail || item.image_path ? <img src={item.thumbnail || item.image_path} alt={item.label} className="w-full h-full object-cover" /> : 'Preview'}
                     </div>
                     <div className="p-2 space-y-1">
+                      <button type="button" onClick={() => handlePlaceCatalogItem(item)} className="w-full rounded-md bg-[#5b3a29] px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-[#fffaf2] hover:bg-[#432a1e]">Place in room</button>
                       <div className="text-[10px] font-black text-slate-900 leading-tight">{item.label}</div>
                       <div className="text-[9px] text-slate-500">{item.category}</div>
                       <div className="text-[10px] font-bold text-slate-900">{item.price ? `₹${Math.round(item.price).toLocaleString('en-IN')}` : 'Price on request'}</div>
@@ -413,7 +488,8 @@ export default function DesignStudioScreen({ projectId, onComplete }) {
               <button className="text-slate-400 hover:text-slate-200" aria-label="Download"><Download className="w-4 h-4" /></button>
             </div>
           </div>
-        </aside>
+        </aside>}
+        {!catalogOpen && <button type="button" onClick={() => setCatalogOpen(true)} className="absolute right-3 top-16 z-30 rounded-lg border border-[#b9ad9e] bg-[#fffdf9] px-3 py-2 text-[10px] font-bold text-[#4c3529]">Open catalog</button>}
       </div>
 
       {/* BRANCH MODAL */}

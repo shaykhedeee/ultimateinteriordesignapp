@@ -65,13 +65,14 @@ const DEFAULT_SETTINGS = {
   internalEdgeBand: '0.8mm PVC edge band'
 };
 
-export function createOrRefreshCutlist(projectId) {
+export function createOrRefreshCutlist(projectId, sceneVersionId = null) {
   const db = getDb();
   const project = getProject(projectId);
   if (!project) throw new Error('Project not found');
 
   const now = new Date().toISOString();
-  const existing = getCutlistByProject(projectId);
+  const activeScene = sceneVersionId || db.prepare('SELECT id FROM scene_versions WHERE project_id = ? AND is_current = 1 ORDER BY version_number DESC LIMIT 1').get(projectId)?.id || null;
+  const existing = getCutlistByProject(projectId, activeScene);
   const cutlistId = existing?.id || nanoid(12);
   const laminates = matchLaminates(project);
   const elevationModules = getElevationCabinets(project.id);
@@ -93,6 +94,7 @@ export function createOrRefreshCutlist(projectId) {
     projectId,
     clientName: project.clientName,
     sourceBriefId: project.designPackage?.id || null,
+    sceneVersionId: activeScene,
     status: project.designPackage ? 'cutlist-draft' : 'brief-pending',
     revision: existing?.revision ? existing.revision + 1 : 1,
     settings: DEFAULT_SETTINGS,
@@ -108,8 +110,8 @@ export function createOrRefreshCutlist(projectId) {
   };
 
   const insertCutlist = db.prepare(`
-    INSERT OR REPLACE INTO cutlist_projects (id, project_id, status, payload, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO cutlist_projects (id, project_id, scene_version_id, status, payload, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const insertModule = db.prepare(`
     INSERT INTO cutlist_modules
@@ -125,7 +127,11 @@ export function createOrRefreshCutlist(projectId) {
   runInTransaction(() => {
     db.prepare('DELETE FROM cutlist_parts WHERE cutlist_project_id = ?').run(cutlistId);
     db.prepare('DELETE FROM cutlist_modules WHERE cutlist_project_id = ?').run(cutlistId);
-    insertCutlist.run(cutlistId, projectId, payload.status, JSON.stringify(payload), payload.createdAt, now);
+    insertCutlist.run(cutlistId, projectId, activeScene, payload.status, JSON.stringify(payload), payload.createdAt, now);
+    const revision = db.prepare('SELECT MAX(revision_number) AS revision FROM cutlist_revisions WHERE project_id = ?').get(projectId)?.revision || 0;
+    db.prepare(`INSERT INTO cutlist_revisions (id, cutlist_project_id, project_id, scene_version_id, revision_number, payload)
+      VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(`cutrev_${nanoid(10)}`, cutlistId, projectId, activeScene, revision + 1, JSON.stringify(payload));
     modules.forEach((module) => {
       insertModule.run(
         module.id,
@@ -172,9 +178,11 @@ export function createOrRefreshCutlist(projectId) {
   return getCutlist(cutlistId);
 }
 
-export function getCutlistByProject(projectId) {
+export function getCutlistByProject(projectId, sceneVersionId = null) {
   const db = getDb();
-  const row = db.prepare('SELECT payload FROM cutlist_projects WHERE project_id = ? ORDER BY updated_at DESC LIMIT 1').get(projectId);
+  const row = sceneVersionId
+    ? db.prepare('SELECT payload FROM cutlist_projects WHERE project_id = ? AND scene_version_id = ? ORDER BY updated_at DESC LIMIT 1').get(projectId, sceneVersionId)
+    : db.prepare('SELECT payload FROM cutlist_projects WHERE project_id = ? ORDER BY updated_at DESC LIMIT 1').get(projectId);
   if (!row) return null;
   return hydrateCutlist(rowToJson(row));
 }

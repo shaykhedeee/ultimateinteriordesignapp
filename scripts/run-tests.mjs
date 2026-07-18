@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-const root = path.resolve('X:/OFFLINEGANG/ULTIMATE INTERIOR DESIGN APP/ultimateinteriordesignapp');
+const root = process.cwd();
 const frontendRoot = path.join(root, 'frontend');
 
 function check(name, test) {

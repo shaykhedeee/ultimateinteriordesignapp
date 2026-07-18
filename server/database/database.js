@@ -57,8 +57,27 @@ db.exec(`
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS organizations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE,
+    plan TEXT NOT NULL DEFAULT 'studio',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS organization_memberships (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'designer',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(organization_id, user_id),
+    FOREIGN KEY(organization_id) REFERENCES organizations(id)
+  );
+
   CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY,
+    organization_id TEXT DEFAULT 'org_default',
     lead_id TEXT,
     name TEXT NOT NULL,
     client_name TEXT NOT NULL,
@@ -256,9 +275,93 @@ db.exec(`
     scene_json TEXT NOT NULL,
     scene_hash TEXT NOT NULL,
     summary_json TEXT DEFAULT '{}',
+    approval_state TEXT NOT NULL DEFAULT 'draft',
+    approved_at TIMESTAMP,
+    approved_by TEXT,
+    change_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(project_id) REFERENCES projects(id),
     UNIQUE (project_id, branch_name, version_number)
+  );
+
+  CREATE TABLE IF NOT EXISTS cutlist_projects (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    scene_version_id TEXT,
+    status TEXT DEFAULT 'draft',
+    payload TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(scene_version_id) REFERENCES scene_versions(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS cutlist_modules (
+    id TEXT PRIMARY KEY,
+    cutlist_project_id TEXT NOT NULL,
+    room TEXT, module_type TEXT, name TEXT,
+    width_mm REAL, height_mm REAL, depth_mm REAL,
+    material TEXT, finish TEXT, payload TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(cutlist_project_id) REFERENCES cutlist_projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS cutlist_parts (
+    id TEXT PRIMARY KEY,
+    cutlist_project_id TEXT NOT NULL,
+    module_id TEXT, part_code TEXT, name TEXT, material TEXT,
+    length_mm REAL, width_mm REAL, thickness_mm REAL, quantity REAL,
+    edge_band TEXT, edge_l1 TEXT, edge_l2 TEXT, edge_w1 TEXT, edge_w2 TEXT,
+    grain TEXT, formula_length TEXT, formula_width TEXT, notes TEXT, payload TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(cutlist_project_id) REFERENCES cutlist_projects(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS cutlist_revisions (
+    id TEXT PRIMARY KEY,
+    cutlist_project_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    scene_version_id TEXT,
+    revision_number INTEGER NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(cutlist_project_id) REFERENCES cutlist_projects(id),
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(scene_version_id) REFERENCES scene_versions(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS scene_artifacts (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    scene_version_id TEXT NOT NULL,
+    artifact_type TEXT NOT NULL,
+    artifact_id TEXT,
+    status TEXT NOT NULL DEFAULT 'current',
+    stale_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(scene_version_id) REFERENCES scene_versions(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS render_artifacts (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    scene_version_id TEXT NOT NULL,
+    asset_id TEXT,
+    render_package_hash TEXT NOT NULL,
+    scene_hash TEXT NOT NULL,
+    camera_preset TEXT NOT NULL,
+    cycles_settings_json TEXT NOT NULL,
+    base_image_url TEXT NOT NULL,
+    mask_urls_json TEXT,
+    source_kind TEXT NOT NULL,
+    is_synthetic INTEGER NOT NULL DEFAULT 0,
+    parent_render_id TEXT,
+    approval_state TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id),
+    FOREIGN KEY(scene_version_id) REFERENCES scene_versions(id)
   );
 
   CREATE TABLE IF NOT EXISTS material_catalog (
@@ -321,6 +424,10 @@ db.exec(`
     progress INTEGER DEFAULT 0,
     source_entity_type TEXT,
     source_entity_id TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    error_message TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(project_id) REFERENCES projects(id)
   );
@@ -410,6 +517,24 @@ db.exec(`
     FOREIGN KEY(project_id) REFERENCES projects(id)
   );
 
+  CREATE TABLE IF NOT EXISTS factory_work_orders (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    scene_version_id TEXT NOT NULL,
+    purchase_order_id TEXT,
+    work_order_number TEXT NOT NULL,
+    status TEXT DEFAULT 'queued',
+    due_date TEXT,
+    cutlist_revision_id TEXT,
+    scope_json TEXT DEFAULT '[]',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    dispatched_at TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES projects(id)
+  );
+
   CREATE TABLE IF NOT EXISTS floor_plan_versions (
     id TEXT PRIMARY KEY,
     studio_id TEXT,
@@ -457,6 +582,25 @@ db.exec(`
     FOREIGN KEY(project_id) REFERENCES projects(id),
     FOREIGN KEY(floor_plan_version_id) REFERENCES floor_plan_versions(id)
   );
+
+  -- Production import workbook store (used by production-import-service for
+  -- learning summaries; was referenced but never created -> phantom-table 500).
+  CREATE TABLE IF NOT EXISTS production_project_imports (
+    id TEXT PRIMARY KEY,
+    project_code TEXT NOT NULL,
+    source_file TEXT,
+    payload TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- AURA key/value memory store (project profiles, org prefs, prompt versions).
+  -- Referenced by aura-memory-service.js but never created -> phantom-table 500.
+  CREATE TABLE IF NOT EXISTS aura_memory_store (
+    key TEXT PRIMARY KEY,
+    value_json TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Self-healing migration for existing databases
@@ -471,6 +615,18 @@ try { db.exec("ALTER TABLE projects ADD COLUMN stale_pricing INTEGER DEFAULT 0;"
 try { db.exec("ALTER TABLE projects ADD COLUMN active_floor_plan_version_id TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN active_spatial_model_version_id TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE projects ADD COLUMN floorplan_url TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE projects ADD COLUMN organization_id TEXT DEFAULT 'org_default';"); } catch (e) {}
+try { db.exec("ALTER TABLE jobs ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;"); } catch (e) {}
+try { db.exec("ALTER TABLE jobs ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 3;"); } catch (e) {}
+try { db.exec("ALTER TABLE jobs ADD COLUMN error_message TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE jobs ADD COLUMN updated_at TIMESTAMP;"); } catch (e) {}
+
+try {
+  db.prepare("INSERT OR IGNORE INTO organizations (id, name, slug, plan) VALUES ('org_default', 'ULTIDA Studio', 'ultida-studio', 'studio')").run();
+  db.prepare("UPDATE projects SET organization_id = 'org_default' WHERE organization_id IS NULL OR organization_id = ''").run();
+} catch (e) {
+  console.warn('Organization bootstrap skipped:', e.message);
+}
 // Invoice generator enhancement (GST / itemized)
 const invoiceCols = [
   'items_json TEXT', 'client_name TEXT', 'client_address TEXT', 'client_gstin TEXT',
@@ -480,6 +636,16 @@ const invoiceCols = [
   'grand_total REAL', 'paid_amount REAL DEFAULT 0', 'cancelled INTEGER DEFAULT 0'
 ];
 invoiceCols.forEach(c => { try { db.exec(`ALTER TABLE invoices ADD COLUMN ${c};`); } catch (e) {} });
+// Phase 7 lineage: every commercial/production artifact must identify the
+// approved scene snapshot it was priced or manufactured from.
+[
+  ['production_cutlists', 'scene_version_id TEXT'],
+  ['cutlist_projects', 'scene_version_id TEXT'],
+  ['invoices', 'scene_version_id TEXT'],
+  ['variation_orders', 'scene_version_id TEXT'],
+  ['purchase_orders', 'scene_version_id TEXT'],
+  ['payment_plans', 'scene_version_id TEXT']
+].forEach(([table, column]) => { try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${column};`); } catch (e) {} });
 try { db.exec("ALTER TABLE cad_drawings ADD COLUMN plan_text TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE cad_drawings ADD COLUMN north_angle REAL DEFAULT 0;"); } catch (e) {}
 
@@ -774,10 +940,13 @@ try {
     token TEXT NOT NULL,
     type TEXT NOT NULL DEFAULT 'presentation',
     pdf_path TEXT,
+    file_name TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     revoked_at TIMESTAMP,
     FOREIGN KEY(project_id) REFERENCES projects(id)
   );`).run();
+  // Self-heal: older schemas created shared_links without file_name.
+  try { db.prepare('ALTER TABLE shared_links ADD COLUMN file_name TEXT'); } catch (e) {}
 } catch (e) { console.warn("shared_links schema warn:", e.message); }
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS api_keys (
@@ -790,6 +959,12 @@ try {
     last_used_at TIMESTAMP
   );`).run();
 } catch (e) { console.warn("api_keys schema warn:", e.message); }
+
+// Keep shared-link migrations independent from unrelated legacy migrations.
+try { db.exec("ALTER TABLE shared_links ADD COLUMN file_name TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE shared_links ADD COLUMN token TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE shared_links ADD COLUMN type TEXT DEFAULT 'presentation'"); } catch (e) {}
+try { db.exec("ALTER TABLE shared_links ADD COLUMN pdf_path TEXT"); } catch (e) {}
 
 try {
   db.prepare(`CREATE TABLE IF NOT EXISTS company_brain_kb (
@@ -808,6 +983,10 @@ try { db.exec("ALTER TABLE design_renders ADD COLUMN scene_version_id TEXT;"); }
 try { db.exec("ALTER TABLE design_renders ADD COLUMN geometry_hash TEXT;"); } catch (e) {}
 try { db.exec("ALTER TABLE design_renders ADD COLUMN render_stage TEXT DEFAULT 'ai_polish';"); } catch (e) {}
 try { db.exec("ALTER TABLE design_renders ADD COLUMN source TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE scene_versions ADD COLUMN approval_state TEXT NOT NULL DEFAULT 'draft';"); } catch (e) {}
+try { db.exec("ALTER TABLE scene_versions ADD COLUMN approved_at TIMESTAMP;"); } catch (e) {}
+try { db.exec("ALTER TABLE scene_versions ADD COLUMN approved_by TEXT;"); } catch (e) {}
+try { db.exec("ALTER TABLE scene_versions ADD COLUMN change_reason TEXT;"); } catch (e) {}
 
 // Phase 4: material swaps must record structured slot + component + approval so
 // every laminate change is auditable and geometry-preserving.

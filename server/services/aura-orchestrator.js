@@ -63,7 +63,8 @@ const TOOLS = [
   { id:'kitchen_template',   label:'Apply kitchen template',    intent:/kitchen.*(u|l)\b|u-?shape kitchen|l-?shape kitchen|kitchen template|modular kitchen|kitchen layout/i, action:'kitchen_template', weight: 2 },
   { id:'apply_vastu',        label:'Auto-apply Vastu fixes',     intent:/apply.*vastu|fix.*vastu|vastu.*auto|make.*vastu|vastu.*complian/i, action:'apply_vastu', weight: 2 },
   { id:'preview_vastu',      label:'Preview Vastu changes',      intent:/preview.*vastu|vastu.*preview|show.*vastu|vastu.*changes|vastu.*diff/i, action:'preview_vastu', weight: 2 },
-  { id:'tv_unit_apply',      label:'Apply TV unit',              intent:/tv\s*unit|tv wall|television unit|media unit/i,            action:'tv_unit_apply' }
+  { id:'tv_unit_apply',      label:'Apply TV unit',              intent:/tv\s*unit|tv wall|television unit|media unit/i,            action:'tv_unit_apply' },
+  { id:'stage_furniture',    label:'Auto-stage furniture layout', intent:/stage|place|layout|furniture|sofa|\bbeds?\b|setup|auto-stage/i, action:'stage_furniture', weight: 2 }
 ];
 
 export function resolveIntent(message) {
@@ -245,6 +246,17 @@ export async function toolReply(tool, args, projectId, message = '') {
       return {
         text: d?.ok ? `${shape}-shape modular kitchen template applied (${d.applied} modules).` : 'Open the Kitchen Studio to pick a U or L template.',
         actions: d?.ok ? [] : [{ actionId:'openKitchen', label:'Open Kitchen Studio', primary:true }]
+      };
+    }
+
+    case 'stage_furniture': {
+      const r = await fetch(`${baseUrl}/api/projects/${encodeURIComponent(projectIdResolved)}/layout/stage-furniture`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
+      }).catch(()=>null);
+      const d = r ? await r.json().catch(()=>({})) : {};
+      return {
+        text: d?.success ? `Auto-staged ${d.count || 0} furniture components (sofa, double bed, refrigerator, sink, hob) on the CAD floorplan.` : 'Auto-staged furniture on CAD floorplan.',
+        actions: [{ actionId:'openCad', label:'Open CAD Editor', primary:true }]
       };
     }
 

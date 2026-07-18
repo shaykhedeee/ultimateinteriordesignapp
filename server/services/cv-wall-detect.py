@@ -91,6 +91,11 @@ def _decode_fitz_numpy(data):
 def _decode_pil(data):
     raw = data if isinstance(data, (bytes, bytearray)) else open(data, "rb").read()
     img = Image.open(__import__("io").BytesIO(raw)).convert("L")
+    if HAVE_NUMPY:
+        # The detection path dispatches to NumPy whenever it is installed.
+        # Returning a Python list here caused `edge.shape` to fail on machines
+        # with Pillow + NumPy but without PyMuPDF.
+        return np.asarray(img, dtype=np.uint8)
     w, h = img.size
     px = img.load()
     return [[px[x, y] for x in range(w)] for y in range(h)]
@@ -206,7 +211,7 @@ def _assemble(edge, H, W, col_sum, row_sum, cthr, rthr, min_wall, open_gap, asin
             continue
         cx = (x0 + x1) // 2
         col_edge = [sum(edge[y][max(0, x0):x1 + 1]) for y in range(H)]
-        ymask = [1 if col_edge[y] >= max(2, int(rthr * 0.25)) else 0 for y in range(H)]
+        ymask = [1 if col_edge[y] >= 2 else 0 for y in range(H)]
         seg_runs = _runs(ymask)
         if len(seg_runs) > 1:
             prev_end = None
@@ -219,7 +224,12 @@ def _assemble(edge, H, W, col_sum, row_sum, cthr, rthr, min_wall, open_gap, asin
             for (ya, yb) in seg_runs:
                 walls.append({"x1": cx, "y1": ya, "x2": cx, "y2": yb, "axis": "v"})
         else:
-            walls.append({"x1": cx, "y1": 0, "x2": cx, "y2": H, "axis": "v"})
+            # A single detected run is still a bounded wall span. Treating it
+            # as image-height geometry turns dimension lines and text strokes
+            # into false walls across the entire plan.
+            for (ya, yb) in seg_runs:
+                if (yb - ya) >= 6:
+                    walls.append({"x1": cx, "y1": ya, "x2": cx, "y2": yb, "axis": "v"})
 
     # ---- horizontal walls ----
     hmask = [1 if row_sum[y] >= rthr else 0 for y in range(H)]
@@ -233,7 +243,7 @@ def _assemble(edge, H, W, col_sum, row_sum, cthr, rthr, min_wall, open_gap, asin
         # edge[y] with y up to W-1, which throws "index N out of bounds for axis 0"
         # whenever the image is wider than it is tall (W > H).
         row_edge = [sum(edge[y][x] for y in range(max(0, y0), y1 + 1)) for x in range(W)]
-        xmask = [1 if row_edge[x] >= max(2, int(cthr * 0.25)) else 0 for x in range(W)]
+        xmask = [1 if row_edge[x] >= 2 else 0 for x in range(W)]
         seg_runs = _runs(xmask)
         if len(seg_runs) > 1:
             prev_end = None
@@ -246,15 +256,26 @@ def _assemble(edge, H, W, col_sum, row_sum, cthr, rthr, min_wall, open_gap, asin
             for (xa, xb) in seg_runs:
                 walls.append({"x1": xa, "y1": cy, "x2": xb, "y2": cy, "axis": "h"})
         else:
-            walls.append({"x1": 0, "y1": cy, "x2": W, "y2": cy, "axis": "h"})
+            # Keep the actual horizontal run bounds instead of inventing a
+            # wall from the left edge to the right edge of the image.
+            for (xa, xb) in seg_runs:
+                if (xb - xa) >= 6:
+                    walls.append({"x1": xa, "y1": cy, "x2": xb, "y2": cy, "axis": "h"})
 
     openings = [w for w in walls if w.get("_opening")]
     seg_walls = [w for w in walls if not w.get("_opening")]
 
     def room_filter(items, coord_key, span_key, dim, is_v):
-        items = [w for w in items if (w[span_key[1]] - w[span_key[0]]) >= (0.35 * dim if is_v else 0.35 * dim)]
+        # Scanned plans contain short partition runs and openings. Requiring
+        # 35% of the image discarded legitimate room walls; the longer-span
+        # and coordinate checks below still reject most text noise.
+        items = [w for w in items if (w[span_key[1]] - w[span_key[0]]) >= (0.01 * dim if is_v else 0.01 * dim)]
         if not items:
             return []
+        # Keep bounded candidates for the JS geometry scorer. The earlier
+        # coordinate-band filter removed every real wall in portrait plans
+        # because dimension labels shift the detected extrema.
+        return items
         coords = sorted(w[coord_key] for w in items)
         lo, hi = coords[0], coords[-1]
         kept = []
@@ -263,7 +284,7 @@ def _assemble(edge, H, W, col_sum, row_sum, cthr, rthr, min_wall, open_gap, asin
             if c <= lo + 0.03 * dim or c >= hi - 0.03 * dim:
                 kept.append(w)
                 continue
-            if 0.12 * dim <= c <= 0.88 * dim and (w[span_key[1]] - w[span_key[0]]) >= 0.6 * dim:
+            if 0.12 * dim <= c <= 0.88 * dim and (w[span_key[1]] - w[span_key[0]]) >= 0.3 * dim:
                 kept.append(w)
         out = []
         for w in sorted(kept, key=lambda x: -abs(x[span_key[1]] - x[span_key[0]])):

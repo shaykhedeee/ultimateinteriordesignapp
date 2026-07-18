@@ -49,7 +49,7 @@ export default function OrchestratorStudio({ projectId }) {
       };
       appendLog('info', `Posting to /api/ai/interiors/orchestrate with rooms=[${body.rooms.join(',')}] maxRooms=${maxRooms}`);
 
-      const res = await fetch(`${apiUrl('')}/api/ai/interiors/orchestrate`, {
+      const res = await fetch(apiUrl('ai/interiors/orchestrate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -164,7 +164,7 @@ export default function OrchestratorStudio({ projectId }) {
                 setLogs((prev) => [...prev, { id: `log-${Date.now()}`, level: 'info', message: `AURA action: ${cmd.label}` , ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }]);
                 try {
                   const projectId = await (await import('../stores/appStore.js')).useAppStore.getState().ensureProject();
-                  const res = await fetch(`${apiUrl('')}/api/ai/actions/execute`, {
+                  const res = await fetch(apiUrl('ai/actions/execute'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ actionId: cmd.id, params: { room, style, budgetTier }, context: { projectId, organizationId: 'global' } })

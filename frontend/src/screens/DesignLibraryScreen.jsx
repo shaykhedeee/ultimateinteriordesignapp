@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BookOpen, Search, Image as ImageIcon, ArrowRight, LayoutGrid } from 'lucide-react';
+import { BookOpen, Search, ArrowRight, LayoutGrid, SlidersHorizontal } from 'lucide-react';
+
+const FALLBACK_LIBRARY = [
+  { category: 'kitchens', label: 'Kitchens', images: ['/reference-library/kitchens/indian-modular-kitchen.jpg', '/reference-library/kitchens/kitchen-01.jpg', '/reference-library/kitchens/kitchen-02.jpg'] },
+  { category: 'wardrobes', label: 'Wardrobes', images: ['/reference-library/wardrobes/wardrobe-01.jpg', '/reference-library/wardrobes/wardrobe-02.jpg'] },
+  { category: 'living-rooms', label: 'Living Rooms', images: ['/reference-library/living-rooms/indian-living-03.jpg', '/reference-library/living-rooms/modern-living-01.jpg'] },
+  { category: 'bedrooms', label: 'Bedrooms', images: ['/reference-library/bedrooms/bedroom-01.jpg', '/reference-library/bedrooms/bedroom-02.jpg'] },
+  { category: 'renders-3d', label: '3D Renders', images: ['/reference-library/renders-3d/modern-kitchen-3d-01.jpg', '/reference-library/renders-3d/modern-living-3d-01.jpg'] }
+].map(group => ({ ...group, count: group.images.length, stages: ['Reference'] }));
 
 // Design Library — the in-app "Inspiration / teaching" view built from the
 // real Indian-interior reference images copied into frontend/public/reference-library.
@@ -14,9 +22,9 @@ export default function DesignLibraryScreen({ onUseInspiration }) {
 
   useEffect(() => {
     fetch('/api/design-library')
-      .then(r => r.ok ? r.json() : [])
-      .then(d => { setLibrary(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('library unavailable')))
+      .then(d => { setLibrary(Array.isArray(d) && d.length ? d : FALLBACK_LIBRARY); setLoading(false); })
+      .catch(() => { setLibrary(FALLBACK_LIBRARY); setLoading(false); });
   }, []);
 
   const categories = useMemo(() => ['all', ...library.map(g => g.category)], [library]);
@@ -49,10 +57,10 @@ export default function DesignLibraryScreen({ onUseInspiration }) {
               <BookOpen className="w-5 h-5 text-[var(--gold)]" />
             </div>
             <div>
-              <h1 className="text-lg font-extrabold text-white">Design Library</h1>
+              <h1 className="text-lg font-extrabold text-white">Furniture Reference Library</h1>
               <p className="text-[11px] text-slate-400">
                 Real Indian interior references & 3D renders — {totalImages} images across {library.length} categories.
-                Learn materials, layouts & finishes, then push any image as a render reference.
+                Use references to guide the scene, then place measured furniture in the 2D/3D studio.
               </p>
             </div>
           </div>
@@ -68,7 +76,8 @@ export default function DesignLibraryScreen({ onUseInspiration }) {
         </div>
 
         {/* Category filter */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
           {categories.map(cat => (
             <button
               key={cat}
@@ -79,7 +88,7 @@ export default function DesignLibraryScreen({ onUseInspiration }) {
                   : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-500'
               }`}
             >
-              {cat === 'all' ? 'All' : library.find(g => g.category === cat)?.label || cat}
+              {cat === 'all' ? 'All references' : library.find(g => g.category === cat)?.label || cat}
             </button>
           ))}
         </div>
@@ -120,7 +129,7 @@ export default function DesignLibraryScreen({ onUseInspiration }) {
                       onClick={(e) => { e.stopPropagation(); onUseInspiration && onUseInspiration(group.category); }}
                       className="flex items-center gap-1 text-[10px] bg-[var(--gold)] text-slate-900 px-2 py-1 rounded font-bold"
                     >
-                      Use as reference <ArrowRight className="w-3 h-3" />
+                      Use in design studio <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
                 </div>

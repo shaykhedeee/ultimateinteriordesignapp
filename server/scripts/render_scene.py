@@ -64,17 +64,31 @@ def create_box(name, width, height, depth, x, y, z, rot_z=0.0, material=None):
         
     return obj
 
+def scene_model(scene_data):
+    """Read scene.v1 first, with legacy room_shell compatibility."""
+    level = (scene_data.get('levels') or [{}])[0]
+    shell = scene_data.get('room_shell', {})
+    walls = level.get('walls') or scene_data.get('walls') or shell.get('walls', [])
+    modules = level.get('modules') or scene_data.get('placed_modules', [])
+    height_mm = shell.get('heightMm', 2800)
+    if walls:
+        xs = [point for wall in walls for point in (wall.get('x1', wall.get('startMm', {}).get('x', 0)), wall.get('x2', wall.get('endMm', {}).get('x', 0)))]
+        ys = [point for wall in walls for point in (wall.get('y1', wall.get('startMm', {}).get('y', 0)), wall.get('y2', wall.get('endMm', {}).get('y', 0)))]
+        width_mm = max(max(xs) - min(xs), 1000)
+        depth_mm = max(max(ys) - min(ys), 1000)
+        height_mm = max([height_mm] + [wall.get('heightMm', height_mm) for wall in walls])
+    else:
+        width_mm = shell.get('widthMm', 4000)
+        depth_mm = shell.get('depthMm', 3000)
+    return walls, modules, width_mm / 1000.0, depth_mm / 1000.0, height_mm / 1000.0
+
 def build_room(scene_data):
     # Standard materials
     wall_mat = create_pbr_material("WallMaterial", (0.95, 0.93, 0.88, 1.0), 0.0, 0.8) # Cream
     floor_mat = create_pbr_material("FloorMaterial", (0.9, 0.88, 0.83, 1.0), 0.0, 0.3) # Beige marble feel
     ceiling_mat = create_pbr_material("CeilingMaterial", (0.98, 0.98, 0.98, 1.0), 0.0, 0.9) # Warm white
 
-    room_shell = scene_data.get("room_shell", {})
-    walls = room_shell.get("walls", [])
-    room_w = room_shell.get("widthMm", 4000) / 1000.0
-    room_d = room_shell.get("depthMm", 3000) / 1000.0
-    room_h = room_shell.get("heightMm", 2800) / 1000.0
+    walls, _, room_w, room_d, room_h = scene_model(scene_data)
     
     # Build Floor
     create_box("Floor", room_w, 0.02, room_d, 0, 0, -0.01, material=floor_mat)
@@ -98,7 +112,7 @@ def build_room(scene_data):
             # Parse wall start/end coordinates (in mm)
             x1, y1 = w.get("x1", 0) / 1000.0, w.get("y1", 0) / 1000.0
             x2, y2 = w.get("x2", 0) / 1000.0, w.get("y2", 0) / 1000.0
-            h = w.get("heightMm", room_shell.get("heightMm", 2800)) / 1000.0
+            h = w.get("heightMm", room_h * 1000) / 1000.0
             t = w.get("thicknessMm", 150) / 1000.0
             
             # Midpoint
@@ -122,7 +136,7 @@ def build_modules(scene_data):
         'handle': create_pbr_material("HandleMat", (0.05, 0.05, 0.05, 1.0), 0.9, 0.3) # Black metal
     }
 
-    modules = scene_data.get("placed_modules", [])
+    _, modules, _, _, _ = scene_model(scene_data)
     for idx, m in enumerate(modules):
         w = m.get("widthMm", 600) / 1000.0
         h = m.get("heightMm", 720) / 1000.0
@@ -218,10 +232,7 @@ def setup_lighting(scene_data):
         custom_light.data.color = color
 
 def setup_camera(camera_preset, scene_data):
-    room_shell = scene_data.get("room_shell", {})
-    room_w = room_shell.get("widthMm", 4000) / 1000.0
-    room_d = room_shell.get("depthMm", 3000) / 1000.0
-    room_h = room_shell.get("heightMm", 2800) / 1000.0
+    _, _, room_w, room_d, room_h = scene_model(scene_data)
 
     bpy.ops.object.camera_add()
     cam = bpy.context.active_object
@@ -328,7 +339,7 @@ def apply_id_mask_materials(scene_data):
                 obj.data.materials.clear()
                 obj.data.materials.append(mat)
 
-def render_scene(output_path, quality='draft', mode='render'):
+def render_scene(output_path, quality='draft', mode='render', seed=0):
     scene = bpy.context.scene
     scene.render.image_settings.file_format = 'PNG'
     scene.render.filepath = output_path
@@ -347,12 +358,18 @@ def render_scene(output_path, quality='draft', mode='render'):
             scene.eevee.use_ssr = False
     elif quality == 'final':
         scene.render.engine = 'CYCLES'
-        cycles_pref = bpy.context.preferences.addons['cycles'].preferences
-        cycles_pref.compute_device_type = 'CUDA'
-        for device in cycles_pref.get_devices_for_type('CUDA'):
-            device.use = True
-        scene.cycles.device = 'GPU'
-        scene.cycles.samples = 128
+        # GPU is an optimization, never a requirement for reproducible output.
+        scene.cycles.device = 'CPU'
+        try:
+            cycles_pref = bpy.context.preferences.addons['cycles'].preferences
+            cycles_pref.compute_device_type = 'CUDA'
+            for device in cycles_pref.get_devices_for_type('CUDA'):
+                device.use = True
+            scene.cycles.device = 'GPU'
+        except Exception as err:
+            print(f"Cycles GPU unavailable; using CPU: {err}")
+        scene.cycles.seed = seed
+        scene.cycles.samples = 256
         scene.cycles.use_denoising = True
     else: # draft
         scene.render.engine = 'BLENDER_EEVEE' if hasattr(bpy.types, 'BLENDER_EEVEE') else 'BLENDER_EEVEE_NEXT'
@@ -373,6 +390,7 @@ def main():
     camera_preset = "perspective_main"
     quality = "draft"
     mode = "render"
+    seed = 0
     
     if "--scene" in args:
         scene_path = args[args.index("--scene") + 1]
@@ -384,6 +402,8 @@ def main():
         quality = args[args.index("--quality") + 1]
     if "--mode" in args:
         mode = args[args.index("--mode") + 1]
+    if "--seed" in args:
+        seed = int(args[args.index("--seed") + 1])
         
     if not scene_path or not os.path.exists(scene_path):
         print(f"Error: scene file not found or invalid at '{scene_path}'")
@@ -406,7 +426,7 @@ def main():
         setup_camera(camera_preset, scene_data)
     
     # Render
-    render_scene(output_path, quality, mode)
+    render_scene(output_path, quality, mode, seed)
 
 if __name__ == "__main__":
     main()

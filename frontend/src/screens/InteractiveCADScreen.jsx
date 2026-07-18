@@ -1,4 +1,5 @@
 import { apiUrl, getApiBase, backendAssetSrc } from '../utils/api.js';
+const API_BASE = apiUrl('');
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Square, DoorClosed, Ruler, Move, Compass, 
@@ -56,6 +57,7 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   // --- AI Layout State ---
   const [isDetectingLayout, setIsDetectingLayout] = useState(false);
+  const [aiDetectError, setAiDetectError] = useState('');
 
   // --- Undo/Redo Stacks ---
   const [history, setHistory] = useState([]);
@@ -171,21 +173,27 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
 
   const triggerAiDetect = async () => {
     setIsDetectingLayout(true);
+    setAiDetectError('');
     try {
-      const res = await fetch(`${API_BASE}/projects/${projectId}/cad/ai-detect`, {
+      // The analyser is the canonical plan-intelligence path. The drafter
+      // consumes its persisted walls, openings, rooms, and scale so both
+      // screens cannot drift into separate interpretations.
+      const res = await fetch(`${API_BASE}/projects/${projectId}/floorplan/analyze-enhance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || `Analysis failed (${res.status})`);
       if (data.success) {
-        alert("AI Floorplan analysis complete: partition walls traced, room zones marked, and cabinet modules placed!");
+        const rooms = data.interpretation?.rooms || [];
+        setAiDetectError(data.message || `Analysis complete: ${rooms.length} room(s) detected. Review the proposed geometry before saving.`);
         loadCADData();
       } else {
-        alert(data.error || "AI floorplan analysis failed.");
+        throw new Error(data.message || data.error || 'Floor-plan analysis failed.');
       }
     } catch (err) {
       console.error(err);
-      alert("Error contacting AI layout engine.");
+      setAiDetectError(err.message || 'Could not analyze this plan. The upload is still saved; you can trace it manually or retry.');
     } finally {
       setIsDetectingLayout(false);
     }
@@ -835,6 +843,11 @@ export default function InteractiveCADScreen({ projectId, onComplete }) {
             {isDetectingLayout ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             AI Auto-Detect Layout
           </button>
+          {aiDetectError && (
+            <div className="mt-2 rounded-lg border border-[#C9A84C]/25 bg-[#C9A84C]/5 px-3 py-2 text-[10px] text-slate-300" role="status">
+              {aiDetectError}
+            </div>
+          )}
         </div>
 
         {/* Selected Item Properties Panel */}

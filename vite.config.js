@@ -67,5 +67,4 @@ export default defineConfig({
     rolldownOptions: { output: { target: 'es2020' } }
   },
   esbuild: { target: 'es2020' },
-  envDir: '..'
 });
