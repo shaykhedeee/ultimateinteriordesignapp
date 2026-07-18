@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spacious Venture - Client Intake & AI Interior Designer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Premium Top Navigation Header -->
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">S</div>
+      <div class="logo-text">SPACIOUS <span>VENTURE</span></div>
+      <div class="studio-badge">DESIGN STUDIO</div>
+    </div>
+    <div class="nav-actions">
+      <button class="btn-premium-nav" onclick="window.location.reload()">
+        <span>🔄</span> Reset Intake Form
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Work Workspace Frame -->
+  <div class="app-container">
+
+    <!-- Left Column Panel: Client Questionnaire Wizard -->
+    <aside class="onboarding-panel" id="onboarding-panel">
+      <!-- Collapse toggle button -->
+      <button class="panel-toggle-btn" id="panel-toggle">
+        <span>⬅️</span>
+      </button>
+
+      <div class="panel-header">
+        <h2 class="panel-title">Client Intake Wizard</h2>
+        <p class="panel-subtitle">Gather space preferences, timelines, and style parameters to generate custom blueprints.</p>
+        
+        <!-- Interactive Progress Lines -->
+        <div class="wizard-progress">
+          <div class="progress-bar"><div class="progress-fill" id="fill-1"></div></div>
+        </div>
+      </div>
+
+      <!-- Scrollable Form Wizard Section -->
+      <div class="form-scroll-container">
+        
+        <!-- Step 1: Contact Details & BHK Config -->
+        <div class="wizard-step active" data-step="1">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+            <span class="step-label" style="margin-bottom:0;">Step 1 of 5</span>
+            <button type="button" class="btn-secondary" id="btn-load-demo" onclick="loadDemoClient()" style="padding:4px 8px; font-size:10px; border-radius:12px; border:1px solid var(--accent-gold); color:var(--accent-gold); background:rgba(212,175,55,0.08); cursor:pointer; font-weight:600; display:flex; align-items:center; gap:4px; transition:all 0.2s;">
+              <span>⚡</span> Load Demo Client
+            </button>
+          </div>
+          <h3 class="step-title">Project & Client Profile</h3>
+          
+          <div class="form-group">
+            <label for="client-name">Client Name *</label>
+            <input type="text" id="client-name" placeholder="Enter full name" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="client-email">Email Address</label>
+            <input type="email" id="client-email" placeholder="client@example.com">
+          </div>
+
+          <div class="form-group">
+            <label for="client-phone">Phone / WhatsApp</label>
+            <input type="tel" id="client-phone" placeholder="+91 XXXXX XXXXX">
+          </div>
+
+          <div class="form-group">
+            <label for="bhk-select">Home/Office Layout Configuration</label>
+            <select id="bhk-select">
+              <option value="1bhk">1 BHK Apartment</option>
+              <option value="2bhk">2 BHK Apartment</option>
+              <option value="3bhk" selected>3 BHK Apartment</option>
+              <option value="villa">Luxury Villa / Duplex</option>
+              <option value="office">Commercial Office Space</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Step 2: Advanced Spatial parameters (Dimensions & Family) -->
+        <div class="wizard-step" data-step="2">
+          <span class="step-label">Step 2 of 5</span>
+          <h3 class="step-title">Spatial Parameters & Profile</h3>
+          
+          <div class="form-group">
+            <label for="ceiling-height-select">Clear Ceiling Height</label>
+            <select id="ceiling-height-select">
+              <option value="2900mm">Standard Residential (2900mm / 9.5 ft)</option>
+              <option value="3000mm" selected>Premium Residential (3000mm / 10 ft)</option>
+              <option value="3300mm">Double Height / Villa (3300mm / 11 ft)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label style="margin-bottom:6px;">Family Profile Factors</label>
+            <div style="display:flex; flex-direction:column; gap:10px; padding:12px; background-color:var(--bg-tertiary); border:1px solid var(--glass-border); border-radius:12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="profile-kids" checked style="width:16px; height:16px;">
+                <span style="font-size:12px; color:var(--text-secondary);">Toddlers/Kids (Requires rounded edges, washable paints)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="profile-elderly" style="width:16px; height:16px;">
+                <span style="font-size:12px; color:var(--text-secondary);">Elderly Members (Requires support rails, slip-resistant floors)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="profile-pets" style="width:16px; height:16px;">
+                <span style="font-size:12px; color:var(--text-secondary);">Pets (Requires scratch-proof laminate base boards)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="cooking-style-select">Cooking & Kitchen Style</label>
+            <select id="cooking-style-select">
+              <option value="heavy-masala" selected>Traditional Indian (Heavy frying / High-suction chimney required)</option>
+              <option value="light-continental">Light Continental (Task-oriented / Built-in microwave focus)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="material-tier-select">Material Core Plywood Tier</label>
+            <select id="material-tier-select">
+              <option value="gold-bwp" selected>Gold Class (IS 710 BWP Marine Grade - 100% Waterproof carcass everywhere)</option>
+              <option value="silver-bwr">Silver Class (BWP wet carcass + BWR dry areas carcass)</option>
+              <option value="bronze-hdmr">Bronze Class (HDMR board core + moisture resistant backing)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="kitchen-layout-select">Modular Kitchen Layout Style</label>
+            <select id="kitchen-layout-select">
+              <option value="l-shaped" selected>L-Shaped Layout (Optimal corner workspace)</option>
+              <option value="parallel">Parallel Counter Layout (Chef dual-zone efficiency)</option>
+              <option value="u-shaped">U-Shaped Layout (Maximum counters & storage)</option>
+              <option value="straight">Straight Counter (Compact / Space-saver)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="purifier-select">Water Purifier Setup</label>
+            <select id="purifier-select">
+              <option value="under-sink" selected>Under-Sink RO (Concealed premium utility carcass)</option>
+              <option value="wall-mount">Wall-Mounted RO (Standard cabinet casing)</option>
+              <option value="external-inlet">Utility Area / External wall mount (No cabinet impact)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="pantry-select">Modular Pantry System</label>
+            <select id="pantry-select">
+              <option value="hettich-larder" selected>6-Tier Hettich Soft-Close Larder Pull-out (Luxe storage)</option>
+              <option value="wire-baskets">Stainless Steel Modular Wire Pantry Baskets (Standard)</option>
+              <option value="wooden-matrix">Solid Wood Premium Shelving Matrix (Organic custom)</option>
+              <option value="none">No dedicated pantry unit</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="pooja-niche-select">Pooja Mandir Integration</label>
+            <select id="pooja-niche-select">
+              <option value="dedicated" selected>Dedicated Pooja Room (Teak CNC Jali doors)</option>
+              <option value="integrated-tv">Integrated Pooja Niche (Inside living room TV wall)</option>
+              <option value="wall-hung">Wall-Mounted Mandir Panel (Compact passage niche)</option>
+              <option value="none">No Pooja Space Required</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="gas-setup-select">Kitchen Cooktop & Gas Connection Setup</label>
+            <select id="gas-setup-select">
+              <option value="hob-piped" selected>Built-in Hob with Piped Gas (GAIL/direct wall route)</option>
+              <option value="hob-cylinder">Built-in Hob with LPG Cylinder (Requires ventilated under-hob cabinet)</option>
+              <option value="stove-piped">Countertop Gas Stove with Piped Gas (Standard slab clearance)</option>
+              <option value="stove-cylinder">Countertop Gas Stove with LPG Cylinder (Dedicated side cylinder chest)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="partition-style-select">Living Area Partition Divider</label>
+            <select id="partition-style-select">
+              <option value="cnc-jali" selected>CNC Carved Wooden Screen (Mandir/Dining divider)</option>
+              <option value="gold-metal">Brushed Gold Metal Partition Grid (Luxe contemporary)</option>
+              <option value="timber-rafters">Louvered Teak Wood Rafters (Semi-private vertical slits)</option>
+              <option value="none">No Divider Screen Required (Open layout concept)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Step 3: Aesthetic & Space Selector -->
+        <div class="wizard-step" data-step="3">
+          <span class="step-label">Step 3 of 5</span>
+          <h3 class="step-title">Style & Work Scope</h3>
+          
+          <label style="margin-bottom:8px; display:block;">Select Primary Aesthetic Direction</label>
+          <div class="visual-option-grid" style="margin-bottom:15px;">
+            <div class="visual-card style-card selected" data-style="modern-luxury">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">✨</div>
+              <h4 class="visual-card-title">Modern Luxury</h4>
+            </div>
+            <div class="visual-card style-card" data-style="bohemian-chic">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">🌿</div>
+              <h4 class="visual-card-title">Boho Chic</h4>
+            </div>
+            <div class="visual-card style-card" data-style="scandinavian-minimal">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">📐</div>
+              <h4 class="visual-card-title">Scandi Minimal</h4>
+            </div>
+            <div class="visual-card style-card" data-style="indian-contemporary">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">🕉️</div>
+              <h4 class="visual-card-title">Indian Contemporary</h4>
+            </div>
+            <div class="visual-card style-card" data-style="japandi-fusion">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">🌸</div>
+              <h4 class="visual-card-title">Japandi Fusion</h4>
+            </div>
+            <div class="visual-card style-card" data-style="industrial-rustic">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">⚙️</div>
+              <h4 class="visual-card-title">Industrial Rustic</h4>
+            </div>
+          </div>
+
+          <label style="margin-bottom:8px; display:block;">Select Spaces to Design</label>
+          <div class="visual-option-grid">
+            <div class="visual-card space-card selected" data-space="living">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">🛋️</div>
+              <h4 class="visual-card-title">Living Room</h4>
+            </div>
+            <div class="visual-card space-card selected" data-space="kitchen">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">🍳</div>
+              <h4 class="visual-card-title">Modular Kitchen</h4>
+            </div>
+            <div class="visual-card space-card selected" data-space="wardrobe">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">🛏️</div>
+              <h4 class="visual-card-title">Master Suite</h4>
+            </div>
+            <div class="visual-card space-card" data-space="kidsBed">
+              <div class="checkmark">✓</div>
+              <div class="visual-card-icon">🧸</div>
+              <h4 class="visual-card-title">Kids Bedroom</h4>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Floor Plan Upload & Core Requirements -->
+        <div class="wizard-step" data-step="4">
+          <span class="step-label">Step 4 of 5</span>
+          <h3 class="step-title">Blueprint & Mandatory Requirements</h3>
+          
+          <div class="form-group">
+            <label>Scan / PDF / Image of Architectural Plan</label>
+            <div class="dropzone-container" id="dropzone">
+              <div class="dropzone-icon">📁</div>
+              <span class="dropzone-text">Drag & drop floor plan here</span>
+              <span class="dropzone-subtext">Supports PNG, JPG, or PDF blueprint scales</span>
+              <input type="file" id="floorplan-input" style="display:none" accept="image/*,application/pdf">
+            </div>
+            
+            <div class="file-preview-card" id="preview-card">
+              <div class="file-preview-icon">🖼️</div>
+              <div class="file-preview-info">
+                <span class="file-name" id="file-preview-name">blueprint.png</span>
+                <span class="file-size" id="file-preview-size">1.4 MB</span>
+              </div>
+              <button class="file-remove-btn" id="remove-file-btn">✕</button>
+            </div>
+          </div>
+
+          <!-- Style Reference / Pinterest Inspirations Dropzone -->
+          <div class="form-group" style="margin-top: 15px;">
+            <label style="color:var(--text-gold); font-weight:700;">Add Style Reference Images / Pinterest Inspirations (Optional)</label>
+            <div class="dropzone-container" id="reference-dropzone" style="padding: 20px 15px;">
+              <div class="dropzone-icon" style="font-size:24px;">📸</div>
+              <span class="dropzone-text" style="font-size:12px;">Drag & drop style references here</span>
+              <span class="dropzone-subtext" style="font-size:10px;">Select multiple inspiration images</span>
+              <input type="file" id="reference-input" style="display:none" accept="image/*" multiple>
+            </div>
+            
+            <div id="reference-preview-container" style="display:none; flex-direction:column; gap:8px; margin-top:10px;">
+              <span style="font-size:11px; color:var(--text-secondary);">Uploaded Inspirations:</span>
+              <div id="reference-preview-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:8px;">
+                <!-- Dynamic thumbnails will be injected here -->
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="custom-notes" style="color:var(--text-gold); font-weight:700;">Client Core Architectural & Spatial Requirements *</label>
+            <textarea id="custom-notes" rows="4" placeholder="Enter mandatory requirements here. Example: 'Need a cozy reading nook in living room corner, high suction chimney for heavy Indian cooking, slip-resistant floors...'" required></textarea>
+          </div>
+        </div>
+
+        <!-- Step 5: Vastu Shastra & Lighting Preferences -->
+        <div class="wizard-step" data-step="5">
+          <span class="step-label">Step 5 of 5</span>
+          <h3 class="step-title">Standards & Vastu Checks</h3>
+          
+          <div class="form-group" style="flex-direction:row; justify-content:space-between; align-items:center; background-color:rgba(255,255,255,0.02); padding:15px; border-radius:12px; border:1px solid var(--glass-border);">
+            <div>
+              <label style="font-size:14px; font-weight:600; color:var(--text-primary);">Vastu Shastra Compliance</label>
+              <p style="font-size:11px; color:var(--text-secondary);">Enable direction-based room optimization advice.</p>
+            </div>
+            <input type="checkbox" id="vastu-toggle" checked style="width:20px; height:20px; accent-color:var(--accent-gold); cursor:pointer;">
+          </div>
+
+          <div class="form-group">
+            <label for="lighting-select">Lighting Mood Preference</label>
+            <select id="lighting-select">
+              <option value="warm-ambient" selected>Warm Ambient (3000K Warm white / COB strip loops)</option>
+              <option value="cool-task">Cool Task (4000K Natural white / direct focus downlights)</option>
+              <option value="smart-dimmable">Dimmable Automation (Integrated smart scene control loops)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="flex-direction:row; justify-content:space-between; align-items:center; background-color:rgba(255,255,255,0.02); padding:15px; border-radius:12px; border:1px solid var(--glass-border); margin-top:10px;">
+            <div>
+              <label style="font-size:14px; font-weight:600; color:var(--text-primary);">Overhead Modular Lofts</label>
+              <p style="font-size:11px; color:var(--text-secondary);">Maximize vertical storage up to the slab ceiling.</p>
+            </div>
+            <input type="checkbox" id="lofts-toggle" checked style="width:20px; height:20px; accent-color:var(--accent-gold); cursor:pointer;">
+          </div>
+
+          <div class="form-group" style="margin-top:10px;">
+            <label for="chimney-vent-select">Kitchen Chimney Ducting Route</label>
+            <select id="chimney-vent-select">
+              <option value="external" selected>Direct External Venting (Requires core wall cut-out - High tadka suction)</option>
+              <option value="recirculating">Recirculating Carbon Filter (No ducting - For high structural beams)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-top:10px;">
+            <label for="vastu-strictness-select">Vastu Shastra Strictness Level</label>
+            <select id="vastu-strictness-select">
+              <option value="strict">Strict Adherence (Exact orientations mandatory)</option>
+              <option value="general" selected>General Guidelines (Basic balance advice)</option>
+              <option value="minimal">Minimal / Modern Layout focus (No strict limits)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-top:10px;">
+            <label for="shutter-finish-select">Wardrobe Shutter Core Finish</label>
+            <select id="shutter-finish-select">
+              <option value="acrylic" selected>1.5mm High-Gloss Specular Acrylic (Mirror reflection)</option>
+              <option value="matte-laminate">Super-Matte Anti-Fingerprint Velvet Laminate</option>
+              <option value="pu-veneer">Wire-Brushed Natural Teak PU Veneer Coating</option>
+              <option value="smoked-glass">Smoked Tinted Glass with Black Gold Profile framing</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-top: 15px;">
+            <label style="margin-bottom:6px;">Integrated Indian Appliances Profile</label>
+            <div style="display:flex; flex-direction:column; gap:10px; padding:12px; background-color:var(--bg-tertiary); border:1px solid var(--glass-border); border-radius:12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="appliance-otg" checked style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Built-in Microwave & Oven (OTG Tall Unit)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="appliance-dishwasher" style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Under-Counter Dishwasher Cavity</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="appliance-fridge" checked style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Double-Door Refrigerator Cavity (with ventilation gap)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="appliance-utility" style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Washing Machine / Utility Sink connection</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 15px;">
+            <label style="margin-bottom:6px;">Modular Fittings & Accessories</label>
+            <div style="display:flex; flex-direction:column; gap:10px; padding:12px; background-color:var(--bg-tertiary); border:1px solid var(--glass-border); border-radius:12px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="fitting-tandem" checked style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Soft-Close double-walled Tandem Boxes</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="fitting-pullout" checked style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Stainless Steel Kitchen Bottle Pull-out (150mm)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="fitting-corner" style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Corner Space Magic Carousel / Lazy Susan</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="fitting-wardrobe-pull" style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Wardrobe Pull-out Trouser & Saree Rack</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="safe-vault-toggle" checked style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Concealed Shutter Safe (Biometric vault inside wardrobe cabinet base)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="foyer-seating-toggle" checked style="width:16px; height:16px; accent-color:var(--accent-gold); cursor:pointer;">
+                <span style="font-size:12px; color:var(--text-secondary);">Shoe Cushion Bench (Integrated entry foyer cushioned seating ledge)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Navigation buttons for panel -->
+      <footer class="wizard-footer">
+        <button class="btn-secondary" id="wizard-prev" disabled>Back</button>
+        <button class="btn-primary" id="wizard-next">Continue <span>➡️</span></button>
+      </footer>
+    </aside>
+    <!-- Left panel drag resizer -->
+    <div class="sidebar-resizer-left" id="sidebar-resizer-left" style="width: 6px; cursor: col-resize; z-index: 10; background: rgba(255,255,255,0.03); border-right: 1px solid var(--glass-border); transition: all 0.2s; position: relative;"></div>
+
+    <!-- Right Workspace Area -->
+    <main class="workspace-container">
+      
+      <!-- INTRO STATE -->
+      <div class="workspace-intro" id="workspace-intro">
+        <div class="intro-circle">
+          <span class="intro-icon">📐</span>
+        </div>
+        <h1 class="intro-title">Spacious Venture <span>Intake Studio</span></h1>
+        <p class="intro-desc">Sit down with your client, complete the questionnaire profile on the left, upload their floor plan blueprint, and let the AI compile recommended custom visual options in real-time.</p>
+        
+        <div class="intro-cards-row">
+          <div class="intro-feature-card">
+            <span class="feature-card-icon">⚡</span>
+            <h4 class="feature-card-title">Instant Moodboards</h4>
+            <p class="feature-card-desc">Recommended visual TV Units, wardrobes, paints, and quartz laminates generated instantly based on their inputs.</p>
+          </div>
+          <div class="intro-feature-card">
+            <span class="feature-card-icon">🧭</span>
+            <h4 class="feature-card-title">Vastu & Ergonomics</h4>
+            <p class="feature-card-desc">Real-time Vastu orientation check and structural mm sizing compliance checking built specifically for Indian homes.</p>
+          </div>
+          <div class="intro-feature-card">
+            <span class="feature-card-icon">📋</span>
+            <h4 class="feature-card-title">Aesthetic Specifications</h4>
+            <p class="feature-card-desc">A complete specifications brief locked for final architectural reviews to close deals on value, not price.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVE WORKSPACE DASHBOARD -->
+      <div class="workspace-active" id="workspace-active">
+        
+        <!-- Column A: Dynamic Interactive Canvas Floor Plan (Left) -->
+        <section class="canvas-column">
+          <div class="canvas-toolbar">
+            <h3 class="canvas-title">
+              <span>🗺️</span> Interactive Floor Plan Model
+              <span style="font-size:11px;color:var(--text-muted);font-weight:normal;" id="client-bhk-tag">3BHK</span>
+            </h3>
+            
+            <div class="ai-analyzing-pill pulse" id="ai-status-pill">
+              <span class="dot-pulse"></span> Layout Analyzed by AI
+            </div>
+
+            <div class="canvas-actions">
+              <button class="canvas-btn active" onclick="FLOORPLAN_CANVAS.resize()">🔄 Fit View</button>
+            </div>
+          </div>
+
+          <div class="floorplan-viewer-wrapper" id="floorplan-viewer-wrapper">
+            <!-- Floating Editor Toolbar -->
+            <div class="floorplan-editor-toolbar" id="floorplan-editor-toolbar" style="position: absolute; top: 15px; left: 15px; display: flex; gap: 8px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); padding: 8px 12px; border-radius: 20px; z-index: 10; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); align-items: center;">
+              <span style="font-size: 11px; font-weight: 600; color: var(--text-gold); text-transform: uppercase; letter-spacing: 0.5px; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 8px; margin-right: 4px;">🛠️ Editor</span>
+              <button class="editor-btn" id="btn-editor-toggle" onclick="FLOORPLAN_CANVAS.toggleEditorMode()" style="background: none; border: none; color: #fff; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; transition: all 0.3s;">
+                <span>Toggle: OFF 🔴</span>
+              </button>
+              <div id="editor-actions-group" style="display: none; align-items: center; gap: 8px; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 8px;">
+                <button class="editor-action-btn" id="btn-add-room" onclick="FLOORPLAN_CANVAS.showAddRoomDialog()" style="background: var(--bg-tertiary); border: 1px solid var(--glass-border); color: #fff; font-size: 11px; cursor: pointer; padding: 4px 10px; border-radius: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                  <span>➕ Add Space</span>
+                </button>
+                <button class="editor-action-btn" id="btn-delete-room" onclick="FLOORPLAN_CANVAS.deleteSelectedRoom()" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--accent-rose); font-size: 11px; cursor: pointer; padding: 4px 10px; border-radius: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s;">
+                  <span>🗑️ Delete Selected</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Add Space Dialog overlay -->
+            <div id="add-room-dialog" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px); border: 1px solid var(--accent-gold); padding: 20px; border-radius: 16px; z-index: 50; box-shadow: 0 10px 40px rgba(0,0,0,0.8); width: 280px; flex-direction: column; gap: 12px;">
+              <h4 style="margin: 0; font-family: 'Outfit'; font-size: 14px; color: var(--text-gold); text-transform: uppercase;">Add Custom Space</h4>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 10px; color: var(--text-secondary);">Space Type</label>
+                <select id="new-room-type" style="background: #090a0f; border: 1px solid var(--glass-border); color: #fff; padding: 6px; border-radius: 6px; font-size: 12px;">
+                  <option value="living">Living Room (🛋️)</option>
+                  <option value="kitchen">Modular Kitchen (🍳)</option>
+                  <option value="masterBed">Master Suite (👑)</option>
+                  <option value="kidsBed">Kids Bedroom (🧸)</option>
+                  <option value="temple">Pooja Mandir (🙏)</option>
+                  <option value="foyer">Foyer Entrance (👞)</option>
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 10px; color: var(--text-secondary);">Vastu Cardinal Orientation</label>
+                <select id="new-room-vastu" style="background: #090a0f; border: 1px solid var(--glass-border); color: #fff; padding: 6px; border-radius: 6px; font-size: 12px;">
+                  <option value="NE">North-East (Ishanya)</option>
+                  <option value="E">East (Social)</option>
+                  <option value="SE">South-East (Agni)</option>
+                  <option value="S">South (Yam)</option>
+                  <option value="SW">South-West (Stability)</option>
+                  <option value="W">West (Air)</option>
+                  <option value="NW">North-West (Wind)</option>
+                  <option value="N">North (Wealth)</option>
+                </select>
+              </div>
+              <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button onclick="FLOORPLAN_CANVAS.addRoomNode()" style="flex:1; background: var(--grad-gold); color:#000; border:none; padding:6px; border-radius:8px; font-size:11px; font-weight:600; cursor:pointer;">Add</button>
+                <button onclick="document.getElementById('add-room-dialog').style.display = 'none'" style="flex:1; background: var(--bg-tertiary); color:#fff; border:1px solid var(--glass-border); padding:6px; border-radius:8px; font-size:11px; cursor:pointer;">Cancel</button>
+              </div>
+            </div>
+
+            <canvas id="floorplan-canvas"></canvas>
+            
+            <div class="canvas-helper-tip">
+              <span class="canvas-helper-dot"></span> Click room hotspots to view customized visual packages
+            </div>
+
+            <div class="ai-instruction-indicator" id="ai-explanation-bubble" style="display:none;">
+              <span class="ai-indicator-icon">🤖</span>
+              <div class="ai-indicator-text">
+                <span class="ai-indicator-title">AI Customizer Override</span>
+                <span class="ai-indicator-desc" id="ai-explanation-text">Teal colors and marble textures prioritized based on text notes.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Column B: Beautiful Visual Moodboards (Right) -->
+        <!-- Right panel drag resizer -->
+        <div class="sidebar-resizer-right" id="sidebar-resizer-right" style="width: 6px; cursor: col-resize; z-index: 10; background: rgba(255,255,255,0.03); border-left: 1px solid var(--glass-border); transition: all 0.2s; position: relative;"></div>
+        <section class="studio-visualizer-column">
+          
+          <nav class="visualizer-nav">
+            <button class="nav-tab active" data-tab="overview">🛋️ Design Blueprint</button>
+            <button class="nav-tab" data-tab="tv">📺 TV Consoles</button>
+            <button class="nav-tab" data-tab="kitchen">🍳 Kitchens</button>
+            <button class="nav-tab" data-tab="wardrobe">🚪 Wardrobes</button>
+            <button class="nav-tab" data-tab="laminates">🎨 Laminates</button>
+            <button class="nav-tab" data-tab="paints">🌈 Colors</button>
+            <button class="nav-tab" data-tab="materials">🔧 Materials & Hardware</button>
+            <button class="nav-tab" data-tab="estimates">📋 Specifications Brief</button>
+          </nav>
+
+          <div class="visualizer-scroll-pane">
+            
+            <!-- VIEW BLOCK 1: OVERVIEW COMPONENT BLUEPRINT -->
+            <div class="workspace-view-block active" id="view-overview">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>Spacious Venture Dynamic Mood Board</h3>
+                  <p>Comprehensive layout renders and structural configurations matched for <span id="client-name-welcome">Client</span>.</p>
+                </div>
+              </div>
+
+              <!-- Main focal rendering 3D box -->
+              <div class="mockup-rendering-panel">
+                <div class="rendering-canvas-area" id="overview-rendering-view">
+                  <!-- TV unit or selected blueprint goes here -->
+                </div>
+                <div class="rendering-details-area">
+                  <div>
+                    <span class="selected-unit-badge">Currently Selected Option</span>
+                    <h3 class="selected-unit-title" id="overview-selection-title">Louvered Walnut Media Wall</h3>
+                    <p class="selected-unit-desc" id="overview-selection-desc">Walnut textures flanked by modern charcoal flutes and LED glow inlays.</p>
+                  </div>
+                  
+                  <div class="selected-material-pills" id="overview-material-pills">
+                    <!-- Dynamic material badges -->
+                  </div>
+
+                  <div class="color-variation-panel" style="margin-top: 10px; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 12px;">
+                    <span style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); display:block; margin-bottom: 8px; font-weight:600;">Color / Finish Variation Toggle</span>
+                    <div class="color-variation-toggles" id="overview-color-toggles" style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <!-- Dynamic color toggles injected by JS -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RENDERED GALLERIES FOR EACH SPACE (NEW) -->
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>3D Blueprint Renders Gallery</h3>
+                  <p>Real-time visual components loaded for each active spatial zone.</p>
+                </div>
+              </div>
+              <div id="blueprint-renders-gallery" style="margin-bottom:30px;">
+                <!-- dynamic room galleries will be injected by js -->
+              </div>
+
+              <!-- CLIENT REFERENCE INSPIRATIONS (NEW) -->
+              <div class="section-headline" id="pinterest-section-headline" style="display:none;">
+                <div class="headline-text">
+                  <h3>Client Reference Inspirations</h3>
+                  <p>Pinterest inspiration and reference images uploaded by the client.</p>
+                </div>
+              </div>
+              <div id="overview-pinterest-gallery" style="display:none; grid-template-columns: repeat(4, 1fr); gap:15px; margin-bottom:30px;">
+                <!-- dynamic reference swatches will be injected here -->
+              </div>
+
+              <!-- Vastu Shastra Compliance Widget -->
+              <div class="vastu-report-panel">
+                <div class="vastu-score-section">
+                  <div class="vastu-summary">
+                    <h4 class="vastu-summary-title">Vastu Shastra Compliance Report</h4>
+                    <p class="vastu-summary-desc">Direction-based architectural checks for modern stability and spiritual flow.</p>
+                  </div>
+                  <div class="vastu-score-radial">
+                    <div class="radial-circle-bg"></div>
+                    <div class="radial-circle-fill" id="vastu-radial-fill"></div>
+                    <div class="radial-value" id="vastu-radial-val">90%</div>
+                  </div>
+                </div>
+                
+                <div class="vastu-rules-grid" id="vastu-reports-list">
+                  <!-- Vastu rules rows -->
+                </div>
+              </div>
+            </div>
+
+            <!-- VIEW BLOCK 2: TV CONSOLE -->
+            <div class="workspace-view-block" id="view-tv">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>Focal TV Wall Configurations</h3>
+                  <p>Recommended bespoke TV panel designs including louvers, marble inlays, and pine structures.</p>
+                </div>
+              </div>
+              <div class="design-item-grid" id="tv-options-grid">
+                <!-- TV Units -->
+              </div>
+
+              <h4 style="font-family:'Outfit'; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-gold); margin: 25px 0 10px 0;">Pinterest & Curated Design Inspirations</h4>
+              <div class="materials-matrix" id="tv-pinterest-grid" style="margin-bottom:20px; display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <!-- dynamic pinterest inspirations loaded by JS -->
+              </div>
+              
+              <div class="standards-inspector">
+                <div class="standards-header">
+                  <span class="standards-icon">📐</span>
+                  <h4 class="standards-title">Indian Ergonomic Sizing Standards for Media Walls</h4>
+                </div>
+                <div class="standards-list">
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Center Line Height:</strong> 1050mm to 1150mm from finished floor. Places screens center at direct comfortable eye level for sitting sofas.</div>
+                  </div>
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Passageway Clearance:</strong> Minimum 900mm in front of consoles for active traffic flow.</div>
+                  </div>
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Louver Depth:</strong> 25mm thickness polystyrene flutes for rich shadows.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- VIEW BLOCK 3: MODULAR KITCHENS -->
+            <div class="workspace-view-block" id="view-kitchen">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>Premium Modular Kitchen Layouts</h3>
+                  <p>Acrylic L-shape and parallel layouts designed for modern modular kitchens.</p>
+                </div>
+              </div>
+              <div class="design-item-grid" id="kitchen-options-grid">
+                <!-- Kitchens -->
+              </div>
+
+              <h4 style="font-family:'Outfit'; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-gold); margin: 25px 0 10px 0;">Pinterest & Curated Design Inspirations</h4>
+              <div class="materials-matrix" id="kitchen-pinterest-grid" style="margin-bottom:20px; display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <!-- dynamic pinterest inspirations loaded by JS -->
+              </div>
+
+              <div class="standards-inspector">
+                <div class="standards-header">
+                  <span class="standards-icon">🍳</span>
+                  <h4 class="standards-title">Indian Ergonomic Sizing Standards for Modular Kitchens</h4>
+                </div>
+                <div class="standards-list">
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Countertop Height:</strong> 820mm - 850mm. Specifically lower than Western sizes (900mm) to minimize arm stress for standard Indian heights.</div>
+                  </div>
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Work Triangle:</strong> Sink (Water), Stove (Fire) and Fridge (Storage) distance should sum between 4.0m and 7.9m for smooth culinary traffic.</div>
+                  </div>
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Loft Clearances:</strong> Backsplash gap of 600mm enables high blender appliances without wall cabinet collisions.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- VIEW BLOCK 4: WARDROBES -->
+            <div class="workspace-view-block" id="view-wardrobe">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>High Height Modular Wardrobes</h3>
+                  <p>Select sliding smoked-glass profiles or PU swing shut lofts matching master suites.</p>
+                </div>
+              </div>
+              <div class="design-item-grid" id="wardrobe-options-grid">
+                <!-- Wardrobes -->
+              </div>
+
+              <h4 style="font-family:'Outfit'; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-gold); margin: 25px 0 10px 0;">Pinterest & Curated Design Inspirations</h4>
+              <div class="materials-matrix" id="wardrobe-pinterest-grid" style="margin-bottom:20px; display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <!-- dynamic pinterest inspirations loaded by JS -->
+              </div>
+
+              <div class="standards-inspector">
+                <div class="standards-header">
+                  <span class="standards-icon">🚪</span>
+                  <h4 class="standards-title">Indian Ergonomic Sizing Standards for Wardrobes</h4>
+                </div>
+                <div class="standards-list">
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Swing Door Depth:</strong> 600mm. Accommodates standard shoulder hanger rods without shutter friction.</div>
+                  </div>
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Sliding Door Depth:</strong> 650mm. Requires an extra 50mm clearance to fit heavy overlapping door tracks.</div>
+                  </div>
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>Indian Garments:</strong> Vertical rod clearances of 1100mm for Kurtas/Shirts; and 1600mm for floor-sweeping sarees or coats.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- VIEW BLOCK 5: LAMINATES MATRIX -->
+            <div class="workspace-view-block" id="view-laminates">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>Aesthetic Swatches & Materials</h3>
+                  <p>Choose high gloss acrylic, thermal healing soft-mattes, natural teak veneers, or fluted louvers.</p>
+                </div>
+              </div>
+              <div class="materials-matrix" id="laminates-options-grid">
+                <!-- Materials list -->
+              </div>
+            </div>
+
+            <!-- VIEW BLOCK 6: COLORS & PAINTS -->
+            <div class="workspace-view-block" id="view-paints">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>Curated Space Color Palettes</h3>
+                  <p>Select designer accent paints and background base coatings for Spacious Venture.</p>
+                </div>
+              </div>
+              <div class="materials-matrix" id="color-options-grid">
+                <!-- Colors list -->
+              </div>
+            </div>
+
+            <!-- VIEW BLOCK: MATERIALS & HARDWARE (NEW) -->
+            <div class="workspace-view-block" id="view-materials">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>Cabinet Materials & Hardware Specifications</h3>
+                  <p>Configure structural plywood cores, shutter layers, and premium German soft-close fittings.</p>
+                </div>
+              </div>
+
+              <h4 style="font-family:'Outfit'; font-size:14px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-gold); margin: 20px 0 10px 0;">Carcass Plywood & Core Selection</h4>
+              <div class="materials-matrix" id="plywood-options-grid" style="margin-bottom:30px;">
+                <!-- Carcass Materials dynamically injected by JS -->
+              </div>
+
+              <h4 style="font-family:'Outfit'; font-size:14px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-gold); margin: 20px 0 10px 0;">Premium Soft-Close Cabinet Hardware</h4>
+              <div class="materials-matrix" id="hardware-options-grid" style="margin-bottom:30px;">
+                <!-- Hardware Tiers dynamically injected by JS -->
+              </div>
+
+              <h4 style="font-family:'Outfit'; font-size:14px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-gold); margin: 20px 0 10px 0;">Indian Modular Installation Details</h4>
+              <div class="materials-matrix" id="modular-installation-grid" style="margin-bottom:30px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px;">
+                <div class="material-matrix-card" style="cursor: default; pointer-events: none;">
+                  <div class="material-texture-thumb" style="display:flex; align-items:center; justify-content:center; background-color:#161925; color:var(--text-gold); font-size:24px;">💨</div>
+                  <div class="material-matrix-info" style="margin-top: 8px;">
+                    <span class="material-matrix-type" style="color:var(--accent-mint); font-weight:600; font-size:10px;">LPG Cylinder Storage Carcass</span>
+                    <h4 class="material-matrix-name" id="mat-cylinder-status" style="font-size:13px; font-weight:600; margin: 4px 0;">Ventilation Configuration</h4>
+                    <p style="font-size:11px;color:var(--text-secondary);line-height:1.3" id="mat-cylinder-desc">Selected gas connection requirements.</p>
+                  </div>
+                </div>
+                <div class="material-matrix-card" style="cursor: default; pointer-events: none;">
+                  <div class="material-texture-thumb" style="display:flex; align-items:center; justify-content:center; background-color:#161925; color:var(--text-gold); font-size:24px;">📐</div>
+                  <div class="material-matrix-info" style="margin-top: 8px;">
+                    <span class="material-matrix-type" style="color:var(--text-gold); font-weight:600; font-size:10px;">Hob Counter Cutout & Clearances</span>
+                    <h4 class="material-matrix-name" id="mat-hob-status" style="font-size:13px; font-weight:600; margin: 4px 0;">Built-in Hob Installation</h4>
+                    <p style="font-size:11px;color:var(--text-secondary);line-height:1.3" id="mat-hob-desc">Selected cooktop type installation standard.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="standards-inspector">
+                <div class="standards-header">
+                  <span class="standards-icon">🔧</span>
+                  <h4 class="standards-title">Indian Interior Carcass Material Rules</h4>
+                </div>
+                <div class="standards-list">
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>IS 710 BWP Marine Ply</strong> is mandatory for wet kitchen countertops (under-sink, under-stove) and bathrooms to prevent mold and swelling.</div>
+                  </div>
+                  <div class="standard-item">
+                    <span class="standard-bullet">▪</span>
+                    <div><strong>IS 303 BWR / HDMR Boards</strong> are ideal for dry zones like bedrooms wardrobes, overhead lofts, and TV consoles to provide cost-effective durability.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- VIEW BLOCK 7: BLUEPRINT SPECIFICATION & LOCK BRIEF (REBRANDED - PRICING COMPLETELY REMOVED) -->
+            <div class="workspace-view-block" id="view-estimates">
+              <div class="section-headline">
+                <div class="headline-text">
+                  <h3>Unified Design Specification Matrix</h3>
+                  <p>Comprehensive selection logs and AI spatial solutions compiled for this project briefing.</p>
+                </div>
+              </div>
+
+              <div class="estimate-summary-block">
+                <div class="estimate-header">
+                  <h4 class="estimate-title">Project Spatial Specifications Brief</h4>
+                  <span class="estimate-tag">Aesthetic Blueprint Proposal</span>
+                </div>
+                
+                <div id="estimates-line-items" style="margin-top:10px;">
+                  <!-- Dynamic Room configurations with blue-line icons injected by js -->
+                </div>
+
+                <div class="closing-actions" style="margin-top:20px; border-top:1px dashed rgba(255,255,255,0.08); padding-top:20px;">
+                  <button class="closing-btn secondary" onclick="triggerModal('proposal')">📄 Generate PDF Brief Document</button>
+                  <button class="closing-btn primary" onclick="triggerModal('close')">🔒 Lock Design Specifications</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Dialog Popups / Modal Overlays -->
+  <div class="modal-overlay" id="deal-modal-overlay">
+    <div class="modal-content">
+      <button class="close-modal-btn">✕</button>
+      <div class="modal-success-icon" id="deal-modal-icon">🎉</div>
+      <h3 class="modal-title" id="deal-modal-title">Design Specifications Locked!</h3>
+      <p class="modal-desc" id="deal-modal-desc">Details loaded successfully.</p>
+      <button class="btn-primary" style="margin: 0 auto;" onclick="document.getElementById('deal-modal-overlay').classList.remove('active')">Acknowledge</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="standards.js"></script>
+  <script src="ai-engine.js"></script>
+  <script src="floorplan-canvas.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

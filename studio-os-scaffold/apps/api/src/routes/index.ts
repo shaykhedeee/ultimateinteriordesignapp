@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import { healthRouter } from '../modules/health/health.routes';
+import { leadsRouter } from '../modules/leads/leads.routes';
+import { projectsRouter } from '../modules/projects/projects.routes';
+import { intakeRouter } from '../modules/intake/intake.routes';
+import { scenesRouter } from '../modules/scenes/scenes.routes';
+import { commercialRouter } from '../modules/commercial/commercial.routes';
+import { floorPlansRouter } from '../modules/floorplans/floorplans.routes';
+import { rendersRouter } from '../modules/renders/renders.routes';
+import { drawingsRouter } from '../modules/drawings/drawings.routes';
+import { approvalsRouter } from '../modules/approvals/approvals.routes';
+import { jobsRouter } from '../modules/jobs/jobs.routes';
+import { materialsRouter } from '../modules/materials/materials.routes';
+import { proposalsRouter } from '../modules/proposals/proposals.routes';
+import { timelineRouter } from '../modules/timeline/timeline.routes';
+import { inboxRouter } from '../modules/inbox/inbox.routes';
+import { furnitureRouter } from '../modules/furniture/furniture.routes';
+
+export const apiRouter: Router = Router();
+
+apiRouter.use(healthRouter);
+apiRouter.use(leadsRouter);
+apiRouter.use(projectsRouter);
+apiRouter.use(intakeRouter);
+apiRouter.use(timelineRouter);
+apiRouter.use(inboxRouter);
+apiRouter.use(floorPlansRouter);
+apiRouter.use(materialsRouter);
+apiRouter.use(furnitureRouter);
+apiRouter.use(scenesRouter);
+apiRouter.use(rendersRouter);
+apiRouter.use(drawingsRouter);
+apiRouter.use(proposalsRouter);
+apiRouter.use(approvalsRouter);
+apiRouter.use(commercialRouter);
+apiRouter.use(jobsRouter);

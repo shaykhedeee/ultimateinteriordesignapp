@@ -1,0 +1,234 @@
+.approval-gate-panel {
+  background: #0d0f0e;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.gate-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.gate-header h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f4f0e8;
+  margin: 0;
+}
+
+.gate-progress {
+  font-size: 18px;
+  font-weight: 700;
+  color: #d19a3a;
+}
+
+.gate-progress.complete { color: #7dbb74; }
+
+.gate-loading {
+  text-align: center;
+  padding: 20px;
+  color: #6f756d;
+  font-size: 12px;
+}
+
+.gate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.gate-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.gate-item.passed {
+  background: rgba(125,187,116,0.06);
+  border-color: rgba(125,187,116,0.15);
+}
+
+.gate-item.blocked {
+  opacity: 0.7;
+}
+
+.gate-item.current {
+  background: rgba(200,155,69,0.08);
+  border-color: rgba(200,155,69,0.25);
+  opacity: 1;
+}
+
+.gate-status-icon {
+  font-size: 16px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.gate-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.gate-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.gate-icon { font-size: 14px; }
+
+.gate-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #f4f0e8;
+}
+
+.gate-now-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #c89b45;
+  background: rgba(200,155,69,0.15);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.gate-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.gate-detail-chip {
+  font-size: 10px;
+  color: #aaa49a;
+  background: rgba(255,255,255,0.04);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.gate-action {
+  margin-top: 6px;
+}
+
+.gate-blocked-msg {
+  font-size: 11px;
+  color: #d19a3a;
+  margin: 0 0 6px 0;
+}
+
+.gate-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.gate-passed-badge {
+  font-size: 10px;
+  color: #7dbb74;
+  margin-top: 2px;
+}
+
+.gate-connector {
+  position: absolute;
+  left: 20px;
+  top: 100%;
+  width: 2px;
+  height: 8px;
+  background: rgba(255,255,255,0.08);
+}
+
+.gate-connector.passed {
+  background: #7dbb74;
+}
+
+.gate-progress-bar {
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.gate-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7dbb74, #c89b45);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+/* Override Modal */
+.override-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.override-modal {
+  background: #101413;
+  border: 1px solid rgba(196,106,74,0.3);
+  border-radius: 10px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90vw;
+}
+
+.override-modal h4 {
+  margin: 0 0 12px 0;
+  color: #c46a4a;
+}
+
+.override-warning {
+  font-size: 12px;
+  color: #aaa49a;
+  margin-bottom: 12px;
+}
+
+.override-reason {
+  width: 100%;
+  min-height: 60px;
+  background: #171b19;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  padding: 8px;
+  color: #f4f0e8;
+  font-size: 12px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.override-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-danger {
+  background: rgba(196,106,74,0.2);
+  color: #c46a4a;
+  border: 1px solid rgba(196,106,74,0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(196,106,74,0.3);
+}

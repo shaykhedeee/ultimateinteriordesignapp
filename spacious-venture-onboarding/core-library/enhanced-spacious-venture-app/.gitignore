@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+storage/*.sqlite
+storage/*.sqlite-*
+storage/assets/
+storage/uploads/
+storage/proposals/
+storage/qa/
+.server.pid
+.client.pid
+.vite.log
+.vite.err.log
